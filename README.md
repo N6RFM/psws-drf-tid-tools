@@ -170,6 +170,7 @@ or use:
 
 ## Acknowledgments
 
+- Gwyn Griffiths (G3ZIL) for ongoing patient guidance and constructive feedback
 - HamSCI / PSWS infrastructure (Frissell group, University of Scranton)
 - W. Engelke (AB4EJ), University of Alabama, for the original spectrogram
   plotting approach
