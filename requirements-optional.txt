@@ -1,0 +1,6 @@
+# Optional dependencies for psws-drf-tid-tools
+# These improve specific outputs but aren't strictly required.
+
+# Better-looking maps with state/country outlines (tid_map.py).
+# Without cartopy, tid_map.py falls back to a plain lat/lon plot.
+cartopy>=0.21

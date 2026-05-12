@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+title: "psws-drf-tid-tools: a Python pipeline for analyzing Traveling Ionospheric Disturbances from HamSCI Grape Digital RF I/Q recordings"
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: Mattaliano
+    given-names: Robert
+    email: n6rfm1@gmail.com
+    alias: N6RFM
+type: software
+license: MIT
+version: 1.0.0
+date-released: 2026-05-12
+repository-code: "https://github.com/N6RFM/psws-drf-tid-tools"
+keywords:
+  - HamSCI
+  - ionosphere
+  - TID
+  - traveling ionospheric disturbance
+  - Doppler
+  - WWV
+  - amateur radio
+  - space weather
+  - Grape
+  - digital RF

@@ -1,0 +1,17 @@
+{
+  "_comment": "4-station DOA config for 19 Jan 2026 TID event. AC0G_ND SNR fades after ~01:18 UTC, so window ends at 01:15.",
+
+  "event_start_utc": "2026-01-19T00:00:00Z",
+  "event_end_utc":   "2026-01-19T01:15:00Z",
+  "resample_seconds": 10,
+
+  "use_bandpass": false,
+  "min_expected_speed_m_s": 100,
+
+  "stations": [
+    {"name": "N6RFM",   "file": "n6rfm.csv",   "lat": 32.94, "lon":  -97.21},
+    {"name": "AA6BD",   "file": "aa6bd.csv",   "lat": 35.06, "lon":  -85.13},
+    {"name": "W7LUX",   "file": "w7lux.csv",   "lat": 35.10, "lon": -111.71},
+    {"name": "AC0G_ND", "file": "ac0g_nd.csv", "lat": 46.88, "lon":  -96.83}
+  ]
+}

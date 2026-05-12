@@ -1,0 +1,10 @@
+# Core dependencies for psws-drf-tid-tools
+# All scripts assume Python 3.10 or newer.
+
+numpy>=1.24
+scipy>=1.10
+pandas>=2.0
+matplotlib>=3.7
+digital_rf>=2.6
+requests>=2.28
+beautifulsoup4>=4.11
