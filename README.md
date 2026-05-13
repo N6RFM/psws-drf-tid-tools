@@ -7,7 +7,7 @@ from HamSCI Grape Digital RF I/Q recordings.**
 
 A wave-like disturbance in the ionosphere that propagates over long distances, often caused by atmospheric or geomagnetic events. TIDs propagate towards the equator during storms, and can disrupt GNSS/GPS navigation, radio communications, and satellite operations.  
 
-## What this toolkit is intended for
+## What this toolkit is intended to do
 
 Given Doppler-vs-time data from a several HamSCI Grape DRF or WSPRDaemon (https://hamsci.org) stations
 recording the same WWV carrier, this toolkit lets you:
