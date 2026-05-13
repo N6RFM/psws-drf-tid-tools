@@ -6,12 +6,16 @@ Disturbance (TID) using the **psws-drf-tid-tools** pipeline, using the
 
 By the end you will have:
 
-- found which HamSCI stations recorded usable data for the event
+- identified the time window of a candidate TID at your own station
+  by visual inspection of its 24-hour Doppler spectrogram
+- found which other HamSCI stations recorded usable data for the same
+  event
 - downloaded and verified their raw Digital RF (DRF) I/Q recordings
 - extracted Doppler-vs-time CSVs from each recording
 - run a two-station cross-correlation as a sanity check
 - run the full multi-station direction-of-arrival inversion
-- produced publication figures (spectrograms, stacked Doppler, geometry map)
+- produced publication figures (spectrograms, stacked Doppler,
+  geometry map)
 
 The same process applies to any event you want to analyze; just substitute
 your event date, your station, and your event window.
@@ -40,7 +44,7 @@ The reference operator is **N6RFM/5** at Keller TX (EM12jw, 32.94°N
 
 Make sure the toolkit is set up:
 
-```bash
+```
 git clone https://github.com/N6RFM/psws-drf-tid-tools.git
 cd psws-drf-tid-tools
 pip install -r requirements.txt
@@ -53,7 +57,7 @@ All scripts respond to `--help` and `--version`. The
 
 We will work in a fresh directory:
 
-```bash
+```
 mkdir tid_event_20260119 && cd tid_event_20260119
 # Copy or symlink the scripts in. (We assume they are on your PATH or in
 # this folder for the commands below.)
@@ -61,13 +65,121 @@ mkdir tid_event_20260119 && cd tid_event_20260119
 
 ---
 
-## Step 1: find companion stations
+## Step 1: identify the TID region of interest at your own station
+
+Every other step in this pipeline starts from a specific UTC time
+window in which you suspect a TID is present at your reference
+station. **That window is identified first, by looking at your own
+station's full-day Doppler spectrogram by eye.** Companion-station
+selection, data download, Doppler extraction, and DOA inversion all
+flow from this choice.
+
+For our event we knew an X1.9 flare had occurred on 18 January and
+that LSTID activity often follows such events by a few hours, so we
+naturally looked at the post-flare evening of 18 January and into the
+UTC morning of 19 January. But the actual analysis window is something
+you commit to only after looking at the spectrogram.
+
+### Generate the full-day spectrogram
+
+Assuming your reference station's DRF recording for the event date
+is in `./n6rfm/`, render a 24-hour Doppler spectrogram:
+
+```
+python3 drf_spectrogram.py ./n6rfm \
+    --output n6rfm_survey.png \
+    --ylim=-2,2 \
+    --callsign "N6RFM/5" --grid "EM12jw"
+```
+
+Open the resulting PNG and look for **slow, wavy modulation of the
+carrier track**. A TID at this scale looks like the carrier wandering
+smoothly up and down over tens of minutes to a couple of hours, often
+with several visible oscillation cycles. The amplitude is typically a
+few tenths of a hertz to a few hertz of Doppler. Random RFI spikes,
+sharp single-sample glitches, and the slow diurnal drift of the carrier
+are *not* what you are looking for.
+
+For the 19 January 2026 spectrogram, the first ~90 minutes of the UTC
+day showed an unmistakable slow oscillation in N6RFM/5's WWV 10 MHz
+carrier track:
+
+- A pronounced negative excursion down to about -0.8 Hz around 00:40 UTC
+- A return through zero around 01:00 UTC
+- A positive peak near +0.6 Hz around 01:13 UTC
+- A return to near-zero by ~01:30 UTC
+
+That is approximately one full cycle of an ~80–100 minute wave — a
+textbook TID signature. The rest of the day showed unrelated
+storm-driven activity beginning in the local afternoon, but the early
+morning UTC hours were clean.
+
+### Choosing the window edges
+
+Two practical considerations decide where the window's edges go:
+
+1. **Include enough of the wave to be useful.** At minimum one
+   half-cycle (so a clear lead/lag can be measured between stations);
+   ideally one full cycle so the cross-correlation has both rising and
+   falling content to lock onto. Going beyond one cycle is fine if the
+   signal stays clean, but doesn't usually improve the result.
+2. **End the window before the carrier degrades.** If your reference
+   station's SNR drops sharply (nighttime fade, terminator, storm-
+   driven absorption) inside the window, the Doppler tracker becomes
+   unreliable and the correlation result is meaningless. Pick the
+   cleanest contiguous block you can.
+
+For the 19 January event, those two considerations told us the
+analysis window should be approximately **00:00 – 01:15 UTC**. This
+covers most of one full cycle of the wave at the reference station.
+The 01:15 end was actually constrained by a companion station
+(AC0G_ND's signal fades after ~01:18 UTC), but you only discover that
+later, in Step 3, when you have downloaded the companion data. Step 1
+gives you a candidate window from your reference station alone, which
+you then refine if needed.
+
+### Annotate the spectrogram to record your choice
+
+Once you have committed to a window, regenerate the spectrogram with
+the annotation in place — this is the figure you will use in any
+writeup:
+
+```
+python3 drf_spectrogram.py ./n6rfm \
+    --output n6rfm_jan19_annotated.png \
+    --ylim=-2,2 \
+    --callsign "N6RFM/5" --grid "EM12jw" \
+    --annotate "00:00,01:15,4-station DOA window"
+```
+
+The cyan-bracketed region in the resulting figure is the "region of
+interest" — the time window we will now propagate through every
+remaining step.
+
+### A note on automated detection
+
+The toolkit does include an automated TID-window detector
+(`tid_window_detector.py`) that scores 24-hour spectrograms for
+wave-like activity. It is useful when you have long stretches of
+continuous data and want to catalogue events from a station without
+prior knowledge of when they happened.
+
+For event-driven analysis like this one — where you already know
+roughly when the disturbance occurred (a known flare, geomagnetic
+storm, eclipse, etc.) — visual inspection is faster and more
+reliable. The eye is excellent at picking coherent slow modulation
+out of a noisy background; the automated detector exists as a
+complement, not a replacement.
+
+---
+
+## Step 2: find companion stations
 
 We need at least 3 stations (preferably 4+) with usable data for our
 event. The first script polls PSWS Central Control System and reports
 candidates ranked by geometric suitability:
 
-```bash
+```
 python3 find_event_stations.py \
     --date 2026-01-19 \
     --my-lat 32.94 --my-lon -97.21 \
@@ -123,7 +235,7 @@ Coverage is roughly N, S, E, W around the array centroid in Kansas.
 
 ---
 
-## Step 2: download and inspect the DRF data
+## Step 3: download and inspect the DRF data
 
 For each chosen station, download the DRF tarball from PSWS. The
 script's output includes direct download links. Extract each into a
@@ -140,7 +252,7 @@ tid_event_20260119/
 Now verify each station's metadata and (crucially) **identify the
 correct subchannel index for 10 MHz**:
 
-```bash
+```
 python3 drf_inspect.py --all . --frequency 10
 ```
 
@@ -170,6 +282,13 @@ Sample output for ac0g_nd:
   >>> For 10.0 MHz, USE: --subchannel 4
 ```
 
+This is also the right moment to **render a quick spectrogram of each
+companion station** and confirm that the wave you identified in Step 1
+at your own station is also visible (or at least plausibly present)
+in their data, and that their SNR is good through your candidate
+window. If one station has a fade across part of your window, you
+either truncate the window or drop that station.
+
 ### Why this step matters
 
 The mapping from subchannel index to frequency **varies between
@@ -185,13 +304,13 @@ on the frequency you expect.
 
 ---
 
-## Step 3: extract Doppler-vs-time CSVs
+## Step 4: extract Doppler-vs-time CSVs
 
 Now reduce each station's raw I/Q to a Doppler time series. For the
 analysis window 00:00–01:15 UTC on 19 January (the early, clean part
 of the event before AC0G_ND's signal fades):
 
-```bash
+```
 # Single-channel stations
 python3 drf_to_doppler.py ./n6rfm \
     --start 2026-01-19T00:00:00 --end 2026-01-19T01:15:00 \
@@ -208,7 +327,7 @@ python3 drf_to_doppler.py ./w7lux \
     --decim-seconds 10 --subchannel 0 \
     --output w7lux.csv --plot w7lux.png
 
-# Multi-subchannel station — note --subchannel 4 from step 2
+# Multi-subchannel station — note --subchannel 4 from step 3
 python3 drf_to_doppler.py ./ac0g_nd \
     --start 2026-01-19T00:00:00 --end 2026-01-19T01:15:00 \
     --decim-seconds 10 --subchannel 4 \
@@ -239,13 +358,13 @@ with SNR mostly above 40 dB. AC0G_ND's SNR begins to fade after about
 
 ---
 
-## Step 4: cross-correlate one pair as a sanity check
+## Step 5: cross-correlate one pair as a sanity check
 
 Before running the full multi-station inversion, it is worth doing a
 quick two-station cross-correlation to verify the wave is real and
 coherent. This is the simplest possible TID analysis:
 
-```bash
+```
 python3 tid_pair.py n6rfm.csv aa6bd.csv \
     --lat1 32.94 --lon1 -97.21 --name1 N6RFM \
     --lat2 35.06 --lon2 -85.13 --name2 AA6BD \
@@ -283,19 +402,19 @@ true speed.
 
 ---
 
-## Step 5: multi-station direction-of-arrival
+## Step 6: multi-station direction-of-arrival
 
 Build the DOA config interactively (the script auto-discovers stations
 and pulls their coordinates from the DRF metadata):
 
-```bash
+```
 python3 tid_doa_config.py --output event.json --scan .
 ```
 
 You will be prompted to confirm each station and the event window.
 Accept the suggested defaults; the resulting `event.json` looks like:
 
-```json
+```
 {
   "event_start_utc": "2026-01-19T00:00:00Z",
   "event_end_utc":   "2026-01-19T01:15:00Z",
@@ -313,7 +432,7 @@ Accept the suggested defaults; the resulting `event.json` looks like:
 
 Now run the inversion:
 
-```bash
+```
 python3 tid_doa.py event.json
 ```
 
@@ -379,7 +498,7 @@ correct for almost every event.
 
 ---
 
-## Step 6: make the publication figures
+## Step 7: make the publication figures
 
 Four figures tell the complete story.
 
@@ -387,7 +506,7 @@ Four figures tell the complete story.
 
 A spectrogram of the flare evening showing the short-wave fadeout:
 
-```bash
+```
 # Run from the Jan 18 DRF folder, not the Jan 19 one
 python3 drf_spectrogram.py ./n6rfm \
     --output n6rfm_jan18_annotated.png \
@@ -402,7 +521,9 @@ as expected from a major flare's prompt D-layer absorption.
 
 ### Figure 2: the TID window
 
-```bash
+You already made this in Step 1; it doubles as a publication figure:
+
+```
 python3 drf_spectrogram.py ./n6rfm \
     --output n6rfm_jan19_annotated.png \
     --ylim=-2,2 \
@@ -415,7 +536,7 @@ a minus sign (argparse otherwise treats it as a flag).
 
 ### Figure 3: stacked four-station comparison
 
-```bash
+```
 python3 tid_stack_plot.py \
     --config event.json \
     --output stack.png \
@@ -429,7 +550,7 @@ The wave's NE-to-SW motion is visible without any math.
 
 ### Figure 4: array geometry map
 
-```bash
+```
 python3 tid_map.py \
     --config event.json \
     --output map.png \
@@ -444,33 +565,39 @@ US, and the geometric relationships are immediately visible.
 
 ## Summary of what we just did
 
-1. Found 4 well-distributed companion stations on the event date.
-2. Verified each DRF, confirming the right subchannel for multi-
+1. Identified the TID region of interest at the reference station by
+   visually inspecting its 24-hour Doppler spectrogram (00:00–01:15
+   UTC on 19 January).
+2. Found 4 well-distributed companion stations on the event date.
+3. Verified each DRF, confirming the right subchannel for multi-
    subchannel data.
-3. Extracted four Doppler CSVs.
-4. Sanity-checked one pair with cross-correlation: AA6BD leads N6RFM
+4. Extracted four Doppler CSVs over the chosen window.
+5. Sanity-checked one pair with cross-correlation: AA6BD leads N6RFM
    by 15.7 min, consistent direction.
-5. Ran full 4-station DOA: 666 m/s SW at azimuth 215°, classified as
+6. Ran full 4-station DOA: 666 m/s SW at azimuth 215°, classified as
    LSTID.
-6. Produced four publication-quality figures.
+7. Produced four publication-quality figures.
 
 Total elapsed time, after the first cache build: about 20 minutes of
-shell commands.
+shell commands plus a few minutes of human judgement looking at the
+spectrogram.
 
 ## What to do for your own events
 
 The pattern is the same:
 
-1. Substitute your event date, your station, your event window.
-2. Pick 3+ companion stations from `find_event_stations.py` output,
+1. Render your reference station's 24-hour spectrogram and pick a
+   candidate TID window by eye.
+2. Find 3+ companion stations from `find_event_stations.py` output,
    prioritizing azimuthal coverage.
-3. Verify each DRF with `drf_inspect.py`.
-4. Extract Doppler at the same cadence (10-second works for almost
-   all TIDs).
+3. Verify each DRF with `drf_inspect.py`; render their spectrograms
+   and confirm the wave is plausibly visible at each.
+4. Extract Doppler at 10-second cadence over your chosen window.
 5. Run `tid_doa.py`.
 
 For situations where you have your reference station's Doppler but
-don't know yet *when* the TID was active, run `tid_window_detector.py`
+don't yet know *when* a TID was active — for instance scanning long
+archives for events to catalogue — run `tid_window_detector.py`
 on a 24-hour survey to find candidate windows automatically.
 
 For everyday reference once you know the pipeline, see the
