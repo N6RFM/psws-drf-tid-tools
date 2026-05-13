@@ -7,7 +7,8 @@ Disturbance (TID) using the **psws-drf-tid-tools** pipeline, using the
 By the end you will have:
 
 - identified the time window of a candidate TID at your own station
-  by visual inspection of its 24-hour Doppler spectrogram
+  or other chosen reference station by visual inspection of its
+  24-hour Doppler spectrogram
 - found which other HamSCI stations recorded usable data for the same
   event
 - downloaded and verified their raw Digital RF (DRF) I/Q recordings
@@ -65,14 +66,18 @@ mkdir tid_event_20260119 && cd tid_event_20260119
 
 ---
 
-## Step 1: identify the TID region of interest at your own station
+## Step 1: identify the TID region of interest at your reference station
 
 Every other step in this pipeline starts from a specific UTC time
-window in which you suspect a TID is present at your reference
-station. **That window is identified first, by looking at your own
-station's full-day Doppler spectrogram by eye.** Companion-station
-selection, data download, Doppler extraction, and DOA inversion all
-flow from this choice.
+window in which you suspect a TID is present at a chosen reference
+station. **That window is identified first, by looking at the
+reference station's full-day Doppler spectrogram by eye.** Companion-
+station selection, data download, Doppler extraction, and DOA
+inversion all flow from this choice.
+
+The reference station is usually your own, but it doesn't have to be —
+any station with a clean recording across the event window will do.
+We use N6RFM/5 throughout this tutorial.
 
 For our event we knew an X1.9 flare had occurred on 18 January and
 that LSTID activity often follows such events by a few hours, so we
