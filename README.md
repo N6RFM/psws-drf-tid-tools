@@ -3,7 +3,7 @@
 **A Python pipeline for analyzing Traveling Ionospheric Disturbances (TIDs)
 from HamSCI Grape Digital RF I/Q recordings.**
 
-Given Doppler-vs-time data from a few HamSCI [Grape](https://hamsci.org/grape) stations
+Given Doppler-vs-time data from a few HamSCI Grape family or rx888 DRF (https://hamsci.org) stations
 recording the same WWV carrier, this toolkit lets you:
 
 - find which other stations were on the air during your event of interest
