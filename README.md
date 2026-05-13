@@ -3,6 +3,12 @@
 **A Python pipeline for analyzing Traveling Ionospheric Disturbances (TIDs)
 from HamSCI Grape Digital RF I/Q recordings.**
 
+## Travelling Ionospheric Disturbance (TID) 
+
+A wave-like disturbance in the ionosphere that propagates over long distances, often caused by atmospheric or geomagnetic events. TIDs propagate towards the equator during storms, and can disrupt GNSS/GPS navigation, radio communications, and satellite operations.  
+
+## What this toolkit is intended for
+
 Given Doppler-vs-time data from a several HamSCI Grape DRF or WSPRDaemon (https://hamsci.org) stations
 recording the same WWV carrier, this toolkit lets you:
 
@@ -29,7 +35,6 @@ cd psws-drf-tid-tools
 pip install -r requirements.txt
 pip install -r requirements-optional.txt   # for nicer maps
 ```
-
 ### Recommended: use a virtual environment
 
 The toolkit's dependencies (particularly `digital_rf`, `cartopy`, and
@@ -69,7 +74,7 @@ or system-wide with `sudo pip install -r requirements.txt` (not
 recommended on modern Linux distributions where it can interfere with
 system packages).
 
-Then for a complete analysis of an event date:
+## Analysis Workflow
 
 ```bash
 # 1. Identify the TID region of interest at your own station or other
@@ -101,7 +106,7 @@ python3 tid_doa_config.py --output event.json --scan .
 # 6. Run the direction-of-arrival inversion
 python3 tid_doa.py event.json
 
-# 7. Make the publication figures
+# 7. Make the report figures
 python3 drf_spectrogram.py ./n6rfm --output spectrogram.png \
     --annotate "00:00,01:15,4-station DOA window"
 python3 tid_stack_plot.py --config event.json --output stack.png
