@@ -143,6 +143,68 @@ later, in Step 3, when you have downloaded the companion data. Step 1
 gives you a candidate window from your reference station alone, which
 you then refine if needed.
 
+### Recording the window as numeric times
+
+Once you've decided where the window starts and ends, write down the
+two times in **UTC, ISO-8601 format**:
+
+    start: 2026-01-19T00:00:00
+    end:   2026-01-19T01:15:00
+
+These two strings are what you pass to every later script. They appear
+in three places downstream:
+
+1. The `--start` and `--end` flags of `drf_to_doppler.py` when you
+   extract Doppler for each station (Step 4).
+2. The `--annotate "HH:MM,HH:MM,label"` flag of `drf_spectrogram.py`
+   when you make the annotated spectrogram figure (the HH:MM form is
+   abbreviated; it just takes hours and minutes within the displayed
+   day).
+3. The `event_start_utc` and `event_end_utc` fields in the JSON config
+   file consumed by `tid_doa.py` (Step 5–6).
+
+If you're using `tid_doa_config.py` to build the config interactively
+(Step 5), the same two timestamps go in the prompt for event start and
+end.
+
+#### Reading times off the spectrogram
+
+Spectrogram x-axis labels are in UTC hours. Wave features rarely fall
+exactly on an hour-line — that's fine. **Round to whatever boundary is
+convenient** (the nearest 5 minutes, 15 minutes, or hour), erring on
+the side of including more of the wave rather than less. Cross-
+correlation is not sensitive to exact alignment of the window edges;
+the wave itself dominates.
+
+For our event the wave was clearly visible from about 00:00 UTC
+through about 01:15 UTC, with the carrier becoming choppy slightly
+after that as AC0G_ND's signal began to fade. The natural round
+choice was 00:00:00 to 01:15:00. We could have used 00:00 to 01:30 and
+gotten a similar answer; we could not have used 00:00 to 04:00 because
+the carrier degrades after ~01:18.
+
+#### Quick sanity check on your window
+
+Before propagating the window through the rest of the pipeline, run a
+single extraction of *just the reference station* with these times
+and look at the resulting Doppler-vs-time PNG:
+
+```
+python3 drf_to_doppler.py ./n6rfm \
+    --start 2026-01-19T00:00:00 --end 2026-01-19T01:15:00 \
+    --decim-seconds 10 --subchannel 0 \
+    --output n6rfm.csv --plot n6rfm.png
+```
+
+Open `n6rfm.png`. The Doppler trace should show **the wave you saw
+in the spectrogram** — same shape, same number of cycles, same rough
+amplitude. If the trace looks flat, noisy, or fundamentally different,
+your window is wrong (likely too narrow, or includes a fade) and you
+should pick a different one before continuing.
+
+This sanity check costs about 5 seconds per station and saves
+debugging hours later.
+
 ### Annotate the spectrogram to record your choice
 
 Once you have committed to a window, regenerate the spectrogram with
