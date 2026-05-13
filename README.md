@@ -30,6 +30,45 @@ pip install -r requirements.txt
 pip install -r requirements-optional.txt   # for nicer maps
 ```
 
+### Recommended: use a virtual environment
+
+The toolkit's dependencies (particularly `digital_rf`, `cartopy`, and
+older `numpy`/`scipy` constraints from upstream HamSCI tools) can
+conflict with packages already installed on your system. A Python
+virtual environment isolates them so they don't interfere with anything
+else.
+
+On Linux or macOS:
+
+```bash
+# Create a venv inside the repo directory
+python3 -m venv .venv
+
+# Activate it (you'll see (.venv) in your prompt)
+source .venv/bin/activate
+
+# Now install dependencies INSIDE the venv
+pip install -r requirements.txt
+pip install -r requirements-optional.txt   # for nicer maps
+
+# Run any toolkit script as usual
+python3 drf_inspect.py --version
+```
+When you're done working with the toolkit, deactivate the venv:
+
+```bash
+deactivate
+```
+
+To resume work later, just `cd` into the repo and run `source .venv/bin/activate`
+(or the equivalent for your shell) again — no need to reinstall anything.
+
+If you don't want to use a venv, you can install dependencies directly
+into your user Python with `pip install --user -r requirements.txt`,
+or system-wide with `sudo pip install -r requirements.txt` (not
+recommended on modern Linux distributions where it can interfere with
+system packages).
+
 Then for a complete analysis of an event date:
 
 ```bash
