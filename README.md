@@ -3,7 +3,7 @@
 **A Python pipeline for analyzing Traveling Ionospheric Disturbances (TIDs)
 from HamSCI Grape Digital RF I/Q recordings.**
 
-Given Doppler-vs-time data from a few HamSCI Grape DRF or WSPRDaemon (https://hamsci.org) stations
+Given Doppler-vs-time data from a several HamSCI Grape DRF or WSPRDaemon (https://hamsci.org) stations
 recording the same WWV carrier, this toolkit lets you:
 
 - find which other stations were on the air during your event of interest
@@ -17,8 +17,7 @@ recording the same WWV carrier, this toolkit lets you:
 
 The reference event is the **X1.9 solar flare and subsequent LSTID of
 19 January 2026**, analyzed end-to-end with this toolkit. The final
-case-study writeup of that analysis lives on
-[g3zil.readthedocs.io]([https://g3zil.readthedocs.io/](https://spectrogram-docs.readthedocs.io/en/latest/index.html)).
+case-study writeup of that analysis is here https://spectrogram-docs.readthedocs.io/en/latest/index.html.
 
 ---
 
@@ -77,8 +76,7 @@ All documentation for using the toolkit lives in [`docs/`](docs/):
 - **[`METHODOLOGY.md`](docs/METHODOLOGY.md)** — the mathematical and
   signal-processing details behind the toolkit.
 
-The completed case-study writeup of the 19 Jan 2026 event lives
-separately at [g3zil.readthedocs.io](https://g3zil.readthedocs.io/).
+The completed case-study writeup of the 19 Jan 2026 event is here https://spectrogram-docs.readthedocs.io/en/latest/index.html.
 
 ---
 
