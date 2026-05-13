@@ -33,14 +33,22 @@ pip install -r requirements-optional.txt   # for nicer maps
 Then for a complete analysis of an event date:
 
 ```bash
-# 1. Find companion stations
+# 1. Identify the TID region of interest at your own station or other
+#    reference station by visual inspection of its 24-hour Doppler
+#    spectrogram. The window you pick here drives every later step.
+python3 drf_spectrogram.py ./n6rfm \
+    --output n6rfm_survey.png \
+    --ylim=-2,2 \
+    --callsign "N6RFM/5" --grid "EM12jw"
+
+# 2. Find companion stations
 python3 find_event_stations.py --date 2026-01-19 \
     --my-lat 32.94 --my-lon -97.21 --my-call "N6RFM/5"
 
-# 2. After downloading the DRF tarballs from PSWS, verify each
+# 3. After downloading the DRF tarballs from PSWS, verify each
 python3 drf_inspect.py --all . --frequency 10
 
-# 3. Extract Doppler CSV from each station's DRF
+# 4. Extract Doppler CSV from each station's DRF
 python3 drf_to_doppler.py ./n6rfm \
     --start 2026-01-19T00:00:00 --end 2026-01-19T01:15:00 \
     --decim-seconds 10 --subchannel 0 \
@@ -48,13 +56,13 @@ python3 drf_to_doppler.py ./n6rfm \
 
 # (repeat for each station)
 
-# 4. Build the DOA event config interactively
+# 5. Build the DOA event config interactively
 python3 tid_doa_config.py --output event.json --scan .
 
-# 5. Run the direction-of-arrival inversion
+# 6. Run the direction-of-arrival inversion
 python3 tid_doa.py event.json
 
-# 6. Make the publication figures
+# 7. Make the publication figures
 python3 drf_spectrogram.py ./n6rfm --output spectrogram.png \
     --annotate "00:00,01:15,4-station DOA window"
 python3 tid_stack_plot.py --config event.json --output stack.png
@@ -90,16 +98,16 @@ psws-drf-tid-tools/
 ├── CITATION.cff
 ├── requirements.txt
 ├── requirements-optional.txt
-├── find_event_stations.py      step 1: discovery
-├── drf_inspect.py              step 2: verify metadata + subchannel
-├── drf_to_doppler.py           step 3: extract Doppler CSV from I/Q
-├── drf_spectrogram.py          step 3 alt: annotated spectrograms
-├── tid_window_detector.py      step 4 optional: find TID windows
-├── tid_pair.py                 step 4: two-station cross-correlation
+├── drf_spectrogram.py          step 1: identify region of interest (also step 7: annotated figures)
+├── find_event_stations.py      step 2: companion-station discovery
+├── drf_inspect.py              step 3: verify metadata + subchannel
+├── drf_to_doppler.py           step 4: extract Doppler CSV from I/Q
+├── tid_window_detector.py      step 4 alt: automatic TID-window detection
+├── tid_pair.py                 step 5: two-station cross-correlation
 ├── tid_doa_config.py           step 5 helper: build DOA config interactively
-├── tid_doa.py                  step 5: multi-station DOA inversion
-├── tid_stack_plot.py           step 6: stacked Doppler comparison
-├── tid_map.py                  step 6: array geometry map
+├── tid_doa.py                  step 6: multi-station DOA inversion
+├── tid_stack_plot.py           step 7: stacked Doppler comparison
+├── tid_map.py                  step 7: array geometry map
 ├── examples/
 │   └── event_20260119.json     reference 4-station DOA config
 └── docs/
@@ -122,7 +130,8 @@ worked examples.
 ![pipeline](docs/pipeline_flow.png)
 
 The blue boxes are scripts in this repo; the yellow boxes are data
-products. `find_event_stations.py` picks the companions; `drf_inspect.py`
+products. `drf_spectrogram.py` lets you see the wave in your own data;
+`find_event_stations.py` picks the companions; `drf_inspect.py`
 verifies the downloads; `drf_to_doppler.py` reduces the raw I/Q to a
 Doppler-vs-time CSV; `tid_pair.py` or `tid_doa.py` solves for the wave
 direction.
