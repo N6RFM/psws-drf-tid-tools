@@ -3,7 +3,7 @@
 **A Python pipeline for analyzing Traveling Ionospheric Disturbances (TIDs)
 from HamSCI Grape Digital RF I/Q recordings.**
 
-Given Doppler-vs-time data from a few HamSCI Grape family or rx888 DRF (https://hamsci.org) stations
+Given Doppler-vs-time data from a few HamSCI Grape DRF or WSPRDaemon (https://hamsci.org) stations
 recording the same WWV carrier, this toolkit lets you:
 
 - find which other stations were on the air during your event of interest
@@ -18,7 +18,7 @@ recording the same WWV carrier, this toolkit lets you:
 The reference event is the **X1.9 solar flare and subsequent LSTID of
 19 January 2026**, analyzed end-to-end with this toolkit. The final
 case-study writeup of that analysis lives on
-[g3zil.readthedocs.io](https://g3zil.readthedocs.io/).
+[g3zil.readthedocs.io]([https://g3zil.readthedocs.io/](https://spectrogram-docs.readthedocs.io/en/latest/index.html)).
 
 ---
 
@@ -172,10 +172,10 @@ or use:
 
 - Gwyn Griffiths (G3ZIL) for mentoring and constructive feedback
 - The developers of the HamSCI / PSWS infrastructure https://hamsci.org/
-- Bill Engelke (AB4EJ), University of Alabama, for the original spectrogram
-  plotting approach https://github.com/HamSCI/DRF_processing
+- Bill Engelke (AB4EJ), University of Alabama, for the original DRF processing and spectrogram
+  plotting code https://github.com/HamSCI/DRF_processing
 - MIT Haystack Observatory for the Digital RF format https://github.com/MITHaystack/digital_rf
-- The operators of every Grape family member DRF station whose data made this analysis possible
+- The operators of every Grape and WSPRDaemon DRF station whose data made this analysis possible
 
 The toolkit was developed collaboratively with Anthropic's Claude AI.
 
