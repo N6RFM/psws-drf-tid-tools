@@ -68,6 +68,20 @@ mkdir tid_event_20260119 && cd tid_event_20260119
 
 ## Step 1: identify the TID region of interest at your reference station
 
+**Before this step**, you should already have noticed some sign of
+an event in your own PSWS spectrogram (or someone else's) — for
+example, a Short-Wave Fadeout following a solar flare, a known
+geomagnetic storm, an eclipse, or simply slow oscillations in the
+WWV carrier track that suggest a TID. The pipeline starts from
+that prior observation: you know roughly *when* something
+happened, and Step 1 nails down *exactly when* by inspecting
+the reference station's full-day spectrogram.
+
+If you have no candidate event in mind yet, run
+`drf_spectrogram.py` on a day of your reference station's data
+and look for unusual features. Or use `tid_window_detector.py`
+to scan a 24-hour CSV for wave-like activity.
+
 Every other step in this pipeline starts from a specific UTC time
 window in which you suspect a TID is present at a chosen reference
 station. **That window is identified first, by looking at the
@@ -253,7 +267,7 @@ python3 find_event_stations.py \
     --my-call "N6RFM/5"
 ```
 
-The first run takes 3–5 minutes — the script has to walk all ~279
+The first run typically takes 3-10 minutes — the script has to walk all ~279
 registered PSWS stations to build a directory. It caches the directory
 in `.psws_station_cache.json`, so subsequent runs (refreshed weekly) are
 fast.
@@ -274,8 +288,10 @@ Stations with DRF I/Q recordings on 2026-01-19:
 
 The score combines path length (700–1400 km is ideal for clean
 single-hop F-region work) with midpoint coverage relative to your
-station. Look for **azimuthal spread** — stations to your N, E, S,
-and W if possible.
+station. Look for **azimuthal spread** — ideally three stations
+whose WWV-path midpoints sit roughly to the N, E, S, or W of your
+own midpoint, so the array covers three cardinal directions besides
+yours.
 
 ### A dead end worth knowing about
 
@@ -309,6 +325,12 @@ script's output includes direct download links. Extract each into a
 folder named after the station, so your directory looks like:
 
 ```
+
+*Note: the table above is an illustrative example. The actual rows,
+rank ordering, path lengths, and bearings depend on PSWS's current
+station metadata (which is updated continuously) and on the exact
+scoring parameters used. The example shows the **format** you should
+expect, not the **specific numbers** for any future query.*
 tid_event_20260119/
 ├── n6rfm/
 ├── aa6bd/

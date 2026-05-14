@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+### Documentation
+- Tutorial Step 1: added prerequisite paragraph clarifying that
+  Step 1 follows from already having noticed an event signature
+  in some spectrogram (it's not a discovery step).
+- Tutorial: improved azimuthal-spread wording to explicitly say
+  "three stations whose WWV-path midpoints sit roughly to the N,
+  E, S, or W of your own midpoint".
+- Tutorial: added note that the example station-discovery table
+  is illustrative; actual rows depend on PSWS's current state.
+- Tutorial + AUTOMATION: updated find_event_stations.py timing
+  estimate from "3-5 minutes" to "3-10 minutes" (matches
+  observed real-world durations).
+
+Feedback from G3ZIL.
+
+---
+
 All notable changes to **psws-drf-tid-tools** are recorded here.
 The project follows [Semantic Versioning](https://semver.org).
 
