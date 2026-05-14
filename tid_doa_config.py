@@ -1,7 +1,6 @@
 r"""
 tid_doa_config.py — interactive builder for tid_doa.py event configs
 
-Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
 Version: 1.0.0
 License: MIT (do whatever you want, no warranty).
@@ -419,8 +418,15 @@ def main():
             {"name": c["name"], "file": c["file"],
              "lat": round(c["lat"], 4), "lon": round(c["lon"], 4)}
             for c in candidates
+            if c.get("lat") is not None and c.get("lon") is not None
         ],
     }
+
+    skipped = [c["name"] for c in candidates
+               if c.get("lat") is None or c.get("lon") is None]
+    if skipped:
+        print(f"\nSkipped {len(skipped)} candidate(s) with missing "
+              f"coordinates: {', '.join(skipped)}")
 
     with open(args.output, "w") as f:
         json.dump(config, f, indent=2)
