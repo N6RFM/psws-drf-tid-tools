@@ -3,7 +3,7 @@
 #
 # Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 # Created by N6RFM with help from Claude AI.
-# Version: 1.3.0
+# Version: 1.4.0
 # License: MIT (do whatever you want, no warranty).
 #
 # OVERVIEW
@@ -108,7 +108,7 @@ while [[ $# -gt 0 ]]; do
         --reset)           RESET=1; shift ;;
         --resume)          RESUME=1; shift ;;
         -h|--help)         usage ;;
-        --version)         echo "analyze_event.sh 1.3.0"; exit 0 ;;
+        --version)         echo "analyze_event.sh 1.4.0"; exit 0 ;;
         *)
             echo "Unknown argument: $1"
             echo "Try --help"
@@ -857,19 +857,33 @@ fi
 # -----------------------------------------------------------------------------
 if [[ $LAST_STAGE -lt 9 ]]; then
     pause_block "PAUSE 4 of 4 — Quality-check each station"
+
+    REF_NAME="${MY_STATION#./}"
+    REF_NAME="${REF_NAME%/}"
+    IFS=',' read -ra COMPANION_LIST <<< "$COMPANIONS"
+
+    # Run automated quality summary if quality_summary.py is available
+    if [[ -x "$TOOLS_DIR/quality_summary.py" ]] || [[ -f "$TOOLS_DIR/quality_summary.py" ]]; then
+        # Build list of CSVs to score
+        QUALITY_CSVS=("${REF_NAME}.csv")
+        for s in "${COMPANION_LIST[@]}"; do
+            [[ -f "${s}.csv" ]] && QUALITY_CSVS+=("${s}.csv")
+        done
+        python3 "$TOOLS_DIR/quality_summary.py" --suggest-shorten "${QUALITY_CSVS[@]}" || true
+    fi
+
     cat <<EOF
 Per-station Doppler PNGs have been written. Open each one and confirm:
   - The wave is visible (same shape as your reference station)
   - SNR is mostly above 30 dB through the analysis window
   - No sustained fades or RFI bursts
 
-If any station looks bad, you can drop it before the DOA inversion.
+The quality table above flags stations with high jitter, low SNR,
+excursions, or end-fade. Use it as a guide alongside the visual
+inspection. Stations rated POOR or BAD usually should be dropped.
 
 EOF
-    REF_NAME="${MY_STATION#./}"
-    REF_NAME="${REF_NAME%/}"
     open_image "${REF_NAME}.png"
-    IFS=',' read -ra COMPANION_LIST <<< "$COMPANIONS"
     for s in "${COMPANION_LIST[@]}"; do
         open_image "${s}.png"
     done
