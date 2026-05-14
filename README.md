@@ -165,6 +165,7 @@ psws-drf-tid-tools/
 ├── tid_doa.py                  step 6: multi-station DOA inversion
 ├── tid_stack_plot.py           step 7: stacked Doppler comparison
 ├── tid_map.py                  step 7: array geometry map
+├── quality_summary.py          per-station Doppler quality scoring (used by analyze_event.sh)
 ├── examples/
 │   └── event_20260119.json     reference 4-station DOA config
 └── docs/

@@ -28,7 +28,7 @@ The script runs eleven stages with **four human-input pauses**:
 | 6   | Show download URLs; wait for the user to extract tarballs | ⏸ Pause 3 |
 | 7   | Run `drf_inspect.py` on all stations; auto-detect 10 MHz subchannel | — |
 | 8   | Extract Doppler CSV for every station with detected subchannels | — |
-| 9   | Open every Doppler PNG; ask if any station should be dropped | ⏸ Pause 4 |
+| 9   | Run `quality_summary.py` to score each station; open every Doppler PNG; ask if any station should be dropped | ⏸ Pause 4 |
 | 10  | Build DOA config (with `tid_doa_config.py --auto`) and run `tid_doa.py` | — |
 | 11  | Generate annotated spectrogram, stacked Doppler plot, and array-geometry map | — |
 
@@ -235,8 +235,22 @@ fix the directories and re-run.
 
 ### Pause 4: quality-check the per-station Doppler
 
-After Doppler extraction, the script opens every station's
-quick-look PNG. You confirm:
+After Doppler extraction, the script runs `quality_summary.py` to score
+each station's CSV. The summary table flags:
+
+- **SNR floor** — percentage of samples below 30 dB
+- **Jitter** — Doppler trace volatility (std-dev of consecutive sample
+  differences). High jitter means the carrier tracker is bouncing.
+- **Excursions** — samples with |Doppler| > 2 Hz (usually tracker
+  failures)
+- **End fade** — how much SNR drops in the last 10% of the window vs
+  the middle (suggests the window extends past clean data)
+- **Score** — 0-100 composite, with GOOD / OK / POOR / BAD status
+
+If any station has notable end-fade, the script also suggests a
+shorter analysis window.
+
+The script then opens every station's quick-look PNG. You confirm:
 
 - The wave is visible (same shape as the reference)
 - SNR stays above ~30 dB through the window
@@ -328,6 +342,11 @@ analysis using sensible defaults.
 
 ## Changelog
 
+- **v1.4.0** — Added per-station quality scoring at Pause 4 via the
+  new `quality_summary.py`. Reports SNR floor, jitter, excursions,
+  end-fade, and a composite 0-100 score for each station, plus an
+  optional suggestion to shorten the analysis window if end-fade is
+  detected on any station.
 - **v1.3.0** — Added `hint` messages under each stage banner explaining
   what's happening and roughly how long it'll take. Stage 4 (the slow
   PSWS-cache walk) now shows a live spinner with elapsed time.
