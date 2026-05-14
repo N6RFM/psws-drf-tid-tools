@@ -180,6 +180,7 @@ psws-drf-tid-tools/
     ├── AUTOMATION.md           the analyze_event.sh driver
     ├── TROUBLESHOOTING.md      failure modes and diagnoses
     ├── METHODOLOGY.md          math + signal processing details
+    ├── QUALITY_SUMMARY_WORKED_EXAMPLE.md  worked example: how a degraded window is caught
     ├── pipeline_flow.png       pipeline diagram
     └── pipeline_flow.pdf
 ```
