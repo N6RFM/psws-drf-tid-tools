@@ -17,6 +17,20 @@
 
 Feedback from G3ZIL.
 
+### Code fixes (find_event_stations.py)
+- Added filter to skip magnetometer-only observations (RM3100 and
+  similar) so they no longer appear as candidate radio companions.
+- Reference station is now included in the candidate table as a
+  marked entry (rank `*`, score `—`, `(your station)` note) instead
+  of being silently dropped. Operators can see and verify their own
+  station's ObsID and path geometry at a glance.
+- Table header widened to accommodate the `(your station)` marker;
+  reference-station row is held aside before grid-square dedupe and
+  always appears at the top of the table.
+- Updated TUTORIAL.md example output to reflect the new format.
+
+Feedback from G3ZIL.
+
 ---
 
 All notable changes to **psws-drf-tid-tools** are recorded here.

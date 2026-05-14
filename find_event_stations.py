@@ -632,8 +632,15 @@ def main():
         info = stations.get(obs.station_id)
         if not info or info["lat"] is None:
             continue
-        if obs.station_nickname == args.my_call:
+        # Skip magnetometer-only stations — they record geomagnetic data,
+        # not radio signals, so they cannot contribute to Doppler analysis.
+        inst_lc = (obs.instrument or "").lower()
+        if any(p in inst_lc for p in ("rm3100", "magnetome")):
             continue
+        # Reference station is included in the table (as a marked entry),
+        # not silently dropped. The is_me flag is propagated through the
+        # record so the output stage can format it specially.
+        is_me = (obs.station_nickname == args.my_call)
         lat, lon = info["lat"], info["lon"]
         path_km = haversine_km(WWV_LAT, WWV_LON, lat, lon)
         mid = great_circle_midpoint(WWV_LAT, WWV_LON, lat, lon)
@@ -650,21 +657,32 @@ def main():
             "path_km": path_km, "sep_km": sep_km,
             "bearing": brg, "score": score,
             "freq_flag": freq_flag,
+            "is_me": is_me,
         }
         if path_km < args.min_path_km:
             excluded_near_wwv.append(record)
         else:
             candidates.append(record)
 
-    # Dedupe candidates by grid square (one operator can have multiple
-    # registrations at the same physical location)
+    # Hold the reference station aside so it always appears at the top of
+    # the table — its midpoint separation from itself is zero, which would
+    # otherwise put it at the bottom of the score ordering.
+    me_records = [c for c in candidates if c["is_me"]]
+    other_records = [c for c in candidates if not c["is_me"]]
+
+    # Dedupe non-reference candidates by grid square (one operator can have
+    # multiple registrations at the same physical location)
     by_grid = {}
-    for c in candidates:
+    for c in other_records:
         g = c["info"]["grid"]
         if g not in by_grid or c["score"] > by_grid[g]["score"]:
             by_grid[g] = c
-    candidates = list(by_grid.values())
-    candidates.sort(key=lambda r: r["score"], reverse=True)
+    other_records = list(by_grid.values())
+    other_records.sort(key=lambda r: r["score"], reverse=True)
+
+    # Reference station first (if it has DRF data on this date), then the
+    # other candidates by score.
+    candidates = me_records + other_records
 
     # ----- Output -----
     print(f"Candidate DRF I/Q companions on {args.date} "
@@ -674,16 +692,26 @@ def main():
     print()
     print(f"{'Rank':<4} {'Station':<24} {'Grid':<7} {'Instrument':<16} "
           f"{'Path':>5} {'MidSep':>6} {'Brg':>4} {'Score':>5}  "
-          f"{'Flag':<10} ObsID")
-    print("-" * 105)
-    for i, r in enumerate(candidates[:args.top], 1):
+          f"{'Flag/Note':<14} ObsID")
+    print("-" * 109)
+    rank_counter = 0
+    for r in candidates[:args.top]:
         o = r["obs"]
-        print(f"{i:<4} {o.station_nickname[:24]:<24} "
+        if r.get("is_me"):
+            rank_str = "*"
+            score_str = "  —  "
+            tail_flag = "(your station)"
+        else:
+            rank_counter += 1
+            rank_str = str(rank_counter)
+            score_str = f"{r['score']:>5.2f}"
+            tail_flag = r["freq_flag"]
+        print(f"{rank_str:<4} {o.station_nickname[:24]:<24} "
               f"{r['info']['grid'] or '?':<7} "
               f"{o.instrument[:16]:<16} "
               f"{r['path_km']:>4.0f}km {r['sep_km']:>5.0f}km "
-              f"{r['bearing']:>3.0f}° {r['score']:>5.2f}  "
-              f"{r['freq_flag']:<10} {o.obs_id}")
+              f"{r['bearing']:>3.0f}° {score_str}  "
+              f"{tail_flag:<14} {o.obs_id}")
 
     if excluded_near_wwv:
         print(f"\nExcluded (path < {args.min_path_km} km, midpoint too close "
