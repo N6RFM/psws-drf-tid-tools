@@ -132,6 +132,9 @@ is wrong. Look at the two stations' Doppler PNGs and compare visually:
 
 ## "The DOA result looks wrong"
 
+*See also: [QUALITY_SUMMARY_WORKED_EXAMPLE.md](QUALITY_SUMMARY_WORKED_EXAMPLE.md) for a complete worked example of how a degraded analysis window produces an unphysical DOA result, and how `quality_summary.py` flags the problem.*
+
+
 This is the most common and most subtle problem. Here's how to diagnose
 it systematically.
 
