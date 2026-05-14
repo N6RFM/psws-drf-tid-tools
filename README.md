@@ -114,6 +114,18 @@ python3 tid_map.py --config event.json --output map.png \
     --azimuth-toward 215 --speed 666
 ```
 
+## Semi-automated workflow
+
+If you want to skip most of the manual command-typing, the repo
+includes [`analyze_event.sh`](analyze_event.sh) — an interactive
+driver that runs the entire 7-step pipeline for you, pausing only at
+the four points that require human judgment (choosing the time window,
+choosing companion stations, confirming downloads, and quality-
+checking per-station Doppler).
+
+See [`docs/AUTOMATION.md`](docs/AUTOMATION.md) for the full
+description, flags, and an example session.
+
 ## Documentation
 
 All documentation for using the toolkit lives in [`docs/`](docs/):
@@ -142,6 +154,7 @@ psws-drf-tid-tools/
 ├── CITATION.cff
 ├── requirements.txt
 ├── requirements-optional.txt
+├── analyze_event.sh            interactive driver script (semi-automation)
 ├── drf_spectrogram.py          step 1: identify region of interest (also step 7: annotated figures)
 ├── find_event_stations.py      step 2: companion-station discovery
 ├── drf_inspect.py              step 3: verify metadata + subchannel
@@ -157,6 +170,7 @@ psws-drf-tid-tools/
 └── docs/
     ├── TUTORIAL.md             full narrative walkthrough
     ├── COOKBOOK.md             task-oriented recipes
+    ├── AUTOMATION.md           the analyze_event.sh driver
     ├── TROUBLESHOOTING.md      failure modes and diagnoses
     ├── METHODOLOGY.md          math + signal processing details
     ├── pipeline_flow.png       pipeline diagram
