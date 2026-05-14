@@ -286,6 +286,12 @@ Stations with DRF I/Q recordings on 2026-01-19:
   ...
 ```
 
+*Note: the table above is an illustrative example. The actual rows,
+rank ordering, path lengths, and bearings depend on PSWS's current
+station metadata (which is updated continuously) and on the exact
+scoring parameters used. The example shows the **format** you should
+expect, not the **specific numbers** for any future query.*
+
 The score combines path length (700–1400 km is ideal for clean
 single-hop F-region work) with midpoint coverage relative to your
 station. Look for **azimuthal spread** — ideally three stations
@@ -325,12 +331,6 @@ script's output includes direct download links. Extract each into a
 folder named after the station, so your directory looks like:
 
 ```
-
-*Note: the table above is an illustrative example. The actual rows,
-rank ordering, path lengths, and bearings depend on PSWS's current
-station metadata (which is updated continuously) and on the exact
-scoring parameters used. The example shows the **format** you should
-expect, not the **specific numbers** for any future query.*
 tid_event_20260119/
 ├── n6rfm/
 ├── aa6bd/
