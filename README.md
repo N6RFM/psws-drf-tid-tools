@@ -135,10 +135,16 @@ All documentation for using the toolkit lives in [`docs/`](docs/):
   worked example. **Start here if you're new.**
 - **[`COOKBOOK.md`](docs/COOKBOOK.md)** — task-oriented recipes for
   everyday use. The reference once you know the pipeline.
+- **[`AUTOMATION.md`](docs/AUTOMATION.md)** — reference for the
+  `analyze_event.sh` interactive driver script that runs the
+  full 7-step pipeline with 4 human-input pauses.
 - **[`TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md)** — failure modes
   and how to diagnose them.
 - **[`METHODOLOGY.md`](docs/METHODOLOGY.md)** — the mathematical and
   signal-processing details behind the toolkit.
+- **[`QUALITY_SUMMARY_WORKED_EXAMPLE.md`](docs/QUALITY_SUMMARY_WORKED_EXAMPLE.md)** —
+  a worked example of how `quality_summary.py` flags a degraded
+  analysis window and prevents an unphysical DOA result.
 
 The completed case-study writeup of the 19 Jan 2026 event is here https://spectrogram-docs.readthedocs.io/en/latest/index.html.
 
