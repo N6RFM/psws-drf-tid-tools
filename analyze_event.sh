@@ -269,6 +269,17 @@ open_image() {
     viewer_argv=( $IMAGE_VIEWER )
     viewer_bin="${viewer_argv[0]}"
     if command -v "$viewer_bin" > /dev/null 2>&1; then
+        # Kill any prior viewer instance showing this same file. Without
+        # this, repeated re-renders (e.g. Pause 1's "e" to change end
+        # time) stack new feh windows behind old ones — the file content
+        # updates but the user sees the stale older window on top and
+        # assumes nothing happened. Best-effort: pkill may fail silently
+        # if no matching process exists, which is fine.
+        local img_basename
+        img_basename=$(basename "$img")
+        pkill -f "${viewer_bin}.*${img_basename}" 2>/dev/null || true
+        # Brief pause so the old process exits before launching the new one.
+        sleep 0.15
         # Redirect viewer output to a log file rather than /dev/null —
         # some viewers (notably feh) detect /dev/null as stdout and exit
         # immediately without displaying a window. Redirecting to a real
