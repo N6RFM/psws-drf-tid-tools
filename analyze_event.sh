@@ -533,6 +533,29 @@ fi
 
 # Helper: re-render the spectrogram with a different proposed window,
 # then open it. Used when the user edits the proposal.
+# Render the per-Pause-4 stack PNG so the operator sees the multi-station
+# comparison BEFORE deciding whether all stations look good. Uses
+# --smooth 120 for peak detection so noise spikes don't dominate the
+# peak markers.
+render_pause4_stack() {
+    local stations=("${REF_NAME}:${REF_NAME}.csv")
+    for s in "${COMPANION_LIST[@]}"; do
+        stations+=("${s}:${s}.csv")
+    done
+    echo
+    echo "  Rendering stacked Doppler plot for review..."
+    python3 "$TOOLS_DIR/tid_stack_plot.py" \
+        --stations "${stations[@]}" \
+        --start "$WINDOW_START" --end "$WINDOW_END" \
+        --smooth 120 \
+        --title "Doppler comparison at chosen stations, ${EVENT_DATE}" \
+        --output stack_pause4.png \
+        2>&1 | grep -v "^$" || true
+    if [[ -f stack_pause4.png ]]; then
+        open_image stack_pause4.png
+    fi
+}
+
 rerender_proposal() {
     local s="$1" e="$2"
     local png="ref_${EVENT_DATE}_with_proposal.png"
@@ -892,6 +915,11 @@ if [[ $LAST_STAGE -lt 9 ]]; then
             [[ -f "${s}.csv" ]] && QUALITY_CSVS+=("${s}.csv")
         done
         python3 "$TOOLS_DIR/quality_summary.py" --suggest-shorten "${QUALITY_CSVS[@]}" | tee .quality_summary_output || true
+
+        # Render the multi-station stacked Doppler plot so the operator
+        # can see the array view in one image before deciding whether
+        # all stations look good.
+        render_pause4_stack
     fi
 
     cat <<EOF

@@ -3,7 +3,7 @@ tid_stack_plot.py — render a stacked multi-station Doppler comparison plot
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.0.0
+Version: 1.1.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
@@ -138,6 +138,12 @@ def main():
     ap.add_argument("--height-per-panel", type=float, default=1.6,
                     help="Figure height in inches per station panel. "
                          "Default: 1.6")
+    ap.add_argument("--smooth", type=float, default=None,
+                    metavar="N",
+                    help="apply Savitzky-Golay smoothing with N-second "
+                         "window for PEAK DETECTION only (display trace "
+                         "stays raw; helps avoid picking noise spikes "
+                         "instead of the true wave peak)")
     ap.add_argument("--version", action="version",
                     version="%(prog)s 1.0.0")
     args = ap.parse_args()
@@ -223,8 +229,28 @@ def main():
         ax.axhline(0, color="gray", linewidth=0.5, alpha=0.4)
         ax.grid(True, alpha=0.25)
 
-        # Find and mark this station's peak time
-        peak_idx = int(np.argmax(doppler))
+        # Find and mark this station's peak time.
+        # If --smooth N is given, find peak on the smoothed series so
+        # noise spikes don't dominate; otherwise use raw.
+        if args.smooth is not None:
+            try:
+                from scipy.signal import savgol_filter
+                if len(times) > 1:
+                    dt_est = (times[1] - times[0]).total_seconds()
+                else:
+                    dt_est = 10.0
+                poly_order = 3
+                n_samples = int(round(args.smooth / dt_est))
+                if n_samples < poly_order + 2:
+                    n_samples = poly_order + 2
+                if n_samples % 2 == 0:
+                    n_samples += 1
+                smoothed_for_peak = savgol_filter(doppler, n_samples, poly_order)
+            except ImportError:
+                smoothed_for_peak = doppler
+        else:
+            smoothed_for_peak = doppler
+        peak_idx = int(np.argmax(smoothed_for_peak))
         peak_time = times[peak_idx]
         peak_value = doppler[peak_idx]
         ax.plot(peak_time, peak_value, "v", color=color, markersize=8,
