@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.2.1 — 2026-05-15
 
 ### Code fixes (drf_spectrogram.py — v1.1.1)
 - Added progress dots to the peak-amplitude pass. Previously the
