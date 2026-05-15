@@ -1097,6 +1097,12 @@ EOF
         COMPANIONS=$(IFS=,; echo "${NEW_LIST[*]}")
         echo "After drops, companions are: $COMPANIONS"
     fi
+
+    # PR-D: Offer to tighten the analysis window if quality_summary
+    # flagged end-fade. Loops up to 3 iterations or until no more
+    # suggestions appear; safe-by-default prompt (Enter = keep current).
+    pause4_tightening_loop
+
     # New in v1.4.3: offer smoothing for stations with high jitter.
     # quality_summary.py's output (printed earlier in this stage) has a
     # column for jitter in Hz. Look for any line with a numeric jitter
