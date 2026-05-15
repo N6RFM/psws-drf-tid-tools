@@ -962,11 +962,11 @@ EOF
             echo "One or more stations show high jitter (>0.15 Hz)."
             echo "Smoothing the Doppler series before cross-correlation can help"
             echo "the DOA inversion converge on the wave signal rather than noise."
-            read -p "Enable smoothing (Savitzky-Golay 30s window) for DOA? [y/N]: " smyn
+            read -p "Enable smoothing (Savitzky-Golay 60s window) for DOA? [y/N]: " smyn
             case "${smyn,,}" in
                 y|yes)
-                    SMOOTH_FOR_DOA="30"
-                    echo "  Smoothing will be applied (30s window)."
+                    SMOOTH_FOR_DOA="60"
+                    echo "  Smoothing will be applied (60s window)."
                     ;;
                 *)
                     echo "  No smoothing — raw Doppler series will be used."
