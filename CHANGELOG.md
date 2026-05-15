@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+### Small improvements (PR-A from G3ZIL feedback round 2)
+
+- **find_event_stations.py**: expanded the magnetometer filter to
+  include `gmag` (catches W2NAF and similar entries that the
+  rm3100/magnetome patterns missed). One-line change to the
+  `inst_lc` filter tuple.
+- **METHODOLOGY.md**: added a section "Window length, wave-travel
+  time, and station coverage" discussing the trade-off between
+  capturing the wave's full transit across the array and avoiding
+  station-specific data degradation. Acknowledges G3ZIL's point
+  about N→S travel time potentially arguing for wider windows.
+- **TUTORIAL.md**: refreshed the example station-discovery table
+  with values from a recent real run. PSWS station coordinates
+  drift as operators update their metadata, so older example numbers
+  no longer match what users see. The example is still illustrative
+  (see the existing note); refreshing brings it closer to current
+  reality without claiming it's permanent.
+
+Feedback from G3ZIL.
+
 ### Documentation and output-text corrections (from G3ZIL feedback)
 
 - **tid_pair.py**: renamed the output column header "Band (min)" to

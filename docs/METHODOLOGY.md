@@ -253,6 +253,43 @@ changes mean the array geometry is poorly conditioned for the wave.
 
 ---
 
+### Window length, wave-travel time, and station coverage
+
+A practical question that arises when choosing the analysis window:
+should the window be wide enough to capture the wave's transit across
+the entire array? For a wave moving at ~600 m/s (typical LSTID), the
+transit time across a 1300 km north-south baseline is about 36
+minutes. If the window is too short, the wave never reaches the far
+station within the chosen interval, and the cross-correlation finds
+no consistent lag.
+
+In practice the working compromise is: pick a window that contains
+**at least one full wave cycle** at the reference station plus
+**enough additional time for the wavefront to traverse the array**.
+For a 60-90 minute TID period over a ~1500 km array, a 75-120 minute
+window is usually sufficient.
+
+However, this can conflict with **station-specific data quality**.
+Companion stations may fade, suffer RFI, or drift out of carrier
+lock at particular UTC times. If the wave-travel argument suggests
+a 90-minute window but one station fades after 75 minutes, the
+operator must choose:
+
+- **Shorter window, all stations clean**: cross-correlations are
+  more reliable but the wave's full travel across the array isn't
+  observed.
+- **Longer window, one station partly degraded**: the wave-travel
+  geometry is well-covered but the degraded station contributes
+  noisy or spurious lags (see the worked example in
+  [QUALITY_SUMMARY_WORKED_EXAMPLE.md](QUALITY_SUMMARY_WORKED_EXAMPLE.md)).
+
+Neither is automatically wrong. The right choice depends on which
+station's degradation matters more for the specific event — for
+example, the most distant station is usually the most informative
+for direction-finding, so its fade may be worse than a closer
+station's fade. `quality_summary.py` surfaces the timing of each
+station's degradation so the operator can make an informed trade-off.
+
 ## Limitations
 
 The toolkit assumes:

@@ -276,13 +276,14 @@ You will see output like:
 
 ```
 Stations with DRF I/Q recordings on 2026-01-19:
-  Rank Station    Grid   Path-km Mid-km Bearing  Score   Flag/Note
-  ---------------------------------------------------------------
-  *    N6RFM/5    EM12jw  1283    657    138°      —   (your station)
-  1    AA6BD      EM75kb  1972    955    72°     0.78
-  2    W7LUX      DM45dc  1208    617    272°    0.91
-  3    AC0G/ND    EN16ov   956    537    359°    0.85
-  4    KA9Q       FN42    ...     ...     ...    0.45
+  Rank Station              Grid   Path  MidSep Brg  Score  Flag/Note
+  -----------------------------------------------------------------------
+  *    N6RFM/5              EM12kw 1111km    4km  90°   —    (your station)
+  1    KC4LE_G1_Node60_DRF  EM63nh 1804km  483km  82°  0.96
+  2    AA6BD                EM75kb 1851km  571km  72°  0.93
+  3    K4BSE                EM73sj 1992km  595km  81°  0.90
+  4    W7LUX                DM45dc  852km  679km 282°  0.82
+  5    AC0G_ND              EN16ov  956km  777km 359°  0.72
   ...
 ```
 
