@@ -3,7 +3,7 @@ drf_spectrogram.py — render an annotated Doppler spectrogram from DRF I/Q
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.1.0
+Version: 1.1.1
 License: MIT (do whatever you want, no warranty).
 
 Based on the spectrogram approach used by AB4EJ (W. Engelke, University of
@@ -219,6 +219,7 @@ def compute_peak_amplitude(reader, channel, subchannel,
     n_per_bin = int(window_seconds * fs_hz)
     n_columns = int(n_seconds / window_seconds)
     out = np.zeros(n_columns, dtype=float)
+    progress_every = max(1, n_columns // 40)
     for col in range(n_columns):
         offset = col * n_per_bin
         try:
@@ -236,6 +237,10 @@ def compute_peak_amplitude(reader, channel, subchannel,
             out[col] = 0
             continue
         out[col] = float(np.max(np.abs(block)))
+        if col % progress_every == 0:
+            sys.stdout.write(".")
+            sys.stdout.flush()
+    print()
     return out
 
 

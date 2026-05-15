@@ -1,5 +1,35 @@
 # Changelog
 
+## Unreleased
+
+### Code fixes (drf_spectrogram.py — v1.1.1)
+- Added progress dots to the peak-amplitude pass. Previously the
+  console appeared frozen for ~30-45 seconds after the "Computing
+  peak amplitude per minute..." message during 24-hour renders.
+  Now ~40 progress dots flow during this second read pass, matching
+  the behavior of the spectrogram pass above it.
+
+### Code fixes (analyze_event.sh — v1.4.2)
+- Fixed viewer not displaying when stdio was redirected to /dev/null.
+  Some image viewers (notably `feh` on certain systems) exit silently
+  without showing a window when their stdout/stderr is `/dev/null`.
+  Viewer output now goes to a hidden `.viewer.log` file in the working
+  directory, which feh treats as a valid output sink and which doesn't
+  clutter the terminal.
+
+### UX improvements (analyze_event.sh — v1.4.2)
+- Added hint messages before each annotated-spectrogram render at
+  Stage 1b and in the Pause 1 menu, explaining that the operation
+  takes ~30-60 seconds. Previously the console appeared frozen during
+  these renders.
+- Let `drf_spectrogram.py`'s stdout flow through during the same
+  renders, so the operator sees its progress dots ("....") rather
+  than an unmoving prompt.
+
+Feedback during real-world testing.
+
+---
+
 ## v1.2.0 — 2026-05-15
 
 ### Documentation
