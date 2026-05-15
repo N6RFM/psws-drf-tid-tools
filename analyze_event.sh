@@ -366,12 +366,13 @@ if [[ $LAST_STAGE -lt 2 ]]; then
     DAY_START="${EVENT_DATE}T00:00:00"
     DAY_END="${EVENT_DATE}T23:59:00"
     if [[ ! -f "$SURVEY_CSV" ]]; then
-        echo "Extracting 24-hour reference-station survey CSV at 60s cadence..."
+        hint "Extracting 24-hour reference-station survey CSV at 60s cadence"
+        hint "(takes ~20-40 seconds — drf_to_doppler.py output below is normal):"
         python3 "$TOOLS_DIR/drf_to_doppler.py" "$MY_STATION" \
             --start "$DAY_START" --end "$DAY_END" \
             --decim-seconds 60 --subchannel 0 \
             --output "$SURVEY_CSV" --plot "$SURVEY_PNG" \
-            >/dev/null 2>&1 || true
+            || true
     fi
 
     # Run the window detector. It scores 24-hour spectrograms for wave-like
