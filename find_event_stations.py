@@ -635,7 +635,7 @@ def main():
         # Skip magnetometer-only stations — they record geomagnetic data,
         # not radio signals, so they cannot contribute to Doppler analysis.
         inst_lc = (obs.instrument or "").lower()
-        if any(p in inst_lc for p in ("rm3100", "magnetome")):
+        if any(p in inst_lc for p in ("rm3100", "magnetome", "gmag")):
             continue
         # Reference station is included in the table (as a marked entry),
         # not silently dropped. The is_me flag is propagated through the
