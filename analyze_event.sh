@@ -3,7 +3,7 @@
 #
 # Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 # Created by N6RFM with help from Claude AI.
-# Version: 1.4.0
+# Version: 1.4.2
 # License: MIT (do whatever you want, no warranty).
 #
 # OVERVIEW
@@ -108,7 +108,7 @@ while [[ $# -gt 0 ]]; do
         --reset)           RESET=1; shift ;;
         --resume)          RESUME=1; shift ;;
         -h|--help)         usage ;;
-        --version)         echo "analyze_event.sh 1.4.0"; exit 0 ;;
+        --version)         echo "analyze_event.sh 1.4.2"; exit 0 ;;
         *)
             echo "Unknown argument: $1"
             echo "Try --help"
@@ -269,8 +269,15 @@ open_image() {
     viewer_argv=( $IMAGE_VIEWER )
     viewer_bin="${viewer_argv[0]}"
     if command -v "$viewer_bin" > /dev/null 2>&1; then
+        # Redirect viewer output to a log file rather than /dev/null —
+        # some viewers (notably feh) detect /dev/null as stdout and exit
+        # immediately without displaying a window. Redirecting to a real
+        # file avoids that quirk. The log accumulates across launches; it
+        # is removed when the analysis starts (see --reset) or can be
+        # ignored.
+        local viewer_log="${WORKDIR:-.}/.viewer.log"
         # shellcheck disable=SC2068
-        ${viewer_argv[@]} "$img" >/dev/null 2>&1 &
+        ${viewer_argv[@]} "$img" >> "$viewer_log" 2>&1 &
         # Tiny settle delay so the viewer has time to launch before the
         # next prompt — otherwise the prompt's keystrokes can be eaten by
         # the briefly-focused viewer window.
@@ -491,12 +498,14 @@ print(int((e - s).total_seconds() / 60))")
         PROPOSAL_PNG="ref_${EVENT_DATE}_with_proposal.png"
         ANN_START=$(echo "$PROPOSED_START" | grep -oE 'T[0-9]{2}:[0-9]{2}' | tr -d T)
         ANN_END=$(echo "$PROPOSED_END" | grep -oE 'T[0-9]{2}:[0-9]{2}' | tr -d T)
+        hint "Rendering annotated spectrogram with proposed window highlighted"
+        hint "(takes ~30-60 seconds — drf_spectrogram.py output below is normal):"
         python3 "$TOOLS_DIR/drf_spectrogram.py" "$MY_STATION" \
             --output "$PROPOSAL_PNG" \
             --ylim=-2,2 \
             --callsign "$MY_CALL" --grid "$MY_GRID" \
             --annotate "${ANN_START},${ANN_END},Proposed TID window" \
-            >/dev/null 2>&1 || true
+            || true
         if [[ -f "$PROPOSAL_PNG" ]]; then
             echo "Spectrogram with proposed window: $PROPOSAL_PNG"
             open_image "$PROPOSAL_PNG"
@@ -518,12 +527,13 @@ rerender_proposal() {
     local ann_s ann_e
     ann_s=$(echo "$s" | grep -oE 'T[0-9]{2}:[0-9]{2}' | tr -d T)
     ann_e=$(echo "$e" | grep -oE 'T[0-9]{2}:[0-9]{2}' | tr -d T)
+    echo "  -- Re-rendering annotated spectrogram (~30-60 sec)..."
     python3 "$TOOLS_DIR/drf_spectrogram.py" "$MY_STATION" \
         --output "$png" \
         --ylim=-2,2 \
         --callsign "$MY_CALL" --grid "$MY_GRID" \
         --annotate "${ann_s},${ann_e},Proposed TID window" \
-        >/dev/null 2>&1 || true
+        || true
     if [[ -f "$png" ]]; then
         echo "Re-rendered: $png"
         open_image "$png"
