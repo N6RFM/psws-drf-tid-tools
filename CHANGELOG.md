@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.2.0 — 2026-05-15
 
 ### Documentation
 - Tutorial Step 1: added prerequisite paragraph clarifying that
