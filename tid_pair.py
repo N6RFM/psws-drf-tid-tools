@@ -253,6 +253,15 @@ def main():
                     help="Resampling cadence in seconds. Both input series "
                          "are resampled to this cadence before correlation. "
                          "Default: 10.0")
+    ap.add_argument("--smooth", type=float, default=None,
+                    metavar="N",
+                    help="apply Savitzky-Golay smoothing with N-second "
+                         "window to both Doppler series before correlation "
+                         "(default off; recommended for high-jitter stations)")
+    ap.add_argument("--overlay-plot", type=str, default=None,
+                    metavar="PATH.png",
+                    help="write a paired-Doppler overlay PNG to PATH "
+                         "(both station traces on the same axes)")
     ap.add_argument("--version", action="version",
                     version="%(prog)s 1.0.0")
     args = ap.parse_args()
@@ -268,6 +277,23 @@ def main():
 
     t_a, y_a = load(args.csv1, t0, t1, args.dt)
     t_b, y_b = load(args.csv2, t0, t1, args.dt)
+
+    if args.smooth is not None:
+        from scipy.signal import savgol_filter
+        poly_order = 3
+        n_samples = int(round(args.smooth / args.dt))
+        min_window = poly_order + 2
+        if n_samples < min_window:
+            raise ValueError(
+                f"--smooth {args.smooth:g}s too small for dt={args.dt}s; "
+                f"need >= {min_window * args.dt:g}s for poly_order={poly_order}"
+            )
+        if n_samples % 2 == 0:
+            n_samples += 1
+        y_a = savgol_filter(y_a, n_samples, poly_order)
+        y_b = savgol_filter(y_b, n_samples, poly_order)
+        print(f"Smoothing applied: Savitzky-Golay window={args.smooth:g}s "
+              f"({n_samples} samples), polynomial order 3")
     n = min(len(y_a), len(y_b))
     y_a = y_a[:n]; y_b = y_b[:n]
 
@@ -283,7 +309,7 @@ def main():
     print(f"  Baseline:              {baseline_km:.0f} km")
     print(f"  Bearing {args.name1} -> {args.name2}: {brg_a_to_b:.1f}° true\n")
 
-    print(f"{'Interval (min)':<14} {'Lag (s)':>9} {'Lag (min)':>10}  {'Corr':>6}  {'Apparent speed':>16}  Direction")
+    print(f"{'Interval (min)':<14} {'Lag (s)':>9} {'Lag (min)':>10}  {'Corr':>6}  {'Speed (+ along {brg:.0f}°)':>26}  Direction".format(brg=brg_a_to_b))
     print("-" * 90)
 
     bands = [
@@ -304,23 +330,59 @@ def main():
         lag, corr = find_lag(x_f, y_f, fs, max_lag)
         # lag > 0 means csv2 lags csv1; signal arrived at csv1 first
         if abs(lag) < 1e-6:
-            speed_str = "(zero lag)"
+            signed_speed_str = " (zero lag)"
             direction = "indeterminate"
         else:
             speed_ms = baseline_km * 1000.0 / abs(lag)
-            speed_str = f"{speed_ms:>6.0f} m/s"
+            # Signed convention: positive speed when the wave moves
+            # from {name2} toward {name1} (i.e. arrives at name1 first,
+            # which means it traveled in the direction of brg_a_to_b).
+            # Negative speed when the wave moves the other way.
             if lag > 0:
-                direction = f"{args.name1} first, wave heading ~{brg_a_to_b:.0f}°"
+                # csv2 lags csv1 -> wave reached name1 first -> moving
+                # from name2 toward name1 -> direction = brg_b_to_a =
+                # (brg_a_to_b + 180) % 360. So if we choose positive
+                # to mean "along brg_a_to_b", this case is negative.
+                signed_speed = -speed_ms
+                direction = f"{args.name1} first, wave heading ~{(brg_a_to_b+180)%360:.0f}°"
             else:
-                direction = f"{args.name2} first, wave heading ~{(brg_a_to_b+180)%360:.0f}°"
-        print(f"{label:<14} {lag:>+9.1f} {lag/60:>+10.2f}  {corr:>+6.3f}  {speed_str:>16}  {direction}")
+                signed_speed = +speed_ms
+                direction = f"{args.name2} first, wave heading ~{brg_a_to_b:.0f}°"
+            signed_speed_str = f"{signed_speed:>+7.0f} m/s"
+        print(f"{label:<14} {lag:>+9.1f} {lag/60:>+10.2f}  {corr:>+6.3f}  {signed_speed_str:>26}  {direction}")
 
     print("\nInterpretation hints:")
-    print("- 'Apparent speed' is the wave's along-baseline projection;")
-    print("  if the wave is oblique to the baseline, apparent speed > true speed.")
-    print("- 'Direction' assumes the wave moves purely along the baseline.")
+    print(f"- 'Speed' is signed: + means wave moves along {brg_a_to_b:.0f}° (from {args.name2} to {args.name1});")
+    print(f"  - means wave moves along {(brg_a_to_b+180)%360:.0f}° (from {args.name1} to {args.name2}).")
+    print("- Sign flips between intervals indicate the lag is dominated by noise, not a coherent wave.")
+    print("- 'Speed' is the wave's along-baseline projection;")
+    print("  if the wave is oblique to the baseline, |speed| > true speed.")
     print("- Intervals where correlation is < 0.4 are unreliable; > 0.7 is strong.")
-    print("- Compare across bands: if the lag changes a lot, the signal isn't a single coherent wave.")
+
+    # Optional paired-Doppler overlay plot
+    if args.overlay_plot is not None:
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+            fig, ax = plt.subplots(figsize=(11, 5), dpi=120)
+            ax.plot(t_a, y_a, label=args.name1, linewidth=1.0)
+            ax.plot(t_b, y_b, label=args.name2, linewidth=1.0, alpha=0.85)
+            ax.set_xlabel("UTC time")
+            ax.set_ylabel("Doppler (Hz)")
+            title = f"Paired Doppler overlay: {args.name1} vs {args.name2}"
+            if args.smooth is not None:
+                title += f"  (smoothed {args.smooth:g}s)"
+            ax.set_title(title)
+            ax.grid(True, alpha=0.3)
+            ax.legend(loc="best")
+            fig.autofmt_xdate()
+            fig.tight_layout()
+            fig.savefig(args.overlay_plot)
+            plt.close(fig)
+            print(f"\nWrote paired-Doppler overlay to {args.overlay_plot}")
+        except ImportError:
+            print(f"\nWARNING: matplotlib not available; cannot write overlay plot")
 
 
 if __name__ == "__main__":

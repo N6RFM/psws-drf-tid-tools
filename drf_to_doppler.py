@@ -198,6 +198,30 @@ def estimate_carrier_freq(iq_block, fs_hz, search_band_hz=5.0):
     return float(peak_freq), float(snr_db)
 
 
+
+def _apply_smoothing(df, window_seconds, dt_seconds):
+    """Apply Savitzky-Golay smoothing to the doppler_hz column.
+
+    Raises ValueError if the window is too small for the chosen
+    polynomial order (3).
+    """
+    from scipy.signal import savgol_filter
+    poly_order = 3
+    n_samples = int(round(window_seconds / dt_seconds))
+    min_window = poly_order + 2
+    if n_samples < min_window:
+        raise ValueError(
+            f"--smooth {window_seconds:g} too small for dt={dt_seconds}s; "
+            f"need >= {min_window * dt_seconds:g} sec for poly_order={poly_order}"
+        )
+    if n_samples % 2 == 0:
+        n_samples += 1
+    df = df.copy()
+    df["doppler_hz"] = savgol_filter(df["doppler_hz"].to_numpy(),
+                                       n_samples, poly_order)
+    return df, n_samples
+
+
 def main():
     ap = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -231,6 +255,11 @@ def main():
                     help="Half-width of the frequency search window around "
                          "0 Hz, in Hz. The WWV carrier should be within this "
                          "range after baseband mixing. Default: 5.0")
+    ap.add_argument("--smooth", type=float, default=None,
+                    metavar="N",
+                    help="apply Savitzky-Golay smoothing with N-second "
+                         "window (default off; recommended: 30 sec for "
+                         "noisy stations, never > 1/4 of TID period)")
     ap.add_argument("--output", required=True,
                     help="Output CSV path. Three columns: timestamp_utc, "
                          "doppler_hz, snr_db.")
@@ -317,7 +346,17 @@ def main():
         "doppler_hz": dopplers,
         "snr_db": snrs,
     })
-    df.to_csv(args.output, index=False)
+    if args.smooth is not None:
+        df, n_used = _apply_smoothing(df, args.smooth, args.decim_seconds)
+        print(f"  Smoothing applied: Savitzky-Golay window={args.smooth:g}s "
+              f"({n_used} samples), polynomial order 3")
+        # Add a header comment to the CSV noting smoothing was applied
+        with open(args.output, "w") as f:
+            f.write(f"# Smoothing: Savitzky-Golay {args.smooth:g}s window "
+                    f"({n_used} samples), polynomial order 3\n")
+        df.to_csv(args.output, mode="a", index=False)
+    else:
+        df.to_csv(args.output, index=False)
     print(f"Wrote {len(df)} rows to {args.output}")
     print(f"  Median SNR: {np.nanmedian(df['snr_db']):.1f} dB")
     print(f"  Doppler range: {np.nanmin(df['doppler_hz']):+.3f} to "

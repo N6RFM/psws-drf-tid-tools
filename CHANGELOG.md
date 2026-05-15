@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+### Substantive code changes (PR-B from G3ZIL feedback round 2 + Phase 2 roadmap)
+
+- **--smooth N flag** added to `drf_to_doppler.py`, `tid_doa.py`, and
+  `tid_pair.py`. Off by default; when set, applies a Savitzky-Golay
+  filter (polynomial order 3) with N-second window. `drf_to_doppler.py`
+  bakes smoothing into the CSV (with a header comment noting that
+  smoothing was applied); the other two smooth in-memory before
+  cross-correlation, leaving CSVs untouched. Each script prints a
+  one-line notice when smoothing is applied.
+- **Signed-speed convention in `tid_pair.py`**: the speed column now
+  carries a sign (positive when the wave moves along the baseline
+  bearing from station2 toward station1, negative for the opposite
+  direction). Header reads "Speed (+ along {brg:.0f}°)". Makes sign
+  flips between intervals visually obvious, which is exactly the
+  diagnostic value of pair analysis. Interpretation hints rewritten
+  to describe this convention.
+- **--overlay-plot flag in `tid_pair.py`**: writes a paired-Doppler
+  overlay PNG showing both station traces on the same axes. Useful
+  for visually confirming where the lag comes from and seeing the
+  inconsistencies that explain a low or sign-flipping correlation.
+- **Driver Pause 4 smoothing prompt**: `analyze_event.sh` v1.4.3 now
+  scans the quality_summary output for stations with jitter > 0.15 Hz.
+  If any are found, the driver offers to enable `--smooth 30` for the
+  Stage 10 DOA inversion. Default is no.
+- **TUTORIAL.md / COOKBOOK.md**: added documentation for the new
+  --smooth flag, with tuning recommendations.
+
+Feedback from G3ZIL + Phase 2 of the code roadmap.
+
 ### Small improvements (PR-A from G3ZIL feedback round 2)
 
 - **find_event_stations.py**: expanded the magnetometer filter to

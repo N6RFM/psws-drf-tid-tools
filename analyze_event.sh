@@ -3,7 +3,7 @@
 #
 # Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 # Created by N6RFM with help from Claude AI.
-# Version: 1.4.2
+# Version: 1.4.3
 # License: MIT (do whatever you want, no warranty).
 #
 # OVERVIEW
@@ -108,7 +108,7 @@ while [[ $# -gt 0 ]]; do
         --reset)           RESET=1; shift ;;
         --resume)          RESUME=1; shift ;;
         -h|--help)         usage ;;
-        --version)         echo "analyze_event.sh 1.4.2"; exit 0 ;;
+        --version)         echo "analyze_event.sh 1.4.3"; exit 0 ;;
         *)
             echo "Unknown argument: $1"
             echo "Try --help"
@@ -879,7 +879,7 @@ if [[ $LAST_STAGE -lt 9 ]]; then
         for s in "${COMPANION_LIST[@]}"; do
             [[ -f "${s}.csv" ]] && QUALITY_CSVS+=("${s}.csv")
         done
-        python3 "$TOOLS_DIR/quality_summary.py" --suggest-shorten "${QUALITY_CSVS[@]}" || true
+        python3 "$TOOLS_DIR/quality_summary.py" --suggest-shorten "${QUALITY_CSVS[@]}" || true | tee .quality_summary_output
     fi
 
     cat <<EOF
@@ -931,6 +931,38 @@ EOF
         COMPANIONS=$(IFS=,; echo "${NEW_LIST[*]}")
         echo "After drops, companions are: $COMPANIONS"
     fi
+    # New in v1.4.3: offer smoothing for stations with high jitter.
+    # quality_summary.py's output (printed earlier in this stage) has a
+    # column for jitter in Hz. Look for any line with a numeric jitter
+    # value > 0.15 Hz; if found, offer to enable smoothing on the DOA run.
+    SMOOTH_FOR_DOA=""
+    if [[ -f .quality_summary_output ]]; then
+        HIGH_JITTER_FOUND=$(awk '
+            /^  [a-zA-Z0-9_]/ && NF >= 6 {
+                # Field 3 is jitter — try to parse as float
+                jitter = $3 + 0
+                if (jitter > 0.15) print $1
+            }
+        ' .quality_summary_output 2>/dev/null | head -1)
+
+        if [[ -n "$HIGH_JITTER_FOUND" ]]; then
+            echo ""
+            echo "One or more stations show high jitter (>0.15 Hz)."
+            echo "Smoothing the Doppler series before cross-correlation can help"
+            echo "the DOA inversion converge on the wave signal rather than noise."
+            read -p "Enable smoothing (Savitzky-Golay 30s window) for DOA? [y/N]: " smyn
+            case "${smyn,,}" in
+                y|yes)
+                    SMOOTH_FOR_DOA="30"
+                    echo "  Smoothing will be applied (30s window)."
+                    ;;
+                *)
+                    echo "  No smoothing — raw Doppler series will be used."
+                    ;;
+            esac
+        fi
+    fi
+
     save_state 9
 fi
 
@@ -1042,7 +1074,11 @@ PYEOF
     echo "Wrote event.json with $(python3 -c "import json; print(len(json.load(open('event.json'))['stations']))") stations."
 
     # Run the inversion
-    python3 "$TOOLS_DIR/tid_doa.py" event.json | tee doa_output.txt
+    SMOOTH_FLAG=""
+    if [[ -n "$SMOOTH_FOR_DOA" ]]; then
+        SMOOTH_FLAG="--smooth $SMOOTH_FOR_DOA"
+    fi
+    python3 "$TOOLS_DIR/tid_doa.py" event.json $SMOOTH_FLAG | tee doa_output.txt
     save_state 10
 fi
 

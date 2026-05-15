@@ -402,3 +402,22 @@ source code and example configs should be committed.
 | `tid_doa.py` correlations < 0.4 across all pairs | Wrong analysis window | Look at spectrograms; pick a cleaner window |
 | `tid_doa.py` one lag at the edge of max_lag_s | Pair too noisy or wrong cycle | Reduce `max_lag_seconds` or drop that station |
 | `tid_map.py` says "install cartopy" | Optional dep missing | `pip install cartopy` for nicer maps |
+
+
+## Recipe: handle a noisy companion station
+
+When `quality_summary.py` flags a station as POOR for jitter (typically
+> 0.15 Hz), the cross-correlation in `tid_doa.py` may produce a
+spurious or unstable lag. Smooth the Doppler series before correlation:
+
+```
+python3 tid_doa.py event.json --smooth 30
+```
+
+The same flag is available on `drf_to_doppler.py` (smooth the CSV at
+extraction time) and `tid_pair.py` (smooth for pair analysis).
+
+When in doubt, run with and without smoothing and compare the DOA
+result. If the answer is broadly the same (within ~10°), the wave
+signal is robust; if it changes substantially, the station is
+contributing more noise than wave information.
