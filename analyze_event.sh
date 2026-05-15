@@ -879,7 +879,7 @@ if [[ $LAST_STAGE -lt 9 ]]; then
         for s in "${COMPANION_LIST[@]}"; do
             [[ -f "${s}.csv" ]] && QUALITY_CSVS+=("${s}.csv")
         done
-        python3 "$TOOLS_DIR/quality_summary.py" --suggest-shorten "${QUALITY_CSVS[@]}" || true | tee .quality_summary_output
+        python3 "$TOOLS_DIR/quality_summary.py" --suggest-shorten "${QUALITY_CSVS[@]}" | tee .quality_summary_output || true
     fi
 
     cat <<EOF
