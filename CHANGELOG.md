@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+### Auto-window-tightening at Pause 4 (PR-D)
+
+- **New feature**: when `quality_summary.py` flags an end-fade (e.g.
+  N6RFM's +6.6 dB drop in the last 10% of a 75-minute window), the
+  driver now offers to tighten the analysis window. Default is to
+  keep the current window (press Enter); type `y` to accept the
+  suggested tightening. If accepted, all stations' Doppler CSVs are
+  re-extracted at the new window, `quality_summary.py` is re-run,
+  and `stack_pause4.png` is re-rendered. The loop runs up to 3
+  iterations or until no more suggestions appear.
+- **Design notes**: this revives the auto-tightening feature that
+  was prototyped but backed out of v1.3.0 because of state-management
+  bugs. The clean rewrite:
+  - Uses the canonical `WINDOW_END` shell variable (not the broken
+    `END_TIME` from the v1.3.0 prototype).
+  - Persists `WINDOW_END` to `.analyze_event_state` immediately when
+    changed, so Stage 10 and resumes always read the correct value.
+  - Reads each station's subchannel from `station_subchannels.txt`
+    (already built at Stage 8), correctly handling multi-subchannel
+    DRFs like AC0G/ND where 10 MHz is at subchannel 4, not 0.
+  - Defaults to safe behavior (Enter = keep current) rather than
+    the v1.3.0 prototype's "Enter = accept the change" pattern that
+    caused unintended tightening.
+  - Stage 11 figure regeneration picks up the tightened window
+    automatically because Stage 11 reads from state.
+
+Feedback from G3ZIL (deferred during v1.3.0).
+
+---
+
+## Unreleased
+
 ### Pause 4 UX improvement (PR-C, analyze_event.sh v1.4.3)
 
 - **Stacked Doppler plot rendered at Pause 4**: the driver now
