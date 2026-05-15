@@ -83,24 +83,36 @@ SIGN CONVENTION
 The reported lag has SIGN. Positive lag means csv2 lags csv1 (i.e., the
 wave reached station 1 first). Negative lag means csv2 leads csv1. The
 "Direction" column translates this into a true-bearing direction of
-wave motion ASSUMING the wave moves directly along the baseline -- a
-worst-case interpretation that gives you the lower bound on true speed
-and a worst-case direction.
+wave motion ASSUMING the wave moves directly along the baseline. This
+is one of two possible alignment scenarios; without a second baseline
+at a different orientation you cannot determine which.
 
 INTERPRETING APPARENT SPEED
 ===========================
 Apparent speed = baseline / |lag|.
 
-If the wave's true propagation direction is exactly along the baseline,
-apparent speed = true speed. If the wave moves at angle theta to the
-baseline, apparent speed = true speed / cos(theta), so apparent speed
->= true speed.
+Apparent speed is the wave's velocity component along the baseline,
+recovered from the time it takes the wavefront to traverse the
+baseline projection. If the wave's true direction is exactly along
+the baseline, apparent speed equals the true speed. If the wave
+moves at angle theta to the baseline:
+
+  apparent speed = true speed / cos(theta)
+
+so apparent speed >= true speed. (When the wave moves nearly
+perpendicular to the baseline, cos(theta) is small and the apparent
+speed diverges -- the wavefront crosses both midpoints almost
+simultaneously, lag is near zero, and the implied baseline-projection
+speed becomes very large.)
 
 For 188 km baseline and 14 min lag (our N6RFM/N5TNL Jan 19 result):
   apparent speed = 224 m/s
-  true speed could be 224 m/s (aligned) or much higher (oblique)
+  true speed could be 224 m/s (wave aligned with baseline) or smaller
+  if the wave is partly oblique to the baseline.
 
-Without a perpendicular baseline you cannot distinguish these cases.
+Without a second baseline at a different orientation you cannot
+distinguish these cases; that is what the multi-station DOA inversion
+in tid_doa.py solves.
 
 USAGE
 =====
@@ -271,11 +283,11 @@ def main():
     print(f"  Baseline:              {baseline_km:.0f} km")
     print(f"  Bearing {args.name1} -> {args.name2}: {brg_a_to_b:.1f}° true\n")
 
-    print(f"{'Band (min)':<14} {'Lag (s)':>9} {'Lag (min)':>10}  {'Corr':>6}  {'Apparent speed':>16}  Direction")
+    print(f"{'Interval (min)':<14} {'Lag (s)':>9} {'Lag (min)':>10}  {'Corr':>6}  {'Apparent speed':>16}  Direction")
     print("-" * 90)
 
     bands = [
-        ("Raw (no filter)", None, None),
+        ("Full time window", None, None),
         ("30 - 60",   30*60, 60*60),
         ("40 - 90",   40*60, 90*60),
         ("60 - 120",  60*60, 120*60),
@@ -304,9 +316,10 @@ def main():
         print(f"{label:<14} {lag:>+9.1f} {lag/60:>+10.2f}  {corr:>+6.3f}  {speed_str:>16}  {direction}")
 
     print("\nInterpretation hints:")
-    print("- 'Apparent speed' is the wave's along-baseline component; true speed is >= this.")
-    print("- 'Direction' assumes the wave moves purely along the baseline (lower bound).")
-    print("- Bands where correlation is < 0.4 are unreliable; > 0.7 is strong.")
+    print("- 'Apparent speed' is the wave's along-baseline projection;")
+    print("  if the wave is oblique to the baseline, apparent speed > true speed.")
+    print("- 'Direction' assumes the wave moves purely along the baseline.")
+    print("- Intervals where correlation is < 0.4 are unreliable; > 0.7 is strong.")
     print("- Compare across bands: if the lag changes a lot, the signal isn't a single coherent wave.")
 
 

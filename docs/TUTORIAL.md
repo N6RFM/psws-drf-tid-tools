@@ -484,10 +484,13 @@ What to look for:
   N6RFM's. The wave is moving from AA6BD toward N6RFM (NE to SW),
   consistent with what the spectrograms show.
 
-The apparent speed (1219 m/s) is a *lower bound* on the true phase
-speed — the wave isn't moving directly along the baseline, so the
-along-baseline component undercounts. We need 3+ stations to get the
-true speed.
+The apparent speed (1219 m/s) is the wave's velocity *component
+along the baseline*. If the wave is moving exactly along the baseline,
+apparent speed equals the true speed; if it's oblique, apparent speed
+overstates the true speed (apparent = true / cos(theta), where theta
+is the angle between the wave direction and the baseline). We need
+3+ stations to get the true vector velocity rather than a single
+along-baseline component.
 
 ---
 

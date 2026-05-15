@@ -126,6 +126,24 @@ gradient that swamps the TID).
 
 ---
 
+### Interpreting the correlation magnitude
+
+The reported correlation coefficient `r` is in [-1, +1]. Its square
+`r²` has a useful interpretation: it is the fraction of variance in
+one signal that is explained by the other under the chosen lag. So
+`r = 0.578` means `r² ≈ 0.33`, i.e. only about a third of the
+variability at one station is accounted for by the wave structure
+shared with the other station, leaving about two-thirds attributable
+to noise, fading, RFI, instrument drift, or unrelated ionospheric
+activity. Correlations above 0.7 (`r² > 0.5`) indicate that the
+shared wave structure is the dominant component; correlations below
+0.4 (`r² < 0.16`) should be treated as suggestive at best.
+
+This interpretation is most useful when comparing the same pair across
+different analysis intervals or when comparing pairs across the array
+— a higher `r²` indicates a more reliable lag estimate, not a "more
+intense" wave.
+
 ## Step 3: Slowness-vector inversion
 
 For N stations at positions `r_1, ..., r_N` (projected to a local

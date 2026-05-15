@@ -1,5 +1,36 @@
 # Changelog
 
+## Unreleased
+
+### Documentation and output-text corrections (from G3ZIL feedback)
+
+- **tid_pair.py**: renamed the output column header "Band (min)" to
+  "Interval (min)" — `Band` could be confused with frequency band,
+  while the rows are actually period intervals.
+- **tid_pair.py**: renamed the row label "Raw (no filter)" to
+  "Full time window" — better describes what the row represents
+  (no time-window restriction) without implying a frequency filter
+  that is or isn't applied.
+- **tid_pair.py + TUTORIAL.md**: corrected an inverted-inequality
+  description. The text previously said the apparent speed is a
+  *lower bound* on the true phase speed. This is wrong: with the wave
+  oblique to the baseline, `apparent = true / cos(theta)`, so
+  apparent speed is >= true speed (it overstates). The docstring,
+  output-footer note, and tutorial paragraph all now describe this
+  correctly.
+- **TUTORIAL.md**: changed "We need 3+ stations to get the true speed"
+  to "We need 3+ stations to get the true vector velocity" — more
+  precise: pair analysis gives a single scalar projection, multi-
+  station inversion gives a 2-D vector velocity.
+- **METHODOLOGY.md**: added a paragraph on interpreting the correlation
+  coefficient as `r²` = explained variance, with thresholds. Helps
+  operators see that a correlation of 0.578 represents only ~33% of
+  shared variance, leaving ~67% to noise.
+
+Feedback from G3ZIL.
+
+---
+
 ## v1.2.1 — 2026-05-15
 
 ### Code fixes (drf_spectrogram.py — v1.1.1)
