@@ -431,7 +431,8 @@ def run(config):
     use_bandpass = config.get("use_bandpass", False)
     min_speed_m_s = config.get("min_expected_speed_m_s", 100.0)
 
-    stations = [load_station(c, t0, t1, dt_s) for c in config["stations"]]
+    smooth_s = config.get("smooth_seconds")
+    stations = [load_station(c, t0, t1, dt_s, smooth_seconds=smooth_s) for c in config["stations"]]
     if len(stations) < 3:
         raise SystemExit("Need at least 3 stations for direction-of-arrival.")
 
@@ -566,4 +567,7 @@ if __name__ == "__main__":
         sys.exit(0)
     with open(_args.config) as f:
         cfg = json.load(f)
+    if _args.smooth is not None:
+        cfg["smooth_seconds"] = _args.smooth
+        print(f"Smoothing enabled: Savitzky-Golay window={_args.smooth:g}s, polynomial order 3")
     run(cfg)
