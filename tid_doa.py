@@ -295,7 +295,7 @@ class StationData:
     doppler: np.ndarray
 
 
-def load_station(cfg, t_start, t_end, target_dt_s):
+def load_station(cfg, t_start, t_end, target_dt_s, smooth_seconds=None):
     df = pd.read_csv(cfg["file"])
     cols = [c.lower() for c in df.columns]
     df.columns = cols
@@ -310,6 +310,20 @@ def load_station(cfg, t_start, t_end, target_dt_s):
     # Resample to common cadence
     target = f"{int(target_dt_s)}s"
     df = df[[dcol]].resample(target).mean().interpolate()
+
+    if smooth_seconds is not None:
+        from scipy.signal import savgol_filter
+        poly_order = 3
+        n_samples = int(round(smooth_seconds / target_dt_s))
+        min_window = poly_order + 2
+        if n_samples < min_window:
+            raise ValueError(
+                f"--smooth {smooth_seconds:g}s too small for dt={target_dt_s}s; "
+                f"need >= {min_window * target_dt_s:g}s for poly_order={poly_order}"
+            )
+        if n_samples % 2 == 0:
+            n_samples += 1
+        df[dcol] = savgol_filter(df[dcol].to_numpy(), n_samples, poly_order)
 
     times = df.index.astype("int64").to_numpy() / 1e9
     doppler = df[dcol].to_numpy()
@@ -530,6 +544,12 @@ def _cli():
     ap.add_argument("config", nargs="?", default=None,
                     help="Path to event JSON config file. Run without this "
                          "argument to write example_event.json and exit.")
+    ap.add_argument("--smooth", type=float, default=None,
+                    metavar="N",
+                    help="apply Savitzky-Golay smoothing with N-second "
+                         "window to each station's Doppler series before "
+                         "cross-correlation (default off; recommended for "
+                         "stations flagged POOR by quality_summary.py)")
     ap.add_argument("--version", action="version",
                     version="%(prog)s 1.1.0")
     return ap.parse_args()
