@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Pause 4 UX improvement (PR-C, analyze_event.sh v1.4.3)
+
+- **Stacked Doppler plot rendered at Pause 4**: the driver now
+  generates a multi-station overlay (`stack_pause4.png`) and opens
+  it BEFORE the "do all stations look good?" prompt. Operators can
+  see the array view in one image rather than relying on per-station
+  PNGs only. Uses `tid_stack_plot.py --smooth 120` for peak-marker
+  accuracy on noisy stations.
+- **tid_stack_plot.py `--smooth N` flag**: when set, peak detection
+  finds the peak on a smoothed-internal series instead of the raw
+  trace. Display traces stay raw (so noise spikes remain visible
+  for diagnostic purposes); only the peak-marker selection is
+  smoothed. Helps avoid picking noise spikes as the wave peak.
+
+Feedback from real-world testing.
+
 ### Substantive code changes (PR-B from G3ZIL feedback round 2 + Phase 2 roadmap)
 
 - **--smooth N flag** added to `drf_to_doppler.py`, `tid_doa.py`, and
