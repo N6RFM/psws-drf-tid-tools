@@ -3,7 +3,7 @@
 #
 # Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 # Created by N6RFM with help from Claude AI.
-# Version: 1.4.3
+# Version: 1.5.0
 # License: MIT (do whatever you want, no warranty).
 #
 # OVERVIEW
@@ -108,7 +108,7 @@ while [[ $# -gt 0 ]]; do
         --reset)           RESET=1; shift ;;
         --resume)          RESUME=1; shift ;;
         -h|--help)         usage ;;
-        --version)         echo "analyze_event.sh 1.4.3"; exit 0 ;;
+        --version)         echo "analyze_event.sh 1.5.0"; exit 0 ;;
         *)
             echo "Unknown argument: $1"
             echo "Try --help"
@@ -533,6 +533,146 @@ fi
 
 # Helper: re-render the spectrogram with a different proposed window,
 # then open it. Used when the user edits the proposal.
+# Re-extract a single station's Doppler CSV at the current WINDOW_START
+# and WINDOW_END. Used by the Pause 4 tightening loop. The subchannel
+# is read from station_subchannels.txt (built at Stage 8); falls back
+# to 0 if the file is missing or the station is not listed.
+#
+# Args:
+#   $1 = station name (matches directory name and CSV name)
+#   $2 = "ref" (use $MY_STATION as data source) or "companion" (./$1)
+reextract_one_station() {
+    local s="$1"
+    local kind="$2"
+    local data_dir subch
+    if [[ "$kind" == "ref" ]]; then
+        data_dir="$MY_STATION"
+        # Reference station: subchannel always 0 in this pipeline
+        # (matches Stage 8's behavior at line 925-ish).
+        subch=0
+    else
+        data_dir="./$s"
+        subch=$(awk -F'\t' -v s="$s" '$1 == s {print $2; exit}' \
+                station_subchannels.txt 2>/dev/null)
+        subch="${subch:-0}"
+    fi
+    python3 "$TOOLS_DIR/drf_to_doppler.py" "$data_dir" \
+        --start "$WINDOW_START" --end "$WINDOW_END" \
+        --decim-seconds "$DECIM_SECONDS" --subchannel "$subch" \
+        --output "${s}.csv" --plot "${s}.png"
+}
+
+# Re-extract reference + all companion stations at the current
+# WINDOW_START / WINDOW_END. Used by the Pause 4 tightening loop.
+# Returns 0 on success, non-zero on any failure.
+reextract_all_stations() {
+    echo ""
+    echo "  Re-extracting Doppler CSVs at new window..."
+    echo "    Window: $WINDOW_START -> $WINDOW_END"
+    reextract_one_station "$REF_NAME" "ref" || return 1
+    for s in "${COMPANION_LIST[@]}"; do
+        reextract_one_station "$s" "companion" || return 1
+    done
+    echo "  Re-extraction complete."
+    return 0
+}
+
+# Run quality_summary.py against the current Doppler CSVs (reference +
+# all companions) and tee the output to .quality_summary_output so
+# get_suggested_end_time and other downstream code can parse it.
+# Used both at the initial Pause 4 entry and inside the tightening loop.
+run_quality_summary() {
+    local csvs=("${REF_NAME}.csv")
+    for s in "${COMPANION_LIST[@]}"; do
+        [[ -f "${s}.csv" ]] && csvs+=("${s}.csv")
+    done
+    python3 "$TOOLS_DIR/quality_summary.py" --suggest-shorten "${csvs[@]}" \
+        | tee .quality_summary_output || true
+}
+
+
+# Parse .quality_summary_output and extract the EARLIEST (most-restrictive)
+# end-time suggestion. Echoes the timestamp in YYYY-MM-DDTHH:MM:SS format,
+# or empty string if no suggestions are present.
+#
+# Lines we care about look like:
+#   Consider shortening the analysis window to end at or before 2026-01-19T01:07:24.
+get_suggested_end_time() {
+    if [[ ! -f .quality_summary_output ]]; then
+        return
+    fi
+    grep -oE '20[0-9]{2}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}' \
+        .quality_summary_output 2>/dev/null | sort | head -1
+}
+
+# Pause 4 auto-window-tightening loop. Offers to tighten the analysis
+# window when quality_summary.py has flagged end-fade. Loops up to 3
+# iterations or until no more suggestions appear.
+#
+# Reads:  WINDOW_END (current), .quality_summary_output (suggestions)
+# Writes: WINDOW_END (if tightened), all *.csv (if re-extracted),
+#         .quality_summary_output (refreshed), stack_pause4.png (refreshed),
+#         .analyze_event_state (persists new WINDOW_END)
+pause4_tightening_loop() {
+    local iteration=0
+    local max_iterations=3
+    while [[ $iteration -lt $max_iterations ]]; do
+        local suggested
+        suggested=$(get_suggested_end_time)
+        if [[ -z "$suggested" ]]; then
+            return 0
+        fi
+        if [[ "$suggested" == "$WINDOW_END" ]] \
+           || [[ "$suggested" > "$WINDOW_END" ]]; then
+            # Suggestion is not actually earlier than current — done
+            return 0
+        fi
+        echo ""
+        echo "End-fade suggestion: shorten the analysis window."
+        echo "  Current end time:             $WINDOW_END"
+        echo "  Suggested (most-restrictive): $suggested"
+        echo ""
+        read -p "Tighten window to $suggested? [y/N]: " TIGHTEN_ANSWER
+        case "${TIGHTEN_ANSWER,,}" in
+            y|yes)
+                echo "  Updating WINDOW_END to $suggested..."
+                WINDOW_END="$suggested"
+                # Persist immediately so Stage 10 and resumes pick up
+                # the new window even if the user Ctrl-Cs the
+                # re-extraction.
+                save_state 8
+                if ! reextract_all_stations; then
+                    echo "  Re-extraction failed; reverting WINDOW_END."
+                    WINDOW_END=$(grep "^WINDOW_END=" \
+                        .analyze_event_state | cut -d= -f2 \
+                        | sed 's/^"//;s/"$//')
+                    return 1
+                fi
+                # Re-run quality_summary with the tightened CSVs so the
+                # next iteration's get_suggested_end_time sees updated
+                # data.
+                run_quality_summary || true
+                # Refresh the stack PNG so the operator can see the
+                # tightened view.
+                render_pause4_stack
+                iteration=$((iteration + 1))
+                ;;
+            *)
+                # Default (Enter or 'n') = keep current window, exit loop
+                echo "  Keeping current window: $WINDOW_END"
+                return 0
+                ;;
+        esac
+    done
+    if [[ $iteration -ge $max_iterations ]]; then
+        echo ""
+        echo "  Reached maximum tightening iterations ($max_iterations);"
+        echo "  proceeding with WINDOW_END=$WINDOW_END."
+    fi
+    return 0
+}
+
+
 # Render the per-Pause-4 stack PNG so the operator sees the multi-station
 # comparison BEFORE deciding whether all stations look good. Uses
 # --smooth 120 for peak detection so noise spikes don't dominate the
@@ -946,11 +1086,21 @@ EOF
                 break
                 ;;
             n|no)
-                read -p "Stations to DROP (comma-separated): " DROP_RAW
-                if [[ -n "$DROP_RAW" ]]; then
-                    break
-                fi
-                echo "  (No stations specified — please enter at least one, or answer 'yes'.)"
+                read -p "Stations to DROP (comma-separated, or empty/n/none to proceed without drops): " DROP_RAW
+                # Treat empty input, "n", "no", or "none" as "proceed
+                # without any drops" — useful when the operator answered
+                # "no" because they want to tighten the window (handled
+                # below by pause4_tightening_loop), not because they want
+                # to drop stations.
+                case "${DROP_RAW,,}" in
+                    ""|n|no|none)
+                        DROP_RAW=""
+                        break
+                        ;;
+                    *)
+                        break
+                        ;;
+                esac
                 ;;
             *)
                 echo "  (Please answer 'yes' or 'no'.)"
@@ -971,6 +1121,12 @@ EOF
         COMPANIONS=$(IFS=,; echo "${NEW_LIST[*]}")
         echo "After drops, companions are: $COMPANIONS"
     fi
+
+    # PR-D: Offer to tighten the analysis window if quality_summary
+    # flagged end-fade. Loops up to 3 iterations or until no more
+    # suggestions appear; safe-by-default prompt (Enter = keep current).
+    pause4_tightening_loop
+
     # New in v1.4.3: offer smoothing for stations with high jitter.
     # quality_summary.py's output (printed earlier in this stage) has a
     # column for jitter in Hz. Look for any line with a numeric jitter
