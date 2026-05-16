@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.4.0 — 2026-05-16
 
 ### Auto-window-tightening at Pause 4 (PR-D)
 
@@ -32,7 +32,7 @@ Feedback from G3ZIL (deferred during v1.3.0).
 
 ---
 
-## Unreleased
+## v1.3.0 — 2026-05-15
 
 ### Pause 4 UX improvement (PR-C, analyze_event.sh v1.4.3)
 
