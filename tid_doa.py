@@ -4,10 +4,17 @@ tid_doa.py — multi-station TID direction-of-arrival analyzer
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.1.0
+Version: 1.2.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.2.0  Added RESULT DIAGNOSTICS: five observational checks
+          (geometry conditioning, plane-wave residual,
+          pairwise correlation spread, triangle closure,
+          speed range) shown after the result; flag-don't-
+          fail, default on, --no-diagnostics to suppress.
+          Added a per-run log under ./runs/. No change to
+          any computed value.
   v1.1.0  Default cross-correlation now operates on raw (mean-subtracted)
           Doppler instead of bandpass-filtered. Bandpass was producing
           multi-lobed correlation functions causing the lag-finder to lock
@@ -409,6 +416,18 @@ def solve_doa(stations, fs_hz, period_band_s, max_lag_s, use_bandpass=False):
     # Direction the wave is COMING FROM is opposite:
     az_from = (az_deg + 180) % 360
 
+    if residuals is not None and len(residuals) > 0:
+        sse = float(residuals[0])
+    else:
+        pred = A.dot(s_vec)
+        sse = float(np.sum((b - pred) ** 2))
+    m_pairs = int(A.shape[0])
+    rms_resid_s = (sse / m_pairs) ** 0.5 if m_pairs > 0 else float("nan")
+    sv_arr = [float(v) for v in sv]
+    if len(sv_arr) >= 2 and min(sv_arr) > 0:
+        sv_ratio = max(sv_arr) / min(sv_arr)
+    else:
+        sv_ratio = float("inf")
     return {
         "azimuth_to_deg": az_deg,
         "azimuth_from_deg": az_from,
@@ -416,7 +435,225 @@ def solve_doa(stations, fs_hz, period_band_s, max_lag_s, use_bandpass=False):
         "slowness_s_per_m": (sx, sy),
         "pairs": pair_info,
         "array_center": (lat0, lon0),
+        "rms_resid_s": rms_resid_s,
+        "sv_ratio": sv_ratio,
+        "lstsq_rank": int(rank),
+        "n_pairs": m_pairs,
     }
+
+
+# ---------------------------------------------------------------------------
+# Result diagnostics (observational, NOT pass/fail). Every value here is
+# already computed by the inversion; this only reads and reports it.
+# Thresholds are GUIDELINE defaults grounded in the docstring's existing
+# advice (mostly > 0.7, LSTID 300-1000 m/s). Tunable.
+# ---------------------------------------------------------------------------
+DIAG_SV_RATIO_MAX   = 30.0
+DIAG_RESID_FRAC_MAX = 0.25
+DIAG_CORR_WEAK      = 0.40
+DIAG_SPEED_LO       = 100.0
+DIAG_SPEED_HI       = 1000.0
+
+
+def _triangle_closures(pairs):
+    """Sum of signed lags around every station triple.
+
+    pair_info stores lag_s for i->j with i<j only. A leg not stored
+    in i<j order is the negative of its stored counterpart. Returns
+    list of (triple_names, closure_s, mean_leg_s).
+    """
+    lag = {}
+    names = set()
+    for p in pairs:
+        lag[(p["i"], p["j"])] = p["lag_s"]
+        names.add(p["i"]); names.add(p["j"])
+    names = sorted(names)
+
+    def leg(a, b):
+        if (a, b) in lag:
+            return lag[(a, b)]
+        if (b, a) in lag:
+            return -lag[(b, a)]
+        return None
+
+    out = []
+    for ia in range(len(names)):
+        for ib in range(ia + 1, len(names)):
+            for ic in range(ib + 1, len(names)):
+                a, bb, c = names[ia], names[ib], names[ic]
+                l1, l2, l3 = leg(a, bb), leg(bb, c), leg(c, a)
+                if None in (l1, l2, l3):
+                    continue
+                closure = l1 + l2 + l3
+                mean_leg = (abs(l1) + abs(l2) + abs(l3)) / 3.0
+                out.append(((a, bb, c), closure, mean_leg))
+    return out
+
+
+def format_diagnostics(result):
+    """Return (text_block, n_flagged). Observational; never a verdict."""
+    L = []
+    flagged = 0
+    L.append("=== RESULT DIAGNOSTICS ===")
+    L.append("(Guideline ranges, not pass/fail. You decide what is")
+    L.append(" acceptable for your event and array.)")
+    L.append("")
+
+    svr = result.get("sv_ratio", float("inf"))
+    L.append("[1] Geometry conditioning")
+    L.append(f"    Singular-value ratio:  {svr:.1f}")
+    L.append(f"    Typical good range:    < ~{DIAG_SV_RATIO_MAX:.0f}  "
+             f"(higher = near-collinear midpoints,")
+    L.append("                           direction poorly constrained)")
+    if not (svr < DIAG_SV_RATIO_MAX):
+        flagged += 1
+        L.append("    >> OUTSIDE typical range. Array geometry may not")
+        L.append("       separate speed from heading well; treat the")
+        L.append("       direction with caution.")
+    L.append("")
+
+    rms = result.get("rms_resid_s", float("nan"))
+    pairs = result.get("pairs", [])
+    mean_abs_lag = (sum(abs(p["lag_s"]) for p in pairs) / len(pairs)
+                    if pairs else float("nan"))
+    frac = (rms / mean_abs_lag) if mean_abs_lag and mean_abs_lag > 0 else float("nan")
+    L.append("[2] Plane-wave fit residual")
+    L.append(f"    RMS lag residual:      {rms:.0f} s  "
+             f"({frac*100:.1f}% of mean abs lag {mean_abs_lag:.0f} s)")
+    L.append(f"    Typical good range:    < ~{DIAG_RESID_FRAC_MAX*100:.0f}%  "
+             f"(higher = lags not consistent")
+    L.append("                           with a single coherent wave)")
+    if not (frac < DIAG_RESID_FRAC_MAX):
+        flagged += 1
+        L.append("    >> OUTSIDE typical range. A single plane wave does")
+        L.append("       not explain the lags well: possible noise or")
+        L.append("       multiple superimposed waves.")
+    L.append("")
+
+    corrs = [p["corr"] for p in pairs] if pairs else []
+    if corrs:
+        cmin, cmax = min(corrs), max(corrs)
+        cmean = sum(corrs) / len(corrs)
+        L.append("[3] Pairwise correlation")
+        L.append(f"    {len(corrs)} pairs: min {cmin:.3f}, mean "
+                 f"{cmean:.3f}, max {cmax:.3f}")
+        L.append(f"    Guideline:             pairs < {DIAG_CORR_WEAK:.2f} "
+                 f"are weak; target >0.7")
+        weak = [f"{p['i']}->{p['j']} {p['corr']:.3f}"
+                for p in pairs if p["corr"] < DIAG_CORR_WEAK]
+        if weak:
+            flagged += 1
+            L.append(f"    >> {len(weak)} weak pair(s): " + "; ".join(weak))
+            L.append("       Consider dropping the least-coherent station")
+            L.append("       and re-running to test robustness.")
+        L.append("")
+
+    closures = _triangle_closures(pairs)
+    if closures:
+        worst = max(closures,
+                    key=lambda t: (abs(t[1]) / t[2]) if t[2] > 0 else 0)
+        tri, cl, ml = worst
+        frac_cl = (abs(cl) / ml) if ml > 0 else float("inf")
+        L.append("[4] Triangle closure")
+        L.append(f"    {len(closures)} triple(s), worst: {abs(cl):.0f} s  "
+                 f"({frac_cl*100:.1f}% of mean leg)")
+        L.append("    Typical good range:    < ~15%  (higher = at least")
+        L.append("                           one pair lag is a wrong peak)")
+        if not (frac_cl < 0.15):
+            flagged += 1
+            L.append(f"    >> OUTSIDE typical range (triple "
+                     f"{tri[0]}/{tri[1]}/{tri[2]}). One pair correlation")
+            L.append("       likely locked a wrong peak; check the pairwise")
+            L.append("       table; a window tighten or drop may help.")
+        L.append("")
+
+    sp = result.get("speed_m_s", float("nan"))
+    L.append("[5] Phase speed")
+    L.append(f"    Result:                {sp:.0f} m/s")
+    L.append(f"    Typical TID range:     {DIAG_SPEED_LO:.0f}-"
+             f"{DIAG_SPEED_HI:.0f} m/s (LSTID); 100-300 (MSTID)")
+    if not (DIAG_SPEED_LO < sp < DIAG_SPEED_HI):
+        flagged += 1
+        rel = "ABOVE" if sp >= DIAG_SPEED_HI else "BELOW"
+        L.append(f"    >> {rel} typical TID speeds. If combined with")
+        L.append("       other flags, this pattern is characteristic of")
+        L.append("       contaminated lags rather than a real wave.")
+    L.append("")
+
+    if flagged == 0:
+        L.append("  >> All five diagnostics fall within typical ranges.")
+    else:
+        L.append(f"  >> {flagged} of 5 diagnostic(s) outside typical "
+                 f"ranges.")
+        L.append("     This result merits scrutiny before use; see the")
+        L.append("     flagged items above.")
+    L.append("")
+    L.append("Reminder: these are internal consistency checks. They")
+    L.append("cannot confirm the result is physically real -- cross-")
+    L.append("checking against an independent method or a hand-analysed")
+    L.append("event remains the strongest validation.")
+    return "\n".join(L), flagged
+
+
+def _write_run_log(config, result, diag_text):
+    """Append a self-contained per-run record to ./runs/<ts>_run.log.
+
+    Non-fatal on any error -- a logging failure must never break a run.
+    """
+    import os, sys, subprocess, datetime
+    runs_dir = os.path.join(os.getcwd(), "runs")
+    os.makedirs(runs_dir, exist_ok=True)
+    ts = datetime.datetime.now(datetime.timezone.utc).strftime(
+        "%Y-%m-%dT%H%M%SZ")
+    log_path = os.path.join(runs_dir, f"{ts}_run.log")
+    try:
+        git_hash = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=os.path.dirname(os.path.abspath(__file__)),
+            stderr=subprocess.DEVNULL).decode().strip()
+    except Exception:
+        git_hash = "(unavailable)"
+    stations = config.get("stations", [])
+    lines = []
+    lines.append("=== psws-drf-tid-tools run log ===")
+    lines.append(f"Timestamp:   {ts}")
+    lines.append("Tool:        tid_doa.py")
+    lines.append(f"Working dir: {os.getcwd()}")
+    lines.append("")
+    lines.append("--- INPUTS (from config) ---")
+    lines.append(f"Event start: {config.get('event_start_utc')}")
+    lines.append(f"Event end:   {config.get('event_end_utc')}")
+    lines.append(f"Resample s:  {config.get('resample_seconds')}")
+    lines.append(f"Use bandpass:{config.get('use_bandpass')}")
+    if config.get("smooth_seconds"):
+        lines.append(f"Smoothing:   Savitzky-Golay "
+                     f"{config.get('smooth_seconds')}s")
+    lines.append(f"Stations ({len(stations)}):")
+    for s in stations:
+        lines.append(f"  {s.get('name','?'):<14} "
+                     f"file={s.get('file','?')}  "
+                     f"lat={s.get('lat','?')} lon={s.get('lon','?')}")
+    lines.append("")
+    lines.append("--- RESULT ---")
+    lines.append(f"Phase speed:    {result.get('speed_m_s'):.1f} m/s")
+    lines.append(f"Heading toward: {result.get('azimuth_to_deg'):.1f} deg")
+    lines.append(f"Coming from:    {result.get('azimuth_from_deg'):.1f} deg")
+    lines.append("")
+    lines.append("--- PAIRWISE ---")
+    for p in result.get("pairs", []):
+        lines.append(f"  {p['i']:>10s} -> {p['j']:<10s} "
+                     f"lag={p['lag_s']:+7.1f}s corr={p['corr']:+.3f}")
+    lines.append("")
+    lines.append("--- DIAGNOSTICS ---")
+    lines.append(diag_text if diag_text else "(diagnostics suppressed)")
+    lines.append("")
+    lines.append("--- PROVENANCE ---")
+    lines.append(f"git commit:  {git_hash}")
+    lines.append(f"command:     {' '.join(sys.argv)}")
+    lines.append("")
+    with open(log_path, "w") as f:
+        f.write("\n".join(lines))
+    print(f"Run log written: {log_path}")
 
 
 # ---------------------------------------------------------------------------
@@ -511,6 +748,18 @@ def run(config):
     else:
         print("  -> Speed outside typical TID range; check filter band and lags.")
 
+    diag_text = ""
+    if not globals().get("_NO_DIAGNOSTICS", False):
+        diag_text, _nflag = format_diagnostics(result)
+        print()
+        print(diag_text)
+
+    if not globals().get("_NO_RUNLOG", False):
+        try:
+            _write_run_log(config, result, diag_text)
+        except Exception as _e:
+            print(f"(run-log write skipped: {_e})")
+
 
 # ---------------------------------------------------------------------------
 # Example config (write your own to a JSON file and pass it as argv[1])
@@ -551,13 +800,21 @@ def _cli():
                          "window to each station's Doppler series before "
                          "cross-correlation (default off; recommended for "
                          "stations flagged POOR by quality_summary.py)")
+    ap.add_argument("--no-diagnostics", action="store_true",
+                    help="suppress the RESULT DIAGNOSTICS block "
+                         "(shown by default)")
+    ap.add_argument("--no-run-log", action="store_true",
+                    help="do not write the per-run log under ./runs/ "
+                         "(written by default)")
     ap.add_argument("--version", action="version",
-                    version="%(prog)s 1.1.0")
+                    version="%(prog)s 1.2.0")
     return ap.parse_args()
 
 
 if __name__ == "__main__":
     _args = _cli()
+    globals()["_NO_DIAGNOSTICS"] = bool(getattr(_args, "no_diagnostics", False))
+    globals()["_NO_RUNLOG"] = bool(getattr(_args, "no_run_log", False))
     if _args.config is None:
         print("No config given. Writing example_event.json template.")
         with open("example_event.json", "w") as f:
