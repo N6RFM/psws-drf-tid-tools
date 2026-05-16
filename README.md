@@ -118,7 +118,8 @@ python3 tid_map.py --config event.json --output map.png \
 
 If you want to skip most of the manual command-typing, the repo
 includes [`analyze_event.sh`](analyze_event.sh) — an interactive
-driver that runs the entire 7-step pipeline for you, pausing only at
+driver that runs the full extraction and analysis pipeline for you,
+pausing only at
 the four points that require human judgment (choosing the time window,
 choosing companion stations, confirming downloads, and quality-
 checking per-station Doppler).
@@ -137,7 +138,7 @@ All documentation for using the toolkit lives in [`docs/`](docs/):
   everyday use. The reference once you know the pipeline.
 - **[`AUTOMATION.md`](docs/AUTOMATION.md)** — reference for the
   `analyze_event.sh` interactive driver script that runs the
-  full 7-step pipeline with 4 human-input pauses.
+  full pipeline with four human-input pauses.
 - **[`TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md)** — failure modes
   and how to diagnose them.
 - **[`METHODOLOGY.md`](docs/METHODOLOGY.md)** — the mathematical and
