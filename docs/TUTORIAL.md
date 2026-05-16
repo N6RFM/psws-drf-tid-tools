@@ -461,6 +461,31 @@ python3 tid_pair.py n6rfm.csv aa6bd.csv \
     --start 2026-01-19T00:00:00 --end 2026-01-19T01:15:00
 ```
 
+The rows in the output table (`Full (no filter)`, `30–60 min`,
+`40–90 min`, ...) are **wave-period bandpass filters**, not
+time-of-day windows. Each row filters both Doppler traces to the
+stated period range and then cross-correlates. A genuine wave shows a
+consistent lag across the bands that span its period; wildly varying
+lag or sign flips across bands indicate noise or multiple
+superimposed waves.
+
+To analyse a **different pair**, you must change *three* things
+together: the two CSV filenames, **and** the matching
+`--lat/--lon/--name` flags for each station. Changing only the names
+or coordinates while reusing the same two CSVs will re-analyse the
+same data with relabelled output. For example, N6RFM vs W7LUX:
+
+```
+python3 tid_pair.py n6rfm.csv w7lux.csv \
+    --lat1 32.94 --lon1 -97.21 --name1 N6RFM \
+    --lat2 35.10 --lon2 -111.71 --name2 W7LUX \
+    --start 2026-01-19T00:00:00 --end 2026-01-19T01:15:00
+```
+
+If in doubt about which files are actually being read, add `--debug`:
+it prints the resolved CSV paths, row counts, and time spans so you
+can confirm the two inputs really are different.
+
 The output shows the cross-correlation lag, correlation peak, and
 apparent along-baseline phase speed across multiple filter bands:
 

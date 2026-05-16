@@ -4,10 +4,14 @@ tid_pair.py — two-station Doppler cross-correlation analyzer for TID events
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.0.0
+Version: 1.1.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.1.0  Relabeled the period-band column (was the misleading
+          "Interval (min)"); added an explanatory legend, a
+          --debug switch, and self-documenting row labels. No
+          change to any computed value. (G3ZIL 16 May report.)
   v1.0.0  Initial public release covering the 19 Jan 2026 event analysis.
 
 OVERVIEW
@@ -120,7 +124,8 @@ USAGE
 
 OUTPUT INTERPRETATION
 =====================
-The output table shows, for each filter band:
+The output table shows, for each filter band (a wave-PERIOD bandpass
+range in minutes -- NOT a time-of-day window):
 
     Lag (s)            -- time offset of csv2 relative to csv1, in seconds
     Lag (min)          -- same, in minutes
@@ -262,8 +267,13 @@ def main():
                     metavar="PATH.png",
                     help="write a paired-Doppler overlay PNG to PATH "
                          "(both station traces on the same axes)")
+    ap.add_argument("--debug", action="store_true",
+                    help="print resolved input paths, row counts, time "
+                         "spans, detected column names, and per-band "
+                         "filtered-series variance + chosen lag. Helps "
+                         "diagnose data-plumbing issues (off by default).")
     ap.add_argument("--version", action="version",
-                    version="%(prog)s 1.0.0")
+                    version="%(prog)s 1.1.0")
     args = ap.parse_args()
 
     t0 = pd.Timestamp(args.start.replace("Z","+00:00"))
@@ -297,6 +307,22 @@ def main():
     n = min(len(y_a), len(y_b))
     y_a = y_a[:n]; y_b = y_b[:n]
 
+    if args.debug:
+        import numpy as _np
+        print(f"[debug] csv1 = {args.csv1}")
+        print(f"[debug]   rows(after resample/clip)={len(t_a)} "
+              f"used={n} mean={_np.nanmean(y_a):+.4f} "
+              f"std={_np.nanstd(y_a):.4f}")
+        print(f"[debug]   span={t_a[0]} .. {t_a[-1]}")
+        print(f"[debug] csv2 = {args.csv2}")
+        print(f"[debug]   rows(after resample/clip)={len(t_b)} "
+              f"used={n} mean={_np.nanmean(y_b):+.4f} "
+              f"std={_np.nanstd(y_b):.4f}")
+        print(f"[debug]   span={t_b[0]} .. {t_b[-1]}")
+        if args.csv1 == args.csv2:
+            print("[debug] WARNING: csv1 and csv2 are the SAME path; "
+                  "lag will be ~0 and correlation ~1 by construction.")
+
     # Midpoint geometry
     mid_a = great_circle_midpoint(WWV_LAT, WWV_LON, args.lat1, args.lon1)
     mid_b = great_circle_midpoint(WWV_LAT, WWV_LON, args.lat2, args.lon2)
@@ -309,15 +335,22 @@ def main():
     print(f"  Baseline:              {baseline_km:.0f} km")
     print(f"  Bearing {args.name1} -> {args.name2}: {brg_a_to_b:.1f}° true\n")
 
-    print(f"{'Interval (min)':<14} {'Lag (s)':>9} {'Lag (min)':>10}  {'Corr':>6}  {'Speed (+ along {brg:.0f}°)':>26}  Direction".format(brg=brg_a_to_b))
-    print("-" * 90)
+    print("Each row filters BOTH Doppler traces to the stated wave-period")
+    print("range, then cross-correlates. These are period-band filters, not")
+    print("time-of-day windows. A real wave shows a consistent lag across")
+    print("the bands that capture its period.\n")
+
+    _speed_hdr = f"Speed (+ along {brg_a_to_b:.0f}°)"
+    print(f"{'Period band (min)':<17} {'Lag (s)':>9} {'Lag (min)':>10}  "
+          f"{'Corr':>6}  {_speed_hdr:>26}  Direction")
+    print("-" * 93)
 
     bands = [
-        ("Full time window", None, None),
-        ("30 - 60",   30*60, 60*60),
-        ("40 - 90",   40*60, 90*60),
-        ("60 - 120",  60*60, 120*60),
-        ("30 - 120",  30*60, 120*60),
+        ("Full (no filter)", None, None),
+        ("30–60 min",   30*60, 60*60),
+        ("40–90 min",   40*60, 90*60),
+        ("60–120 min",  60*60, 120*60),
+        ("30–120 min",  30*60, 120*60),
     ]
     for label, lo, hi in bands:
         if lo is None:
@@ -328,6 +361,11 @@ def main():
             y_f = bandpass(y_b, fs, lo, hi)
             max_lag = lo / 2.0  # half the shortest period
         lag, corr = find_lag(x_f, y_f, fs, max_lag)
+        if args.debug:
+            import numpy as _np
+            print(f"[debug] band {label!r}: var(x_f)={_np.nanvar(x_f):.5f} "
+                  f"var(y_f)={_np.nanvar(y_f):.5f} -> "
+                  f"lag={lag:+.1f}s corr={corr:+.3f}")
         # lag > 0 means csv2 lags csv1; signal arrived at csv1 first
         if abs(lag) < 1e-6:
             signed_speed_str = " (zero lag)"
@@ -349,15 +387,15 @@ def main():
                 signed_speed = +speed_ms
                 direction = f"{args.name2} first, wave heading ~{brg_a_to_b:.0f}°"
             signed_speed_str = f"{signed_speed:>+7.0f} m/s"
-        print(f"{label:<14} {lag:>+9.1f} {lag/60:>+10.2f}  {corr:>+6.3f}  {signed_speed_str:>26}  {direction}")
+        print(f"{label:<17} {lag:>+9.1f} {lag/60:>+10.2f}  {corr:>+6.3f}  {signed_speed_str:>26}  {direction}")
 
     print("\nInterpretation hints:")
     print(f"- 'Speed' is signed: + means wave moves along {brg_a_to_b:.0f}° (from {args.name2} to {args.name1});")
     print(f"  - means wave moves along {(brg_a_to_b+180)%360:.0f}° (from {args.name1} to {args.name2}).")
-    print("- Sign flips between intervals indicate the lag is dominated by noise, not a coherent wave.")
+    print("- Sign flips between period bands indicate the lag is dominated by noise, not a coherent wave.")
     print("- 'Speed' is the wave's along-baseline projection;")
     print("  if the wave is oblique to the baseline, |speed| > true speed.")
-    print("- Intervals where correlation is < 0.4 are unreliable; > 0.7 is strong.")
+    print("- Period bands where correlation is < 0.4 are unreliable; > 0.7 is strong.")
 
     # Optional paired-Doppler overlay plot
     if args.overlay_plot is not None:
