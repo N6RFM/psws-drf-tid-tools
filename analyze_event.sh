@@ -1086,11 +1086,21 @@ EOF
                 break
                 ;;
             n|no)
-                read -p "Stations to DROP (comma-separated): " DROP_RAW
-                if [[ -n "$DROP_RAW" ]]; then
-                    break
-                fi
-                echo "  (No stations specified — please enter at least one, or answer 'yes'.)"
+                read -p "Stations to DROP (comma-separated, or empty/n/none to proceed without drops): " DROP_RAW
+                # Treat empty input, "n", "no", or "none" as "proceed
+                # without any drops" — useful when the operator answered
+                # "no" because they want to tighten the window (handled
+                # below by pause4_tightening_loop), not because they want
+                # to drop stations.
+                case "${DROP_RAW,,}" in
+                    ""|n|no|none)
+                        DROP_RAW=""
+                        break
+                        ;;
+                    *)
+                        break
+                        ;;
+                esac
                 ;;
             *)
                 echo "  (Please answer 'yes' or 'no'.)"
