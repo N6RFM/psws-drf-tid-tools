@@ -323,7 +323,15 @@ def main():
     dopplers = []
     snrs = []
 
+    # Progress dots: print roughly 40 across the loop so long extractions
+    # (e.g. 24-hour survey at 60s cadence ~= 1438 blocks) show signs of
+    # life. For short extractions, dots-per-block ratio still works out
+    # to something reasonable.
+    dot_interval = max(1, n_blocks // 40)
     for k in range(n_blocks):
+        if k % dot_interval == 0:
+            sys.stdout.write(".")
+            sys.stdout.flush()
         seg_start = s_start + k * block_size
         try:
             iq = reader.read_vector(seg_start, block_size, args.channel)
@@ -357,6 +365,9 @@ def main():
         df.to_csv(args.output, mode="a", index=False)
     else:
         df.to_csv(args.output, index=False)
+    if n_blocks > 0:
+        sys.stdout.write("\n")
+        sys.stdout.flush()
     print(f"Wrote {len(df)} rows to {args.output}")
     print(f"  Median SNR: {np.nanmedian(df['snr_db']):.1f} dB")
     print(f"  Doppler range: {np.nanmin(df['doppler_hz']):+.3f} to "
