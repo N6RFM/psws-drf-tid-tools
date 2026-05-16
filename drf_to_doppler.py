@@ -12,9 +12,10 @@ Change log:
 
 OVERVIEW
 ========
-HamSCI Grape 1-DRF stations record the Fort Collins WWV carrier as
-complex baseband I/Q sampled at 10 samples per second, mixed down so the
-carrier sits within +/- 5 Hz of zero. Each daily file is stored on disk
+HamSCI Grape 1-DRF stations record the Fort Collins WWV carrier (or
+other HF time-standard carrier) as complex baseband I/Q sampled at 10
+samples per second, mixed down so the carrier sits within +/- 5 Hz of
+zero. Each daily file is stored on disk
 in the Digital RF (DRF) format (MIT Haystack's open standard for
 streaming RF data) inside a directory like:
 
