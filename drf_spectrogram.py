@@ -13,7 +13,7 @@ Change log:
   v1.1.0  Added --callsign and --grid overrides so the auto-generated
           title can be completed when Grape v1.x DRFs omit those fields
           from the metadata.
-  v1.0.0  Initial release. Reads DRF I/Q at 10 Hz, produces a 24-hour
+  v1.0.0  Initial release. Reads DRF I/Q at 10 sps, produces a 24-hour
           Doppler spectrogram with a peak-amplitude subplot, and allows
           annotation of the TID region of study with a labeled box plus
           vertical event markers.
