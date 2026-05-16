@@ -577,6 +577,20 @@ reextract_all_stations() {
     return 0
 }
 
+# Run quality_summary.py against the current Doppler CSVs (reference +
+# all companions) and tee the output to .quality_summary_output so
+# get_suggested_end_time and other downstream code can parse it.
+# Used both at the initial Pause 4 entry and inside the tightening loop.
+run_quality_summary() {
+    local csvs=("${REF_NAME}.csv")
+    for s in "${COMPANION_LIST[@]}"; do
+        [[ -f "${s}.csv" ]] && csvs+=("${s}.csv")
+    done
+    python3 "$TOOLS_DIR/quality_summary.py" --suggest-shorten "${csvs[@]}" \
+        | tee .quality_summary_output || true
+}
+
+
 # Parse .quality_summary_output and extract the EARLIEST (most-restrictive)
 # end-time suggestion. Echoes the timestamp in YYYY-MM-DDTHH:MM:SS format,
 # or empty string if no suggestions are present.
