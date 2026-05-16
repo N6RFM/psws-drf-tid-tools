@@ -18,7 +18,7 @@ Change log:
 
 OVERVIEW
 ========
-Given Doppler-vs-time CSVs from 3 or more HamSCI Grape stations recording
+Given Doppler-vs-time CSVs from 3 or more HamSCI Grape DRF stations recording
 the same WWV carrier during the same TID event, this tool computes:
 
   - The TID's true horizontal phase speed (m/s)

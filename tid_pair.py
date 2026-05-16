@@ -12,7 +12,7 @@ Change log:
 
 OVERVIEW
 ========
-Given two Doppler-vs-time CSVs from a pair of HamSCI Grape stations
+Given two Doppler-vs-time CSVs from a pair of HamSCI Grape DRF stations
 recording the same WWV carrier, this tool measures the time lag between
 them across multiple bandpass filter bands and reports the apparent
 phase speed of the disturbance traveling along the inter-station

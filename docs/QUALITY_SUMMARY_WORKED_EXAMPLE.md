@@ -16,7 +16,7 @@ For the methodology behind the slowness-vector inversion, see
 
 On 18 January 2026 at 18:09 UTC the Sun produced an X1.9 flare; a
 Large-Scale TID arrived over the central US several hours later.
-Four HamSCI Grape stations recorded the event:
+Four HamSCI Grape DRF stations recorded the event:
 
 - **N6RFM/5** (EM12jw, reference station)
 - **AA6BD** (EM75kb)

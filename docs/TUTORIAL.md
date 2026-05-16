@@ -27,7 +27,7 @@ your event date, your station, and your event window.
 
 On **18 January 2026** at 18:09 UTC, the Sun produced a long-duration
 X1.9 flare from AR4341. A few hours later, a Large-Scale TID was
-observed by four HamSCI Grape stations across the central United States
+observed by four HamSCI Grape DRF stations across the central United States
 between roughly 22:30 UTC Jan 18 and 01:45 UTC Jan 19.
 
 We want to determine:
@@ -634,7 +634,7 @@ python3 tid_stack_plot.py \
     --config event.json \
     --output stack.png \
     --ylim=-2,2 \
-    --title "Doppler vs UTC at four HamSCI Grape stations, 19 Jan 2026"
+    --title "Doppler vs UTC at four HamSCI Grape DRF stations, 19 Jan 2026"
 ```
 
 The four panels show successive peak times: AC0G_ND first (00:50:40),

@@ -8,7 +8,7 @@ practical "how to use it" guidance, see the [tutorial](TUTORIAL.md) and
 
 ## The physical setup
 
-A HamSCI Grape station receives the WWV time-signal carrier from Fort
+A HamSCI Grape DRF station receives the WWV time-signal carrier from Fort
 Collins, CO, on one or more standard frequencies (2.5, 5, 10, 15, 20,
 25 MHz). The transmitter is fixed in space and time; the carrier is
 extraordinarily stable (10⁻¹² level). Any apparent Doppler shift seen

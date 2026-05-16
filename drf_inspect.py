@@ -12,7 +12,7 @@ Change log:
 
 OVERVIEW
 ========
-Before extracting Doppler data from a HamSCI Grape station, you need to
+Before extracting Doppler data from a HamSCI Grape DRF station, you need to
 verify:
 
   1. The DRF data is readable (paths, properties, time bounds).

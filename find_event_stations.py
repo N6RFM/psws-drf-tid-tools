@@ -1,5 +1,5 @@
 r"""
-find_event_stations.py — locate companion HamSCI Grape stations for a TID event
+find_event_stations.py — locate companion HamSCI Grape DRF stations for a TID event
 
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
