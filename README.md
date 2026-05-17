@@ -143,6 +143,10 @@ All documentation for using the toolkit lives in [`docs/`](docs/):
   and how to diagnose them.
 - **[`METHODOLOGY.md`](docs/METHODOLOGY.md)** — the mathematical and
   signal-processing details behind the toolkit.
+- **[`ASSESSING_RESULTS.md`](docs/ASSESSING_RESULTS.md)** — the
+  scientific basis for trusting a result: how it is reasoned from the
+  measurements, the honest provenance of every diagnostic threshold,
+  and the method's limits. Written for a reviewer or scientist.
 - **[`QUALITY_SUMMARY_WORKED_EXAMPLE.md`](docs/QUALITY_SUMMARY_WORKED_EXAMPLE.md)** —
   a worked example of how `quality_summary.py` flags a degraded
   analysis window and prevents an unphysical DOA result.
@@ -181,6 +185,7 @@ psws-drf-tid-tools/
     ├── AUTOMATION.md           the analyze_event.sh driver
     ├── TROUBLESHOOTING.md      failure modes and diagnoses
     ├── METHODOLOGY.md          math + signal processing details
+    ├── ASSESSING_RESULTS.md    scientific basis: trusting a result (reviewer-facing)
     ├── QUALITY_SUMMARY_WORKED_EXAMPLE.md  worked example: how a degraded window is caught
     ├── pipeline_flow.png       pipeline diagram
     └── pipeline_flow.pdf
