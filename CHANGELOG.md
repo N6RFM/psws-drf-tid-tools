@@ -1,5 +1,60 @@
 # Changelog
 
+## v1.5.0 — 2026-05-17
+
+### Result diagnostics + per-run log (tid_doa.py)
+- **New feature**: after every DOA result, `tid_doa.py` prints five
+  observational diagnostics — geometry conditioning (singular-value
+  ratio), plane-wave fit residual, pairwise correlation spread,
+  triangle closure, and phase-speed plausibility. They are
+  flag-don't-fail: each shows a measured value against a guideline
+  range and flags values outside it, but never renders a verdict
+  and never alters or suppresses the result. Default on;
+  `--no-diagnostics` to suppress.
+- **New feature**: each run writes a self-contained record to
+  `./runs/<UTC-timestamp>_run.log` (inputs, result, pairwise table,
+  diagnostics block, provenance including argv and git hash).
+  Default on; `--no-run-log` to suppress. Non-fatal on any error.
+- **Implementation note**: every diagnostic value was already
+  computed by the inversion (the least-squares residuals, rank, and
+  singular values were previously discarded; pairwise corr/lag were
+  already stored). No new algorithms, no extra inversions, no change
+  to any computed value — verified additive-only against a synthetic
+  known-wave case (result byte-identical before/after).
+
+### tid_pair period-band label fix (tid_pair.py)
+- **Bug fix**: the output column headed "Interval (min)" and the
+  "Full time window" row were misleading — the rows are wave-period
+  bandpass filter bands, not time-of-day windows. Header changed to
+  "Period band (min)", row labels made self-documenting, an
+  explanatory legend added above the table, and the docstring and
+  tutorial reconciled. Label/wording only — verified byte-identical
+  numeric output before/after.
+- **New flag**: `--debug` prints resolved csv1/csv2 paths, row
+  counts, time spans, per-band filtered variance and chosen lag, and
+  warns explicitly if the two inputs are the same file.
+- **Tutorial**: added a period-band explanation and a second worked
+  pair using different CSV arguments, to pre-empt the
+  "same files relabelled" failure mode.
+Feedback from G3ZIL (16 May testing).
+
+### New document: ASSESSING_RESULTS.md
+- A reviewer-facing scientific-basis document explaining how a
+  defensible result is reasoned from the measurements, the
+  supporting mathematics, and the honest provenance of every
+  diagnostic threshold: only the phase-speed range is
+  literature-derived (Hocke & Schlegel 1996); the triangle-closure
+  principle is an exact geometric identity; the remaining four
+  threshold values are stated plainly as arbitrary review-guidance
+  values. Linked from the README documentation index and repo tree.
+
+### Documentation
+- README: stale step-numbering removed from the repo-structure tree
+  (replaced with role descriptions), consistent with the earlier
+  removal of the "7-step pipeline" prose.
+
+---
+
 ## v1.4.0 — 2026-05-16
 
 ### Auto-window-tightening at Pause 4 (PR-D)
