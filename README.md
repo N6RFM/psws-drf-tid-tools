@@ -166,16 +166,16 @@ psws-drf-tid-tools/
 ├── requirements.txt
 ├── requirements-optional.txt
 ├── analyze_event.sh            interactive driver script (semi-automation)
-├── drf_spectrogram.py          step 1: identify region of interest (also step 7: annotated figures)
-├── find_event_stations.py      step 2: companion-station discovery
-├── drf_inspect.py              step 3: verify metadata + subchannel
-├── drf_to_doppler.py           step 4: extract Doppler CSV from I/Q
-├── tid_window_detector.py      step 4 alt: automatic TID-window detection
-├── tid_pair.py                 step 5: two-station cross-correlation
-├── tid_doa_config.py           step 5 helper: build DOA config interactively
-├── tid_doa.py                  step 6: multi-station DOA inversion
-├── tid_stack_plot.py           step 7: stacked Doppler comparison
-├── tid_map.py                  step 7: array geometry map
+├── drf_spectrogram.py          identify region of interest; annotated figures
+├── find_event_stations.py      companion-station discovery
+├── drf_inspect.py              verify metadata + subchannel
+├── drf_to_doppler.py           extract Doppler CSV from I/Q
+├── tid_window_detector.py      automatic TID-window detection (alternative)
+├── tid_pair.py                 two-station cross-correlation
+├── tid_doa_config.py           build DOA config interactively
+├── tid_doa.py                  multi-station DOA inversion
+├── tid_stack_plot.py           stacked Doppler comparison
+├── tid_map.py                  array geometry map
 ├── quality_summary.py          per-station Doppler quality scoring (used by analyze_event.sh)
 ├── examples/
 │   └── event_20260119.json     reference 4-station DOA config
