@@ -124,7 +124,7 @@ matter, and a reviewer should keep both in view:
 
 The central question is not "what does the toolkit do" but
 "is this approach valid". This section sets out the reasoning
-for choosing this apporach.
+for choosing this approach.
 
 ### 3.1 Why cross-correlation of Doppler series
 
@@ -217,8 +217,8 @@ coherent wave is a good model. A large fraction means the lags are
 mutually inconsistent under any single plane wave — the signature of
 noise-dominated lags or, more interestingly, of two or more
 superimposed waves. The residual does not distinguish these causes;
-it only flags that the single-wave assumption (Section 1, assumption
-1) is in tension with the data.
+it only flags that the single-wave assumption (Section 1,
+assumption 1) is in tension with the data.
 
 ### 4.3 Pairwise correlation
 
