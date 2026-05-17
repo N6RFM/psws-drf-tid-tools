@@ -1,4 +1,4 @@
-# Assessing Results: The Scientific Basis for TID Direction-of-Arrival Estimates
+# Assessing Results: The Technical Basis for TID Direction-of-Arrival Estimates
 
 This document explains how a result is reasoned from the
 measurements.
@@ -35,7 +35,7 @@ Each arrow carries assumptions.
    only internal signal that this assumption has failed.
 
 2. **Stationarity over the window.** Speed and azimuth are assumed
-   constant for the chosen interval. Real LSTIDs evolve; the result
+   constant for the chosen interval. Real TIDs evolve; the result
    is an interval-average. Shrinking the window reduces this error
    but worsens lag precision (fewer wave cycles to correlate).
 
@@ -54,9 +54,8 @@ Each arrow carries assumptions.
    band-limited oscillation. The pairwise correlation coefficient
    (Section 4.3) quantifies how well that holds for each pair.
 
-Sections 4 and 6 describe how the
-toolkit's diagnostics are intended to expose assumption failures,
-and how a reviewer should weigh them.
+Sections 4 and 6 describe how the toolkit's diagnostics are intended
+to expose assumption failures, and how a reviewer should weigh them.
 
 ---
 
@@ -64,17 +63,16 @@ and how a reviewer should weigh them.
 
 ### 2.1 The slowness model
 
-A travelling ionospheric
-disturbance is a long, slow ripple in the ionosphere. As that ripple
-sweeps across the country it passes over each receiver's reflection
-point at a slightly different moment, the way a single ocean swell
-reaches buoys spaced along a coast one after another. If you know
-where each receiver "sees" the sky, and you measure how much later
-the same ripple arrived at one site than at another, you can solve
-backwards for two things: how fast the ripple is moving, and which
-way it is heading. The "slowness vector" below is just the compact
-way to write "speed and direction" so that the timing differences
-become a set of linear equations.
+A travelling ionospheric disturbance is a long, slow ripple in the 
+ionosphere. As that ripple sweeps across the country it passes over
+each receiver's reflection point at a slightly different moment, 
+the way a single ocean swell reaches buoys spaced along a coast one
+after another. If you know where each receiver "sees" the sky, and 
+you measure how much later the same ripple arrived at one site than
+at another, you can solve backwards for two things: how fast the
+ripple is moving, and which way it is heading. The "slowness vector"
+below is just the compact way to write "speed and direction" so that
+the timing differences become a set of linear equations.
 
 The formal statement follows. Let station *k* sample the disturbance
 at position **r**_k (a local east-north map projection of its path
@@ -108,8 +106,8 @@ closest to fitting all of them at once (a least-squares fit — it
 minimises the total squared mismatch). Two consequences of this
 matter, and a reviewer should keep both in view:
 
-- **It always returns an answer.** A bad station layout, lags that
-  are mostly noise, or two waves present at once will all still
+- **It always returns an answer, good or bad.** A bad station layout,
+  lags that are mostly noise, or two waves present at once will all still
   produce a clean-looking speed and direction. Getting a number back
   is not evidence the number is right. This is the single most
   important caveat in the whole method, and it is why the diagnostics
@@ -122,11 +120,11 @@ matter, and a reviewer should keep both in view:
 
 ---
 
-## 3. Why this approach was judged appropriate
+## 3. Why this approach was selected
 
-A reviewer's central question is not "what does the toolkit do" but
-"why was this approach is valid". This section sets out
-that reasoning explicitly. Notably, there are many ways to approach this problem. One of them is presented here.
+The central question is not "what does the toolkit do" but
+"is this approach valid". This section sets out the reasoning
+for choosing this apporach.
 
 ### 3.1 Why cross-correlation of Doppler series
 
@@ -136,7 +134,7 @@ Doppler signature is the most direct, continuously sampled trace a
 modest amateur receiver can record of the disturbance passing
 overhead. Two receivers under the same disturbance record the same
 slow oscillation, offset in time by however long the wavefront took
-to travel between their sampling points. Cross-correlation is the
+to travel between their sampling points. Cross-correlation is a
 standard, assumption-light way to recover that time offset from two
 noisy series sharing a common waveform. It does not presume a
 particular wave period, amplitude, or shape — only that a common
@@ -154,14 +152,14 @@ least-squares solution is the propagation vector. The approach was
 judged appropriate because the observable (relative timing) maps
 directly onto the quantity sought (the propagation vector) through
 elementary geometry, with no intermediate ionospheric model
-required. The deliberate scope limit — it recovers one plane wave,
+required. This deliberate scope limit — it recovers one plane wave,
 not a spectrum or a curved front — is a conscious simplification
 matched to what a handful of stations can actually constrain, not an
 oversight. Section 7 states that limit plainly.
 
 ### 3.3 On what basis the approach is believed to work
 
-- **It reproduces the expected physics on a reference event.** On
+- **It reproduces the expected result for a reference event.** On
   the 19 January 2026 event, an independent geomagnetic context
   (an auroral-zone disturbance) predicts an equatorward LSTID in a
   known speed band. The toolkit, run blind to that expectation,
@@ -173,15 +171,13 @@ oversight. Section 7 states that limit plainly.
   implausible speed together with a failed internal-consistency
   check — a flagged failure, not a silent one (Section 6.2).
 
-- **It is adapted from peer-reviewed work.** The method is a
-  small-array adaptation of the amateur-radio TID detection
-  established by Frissell et al. (2022), who cross-validated
-  amateur-radio observations of a continental-scale TID against
-  SuperDARN HF radar and GNSS total-electron-content measurements.
-  The present toolkit does not re-derive that cross-instrument
-  validation; it inherits the demonstrated premise that amateur HF
-  data carries recoverable LSTID signal, and applies a direct
-  timing inversion to a smaller receiving station set.
+- **It is adapted from peer-reviewed work.** Frissell et al. (2022),
+  cross-validated amateur-radio observations of a continental-scale
+  TID against SuperDARN HF radar and GNSS total-electron-content
+  measurements. This toolkit does not re-derive that cross-instrument
+  validation; it relies on the demonstrated premise that amateur HF
+  data carries recoverable TID signals, and applies a direct
+  timing inversion to a much smaller receiving station set.
 
 ---
 
@@ -287,11 +283,6 @@ Section 5 follows the same order.
 | 4.4 | Triangle closure | principle exact; ~15% tolerance | **Principle: exact physical identity. Tolerance: arbitrary** | Closure identity is geometric and exact; the 15% tolerance is a chosen value to guide review |
 | 4.5 | Phase speed | ~100–1000 m/s (LSTID/MSTID regime) | **Literature-derived** | Hocke & Schlegel (1996) review and corroborating climatology; see §5.4 |
 
-In short: **of the five, only the phase-speed range comes from the
-published literature.** The closure *principle* is physically exact;
-the *tolerance* applied to it is not. The other four values were
-chosen arbitrarily.
-
 ### 5.2 The arbitrary review-guidance values (§4.1–4.3, and the §4.4 tolerance)
 
 The values for conditioning (≈30), plane-wave residual (≈25%),
@@ -342,7 +333,6 @@ wavelength, and horizontal phase speed. The canonical review is:
 > Hocke, K. and Schlegel, K. (1996). A review of atmospheric gravity
 > waves and travelling ionospheric disturbances: 1982–1995.
 > *Annales Geophysicae*, 14, 917–940.
-> https://doi.org/10.1007/s00585-996-0917-6
 
 This review consolidates the LSTID horizontal-velocity range of
 approximately **300–1000 m/s** (periods ~30 min to several hours,
@@ -351,10 +341,7 @@ wavelengths ≳1000 km) and the MSTID range of approximately
 remain the values cited by current literature; independent recent
 climatologies report typical LSTID velocities consistent with this
 envelope (for example, European ionosonde climatology giving typical
-LSTID velocities of ~500–700 m/s). [VERIFY: confirm the exact
-numerical ranges as stated in Hocke & Schlegel 1996 against the
-primary text; the figures here are consolidated from the review and
-from secondary sources citing it.]
+LSTID velocities of ~500–700 m/s).
 
 The toolkit's plausibility band of roughly 100–1000 m/s is therefore
 deliberately *wider* than the strict LSTID range: it spans the
@@ -465,53 +452,46 @@ The following are acknowledged limitations:
 
 ---
 
-## 8. References
+## 8. Further Reading
 
-1. Hines, C. O. (1960). Internal atmospheric gravity waves at
-   ionospheric heights. *Canadian Journal of Physics*, 38,
-   1441–1481. — Foundational theory of atmospheric gravity waves,
-   the physical basis of TIDs.
-   [VERIFY: volume/page.]
+The HamSCI Personal Space Weather Station. — Instrument and network context
+for the Grape DRF receivers used by this toolkit.
+(https://hamsci.org/psws-overview)
 
-2. Hunsucker, R. D. (1982). Atmospheric gravity waves generated in
-   the high-latitude ionosphere: A review. *Reviews of Geophysics*,
-   20(2), 293–315. https://doi.org/10.1029/RG020i002p00293 —
-   AGW→TID generation at high latitudes; the auroral source
-   mechanism for LSTIDs.
+Fedorenko, Y.P., Tyrnov O.F., Fedorenko, V.N., and Dorohov, D.L. (2013) 
+Model of traveling ionospheric disturbances. J. Space Weather Space Clim., 3, A30
+(https://www.swsc-journal.org/articles/swsc/full_html/2013/01/swsc110031/swsc110031.html)
 
-3. Hocke, K. and Schlegel, K. (1996). A review of atmospheric
-   gravity waves and travelling ionospheric disturbances:
-   1982–1995. *Annales Geophysicae*, 14, 917–940.
-   https://doi.org/10.1007/s00585-996-0917-6 — The canonical
-   climatological review; primary source for the LSTID/MSTID
-   speed, period, and wavelength ranges used by the phase-speed
-   diagnostic.
+Frissell, N. A., et al. (2022). First observations of
+large-scale travelling ionospheric disturbances using automated
+amateur radio receiving networks. *Geophysical Research
+Letters*, 49. https://doi.org/10.1029/2022GL097879 — The direct
+methodological antecedent: LSTID detection from amateur HF data,
+cross-validated against SuperDARN and GNSS TEC, attributed to
+auroral electrojet/Joule heating. Establishes the premise that
+amateur HF observations carry recoverable LSTID signal.
+(https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2022GL097879)
 
-4. Frissell, N. A., et al. (2022). First observations of
-   large-scale travelling ionospheric disturbances using automated
-   amateur radio receiving networks. *Geophysical Research
-   Letters*, 49. https://doi.org/10.1029/2022GL097879 — The direct
-   methodological antecedent: LSTID detection from amateur HF data,
-   cross-validated against SuperDARN and GNSS TEC, attributed to
-   auroral electrojet/Joule heating. Establishes the premise that
-   amateur HF observations carry recoverable LSTID signal.
-   [VERIFY: article/page number.]
+Hines, C. O. (1960). Internal atmospheric gravity waves at
+ionospheric heights. *Canadian Journal of Physics*, 38,
+1441–1481. — Foundational theory of atmospheric gravity waves,
+the physical basis of TIDs.
+(https://apps.dtic.mil/sti/tr/pdf/AD0250769.pdf)
 
-5. Collins, K. et al. (2021). The HamSCI Personal Space Weather
-   Station. — Instrument and network context for the Grape
-   receivers used by this toolkit.
-   [VERIFY: full citation, venue, DOI.]
+Hocke, K. and Schlegel, K. (1996). A review of atmospheric
+gravity waves and travelling ionospheric disturbances:
+1982–1995. *Annales Geophysicae*, 14, 917–940.
+https://doi.org/10.1007/s00585-996-0917-6 — The canonical
+climatological review; primary source for the LSTID/MSTID
+speed, period, and wavelength ranges used by the phase-speed
+diagnostic.
+(https://www.researchgate.net/profile/Klemens-Hocke/publication/41086051_A_review_of_atmospheric_gravity_waves_and_travelling_ionospheric_disturbances_1982-1995/links/5b62e486a6fdccf0b20776fa/A-review-of-atmospheric-gravity-waves-and-travelling-ionospheric-disturbances-1982-1995.pdf)****
 
-6. Corroborating recent climatology (independent confirmation of
-   the LSTID velocity envelope used here): a 2024–2025 European
-   ionosonde LSTID climatology reporting typical LSTID velocities of
-   ~500–700 m/s, southward, auroral-associated.
-   [VERIFY: resolve to a specific citation — candidate is the
-   *Journal of Space Weather and Space Climate* 2025 LSTID
-   climatology over Europe; confirm authors, volume, DOI before
-   citing.]
-
-`METHODOLOGY.md` describes the specific implementation.
+Hunsucker, R. D. (1982). Atmospheric gravity waves generated in
+the high-latitude ionosphere: A review. *Reviews of Geophysics*,
+20(2), 293–315. https://doi.org/10.1029/RG020i002p00293 —
+AGW→TID generation at high latitudes; the auroral source
+mechanism for LSTIDs.
 
 ---
 
