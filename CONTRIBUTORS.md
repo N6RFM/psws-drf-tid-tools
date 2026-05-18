@@ -1,6 +1,6 @@
 # Contributors
 
-## Bob Robinett, N6RFM
+## Bob Mattaliano, N6RFM
 Creator and primary developer of psws-drf-tid-tools. HamSCI
 participant and PSWS station operator. GitHub: N6RFM.
 
