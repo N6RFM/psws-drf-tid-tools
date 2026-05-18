@@ -619,22 +619,10 @@ def main():
     _overlay_colors = ["#2196F3", "#FF9800", "#4CAF50",
                        "#F44336", "#9C27B0", "#795548"]
 
-    # Build spectrogram peak track — carrier frequency per time column
-    # as seen by the spectrogram. Independent of any extraction method.
-    # Used to score each overlay: r and RMS vs this reference.
-    freq_mask = (freqs >= ylim_lo) & (freqs <= ylim_hi)
-    if freq_mask.any():
-        sub_spec     = spec[freq_mask, :]
-        sub_freqs    = freqs[freq_mask]
-        peak_col_idx = np.argmax(sub_spec, axis=0)
-        spec_peak_hz = sub_freqs[peak_col_idx]
-        spec_peak_hr = (np.arange(sub_spec.shape[1]) * window_seconds
-                        ) / 3600.0 + start_offset_hr
-    else:
-        spec_peak_hz = None
-        spec_peak_hr = None
-
     import pandas as pd
+
+    # Collect all overlay series for inter-method comparison at the end
+    _overlay_series = {}   # label -> (hr_array, dop_array)
 
     for ov_idx, ov_str in enumerate(args.overlay):
         try:
@@ -685,53 +673,70 @@ def main():
         color = ov_color if ov_color else _overlay_colors[
             ov_idx % len(_overlay_colors)]
 
-        # Score overlay against spectrogram peak track
-        r_vs_spec   = None
-        rms_vs_spec = None
-        if spec_peak_hz is not None:
-            ov_hrs = ov_plot["_hr"].values
-            ov_dop = ov_plot[dcol].values
-            spec_interp = np.interp(ov_hrs, spec_peak_hr, spec_peak_hz,
-                                    left=np.nan, right=np.nan)
-            valid = (~np.isnan(spec_interp)) & (~np.isnan(ov_dop))
-            if valid.sum() > 3:
-                a = ov_dop[valid]
-                b = spec_interp[valid]
-                if a.std() > 1e-9 and b.std() > 1e-9:
-                    r_vs_spec = float(np.corrcoef(a, b)[0, 1])
-                rms_vs_spec = float(np.sqrt(np.mean((a - b) ** 2)))
-
-        # Smoothness: block-to-block std of Doppler within plot window
-        dop_std = float(ov_plot[dcol].std()) if len(ov_plot) > 1 else None
+        # Per-trace metrics: SNR and smoothness (std) only
+        # Inter-method r and RMS are computed once below — not per trace
         snr_med = (ov_df["snr_db"].median()
                    if "snr_db" in ov_df.columns else None)
+        dop_std = float(ov_plot[dcol].std()) if len(ov_plot) > 1 else None
 
-        # Build enriched legend label
         parts = [ov_label]
-        if r_vs_spec is not None:
-            parts.append(f"r={r_vs_spec:.3f}")
-        if rms_vs_spec is not None:
-            parts.append(f"RMS={rms_vs_spec:.3f} Hz")
         if snr_med is not None:
             parts.append(f"SNR={snr_med:.1f} dB")
         if dop_std is not None:
             parts.append(f"std={dop_std:.3f} Hz")
-        rich_label = "  |  ".join(parts)
+        per_trace_label = "  |  ".join(parts)
 
         ax_top.plot(ov_plot["_hr"], ov_plot[dcol],
                     color=color, linewidth=1.8,
                     linestyle="-", alpha=0.85,
-                    label=rich_label, zorder=20)
+                    label=per_trace_label, zorder=20)
 
-        # Print fit metrics to console
-        print(f"  Overlay '{ov_label}':", end="")
-        if r_vs_spec is not None:
-            print(f"  r={r_vs_spec:.3f}", end="")
-        if rms_vs_spec is not None:
-            print(f"  RMS={rms_vs_spec:.3f} Hz", end="")
-        if dop_std is not None:
-            print(f"  std={dop_std:.3f} Hz", end="")
+        # Store for inter-method comparison
+        _overlay_series[ov_label] = (
+            ov_plot["_hr"].values,
+            ov_plot[dcol].values
+        )
+
+    # Compute inter-method r and RMS diff if exactly two overlays loaded
+    if len(_overlay_series) == 2:
+        labels    = list(_overlay_series.keys())
+        hr_a, d_a = _overlay_series[labels[0]]
+        hr_b, d_b = _overlay_series[labels[1]]
+
+        # Interpolate b onto a's time grid for alignment
+        d_b_interp = np.interp(hr_a, hr_b, d_b,
+                               left=np.nan, right=np.nan)
+        valid = (~np.isnan(d_b_interp)) & (~np.isnan(d_a))
+
+        inter_r   = None
+        inter_rms = None
+        if valid.sum() > 3:
+            a = d_a[valid]; b = d_b_interp[valid]
+            if a.std() > 1e-9 and b.std() > 1e-9:
+                inter_r = float(np.corrcoef(a, b)[0, 1])
+            inter_rms = float(np.sqrt(np.mean((a - b) ** 2)))
+
+        # Add a single inter-method summary line to the legend
+        summary_parts = [f"Inter-method ({labels[0]} vs {labels[1]})"]
+        if inter_r is not None:
+            summary_parts.append(f"r={inter_r:.3f}")
+        if inter_rms is not None:
+            summary_parts.append(f"RMS diff={inter_rms:.3f} Hz")
+        summary_label = "  |  ".join(summary_parts)
+
+        # Plot an invisible line just to add the summary to the legend
+        ax_top.plot([], [], color="white", linewidth=0,
+                    label=summary_label)
+
+        # Print to console
+        print(f"  Inter-method: r={inter_r:.3f}" if inter_r else
+              "  Inter-method: r=n/a", end="")
+        if inter_rms is not None:
+            print(f"  RMS diff={inter_rms:.3f} Hz", end="")
         print()
+
+    elif len(_overlay_series) > 2:
+        print("  (Inter-method r not computed: more than 2 overlays)")
 
     if args.overlay:
         ax_top.legend(loc="upper right", fontsize=8.5,
