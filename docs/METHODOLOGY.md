@@ -198,6 +198,31 @@ contaminated pair is not always caught by the correlation number
 alone. Inspecting `R(τ)` as a function of lag, not just its
 maximum, is the check the coefficient cannot provide.
 
+**Figure: clean vs E-region-contaminated pair — 17 May 2024 LSTID
+event, 18:00–20:00 UTC, FFT Doppler extraction, 60 s cadence.**
+
+![Cross-correlation curve shape: clean vs contaminated](fig_clean_vs_contaminated.png)
+
+*Left (blue): N4RVE / W7LUX — both paths SNR > 40 dB, no known
+multi-hop contamination. The dominant peak at +21 min is well above
+its neighbourhood (r = 0.67). The secondary peak at −38 min is one
+wave period (~58 min) earlier and is a property of the wave itself,
+not a data-quality issue; it is present on both clean and
+contaminated pairs and does not indicate an unreliable lag.*
+
+*Right (red): AC0G_ND / W7LUX — AC0G_ND path has known E-region
+multi-hop contamination (independently diagnosed by G3ZIL and
+reproduced by the toolkit). The curve shows the characteristic
+contamination signatures: irregular, high-frequency structure on
+the curve body; a broad, flat-topped positive lobe rather than a
+sharp peak; and a lower peak coefficient (r = 0.58 vs 0.67)
+despite both pairs sharing W7LUX. The lag at the peak (+19 min)
+is in the right region but is not robustly determined — the broad
+lobe means a small change in data could shift the argmax
+substantially. This pair's band-filtered results showed
+inconsistent lags across period bands, consistent with the
+curve-shape diagnosis here.*
+
 ## Step 3: Slowness-vector inversion
 
 For N stations at positions `r_1, ..., r_N` (projected to a local
