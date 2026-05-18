@@ -442,3 +442,65 @@ affects the like-for-like validity of Entry 5.
 **Current state.** Investigation is unblocked and producing results.
 Two open clarifications from Gwyn before drawing conclusions.
 No production change warranted yet.
+
+### 2026-05-18 — Entry 7: FFT vs autocorr on 19 Jan 2026 MSTID (original reference event)
+
+**Goal.** Apply both extraction methods to the original Jan 2026 event
+that motivated the toolkit, compare DOA results, and test whether the
+autocorr advantage seen on the May 2024 LSTID holds for an MSTID.
+
+**Stations and data.** 6 stations with DRF available: N6RFM, AA6BD,
+W7LUX, AC0G_ND, KB4SE, KC4LE. All single-channel except AC0G_ND
+(subchannel 4). All SNR > 30 dB median at event time; W7LUX, N6RFM,
+AC0G_ND strongest (>48 dB). 10s cadence, 00:00-01:10 UTC.
+
+**Four configurations run:**
+
+| Method | Stations | Speed | Direction | Wave type | Diagnostics |
+|--------|----------|-------|-----------|-----------|-------------|
+| FFT | 3 (original) | 193 m/s | 190 deg | MSTID | All pass |
+| Autocorr | 3 | 335 m/s | 196 deg | MSTID | 2 fail |
+| FFT | 6 | 709 m/s | 223 deg | LSTID | 2 fail |
+| Autocorr | 6 | 774 m/s | 223 deg | LSTID | 2 fail |
+
+**Pairwise cross-correlation curves (3-station pairs):**
+- N6RFM->W7LUX: both methods agree exactly (lag=0, r=0.46). Curves identical.
+- AA6BD->W7LUX: both methods agree closely (FFT +21.7 min r=0.663,
+  autocorr +21.3 min r=0.664). Curves nearly identical.
+- N6RFM->AA6BD: methods disagree. FFT -21.7 min r=0.528; autocorr
+  -11.7 min r=0.546. Curve has two comparable peaks (~0.53 and ~0.55)
+  separated by ~10 min. FFT picks the earlier; autocorr picks the later.
+  Genuine curve ambiguity -- neither peak is clearly dominant.
+
+**Why FFT 3-station passes and autocorr 3-station fails:**
+FFT choice of -21.7 min gives self-consistent triangle: -1300+0+1300=0s
+closure. Autocorr choice of -11.7 min breaks closure: -700+0+1280=580s
+(88% of mean leg). Triangle closure diagnostic correctly identifies this.
+FFT result (193 m/s @ 190 deg, MSTID) is the more reliable DOA result.
+
+**6-station results -- both methods flagged:**
+Adding AC0G_ND (lat 46.875, far north), KB4SE, KC4LE stretches the
+plane-wave assumption. RMS residuals 39-49%, triangle closure 116-124%.
+Eastern cluster (AA6BD, KB4SE, KC4LE) nearly co-located relative to
+wave scale -- no independent geometric constraint added. Autocorr
+improves mean pairwise correlation (0.726 vs 0.681) and reduces RMS
+residual (39% vs 49%) but both remain outside typical ranges.
+
+**Does autocorr help on this MSTID?**
+On two of three pairs: no difference. On one pair (N6RFM->AA6BD):
+autocorr picks a different peak on an ambiguous curve, producing an
+inconsistent DOA. The smoother autocorr output that helped on the slow
+May 2024 LSTID (long period, well-separated peaks) changes peak
+selection on this faster MSTID (shorter period, closer peaks, more
+ambiguous curves).
+
+**Reading (honest).**
+Valuable negative/qualified result. Autocorr is not universally better.
+On May 2024 LSTID it improved pairwise coherence on contaminated pairs.
+On Jan 2026 MSTID it produces a wrong-peak lock on the most ambiguous
+pair, breaking triangle closure and yielding unreliable DOA speed
+(335 vs 193 m/s). Toolkit diagnostics correctly distinguish the
+reliable result (FFT 3-station, all pass) from unreliable ones.
+
+**Figures:** research/comparison_fft_vs_autocorr_jan19.png (curves),
+research/comparison_table_jan19.png (summary table).
