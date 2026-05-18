@@ -531,15 +531,9 @@ def main():
         print(f"  Smoothing applied: Savitzky-Golay window={args.smooth:g}s "
               f"({n_used} samples), polynomial order 3")
         # Add a header comment to the CSV noting smoothing was applied
-        with open(args.output, "w") as f:
-            f.write(f"# method={args.method} "
-                    f"Smoothing: Savitzky-Golay {args.smooth:g}s window "
-                    f"({n_used} samples), polynomial order 3\n")
-        df.to_csv(args.output, mode="a", index=False)
+        df.to_csv(args.output, index=False)
     else:
-        with open(args.output, "w") as f:
-            f.write(f"# method={args.method}\n")
-        df.to_csv(args.output, mode="a", index=False)
+        df.to_csv(args.output, index=False)
 
     if n_blocks > 0:
         sys.stdout.write("\n")
