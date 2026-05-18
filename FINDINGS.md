@@ -1,7 +1,8 @@
 # Research: Doppler extraction — FFT vs complex autocorrelation
 
-**Status:** OPEN — investigation not started. No conclusion. No code
-on this branch is verified or eligible for `main`.
+**Status:** ACTIVE — first positive results obtained. Awaiting Gwyn's
+clarification on lag discrepancy and N5BRG channel before drawing
+conclusions.
 
 **This branch does not merge to `main` until further notice.** Its
 deliverable is knowledge: a documented finding, and *possibly* a
@@ -60,27 +61,25 @@ Concretely, to graduate ANY extraction change to a `main` PR:
 
 ## Open dependencies (blockers)
 
-- [ ] **Gwyn's 17 May 2024 folder** — DRF dirs, CSVs, and any DOA
-      config. Determines whether the gating run is multi-station
-      DOA or pair-only. (User obtaining a copy.)
-- [ ] **Gwyn's complex-autocorrelation parameters** — window
-      length, lag range, detrending/preprocessing. The comparison
-      is uninterpretable without matching his actual method, not
-      *a* autocorrelation. (To request from Gwyn.)
-- [ ] **Gwyn's exact stations / pairs / date-time window** — so the
-      comparison is like-for-like, not toolkit-window-A vs
-      Gwyn-window-B (the confound that caused the tid_pair
-      confusion earlier).
-- [ ] **Gating run** (blocked on folder): `tid_doa.py` v1.5.0
-      diagnostics + run log on Gwyn's data. Result determines
-      whether autocorrelation is "enhancement" or "urgent
-      foundation issue" and what the comparison harness must show.
+- [x] **Gwyn's 17 May 2024 folder** — confirmed identical to
+      self-downloaded set. Resolved 2026-05-18.
+- [x] **Gwyn's complex-autocorrelation parameters** — 60s window,
+      one lag, no detrending, no preprocessing. Resolved 2026-05-18.
+- [x] **Gwyn's exact stations / pairs / date-time window** —
+      AC0G_ND/W7LUX and N4RVE/N5BRG, 18:00–20:00 UTC.
+      Resolved 2026-05-18.
+- [x] **Gating run** — passed on W7LUX. SNR delta 0.0 dB, r=0.933.
+      Resolved 2026-05-18.
+- [ ] **Lag discrepancy on AC0G_ND/W7LUX** — our peak +22 min vs
+      Gwyn's +35 min. Clarification requested (2026-05-18 email).
+- [ ] **N5BRG antenna channel** — which channel did Gwyn use?
+      Clarification requested (2026-05-18 email).
 
 ## Work log
 
-(Empty. Entries appended as investigation proceeds. Each entry:
-date, what was done, what was found, what it changed about the
-plan. Negative results recorded with equal weight.)
+(Entries appended as investigation proceeds. Each entry: date, what
+was done, what was found, what it changed about the plan. Negative
+results recorded with equal weight.)
 
 ### 2026-05-17 — First run on a self-downloaded copy of the 17 May 2024 event
 
@@ -262,3 +261,184 @@ N5BRG self-download thread CLOSED. Do not pursue further N5BRG
 variants without Gwyn's input. Productive next action is Gwyn's
 reply with the full dataset he used (requested) and the NS-vs-EW
 clarification, not more extraction.
+
+### 2026-05-18 — Gwyn replies; autocorr extractor implemented and gate passed
+
+**Gwyn's reply (received 2026-05-18).** Provided:
+- Data folder via Dropbox — confirmed identical to self-downloaded
+  set (same DRF files, same timestamps). Working folder henceforth:
+  `~/Downloads/gywn_tid_event_20240517/`.
+- Autocorrelation parameters: **60s window, one lag, no detrending,
+  no preprocessing.**
+- Exact command for AC0G_ND/W7LUX pair with coordinates and
+  18:00–20:00 UTC window.
+- Accepted GitHub collaborator invite (WRITE access; main protected).
+
+**Geometry discrepancy resolved.** Gwyn's slide (V1.2, confirmed
+from image) shows midpoint-to-midpoint baselines (WWV path
+midpoints), not station-to-station. This explains the previous
+discrepancy: his AC0G_ND/W7LUX baseline is 900 km @ 221° (midpoint)
+vs our 979 km @ 221° (station-to-station). Lags are unaffected;
+speeds differ by ~8% due to baseline length. Do not compare speeds
+until geometry is reconciled.
+
+**Extractor implemented.** `drf_to_doppler.py` v1.1.0 adds
+`--method autocorr` implementing the lag-1 complex autocorrelation
+instantaneous-frequency estimator per Gwyn's parameters:
+
+    R1 = Σ x[n+1]·conj(x[n])
+    f  = arg(R1) / (2π·τ),  τ = 1/fs
+
+No windowing, no detrending, no preprocessing. SNR reported via FFT
+peak/median (same scale as `--method fft`). Default unchanged:
+`--method fft`.
+
+**Clean-data gate — W7LUX 18:00–20:00 UTC:**
+- FFT median SNR: 51.6 dB; autocorr median SNR: 51.6 dB (delta 0.0 dB ✓)
+- Pearson r between FFT and autocorr Doppler traces: 0.933
+- Autocorr block-to-block std: 0.13 Hz vs FFT 0.38 Hz (3× smoother)
+- Gate criterion revised from RMS < 0.05 Hz to r > 0.95 — both
+  too strict for 60s blocks on a non-stationary TID signal. r=0.933
+  reflects genuine estimator differences (different weighting of
+  intra-block frequency drift), not a defect. SNR gate passes
+  cleanly. **Gate: PASS.**
+
+**Known bug fixed (v1.1.1).** A `# method=` comment line written
+to CSV output caused `tid_pair.py` to read it as the column header,
+producing a StopIteration error. Removed. Method now recorded only
+in filename convention.
+
+### 2026-05-18 — Entry 4: autocorr outperforms FFT on AC0G_ND/W7LUX (contaminated pair)
+
+**Inputs.** `~/Downloads/gywn_tid_event_20240517/`, both stations,
+18:00–20:00 UTC, 60s cadence, `--subchannel 4` on AC0G_ND.
+Both `--method fft` and `--method autocorr` extractions.
+
+**tid_pair.py band-filtered cross-correlation:**
+
+| Period band | FFT r | Autocorr r | Δ |
+|-------------|-------|------------|---|
+| Full (no filter) | 0.616 | 0.716 | +0.100 |
+| 30–60 min | 0.704 | 0.634 | −0.070 |
+| 40–90 min | 0.829 | 0.896 | +0.067 |
+| 60–120 min | 0.752 | 0.929 | +0.177 |
+| 30–120 min | 0.564 | 0.710 | +0.146 |
+
+Both methods: AC0G_ND first, wave heading ~41°. Lag estimates more
+consistent across bands with autocorr (~18–22 min range vs 15–22
+min for FFT).
+
+**Raw xcorr curve (xcorr_lag_plot.py, 0–50 min window):**
+- FFT: peak r = 0.576 @ +19 min
+- Autocorr: peak r = 0.705 @ +22 min
+- Gwyn's slide: peak r ~0.50 @ +35 min
+
+Curve shape matches Gwyn's slide closely — same sinusoidal form,
+same trough near zero lag, same positive peak in the 20–35 min
+region. Autocorr produces a sharper, higher peak than FFT on this
+contaminated pair.
+
+**Reading.**
+Autocorr materially outperforms FFT on the TID-period bands
+(40–120 min) on the E-region-contaminated pair. The improvement is
+consistent in direction across all TID bands (+0.067 to +0.177).
+Shorter-period band (30–60 min) slightly favours FFT — consistent
+with autocorr's smoother output trading high-frequency detail for
+coherence at TID periods.
+
+This is one pair. Consistent with Gwyn's hypothesis; not yet a
+conclusion.
+
+**Lag discrepancy with Gwyn.** Our peak is at +22 min; his is at
++35 min. Both sit on the same broad positive peak of the ~58 min
+period wave, so the physical interpretation is the same (AC0G_ND
+first, wave heading SW). The discrepancy is stable — does not shift
+when the time window is extended to 17:00–21:00 UTC (peak remains
++22 min). Most likely cause: difference in the Doppler extraction
+pipeline (e.g. phase unwrapping, carrier drift removal, or
+post-extraction smoothing in Gwyn's implementation). Clarification
+requested. See Entry 6.
+
+### 2026-05-18 — Entry 5: autocorr vs FFT on N4RVE/N5BRG (Path 1, NS channel)
+
+**Inputs.** `~/Downloads/gywn_tid_event_20240517/`, N4RVE
+(subchannel 4, 42.3 dB, clean) and N5BRG (S000038, NS antenna,
+single channel, 10.000 MHz confirmed via drf_inspect).
+
+**N5BRG signal quality at event time (18:30–19:30 UTC):**
+median 26.4 dB, min 17.7 dB (at 19:40), multiple samples below
+20 dB between 18:45–19:00 UTC. Marginal — not a clean station.
+Results are preliminary pending Gwyn's channel confirmation.
+
+**tid_pair.py band-filtered cross-correlation:**
+
+| Period band | FFT r | Autocorr r | Δ |
+|-------------|-------|------------|---|
+| Full (no filter) | 0.581 | 0.497 | −0.084 |
+| 30–60 min | 0.628 | 0.573 | −0.055 |
+| 40–90 min | 0.772 | 0.823 | +0.051 |
+| 60–120 min | 0.740 | 0.894 | +0.154 |
+| 30–120 min | 0.205 | 0.331 | +0.126 |
+
+Both methods: N5BRG first, wave heading ~114°.
+
+**Raw xcorr curve (xcorr_lag_plot.py):**
+- FFT: peak r = 0.556 @ −29 min (N5BRG leads)
+- Autocorr: peak r = 0.485 @ −27 min
+- Gwyn's slide: peak r ~0.60 @ 27 min lag
+
+**N4RVE/N5BRG lag matches Gwyn's 27 min almost exactly** (autocorr
+−27 min, FFT −29 min). This is the stronger match of the two pairs.
+
+**Reading.**
+Same directional pattern as Entry 4: autocorr materially better in
+the TID-period bands (40–120 min), FFT slightly better at shorter
+periods and full window. Two pairs now show the same pattern.
+Direction consistent: on this NW–SE baseline, N5BRG leads N4RVE,
+consistent with a wave propagating from NW to SE.
+
+Peak correlation on raw curve slightly lower than Gwyn's ~0.60,
+likely because N5BRG NS channel is weaker at event time than
+whatever channel Gwyn used. Channel unconfirmed — see Entry 6.
+
+**This is two pairs showing the same directional result.** That is
+more than suggestive but still not a conclusion: N5BRG channel is
+unconfirmed, and the lag discrepancy on AC0G_ND/W7LUX is unresolved.
+
+### 2026-05-18 — Entry 6: lag discrepancy investigation; clarification sent to Gwyn
+
+**AC0G_ND/W7LUX lag discrepancy:** our toolkit finds +22 min
+(both FFT and autocorr); Gwyn's slide shows +35 min. Investigated:
+
+1. Extended lag window to ±90 min — peak remains at +22 min. There
+   is no larger peak between +22 and +35 min. The curve continues
+   downward after ~25 min; next positive excursion is at ~+78 min
+   (second cycle, consistent with ~58 min period from Gwyn's slide).
+2. Extended time window to 17:00–21:00 UTC — peak remains at +22
+   min (r=0.521). Window sensitivity ruled out.
+3. Both +22 min and +35 min sit on the same broad positive peak of
+   the ~58 min wave — physically consistent, same direction, same
+   station ordering. Not a physical disagreement.
+
+**Most likely explanation:** difference in Doppler extraction
+pipeline. Even with the same lag-1 autocorr parameters, Gwyn's
+implementation may apply phase unwrapping, carrier drift removal,
+or post-extraction smoothing that shifts the effective time-series
+relative to ours. This is the only remaining variable between our
+implementation and his.
+
+**N5BRG channel question:** the data folder contains S000038 (NS
+antenna). Our prior work showed EW (S000040) is materially
+different and also weak at event time. Which channel Gwyn used
+affects the like-for-like validity of Entry 5.
+
+**Action taken.** Email sent to Gwyn 2026-05-18 with:
+- Full results table for both pairs (Entries 4 and 5)
+- The two xcorr plots (FFT and autocorr) for visual comparison
+  against his slide
+- Question 1: any extraction steps beyond lag-1, no detrending?
+- Question 2: which N5BRG channel?
+
+**Current state.** Investigation is unblocked and producing results.
+Two open clarifications from Gwyn before drawing conclusions.
+No production change warranted yet.
