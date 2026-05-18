@@ -43,3 +43,9 @@ OBS*
 !research/synthetic/*.png
 !research/synthetic/*.csv
 !research/synthetic/chunks/*.csv
+
+# Research figures and reports
+!research/*.png
+!research/synthetic/*.png
+!research/*.pdf
+!research/synthetic/*.pdf
