@@ -150,3 +150,66 @@ correlation curve": lag not robustly determined; coefficient
 - [ ] Plotter fix this session: timestamp_utc added to
       TIME_CANDIDATES. Otherwise still unverified — peak-lag vs
       tid_pair.py cross-check still outstanding.
+
+### 2026-05-17 — N4RVE/N5BRG (Gwyn Path 1) on self-download: noise; clean control NOT obtainable
+
+**Goal.** Clean-pair control (Gwyn treated N4RVE/N5BRG, Path 1, as
+cleaner) to contrast vs contaminated AC0G_ND/W7LUX, for the
+METHODOLOGY clean-vs-contaminated figure.
+
+**Extraction.** N4RVE 9-subchannel; 10 MHz = subchannel 4 (same as
+AC0G_ND). Extracted --subchannel 4: SNR 40.8 dB, clean through
+event — N4RVE good. N5BRG single-channel but poor download:
+full-day saturation bands; median SNR 18.8 dB (vs 40+ all others).
+Event window 16-22 UTC: SNR median 21.3, 10.6% < 15 dB, 4.2%
+saturated. N5BRG is the weakest station 2x over — opposite of a
+clean control.
+
+**tid_pair.py N4RVE/N5BRG 16-22 UTC:** corr 0.112/0.259/0.325/
+0.734/0.136 (almost all sub-0.4). Lag SIGN FLIPS across bands
+(Full +1550s N4RVE-first; 30-60/40-90/60-120 negative N5BRG-first).
+Toolkit's own hint fired: "Sign flips between period bands indicate
+the lag is dominated by noise, not a coherent wave." The lone 0.734
+(60-120) is the documented bandpass artifact: var(y_f)=0.010,
+filtering near-noise to a narrow band (METHODOLOGY "bandpass
+problem").
+
+**Raw xcorr curve:** peak r = -0.037 @ +27.7 min. Flat,
+structureless, no peak — noise. Flatter/lower than even the
+contaminated AC0G_ND/W7LUX curve.
+
+**Reading (honest).**
+1. DATA failure, not method/toolkit failure. N4RVE fine;
+   self-downloaded N5BRG too poor (~21 dB, saturated) for any
+   common wave. Says nothing about Gwyn's Path 1 or his method.
+2. Toolkit behaved CORRECTLY: noise-dominated pair -> no confident
+   answer, sub-threshold sign-flipping corr, own "noise" hint
+   fired, flat curve. Third demo this session of "fails
+   recognisably, not silently" (ASSESSING_RESULTS §3.3): synthetic,
+   contaminated AC0G_ND/W7LUX, now noise pair. Pair is a bust; tool
+   is not.
+3. POSSIBLE WRONG N5BRG. Metadata anomalous vs others: uuid_str
+   S000038, lat 33.396 lon -87.542, NO callsign, no KA9Q receiver
+   name. The N5BRG pulled by callsign+date may not be Gwyn's N5BRG.
+   Another reason self-download comparison to his numbers is unsafe.
+
+**Conclusion: clean control NOT obtainable from self-download.**
+Both Gwyn pairs via independent pull unusable: AC0G_ND/W7LUX
+genuinely contaminated (matches him), N4RVE/N5BRG killed by N5BRG
+download quality. Clean-vs-contaminated METHODOLOGY contrast does
+not exist from this data. Any comparison to Gwyn's Path 1 / his
+vector-sum overall (979 m/s @ 157°) / his method is BLOCKED on his
+extracted folder — now demonstrated by two failed pairs, not
+asserted.
+
+**Open / next (reinforced).**
+- [ ] Gwyn's folder now the demonstrated prerequisite. Two
+      self-download pairs failed.
+- [ ] Reply to Gwyn still the unblock: folder, autocorrelation
+      params, exact stations/pairs/window, + clarify N5BRG identity
+      (uuid S000038?).
+- [ ] No speeds compared (geometry unreconciled; pairs are
+      noise/contaminated regardless).
+- [ ] METHODOLOGY clean-vs-contaminated figure: only contaminated
+      half exists. Clean half blocked on Gwyn's data. Do NOT
+      manufacture from weak data.
