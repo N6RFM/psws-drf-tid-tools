@@ -10,6 +10,10 @@ Based on the spectrogram approach used by AB4EJ (W. Engelke, University of
 Alabama) in plotspectrum_V4a.py.
 
 Change log:
+  v1.2.0  Added --overlay CSV:label[:color] to superimpose one or more
+          Doppler CSV traces (from drf_to_doppler.py) on the spectrogram.
+          Useful for visually validating FFT vs autocorr extraction and
+          confirming the extracted Doppler tracks the spectrogram carrier.
   v1.1.0  Added --callsign and --grid overrides so the auto-generated
           title can be completed when Grape v1.x DRFs omit those fields
           from the metadata.
@@ -60,6 +64,26 @@ Multi-subchannel station:
         --subchannel 4 \
         --annotate "00:00,01:15,TID region of study"
 
+Overlay FFT and autocorr Doppler traces on the spectrogram:
+
+    python drf_spectrogram.py ./n6rfm --output n6rfm_overlay.png \
+        --annotate "00:00,01:10,TID window" \
+        --overlay "n6rfm_fft.csv:FFT" \
+        --overlay "n6rfm_autocorr.csv:Autocorr:#FF9800"
+
+OVERLAY SYNTAX
+==============
+--overlay "path/to/doppler.csv:label"
+    Superimposes a Doppler-vs-time trace from a drf_to_doppler.py CSV
+    on the spectrogram panel. The time column is auto-detected; the
+    Doppler column must be named 'doppler_hz'. Multiple --overlay
+    flags can be used to compare FFT and autocorr extraction side by
+    side on the same spectrogram.
+
+--overlay "path/to/doppler.csv:label:#FF9800"
+    As above, with an explicit hex color. Default colors cycle through
+    blue, orange, green, red if not specified.
+
 ANNOTATION SYNTAX
 =================
 --annotate "HH:MM,HH:MM,label"
@@ -87,9 +111,64 @@ PARAMETER GUIDANCE
       Limit the spectrogram to a sub-window (UTC hours/minutes within
       the recorded day). Default: full 24-hour day from the DRF bounds.
 
+INTERPRETING OVERLAY METRICS
+============================
+When --overlay is used, each trace in the legend shows four metrics.
+Here is what they mean and how to use them to choose a method.
+
+  std (Hz)
+      Block-to-block standard deviation of the extracted Doppler.
+      Measures the extractor's noise floor, not accuracy. Autocorr
+      is always smoother than FFT by design (typically 2-3x lower
+      std). A smoother trace is not necessarily more accurate.
+      Use std to spot noisy blocks, not to choose a method.
+
+  r (inter-method Pearson correlation)
+      Correlation between the FFT and autocorr traces over the
+      plot window. Measures how similarly the two methods track
+      the carrier.
+        r > 0.95  Both methods agree. Either is reliable; use FFT.
+        r 0.85-0.95  Mild disagreement. Inspect the spectrogram.
+        r < 0.85  Significant disagreement. One method may be
+                  tracking E-region instead of F-region. Use the
+                  spectrogram overlay to decide which is correct.
+      Note: r does not tell you which method is right, only whether
+      they agree.
+
+  RMS diff (Hz)
+      Root-mean-square difference between FFT and autocorr traces.
+      More interpretable than r because it is in physical units.
+        < 0.10 Hz  Negligible disagreement. Both methods equivalent.
+        0.10-0.30 Hz  Noticeable. Worth checking the overlay visually.
+        > 0.30 Hz  Substantial. One method is likely off-track.
+
+DECISION WORKFLOW
+=================
+1. Look at the spectrogram. Is there a visible sinusoidal TID carrier
+   (slow, wave-like, bright ridge)? If not, data quality issue; stop.
+
+2. Check r and RMS diff:
+     Both agree (r > 0.95, RMS < 0.10 Hz) -> use FFT, proceed to
+     cross-correlation. No further inspection needed.
+     They disagree -> go to step 3.
+
+3. Look at the overlay traces on the spectrogram. Which trace visually
+   follows the bright carrier ridge? That method is tracking the
+   F-region TID signal. The other may be pulled toward the E-region
+   flat component near 0 Hz.
+
+4. If E-region contamination is visible (flat bright band near 0 Hz
+   alongside the TID wave) and autocorr tracks the TID better:
+     - Use autocorr IF the lag/period ratio is < 0.3 (unambiguous).
+     - Prefer FFT IF the lag/period ratio is 0.3-0.5 (ambiguous
+       cross-correlation peaks; autocorr smoothness causes wrong-peak
+       lock in this regime — see research/psws_autocorr_research_report.pdf).
+
+5. Record which method was chosen and why in the run log.
+
 REQUIREMENTS
 ============
-    pip install digital_rf numpy matplotlib
+    pip install digital_rf numpy matplotlib pandas
 
 SEE ALSO
 ========
@@ -105,7 +184,7 @@ from datetime import datetime, timedelta, timezone
 
 import numpy as np
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 # Lazy imports for matplotlib + digital_rf so --help works without them
 try:
@@ -154,6 +233,20 @@ def parse_vline(s):
     if len(parts) != 2:
         raise ValueError(f"Bad --vline {s!r}, expected 'HH:MM,label'")
     return parse_hhmm(parts[0]), parts[1].strip()
+
+
+def parse_overlay(s):
+    """Parse 'path/to/file.csv:label' or 'path/to/file.csv:label:color'."""
+    parts = s.split(":", 2)
+    if len(parts) < 2:
+        raise ValueError(
+            f"Bad --overlay {s!r}, expected 'CSV_PATH:label' or "
+            f"'CSV_PATH:label:color'"
+        )
+    csv_path = parts[0].strip()
+    label    = parts[1].strip()
+    color    = parts[2].strip() if len(parts) == 3 else None
+    return csv_path, label, color
 
 
 # ----------------------------------------------------------------------------
@@ -288,6 +381,15 @@ def main():
     ap.add_argument("--vline", action="append", default=[],
                     help="Vertical event marker: 'HH:MM,label'. Can "
                          "be specified multiple times.")
+    ap.add_argument("--overlay", action="append", default=[],
+                    metavar="CSV:label[:color]",
+                    help="Overlay a Doppler CSV trace on the spectrogram. "
+                         "Format: 'path/to/doppler.csv:label' or "
+                         "'path/to/doppler.csv:label:color'. "
+                         "The CSV must have a UTC time column and a "
+                         "doppler_hz column (output of drf_to_doppler.py). "
+                         "Can be specified multiple times to overlay "
+                         "multiple traces (e.g. FFT and autocorr).")
     ap.add_argument("--title", default=None,
                     help="Full plot title override. If you only want to "
                          "fix a missing callsign/grid (some older Grape "
@@ -301,7 +403,7 @@ def main():
                     help="Override the grid square in the auto-generated "
                          "title.")
     ap.add_argument("--version", action="version",
-                    version="%(prog)s 1.1.0")
+                    version="%(prog)s 1.2.0")
     args = ap.parse_args()
 
     if not _HAVE_DRF:
@@ -511,6 +613,131 @@ def main():
         t_s, _ = parse_vline(vl_str)
         ax_bot.axvline(x=t_s / 3600.0, color="red", linestyle="--",
                        linewidth=1.0, alpha=0.5)
+
+    # Overlay Doppler CSV traces on the spectrogram panel
+    # Default color cycle: blue, orange, green, red, purple, brown
+    _overlay_colors = ["#2196F3", "#FF9800", "#4CAF50",
+                       "#F44336", "#9C27B0", "#795548"]
+
+    # Build spectrogram peak track — carrier frequency per time column
+    # as seen by the spectrogram. Independent of any extraction method.
+    # Used to score each overlay: r and RMS vs this reference.
+    freq_mask = (freqs >= ylim_lo) & (freqs <= ylim_hi)
+    if freq_mask.any():
+        sub_spec     = spec[freq_mask, :]
+        sub_freqs    = freqs[freq_mask]
+        peak_col_idx = np.argmax(sub_spec, axis=0)
+        spec_peak_hz = sub_freqs[peak_col_idx]
+        spec_peak_hr = (np.arange(sub_spec.shape[1]) * window_seconds
+                        ) / 3600.0 + start_offset_hr
+    else:
+        spec_peak_hz = None
+        spec_peak_hr = None
+
+    import pandas as pd
+
+    for ov_idx, ov_str in enumerate(args.overlay):
+        try:
+            csv_path, ov_label, ov_color = parse_overlay(ov_str)
+        except ValueError as e:
+            print(f"WARNING: skipping overlay — {e}")
+            continue
+
+        try:
+            ov_df = pd.read_csv(csv_path, comment="#")
+        except Exception as e:
+            print(f"WARNING: could not read overlay CSV {csv_path!r}: {e}")
+            continue
+
+        tcol = next((c for c in ov_df.columns
+                     if any(k in c.lower()
+                            for k in ["time", "stamp", "utc", "date"])),
+                    None)
+        dcol = next((c for c in ov_df.columns
+                     if "doppler" in c.lower() or c.lower() == "hz"),
+                    None)
+
+        if tcol is None or dcol is None:
+            print(f"WARNING: overlay {csv_path!r} — could not find time "
+                  f"or doppler column. Columns: {list(ov_df.columns)}")
+            continue
+
+        try:
+            ov_df[tcol] = pd.to_datetime(ov_df[tcol], utc=True)
+        except Exception as e:
+            print(f"WARNING: overlay time parse failed: {e}")
+            continue
+
+        ov_df["_hr"] = (
+            (ov_df[tcol] - pd.Timestamp(midnight_utc)).dt.total_seconds()
+            / 3600.0
+        )
+
+        mask = ((ov_df["_hr"] >= start_offset_hr) &
+                (ov_df["_hr"] <= end_offset_hr))
+        ov_plot = ov_df[mask].copy()
+
+        if ov_plot.empty:
+            print(f"WARNING: overlay {csv_path!r} has no data in "
+                  f"the plot window.")
+            continue
+
+        color = ov_color if ov_color else _overlay_colors[
+            ov_idx % len(_overlay_colors)]
+
+        # Score overlay against spectrogram peak track
+        r_vs_spec   = None
+        rms_vs_spec = None
+        if spec_peak_hz is not None:
+            ov_hrs = ov_plot["_hr"].values
+            ov_dop = ov_plot[dcol].values
+            spec_interp = np.interp(ov_hrs, spec_peak_hr, spec_peak_hz,
+                                    left=np.nan, right=np.nan)
+            valid = (~np.isnan(spec_interp)) & (~np.isnan(ov_dop))
+            if valid.sum() > 3:
+                a = ov_dop[valid]
+                b = spec_interp[valid]
+                if a.std() > 1e-9 and b.std() > 1e-9:
+                    r_vs_spec = float(np.corrcoef(a, b)[0, 1])
+                rms_vs_spec = float(np.sqrt(np.mean((a - b) ** 2)))
+
+        # Smoothness: block-to-block std of Doppler within plot window
+        dop_std = float(ov_plot[dcol].std()) if len(ov_plot) > 1 else None
+        snr_med = (ov_df["snr_db"].median()
+                   if "snr_db" in ov_df.columns else None)
+
+        # Build enriched legend label
+        parts = [ov_label]
+        if r_vs_spec is not None:
+            parts.append(f"r={r_vs_spec:.3f}")
+        if rms_vs_spec is not None:
+            parts.append(f"RMS={rms_vs_spec:.3f} Hz")
+        if snr_med is not None:
+            parts.append(f"SNR={snr_med:.1f} dB")
+        if dop_std is not None:
+            parts.append(f"std={dop_std:.3f} Hz")
+        rich_label = "  |  ".join(parts)
+
+        ax_top.plot(ov_plot["_hr"], ov_plot[dcol],
+                    color=color, linewidth=1.8,
+                    linestyle="-", alpha=0.85,
+                    label=rich_label, zorder=20)
+
+        # Print fit metrics to console
+        print(f"  Overlay '{ov_label}':", end="")
+        if r_vs_spec is not None:
+            print(f"  r={r_vs_spec:.3f}", end="")
+        if rms_vs_spec is not None:
+            print(f"  RMS={rms_vs_spec:.3f} Hz", end="")
+        if dop_std is not None:
+            print(f"  std={dop_std:.3f} Hz", end="")
+        print()
+
+    if args.overlay:
+        ax_top.legend(loc="upper right", fontsize=8.5,
+                      framealpha=0.82, facecolor="#111111",
+                      labelcolor="white", edgecolor="gray",
+                      handlelength=1.5)
 
     plt.tight_layout()
     if args.annotate:

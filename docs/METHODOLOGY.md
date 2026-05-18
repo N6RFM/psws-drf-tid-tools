@@ -73,6 +73,88 @@ gives ~0.01–0.02 Hz block-to-block noise on the Doppler estimate.
 
 ---
 
+## Step 1b: Visual inspection with drf_spectrogram.py --overlay
+
+Before committing to a cross-correlation, use `drf_spectrogram.py` with
+`--overlay` to visually validate the extracted Doppler trace against the
+raw spectrogram. This step catches data quality issues and E-region
+contamination that are invisible in the Doppler CSV alone.
+
+### What to look for
+
+A TID signal appears in the spectrogram as a **slow, sinusoidal,
+wave-like bright ridge** drifting above and below 0 Hz with a period
+of 20–90 minutes. E-region contamination appears as a **flat, bright
+band near 0 Hz** running alongside or underneath the TID wave. When
+both are present, the extracted Doppler is a weighted mixture of the
+two — and the two extraction methods (FFT and autocorr) may weight
+them differently.
+
+### Overlay usage
+
+```
+python drf_spectrogram.py ./station_dir --output out.png \
+    --start HH:MM --end HH:MM \
+    --annotate "HH:MM,HH:MM,Analysis window" \
+    --overlay "station_fft.csv:FFT" \
+    --overlay "station_autocorr.csv:Autocorr:#FF9800"
+```
+
+### Interpreting the legend metrics
+
+Each overlay trace shows four metrics in the legend:
+
+| Metric | What it measures | Interpretation |
+|--------|-----------------|----------------|
+| `r` | Pearson correlation between FFT and autocorr traces | How much do the two methods agree? |
+| `RMS diff (Hz)` | RMS difference between FFT and autocorr | Physical magnitude of disagreement |
+| `SNR (dB)` | Median signal-to-noise ratio from the CSV | Signal quality |
+| `std (Hz)` | Block-to-block standard deviation of Doppler | Extractor smoothness (not accuracy) |
+
+**std** tells you about extractor noise, not correctness. Autocorr is
+always smoother than FFT by design (typically 2–3× lower std). A
+smoother trace is not necessarily more accurate.
+
+**r and RMS diff** are the decision-relevant metrics. They measure
+disagreement between the two methods, not fit to an external truth.
+
+### Decision workflow
+
+```
+1. Look at the spectrogram.
+   Is there a visible sinusoidal TID carrier (slow, wavy, bright ridge)?
+   No → data quality issue; do not proceed to cross-correlation.
+
+2. Check r and RMS diff:
+   r > 0.95 and RMS < 0.10 Hz → both methods agree; use FFT (default).
+   Otherwise → go to step 3.
+
+3. Look at the overlay traces on the spectrogram.
+   Which trace visually follows the bright carrier ridge?
+   That method is tracking the F-region TID signal.
+   The other may be pulled toward the E-region component near 0 Hz.
+
+4. If autocorr tracks the TID better than FFT:
+   - Use autocorr IF the expected lag/period ratio is < 0.3
+     (unambiguous cross-correlation peak).
+   - Prefer FFT IF the lag/period ratio is 0.3–0.5 (multiple
+     comparable cross-correlation peaks; autocorr's smoothness
+     causes wrong-peak lock in this regime).
+   See research/psws_autocorr_research_report.pdf for the
+   full synthetic and real-data evidence behind this guidance.
+
+5. Record which method was chosen and why in the run log.
+```
+
+### Example
+
+The figure below shows W7LUX on 17 May 2024, 17:00–21:00 UTC.
+The TID wave is visible as the sinusoidal carrier track drifting
+between approximately −0.5 and +1.0 Hz during 18:00–20:00 UTC.
+Both FFT (blue) and autocorr (orange) track the carrier, but
+FFT shows more block-to-block noise (higher std). The legend
+metrics quantify the difference directly.
+
 ## Step 2: Cross-correlation
 
 For two Doppler series `x[n]` and `y[n]` (resampled to common cadence
