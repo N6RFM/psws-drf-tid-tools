@@ -10,6 +10,10 @@ Based on the spectrogram approach used by AB4EJ (W. Engelke, University of
 Alabama) in plotspectrum_V4a.py.
 
 Change log:
+  v1.2.0  Added --overlay CSV:label[:color] to superimpose one or more
+          Doppler CSV traces (from drf_to_doppler.py) on the spectrogram.
+          Useful for visually validating FFT vs autocorr extraction and
+          confirming the extracted Doppler tracks the spectrogram carrier.
   v1.1.0  Added --callsign and --grid overrides so the auto-generated
           title can be completed when Grape v1.x DRFs omit those fields
           from the metadata.
@@ -60,6 +64,26 @@ Multi-subchannel station:
         --subchannel 4 \
         --annotate "00:00,01:15,TID region of study"
 
+Overlay FFT and autocorr Doppler traces on the spectrogram:
+
+    python drf_spectrogram.py ./n6rfm --output n6rfm_overlay.png \
+        --annotate "00:00,01:10,TID window" \
+        --overlay "n6rfm_fft.csv:FFT" \
+        --overlay "n6rfm_autocorr.csv:Autocorr:#FF9800"
+
+OVERLAY SYNTAX
+==============
+--overlay "path/to/doppler.csv:label"
+    Superimposes a Doppler-vs-time trace from a drf_to_doppler.py CSV
+    on the spectrogram panel. The time column is auto-detected; the
+    Doppler column must be named 'doppler_hz'. Multiple --overlay
+    flags can be used to compare FFT and autocorr extraction side by
+    side on the same spectrogram.
+
+--overlay "path/to/doppler.csv:label:#FF9800"
+    As above, with an explicit hex color. Default colors cycle through
+    blue, orange, green, red if not specified.
+
 ANNOTATION SYNTAX
 =================
 --annotate "HH:MM,HH:MM,label"
@@ -89,7 +113,7 @@ PARAMETER GUIDANCE
 
 REQUIREMENTS
 ============
-    pip install digital_rf numpy matplotlib
+    pip install digital_rf numpy matplotlib pandas
 
 SEE ALSO
 ========
@@ -105,7 +129,7 @@ from datetime import datetime, timedelta, timezone
 
 import numpy as np
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 # Lazy imports for matplotlib + digital_rf so --help works without them
 try:
@@ -154,6 +178,20 @@ def parse_vline(s):
     if len(parts) != 2:
         raise ValueError(f"Bad --vline {s!r}, expected 'HH:MM,label'")
     return parse_hhmm(parts[0]), parts[1].strip()
+
+
+def parse_overlay(s):
+    """Parse 'path/to/file.csv:label' or 'path/to/file.csv:label:color'."""
+    parts = s.split(":", 2)
+    if len(parts) < 2:
+        raise ValueError(
+            f"Bad --overlay {s!r}, expected 'CSV_PATH:label' or "
+            f"'CSV_PATH:label:color'"
+        )
+    csv_path = parts[0].strip()
+    label    = parts[1].strip()
+    color    = parts[2].strip() if len(parts) == 3 else None
+    return csv_path, label, color
 
 
 # ----------------------------------------------------------------------------
@@ -288,6 +326,15 @@ def main():
     ap.add_argument("--vline", action="append", default=[],
                     help="Vertical event marker: 'HH:MM,label'. Can "
                          "be specified multiple times.")
+    ap.add_argument("--overlay", action="append", default=[],
+                    metavar="CSV:label[:color]",
+                    help="Overlay a Doppler CSV trace on the spectrogram. "
+                         "Format: 'path/to/doppler.csv:label' or "
+                         "'path/to/doppler.csv:label:color'. "
+                         "The CSV must have a UTC time column and a "
+                         "doppler_hz column (output of drf_to_doppler.py). "
+                         "Can be specified multiple times to overlay "
+                         "multiple traces (e.g. FFT and autocorr).")
     ap.add_argument("--title", default=None,
                     help="Full plot title override. If you only want to "
                          "fix a missing callsign/grid (some older Grape "
@@ -301,7 +348,7 @@ def main():
                     help="Override the grid square in the auto-generated "
                          "title.")
     ap.add_argument("--version", action="version",
-                    version="%(prog)s 1.1.0")
+                    version="%(prog)s 1.2.0")
     args = ap.parse_args()
 
     if not _HAVE_DRF:
@@ -511,6 +558,76 @@ def main():
         t_s, _ = parse_vline(vl_str)
         ax_bot.axvline(x=t_s / 3600.0, color="red", linestyle="--",
                        linewidth=1.0, alpha=0.5)
+
+    # Overlay Doppler CSV traces on the spectrogram panel
+    # Default color cycle: blue, orange, green, red, purple, brown
+    _overlay_colors = ["#2196F3", "#FF9800", "#4CAF50",
+                       "#F44336", "#9C27B0", "#795548"]
+    for ov_idx, ov_str in enumerate(args.overlay):
+        try:
+            csv_path, ov_label, ov_color = parse_overlay(ov_str)
+        except ValueError as e:
+            print(f"WARNING: skipping overlay — {e}")
+            continue
+
+        # Load the CSV, auto-detect time and doppler columns
+        try:
+            import pandas as pd
+            ov_df = pd.read_csv(csv_path, comment="#")
+        except Exception as e:
+            print(f"WARNING: could not read overlay CSV {csv_path!r}: {e}")
+            continue
+
+        # Auto-detect time column
+        time_candidates = [
+            "timestamp_utc", "time_utc", "timestamp", "time", "datetime"
+        ]
+        tcol = next((c for c in ov_df.columns
+                     if any(k in c.lower()
+                            for k in ["time", "stamp", "utc", "date"])),
+                    None)
+        dcol = next((c for c in ov_df.columns
+                     if "doppler" in c.lower() or c.lower() == "hz"),
+                    None)
+
+        if tcol is None or dcol is None:
+            print(f"WARNING: overlay {csv_path!r} — could not find time "
+                  f"or doppler column. Columns: {list(ov_df.columns)}")
+            continue
+
+        try:
+            ov_df[tcol] = pd.to_datetime(ov_df[tcol], utc=True)
+        except Exception as e:
+            print(f"WARNING: overlay time parse failed: {e}")
+            continue
+
+        # Convert UTC timestamps to hours-since-midnight (same x axis)
+        ov_df["_hr"] = (
+            (ov_df[tcol] - pd.Timestamp(midnight_utc)).dt.total_seconds()
+            / 3600.0
+        )
+
+        # Clip to the plot window
+        mask = (ov_df["_hr"] >= start_offset_hr) &                (ov_df["_hr"] <= end_offset_hr)
+        ov_plot = ov_df[mask]
+
+        if ov_plot.empty:
+            print(f"WARNING: overlay {csv_path!r} has no data in the "
+                  f"plot window.")
+            continue
+
+        color = ov_color if ov_color else _overlay_colors[
+            ov_idx % len(_overlay_colors)]
+
+        ax_top.plot(ov_plot["_hr"], ov_plot[dcol],
+                    color=color, linewidth=1.8,
+                    linestyle="-", alpha=0.85,
+                    label=ov_label, zorder=20)
+
+    if args.overlay:
+        ax_top.legend(loc="upper right", fontsize=9,
+                      framealpha=0.7, facecolor="#111111",
+                      labelcolor="white", edgecolor="gray")
 
     plt.tight_layout()
     if args.annotate:
