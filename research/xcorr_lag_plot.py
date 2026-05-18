@@ -43,7 +43,7 @@ except ImportError as e:
     sys.exit(f"missing dependency: {e} (pip install pandas scipy matplotlib)")
 
 
-TIME_CANDIDATES = ["utc", "time", "timestamp", "datetime", "t", "epoch"]
+TIME_CANDIDATES = ["timestamp_utc", "utc", "time", "timestamp", "datetime", "t", "epoch"]
 DOP_CANDIDATES = ["doppler_hz", "doppler", "dop_hz", "freq_offset_hz",
                   "f_hz", "dop", "hz"]
 
