@@ -148,12 +148,29 @@ disagreement between the two methods, not fit to an external truth.
 
 ### Example
 
-The figure below shows W7LUX on 17 May 2024, 17:00–21:00 UTC.
-The TID wave is visible as the sinusoidal carrier track drifting
-between approximately −0.5 and +1.0 Hz during 18:00–20:00 UTC.
-Both FFT (blue) and autocorr (orange) track the carrier, but
-FFT shows more block-to-block noise (higher std). The legend
-metrics quantify the difference directly.
+The two figures below show the clean vs E-region-contaminated contrast
+from the 17 May 2024 LSTID event, 16:00-22:00 UTC. Both use FFT (blue)
+and autocorr (orange) overlays with inter-method metrics in the legend.
+
+**Clean pair - W7LUX** (single F-region hop, SNR 51.6 dB):
+
+![W7LUX overlay - clean](fig_overlay_clean.png)
+
+*W7LUX: narrow sinusoidal carrier track, both methods agree closely.
+Inter-method r=0.934, RMS diff=0.203 Hz. FFT std=0.554 Hz vs autocorr
+std=0.472 Hz - autocorr slightly smoother but both reliable. Proceed
+to cross-correlation with either method.*
+
+**Contaminated pair - AC0G_ND** (E-region multi-hop, SNR 42.0 dB):
+
+![AC0G_ND overlay - contaminated](fig_overlay_contaminated.png)
+
+*AC0G_ND: broad, multi-component spectrogram with rapid excursions
+during 18:00-19:30 UTC. Inter-method r=0.924, RMS diff=0.268 Hz.
+The r difference from W7LUX (0.934 vs 0.924) is small - the
+spectrogram visual is the tiebreaker. Both methods diverge most
+during peak contamination periods. Apply the decision workflow:
+lag/period ratio for this LSTID is ~0.38 - prefer FFT.*
 
 ## Step 2: Cross-correlation
 
