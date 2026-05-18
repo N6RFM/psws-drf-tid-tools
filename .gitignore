@@ -38,3 +38,8 @@ OBS*
 
 # But keep example configs
 !examples/*.json
+
+# Synthetic experiment data and figures (research branch only)
+!research/synthetic/*.png
+!research/synthetic/*.csv
+!research/synthetic/chunks/*.csv
