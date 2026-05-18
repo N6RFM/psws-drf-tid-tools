@@ -1,8 +1,10 @@
 # Research: Doppler extraction — FFT vs complex autocorrelation
 
-**Status:** ACTIVE — first positive results obtained. Awaiting Gwyn's
-clarification on lag discrepancy and N5BRG channel before drawing
-conclusions.
+**Status:** PAUSED — awaiting G3ZIL reply on two questions (lag
+discrepancy and N5BRG channel). Analysis substantially complete
+through Entry 8 (synthetic Monte Carlo). No new analysis until
+blockers resolved. All data, scripts, figures, and PDF reports
+committed to research-doppler-extraction branch.
 
 **This branch does not merge to `main` until further notice.** Its
 deliverable is knowledge: a documented finding, and *possibly* a

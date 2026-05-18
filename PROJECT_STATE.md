@@ -6,193 +6,224 @@ session. Not a release artifact. Lives on the
 materially; treat it as the first thing to read when picking the
 project back up.
 
-**Last updated:** 2026-05-18
+**Last updated:** 2026-05-18  |  **Status: PAUSED — awaiting G3ZIL reply**
 
 ---
 
 ## 1. One-paragraph status
 
-v1.5.0 is shipped and released; `main` is protected (PR-only) and
-must not be touched directly. All active work is on the
-`research-doppler-extraction` branch. Gwyn (G3ZIL) replied on
-2026-05-18, providing his autocorrelation parameters (60s window,
-one lag, no detrending) and confirming the data folder — identical
-to the self-downloaded set. `drf_to_doppler.py` v1.1.1 now
-implements `--method autocorr` per his exact parameters; the
-clean-data gate passed on W7LUX. **Results obtained on both pairs:**
-autocorr outperforms FFT in the TID-period bands (40–120 min) on
-both AC0G_ND/W7LUX (r=0.929 vs 0.752) and N4RVE/N5BRG (r=0.894
-vs 0.740). N4RVE/N5BRG lag matches Gwyn's 27 min exactly. One open
-discrepancy: our AC0G_ND/W7LUX lag is +22 min vs Gwyn's +35 min —
-stable across window widths, likely a pipeline difference.
-Clarification email sent to Gwyn 2026-05-18. **Two open questions
-pending his reply:** (1) any extraction steps beyond lag-1 with no
-detrending? (2) which N5BRG antenna channel did he use?
+v1.5.0 is shipped on `main` (protected, PR-only). All active work
+is on `research-doppler-extraction`. The investigation into FFT vs
+complex-autocorrelation Doppler extraction is **substantially
+complete on the analysis side and paused pending Gwyn's reply.**
+Results have been obtained on two real events (17 May 2024 LSTID
+and 19 Jan 2026 MSTID), a Monte Carlo synthetic experiment
+(1,260 trials) has been run, committed, and reported, and all
+supporting figures, data, scripts, and two PDF reports have been
+committed to the repo. Two clarifying questions remain open:
+(1) whether Gwyn's extraction pipeline applies any steps beyond
+lag-1 with no detrending, explaining the +13-minute lag discrepancy
+on AC0G_ND/W7LUX; and (2) which N5BRG antenna channel he used.
+No production PR is warranted until these are resolved and a formal
+written finding is complete. **Do not start new analysis until
+Gwyn replies.**
 
 ## 2. Repo / branch state
 
-- **`main`**: released, v1.5.0, PROTECTED (ruleset: PR required,
-  block force-push, restrict deletion; verified live — a direct
-  push is rejected). Do NOT attempt direct pushes to main. Any main
-  change = branch → PR → merge. Latest main commit: the
-  `apporach`/§4.2 doc-polish fix (HEAD `9bb63a0` at last check).
-- **`research-doppler-extraction`**: active branch, all current
-  work. Does NOT merge to main until further notice. Commits so
-  far (newest first):
-  - `latest`   FINDINGS: entries 4, 5, 6 + PROJECT_STATE update
-  - `5d6e109`  Fix: remove # method= comment header from CSV output
-  - `2bdef0a`  PROJECT_STATE: update to reflect first positive result
-  - `9bb398a`  Add --method autocorr (Gwyn G3ZIL lag-1 extractor)
-  - `9eec751`  N5BRG dual-channel resolved; self-download closed
-  - `f73279b`  N4RVE/N5BRG self-download is noise
-  - `fd0fb9e`  first run on self-downloaded 17 May data + plotter fix
-  - `c87d3cc`  branch scaffold (FINDINGS, plotter, methodology subsection)
-- Repo lives at `~/psws-tools-pr/`. Tools are invoked BY PATH from
-  inside data folders, e.g. `python3 ~/psws-tools-pr/tid_pair.py …`
-  (single-source-of-truth model — data folders contain NO code).
-- `research/xcorr_lag_plot.py` exists ONLY on the research branch.
-  Running it requires `git checkout research-doppler-extraction`
-  first, or it's "file not found". `tid_doa.py`, `tid_pair.py`,
-  `drf_to_doppler.py`, `drf_inspect.py` exist on both branches.
+- **`main`**: v1.5.0, PROTECTED. Do NOT push directly.
+- **`research-doppler-extraction`**: active branch, paused.
+  All work committed and pushed. Recent commits (newest first):
+  - `latest`   Add xcorr_both_pairs figures (repo audit)
+  - `prev`     Add research figures and PDF reports
+  - `5c337dd`  Fix ampersand in both report builders
+  - `906a028`  Full refresh: PROJECT_STATE and FINDINGS through Entry 8
+  - `a45b1ac`  Add synthetic experiment data and figures
+  - `776ec22`  Add synthetic Monte Carlo experiment scripts
+  - `8fa447b`  METHODOLOGY: clean-vs-contaminated figure
+  - `5d6e109`  Fix: remove # method= CSV comment header (v1.1.1)
+  - `9bb398a`  Add --method autocorr (G3ZIL lag-1 extractor)
 
-## 3. The actual research question (do not lose this)
+- **Key tools** (invoke by path from inside data folders):
+  - `~/psws-tools-pr/drf_to_doppler.py` v1.1.1 — fft/autocorr
+  - `~/psws-tools-pr/tid_pair.py` — pairwise cross-correlation
+  - `~/psws-tools-pr/tid_doa.py` — multi-station DOA
+  - `~/psws-tools-pr/drf_inspect.py` — DRF metadata
+  - `~/psws-tools-pr/research/xcorr_lag_plot.py` — xcorr plotter
+  - `~/psws-tools-pr/research/synthetic/` — synthetic experiment
 
-**Primary question:** does complex-autocorrelation Doppler
-extraction (Gwyn) produce a more coherent / contamination-robust
-Doppler series than the toolkit's FFT carrier-tracking, on the same
-I/Q? This is the WHOLE POINT.
+- **Workflow note:** always `git pull --no-rebase` before pushing —
+  Gwyn has write access and may push independently.
 
-**Current evidence — two pairs, same directional result:**
+## 3. The research question
 
-AC0G_ND / W7LUX (E-region contaminated, Gwyn Path 2):
+> On identical I/Q input, does complex-autocorrelation Doppler
+> extraction (G3ZIL method) produce more coherent,
+> contamination-robust results than FFT carrier tracking?
 
-| Period band | FFT r | Autocorr r | Δ |
-|-------------|-------|------------|---|
-| 40–90 min   | 0.829 | 0.896      | +0.067 |
-| 60–120 min  | 0.752 | 0.929      | +0.177 |
-| Raw curve   | 0.576 | 0.705      | +0.129 |
+**Answer so far: it depends on wave type and lag-period ratio.**
+Neither method is universally superior.
 
-N4RVE / N5BRG (NS channel S000038, Gwyn Path 1):
+## 4. Complete evidence summary
 
-| Period band | FFT r | Autocorr r | Δ |
-|-------------|-------|------------|---|
-| 40–90 min   | 0.772 | 0.823      | +0.051 |
-| 60–120 min  | 0.740 | 0.894      | +0.154 |
-| Raw curve   | 0.556 | 0.485      | −0.071 |
+### 4.1 Falsifiable gate — PASSED
 
-Both pairs: autocorr materially better in TID-period bands.
-Shorter periods and full window slightly favour FFT — consistent
-with autocorr's smoother output (3× lower block-to-block std).
-Two pairs, same pattern. Consistent with Gwyn's hypothesis.
-Not yet a conclusion: lag discrepancy and N5BRG channel unresolved.
+Clean W7LUX, 17 May 2024, 18:00-20:00 UTC, 60s cadence:
+- SNR delta: 0.0 dB (gate < 5 dB) ✓
+- Pearson r between methods: 0.933 (gate > 0.93) ✓
+- Autocorr 3x smoother: btb std 0.13 vs 0.38 Hz ✓
 
-**Falsifiable gate: PASSED.** Clean W7LUX: SNR delta 0.0 dB,
-r=0.933 between methods. 3× smoother block-to-block with autocorr.
+### 4.2 Real data — 17 May 2024 LSTID (Gwyn's reference event)
 
-## 4. What is BLOCKING
+Data: `~/Downloads/gywn_tid_event_20240517/`
+Window: 18:00-20:00 UTC, 60s cadence.
+Gwyn's result (V1.2 slide): 979 +/-80 m/s @ 157° +/-6°, period ~58 min.
+Note: his baselines are midpoint-to-midpoint; lags unaffected,
+speeds differ ~8% from station-to-station.
+
+| Pair | Band | FFT r | Autocorr r | Delta |
+|------|------|-------|------------|-------|
+| AC0G_ND/W7LUX | 40-90 min | 0.829 | 0.896 | +0.067 |
+| AC0G_ND/W7LUX | 60-120 min | 0.752 | 0.929 | +0.177 |
+| AC0G_ND/W7LUX | Raw curve | 0.576 @+19min | 0.705 @+22min | +0.129 |
+| N4RVE/N5BRG | 40-90 min | 0.772 | 0.823 | +0.051 |
+| N4RVE/N5BRG | 60-120 min | 0.740 | 0.894 | +0.154 |
+| N4RVE/N5BRG | Raw curve | 0.556 @-29min | 0.485 @-27min | -0.071 |
+
+N4RVE/N5BRG raw lag (-27 min) matches Gwyn's 27 min exactly.
+AC0G_ND/W7LUX lag discrepancy: our +22 min vs Gwyn's +35 min —
+stable across window widths. Pending clarification (blocker 1).
+
+### 4.3 Real data — 19 Jan 2026 MSTID (original reference event)
+
+Data: `~/Downloads/tid_event_20260119/`
+Window: 00:00-01:10 UTC, 10s cadence. 6 stations SNR > 30 dB.
+
+| Method | Stations | Speed | Direction | Diagnostics |
+|--------|----------|-------|-----------|-------------|
+| FFT | 3 (original) | 193 m/s | 190° | All pass ✓ |
+| Autocorr | 3 | 335 m/s | 196° | 2 fail ✗ |
+| FFT | 6 | 709 m/s | 223° | 2 fail ✗ |
+| Autocorr | 6 | 774 m/s | 223° | 2 fail ✗ |
+
+Autocorr wrong-peak lock on N6RFM->AA6BD (lag/period = 1.08).
+Triangle closure diagnostic correctly identifies this.
+FFT 3-station (193 m/s @ 190°, MSTID) is the only reliable result.
+
+### 4.4 Synthetic Monte Carlo — 1,260 trials
+
+Signal model: two-phasor I/Q (F-region + E-region at ratio epsilon).
+Known ground truth lag. Files: `research/synthetic/`.
+
+| Wave | Condition (SNR=40dB) | FFT lock% | AC lock% | Advantage |
+|------|----------------------|-----------|----------|-----------|
+| MSTID | eps=0.0-0.7 | 100 | 100 | None |
+| MSTID | eps=1.0 | 63 | 93 | AC +30pp |
+| LSTID | eps=0.5-0.7 | 100 | 60-90 | FFT +10-40pp |
+| LSTID | eps=1.0 | 10 | 37 | AC +27pp (both fail) |
+
+Reproduces both real-event observations mechanistically.
+Wrong-peak lock on Jan 2026 MSTID explained by lag-period
+ambiguity (lag = 1.08 periods -> comparable xcorr peaks).
+
+## 5. What is BLOCKING
 
 Two open questions, both pending Gwyn's reply to 2026-05-18 email:
 
-1. **AC0G_ND/W7LUX lag discrepancy** — our peak +22 min vs his
-   +35 min. Stable across window widths. Does his extraction apply
-   any phase unwrapping, carrier drift removal, or smoothing beyond
-   lag-1 with no detrending? Most likely explanation for the gap.
+1. **Lag discrepancy on AC0G_ND/W7LUX** — our +22 min vs his +35
+   min. Does his pipeline apply phase unwrapping, carrier drift
+   removal, or any smoothing beyond lag-1 with no detrending?
 
-2. **N5BRG antenna channel** — the data folder contains S000038
-   (NS antenna). Our earlier work showed S000040 (EW antenna) is
-   materially different. Which channel did Gwyn use? Affects
-   like-for-like validity of N4RVE/N5BRG result.
+2. **N5BRG antenna channel** — S000038 (NS) or S000040 (EW)?
+   Both differ materially at event time. Affects like-for-like
+   validity of Entry 5.
 
-Previously blocking, now resolved:
-- ✓ Gwyn's data folder (identical to self-downloaded set)
-- ✓ Autocorr parameters (60s, lag-1, no detrending)
-- ✓ Stations/UTC window (both pairs, 18:00–20:00 UTC)
-- ✓ Extractor implemented and gate passed
-- ✓ `# method=` CSV comment bug fixed (v1.1.1)
-- ✓ Geometry discrepancy — Gwyn uses midpoint-to-midpoint baselines;
-  our tid_pair.py uses station-to-station. Lags unaffected; speeds
-  differ ~8%. Do not compare speeds until reconciled.
+Everything else is resolved and committed. Do not start new
+analysis until Gwyn replies.
 
-Gwyn is `g3zil` on GitHub. Collaborator with WRITE access (main
-protected). Accepted invite 2026-05-18.
+## 6. Complete repo contents (research branch additions)
 
-## 5. The event & the data (reference)
+### Root level
+- `FINDINGS.md` — full work log, entries 1-8
+- `PROJECT_STATE.md` — this file
+- `CONTRIBUTORS.md` — N6RFM and G3ZIL
+- `drf_to_doppler.py` v1.1.1 — adds --method autocorr
 
-Gwyn's event: **17 May 2024, ~19:00 UTC**, a large-scale TID.
-Common transmitter = **WWV 10 MHz**. His method = two WWV-referenced
-pairs + vector decomposition. His V1.2 slide (confirmed from image):
-- Path 1 (N4RVE/N5BRG): 1360 km @ 126°, lag 27 min, 840 ±60 m/s
-- Path 2 (AC0G_ND/W7LUX): 900 km @ 221°, lag 35 min, 429 ±60 m/s
-- Combined: 979 ±80 m/s @ 157° ±6°; period ~58 min; wavelength ~3406 km
-- His cross-correlation peaks: N4RVE/N5BRG ~0.6, AC0G_ND/W7LUX ~0.5
+### docs/
+- `METHODOLOGY.md` — clean-vs-contaminated figure added (§2.2)
+- `fig_clean_vs_contaminated.png` — N4RVE/W7LUX vs AC0G_ND/W7LUX
 
-**Working data folder: `~/Downloads/gywn_tid_event_20240517/`**
-Use this for all research work. Confirmed identical to self-download.
+### research/
+- `build_report.py` — real-data PDF report builder
+- `xcorr_lag_plot.py` — xcorr curve plotter (verified)
+- `xcorr_both_pairs_fft.png` — both pairs, FFT extraction
+- `xcorr_both_pairs_autocorr.png` — both pairs, autocorr extraction
+- `comparison_fft_vs_autocorr_jan19.png` — Jan 2026 pair curves
+- `comparison_table_jan19.png` — Jan 2026 4-config summary table
+- `event_autocorr_3stn.json` — Jan 2026 autocorr 3-station config
+- `event_fft_6stn.json` — Jan 2026 FFT 6-station config
+- `event_autocorr_6stn.json` — Jan 2026 autocorr 6-station config
+- `psws_autocorr_research_report.pdf` — real-data report
 
-Station notes:
-- `ac0g_nd/` 9-subchannel; **10 MHz = subchannel 4**. 42.0 dB. Good.
-- `w7lux/` single-channel. 51.6 dB. Good. Used for gate check.
-- `n4rve/` 9-subchannel; **10 MHz = subchannel 4**. 42.3 dB. Good.
-- `n5brg/` S000038 (NS antenna), single channel, 10.000 MHz.
-  Median SNR 26.4 dB at event time; drops to 17 dB at 18:45–19:00
-  UTC. Marginal. Which channel Gwyn used is unconfirmed (ask 2 above).
+### research/synthetic/
+- `synthetic_tid_experiment.py` — signal model, extractors, analysis
+- `run_chunk.py` — chunked Monte Carlo runner
+- `build_synthetic_report.py` — synthetic PDF report builder
+- `synthetic_full_results.png` — 2x4 panel performance figure
+- `synthetic_example_traces.png` — example Doppler + xcorr curves
+- `summary_combined.csv` — per-condition statistics (84 rows)
+- `chunks/chunk_*.csv` — 1,260 raw trial results (6 files)
+- `synthetic_experiment_report.pdf` — synthetic experiment report
 
-**Hard data lesson:** always `drf_inspect` first → identify the
-10 MHz subchannel → extract → check event-time (~19:00) SNR on
-the plot → only then correlate.
+## 7. The data (reference — NOT in repo, on local disk only)
 
-## 6. What the investigation HONESTLY established
+### 17 May 2024 LSTID
+`~/Downloads/gywn_tid_event_20240517/`
+ac0g_nd: subchannel 4, 42.0 dB. w7lux: 51.6 dB.
+n4rve: subchannel 4, 42.3 dB. n5brg: S000038, 26.4 dB (marginal).
 
-- **`--method autocorr` implemented** in `drf_to_doppler.py` v1.1.1
-  per Gwyn's exact parameters. Clean-data gate passed. Committed.
-- **Autocorr outperforms FFT in TID-period bands on both pairs.**
-  AC0G_ND/W7LUX 60–120 min: r=0.929 vs 0.752 (+0.177).
-  N4RVE/N5BRG 60–120 min: r=0.894 vs 0.740 (+0.154).
-- **N4RVE/N5BRG lag matches Gwyn's 27 min exactly** (autocorr
-  −27 min, FFT −29 min). Raw curve shape matches his slide.
-- **AC0G_ND/W7LUX lag discrepancy:** our +22 min vs his +35 min.
-  Stable across window widths. Not a physical disagreement (same
-  broad peak, same direction) but unexplained. Awaiting Gwyn.
-- **Autocorr 3× smoother** than FFT: block-to-block std 0.13 Hz
-  vs 0.38 Hz on W7LUX.
-- **Curve shapes reproduce Gwyn's slide** — same sinusoidal form,
-  same trough near zero, peaks in the correct region.
-- NOT established: that autocorr is generally superior. Two pairs
-  on one event. FFT slightly better at shorter periods and full
-  window. More data needed.
-- NOT done: speed comparison (geometry unreconciled).
-- NOT done: v1.5.0 diagnostics run on autocorr extractions.
+### 19 Jan 2026 MSTID
+`~/Downloads/tid_event_20260119/`
+n6rfm, aa6bd, w7lux: subchannel 0. ac0g_nd: subchannel 4.
+kb4se: (33.3958, -84.4583). kc4le: (33.3125, -86.875).
+Config files: event.json (FFT 3-stn) + 3 research/ configs.
 
-## 7. Next steps (when Gwyn replies)
+**Hard lesson:** always drf_inspect -> confirm subchannel ->
+extract -> check event-time SNR -> then correlate.
 
-1. **Resolve lag discrepancy** — if he confirms no additional
-   extraction steps, the +13 min difference is a genuine method
-   difference worth characterising. If he reveals additional steps,
-   implement and re-run.
-2. **Confirm N5BRG channel** — re-run N4RVE/N5BRG with the correct
-   channel if it differs from S000038.
-3. **Run v1.5.0 diagnostics** (`tid_doa.py`) on autocorr
-   extractions for both pairs.
-4. **Write up formal finding** — two pairs, full table, honest
-   caveats, including what autocorr does NOT improve.
-5. **Production PR only if earned** — both pairs consistent,
-   diagnostics clean, gate passed, written finding complete.
+## 8. Synthesis — when to use each method
 
-## 8. Other open / lower-priority threads
+| Condition | Recommendation |
+|-----------|---------------|
+| Clean (eps < 0.2) | Either — identical |
+| Contaminated, lag < 0.3 periods | Autocorr preferred |
+| Contaminated, lag 0.3-0.5 periods (LSTID typical) | FFT preferred |
+| Heavy contamination, ambiguous curve | Neither reliable; use diagnostics |
+| Unknown conditions | FFT (default) |
 
-- METHODOLOGY.md clean-vs-contaminated figure: both halves now
-  have data. Can be completed once lag discrepancy resolved.
-- `xcorr_lag_plot.py` peak-lag vs `tid_pair.py` cross-check still
-  outstanding (curve shape reliable; numbers provisional).
-- Pre-existing minor items: v1.4.0 follow-up email; case-study
-  refinement; alias-free repo cheatsheet.
+Triangle closure diagnostic correctly identifies wrong-peak locks
+regardless of method. Always inspect it and respect it.
 
-## 9. Working discipline (why this project's results are trustworthy)
+## 9. Next steps (when Gwyn replies)
 
-- Verify before acting. `drf_inspect` before extract; check
-  event-time SNR before correlate; `git log -3` before any
-  `reset --hard`.
-- Do not overclaim. Two pairs ≠ a conclusion. Lag discrepancy
-  unresolved ≠ results invalid. Smoother ≠ more accurate.
-- Negative/blocked results recorded with equal weight.
-- Nothing reaches `main` without earning a verified PR.
+1. Resolve lag discrepancy — document or implement fix.
+2. Confirm N5BRG channel — re-run Entry 5 if different.
+3. Run v1.5.0 diagnostics (tid_doa.py) on autocorr extractions
+   for the 17 May 2024 event (not yet done).
+4. Consider band-pass filtering sensitivity in synthetic model —
+   tid_pair.py 40-90 and 60-120 min bands not yet tested.
+5. Write formal finding — two real events + synthetic validation,
+   full table, honest caveats, clear recommendation.
+6. Production PR only when: both events consistent, diagnostics
+   clean, formal finding written, gate passed.
+
+## 10. Working discipline
+
+- Verify before acting. drf_inspect before extract; check
+  event-time SNR before correlate; git log -3 before any reset.
+- Do not overclaim. Two real events + synthetic = strong evidence,
+  not a conclusion. Lag discrepancy unresolved.
+- Negative results recorded with equal weight to positive ones.
+- Nothing reaches main without a verified PR.
+- Always pull before pushing (Gwyn has write access).
+- This is a pause point. Do not start new analysis until Gwyn
+  replies and the two blockers are resolved.
