@@ -4,10 +4,14 @@ drf_to_doppler.py — extract a Doppler-vs-time CSV from Digital RF I/Q data
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.0.0
+Version: 1.1.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.1.0  Add complex-autocorrelation Doppler extractor (Gwyn Griffiths
+          G3ZIL method) alongside the FFT tracker. Select with
+          --method autocorr; default remains --method fft so existing
+          workflows are unchanged.
   v1.0.0  Initial public release covering the 19 Jan 2026 event analysis.
 
 OVERVIEW
@@ -29,14 +33,35 @@ like:
 
 This tool reads such a directory and produces a CSV of:
     timestamp_utc,  doppler_hz,  snr_db
-sampled at a chosen cadence (default 10 s). The Doppler value at each
-output sample is estimated by FFT peak-tracking the carrier within the
-+/- 5 Hz observation band.
+sampled at a chosen cadence (default 10 s). Two extraction methods are
+supported; select with --method:
+
+  fft (default)
+    FFT peak-tracking within the +/- search-band-hz observation band,
+    with quadratic interpolation for sub-bin precision. Each output
+    sample is one independent block. Robust to brief dropouts.
+
+  autocorr
+    Complex autocorrelation instantaneous-frequency estimator (Gwyn
+    Griffiths / G3ZIL method). For each output sample the lag-1
+    autocorrelation is accumulated over the --decim-seconds window and
+    the Doppler is recovered as:
+
+        f = arg( sum_n x[n+1] * conj(x[n]) ) / (2 * pi * tau)
+
+    where tau = 1/fs.  No detrending or preprocessing is applied, per
+    Gwyn's parameters. This estimator is maximum-likelihood for a
+    single complex sinusoid in white Gaussian noise and is theoretically
+    more robust to multi-path / E-region contamination than peak-FFT
+    because it integrates phase increments coherently rather than
+    selecting a spectral bin. The clean-data equivalence gate (see
+    VALIDATION below) must be run before trusting its behaviour on
+    contaminated data.
 
 The output CSV is the input format for tid_pair.py and tid_doa.py.
 
-ALGORITHM
-=========
+ALGORITHM — FFT (--method fft)
+================================
 For each output sample of duration --decim-seconds (default 10 s):
 
   1. Read N complex I/Q samples (N = 10 * decim_seconds).
@@ -54,10 +79,47 @@ For each output sample of duration --decim-seconds (default 10 s):
   6. Estimate SNR as 20*log10(peak / median magnitude) in dB. Median
      (rather than mean) is robust to spurious in-band tones.
 
-This is a "narrowest-bin" tracker rather than a phase-locked loop. It is
-robust to brief signal dropouts (each block is independent) but trades
-some temporal smoothness for that robustness. Typical SNR > 30 dB
-yields ~0.01-0.02 Hz block-to-block noise on the Doppler estimate.
+ALGORITHM — AUTOCORRELATION (--method autocorr)
+================================================
+For each output sample of duration --decim-seconds (default 10 s):
+
+  1. Read N complex I/Q samples (N = fs * decim_seconds).
+  2. Accumulate the lag-1 autocorrelation sum:
+         R1 = sum_{n=0}^{N-2}  x[n+1] * conj(x[n])
+  3. Recover instantaneous frequency:
+         f = arg(R1) / (2 * pi * tau),   tau = 1/fs
+     arg() is the complex argument (angle), range (-pi, pi], so the
+     unambiguous Doppler range is +/- fs/2 = +/- 5 Hz at 10 sps.
+  4. SNR is estimated from the normalised autocorrelation magnitude
+     (signal coherence proxy):
+         rho = |R1| / (N-1)          <- normalised by max possible
+         snr_db = -10 * log10(1 - min(rho, 1-1e-9))
+     This converts the coherence estimate to an equivalent SNR in dB,
+     analogous to the FFT method's peak/median ratio.
+
+No Hanning window is applied: the lag-1 estimator is already a
+coherent integrator and windowing would bias the phase accumulation.
+No detrending: per Gwyn's stated parameters. No preprocessing.
+
+VALIDATION (REQUIRED BEFORE PRODUCTION USE)
+============================================
+The falsifiable gate for the autocorrelation extractor: on a clean,
+high-SNR station (e.g. W7LUX, N4RVE — single-path F-layer, SNR > 35
+dB), --method autocorr MUST reproduce --method fft within a tolerance
+of +/- 0.05 Hz RMS over the analysis window. If it does not, the
+extractor is wrong; do not proceed to contaminated-data comparison.
+
+Run the gate before any research comparison:
+
+    python drf_to_doppler.py ./w7lux \
+        --start 2024-05-17T18:00:00 --end 2024-05-17T20:00:00 \
+        --decim-seconds 60 --output w7lux_fft.csv --method fft
+
+    python drf_to_doppler.py ./w7lux \
+        --start 2024-05-17T18:00:00 --end 2024-05-17T20:00:00 \
+        --decim-seconds 60 --output w7lux_autocorr.csv --method autocorr
+
+Then compare doppler_hz columns; RMS difference should be < 0.05 Hz.
 
 MULTI-SUBCHANNEL DRF
 ====================
@@ -89,12 +151,20 @@ trace that may superficially look like weak signal -- always verify.
 
 USAGE
 =====
-Single-channel station:
+Single-channel station, FFT method (default):
 
     python drf_to_doppler.py /path/to/station_drf_dir \
         --start 2026-01-19T00:00:00 --end 2026-01-19T01:45:00 \
         --decim-seconds 10 \
         --output station.csv --plot station.png
+
+Single-channel station, autocorrelation method (Gwyn's parameters):
+
+    python drf_to_doppler.py /path/to/station_drf_dir \
+        --start 2024-05-17T18:00:00 --end 2024-05-17T20:00:00 \
+        --decim-seconds 60 \
+        --method autocorr \
+        --output station_autocorr.csv --plot station_autocorr.png
 
 Multi-subchannel WSPRdaemon station:
 
@@ -107,7 +177,8 @@ WHEN TO USE WHAT CADENCE
 ========================
   --decim-seconds 60   24-hour survey, low resolution. Use for a first-
                        pass look at the whole day; the resulting trace
-                       reveals when TIDs are active.
+                       reveals when TIDs are active. Also Gwyn's window
+                       for autocorrelation on the 17 May 2024 event.
   --decim-seconds 10   Default. Good for TID analysis (TIDs evolve on
                        minutes-to-hours scales).
   --decim-seconds 1    Very high resolution. Useful for capturing prompt
@@ -123,13 +194,18 @@ After running, inspect the output PNG:
     there are unreliable.
   - Doppler values should generally be within +/- 2 Hz. Excursions
     beyond +/- 5 Hz mean the search band is too narrow or the carrier
-    has drifted.
+    has drifted (FFT) or that SNR is too low for the phase estimator
+    (autocorr).
   - Sudden vertical spikes are usually RFI or recording glitches.
     Brief spikes (one sample) get smoothed by downstream bandpass
     filtering; sustained spikes are a problem.
   - For multi-subchannel data, if the trace looks like square-wave
     noise jumping between +/- search_band edges, you've selected an
     EMPTY subchannel. Try a different --subchannel index.
+  - For --method autocorr: if the SNR panel shows values well below
+    the FFT SNR on the same station, coherence is low; the phase
+    estimate is unreliable. Do not proceed to contaminated-pair
+    comparison until the clean-data gate passes.
 
 REQUIREMENTS
 ============
@@ -169,7 +245,15 @@ def utc_to_drf_sample(dt, sr_num, sr_den):
 
 
 def estimate_carrier_freq(iq_block, fs_hz, search_band_hz=5.0):
-    """FFT peak frequency of a complex I/Q block, restricted to +/- search_band."""
+    """FFT peak frequency of a complex I/Q block, restricted to +/- search_band.
+
+    Returns
+    -------
+    peak_freq : float
+        Estimated Doppler frequency in Hz.
+    snr_db : float
+        20*log10(peak / median) in dB.
+    """
     n = len(iq_block)
     if n < 16:
         return np.nan, 0.0
@@ -198,6 +282,76 @@ def estimate_carrier_freq(iq_block, fs_hz, search_band_hz=5.0):
     snr_db = 20 * np.log10(sub[idx] / (np.median(sub) + 1e-12))
     return float(peak_freq), float(snr_db)
 
+
+def estimate_carrier_freq_autocorr(iq_block, fs_hz, search_band_hz=5.0):
+    """Complex autocorrelation (lag-1) instantaneous-frequency estimator.
+
+    Implements Gwyn Griffiths' (G3ZIL) method: accumulate the lag-1
+    autocorrelation over the entire block, then recover the instantaneous
+    frequency from its argument.
+
+        R1 = sum_{n=0}^{N-2}  x[n+1] * conj(x[n])
+        f  = arg(R1) / (2 * pi * tau),   tau = 1/fs_hz
+
+    No windowing (would bias the phase accumulation), no detrending, no
+    preprocessing — per Gwyn's stated parameters.
+
+    The search_band_hz parameter is accepted for interface compatibility
+    with estimate_carrier_freq but is NOT used here: the lag-1 estimator
+    is unambiguous over the full +/- fs/2 range and does not require a
+    search window.
+
+    SNR is derived from the normalised autocorrelation magnitude (a
+    coherence proxy):
+
+        rho    = |R1| / (N - 1)          # in [0, 1]
+        snr_db = -10 * log10(1 - rho)    # maps coherence -> dB
+
+    This is analogous to the FFT method's peak/median ratio and produces
+    comparable dB values on strong, clean signals.
+
+    Parameters
+    ----------
+    iq_block : array-like of complex
+        Raw complex I/Q samples for one output epoch.
+    fs_hz : float
+        Sample rate in samples per second.
+    search_band_hz : float
+        Ignored; present only for interface compatibility.
+
+    Returns
+    -------
+    doppler_hz : float
+        Estimated instantaneous Doppler frequency in Hz.
+    snr_db : float
+        Coherence-based SNR proxy in dB.
+    """
+    x = np.asarray(iq_block, dtype=complex)
+    n = len(x)
+    if n < 2:
+        return np.nan, 0.0
+
+    # Lag-1 autocorrelation sum (vectorised — no Python loop)
+    R1 = np.dot(x[1:], x[:-1].conj())
+
+    # Instantaneous frequency from the complex argument
+    tau = 1.0 / fs_hz
+    doppler_hz = float(np.angle(R1) / (2.0 * np.pi * tau))
+
+    # SNR: FFT peak/median (same as estimate_carrier_freq).
+    # Coherence magnitude is NOT used: on a drifting carrier it
+    # underestimates coherence and is incomparable to FFT SNR.
+    w = np.hanning(n)
+    spec = np.abs(np.fft.fftshift(np.fft.fft(x * w)))
+    freqs = np.fft.fftshift(np.fft.fftfreq(n, d=1.0 / fs_hz))
+    mask = np.abs(freqs) <= search_band_hz
+    if mask.any():
+        sub = spec[mask]
+        snr_db = float(20.0 * np.log10(sub.max() / (np.median(sub) + 1e-12)))
+    else:
+        snr_db = 0.0
+
+    return doppler_hz, snr_db
 
 
 def _apply_smoothing(df, window_seconds, dt_seconds):
@@ -249,13 +403,23 @@ def main():
                     help="UTC end of extraction window in ISO format")
     ap.add_argument("--decim-seconds", type=float, default=10.0,
                     help="Output sample cadence in seconds. Each output "
-                         "sample is one FFT block. Use 60 for 24-hour "
-                         "surveys; 10 for TID analysis; 1 for prompt flare "
-                         "signatures. Default: 10")
+                         "sample is one estimation block. Use 60 for 24-hour "
+                         "surveys or Gwyn's autocorr comparison; 10 for TID "
+                         "analysis; 1 for prompt flare signatures. Default: 10")
     ap.add_argument("--search-band-hz", type=float, default=5.0,
-                    help="Half-width of the frequency search window around "
-                         "0 Hz, in Hz. The WWV carrier should be within this "
-                         "range after baseband mixing. Default: 5.0")
+                    help="(FFT method only) Half-width of the frequency "
+                         "search window around 0 Hz, in Hz. The WWV carrier "
+                         "should be within this range after baseband mixing. "
+                         "Ignored for --method autocorr. Default: 5.0")
+    ap.add_argument("--method", choices=["fft", "autocorr"], default="fft",
+                    help="Doppler extraction method. 'fft': FFT peak-tracking "
+                         "with quadratic interpolation (default, v1.0 "
+                         "behaviour). 'autocorr': complex lag-1 "
+                         "autocorrelation instantaneous-frequency estimator "
+                         "(Gwyn Griffiths / G3ZIL method; 60s window, one "
+                         "lag, no detrending). Run the clean-data validation "
+                         "gate before using autocorr results in research "
+                         "comparisons (see docstring). Default: fft")
     ap.add_argument("--smooth", type=float, default=None,
                     metavar="N",
                     help="apply Savitzky-Golay smoothing with N-second "
@@ -269,7 +433,7 @@ def main():
                          "(Doppler trace + SNR). Recommended for sanity-"
                          "checking before downstream analysis.")
     ap.add_argument("--version", action="version",
-                    version="%(prog)s 1.0.0")
+                    version="%(prog)s 1.1.0")
     args = ap.parse_args()
 
     t_start = parse_iso(args.start)
@@ -287,6 +451,7 @@ def main():
     sr_num, sr_den = reader.get_properties(args.channel)["samples_per_second"].as_integer_ratio()
     fs_hz = sr_num / sr_den
     print(f"DRF channel '{args.channel}': {fs_hz:.1f} sps")
+    print(f"Extraction method: {args.method}")
 
     # Probe one sample to detect multi-subchannel data and report
     bounds_start, bounds_end = reader.get_bounds(args.channel)
@@ -320,6 +485,12 @@ def main():
     print(f"Window: {t_start} to {t_end}")
     print(f"Producing {n_blocks} samples at {args.decim_seconds}s cadence")
 
+    # Select estimator function once, outside the loop
+    if args.method == "autocorr":
+        _estimate = estimate_carrier_freq_autocorr
+    else:
+        _estimate = estimate_carrier_freq
+
     times = []
     dopplers = []
     snrs = []
@@ -344,7 +515,7 @@ def main():
         if iq.ndim == 2:
             iq = iq[:, args.subchannel]
 
-        f_hz, snr = estimate_carrier_freq(iq, fs_hz, args.search_band_hz)
+        f_hz, snr = _estimate(iq, fs_hz, args.search_band_hz)
         ts = pd.Timestamp(seg_start * sr_den / sr_num, unit="s", tz="UTC")
         times.append(ts)
         dopplers.append(f_hz)
@@ -361,11 +532,15 @@ def main():
               f"({n_used} samples), polynomial order 3")
         # Add a header comment to the CSV noting smoothing was applied
         with open(args.output, "w") as f:
-            f.write(f"# Smoothing: Savitzky-Golay {args.smooth:g}s window "
+            f.write(f"# method={args.method} "
+                    f"Smoothing: Savitzky-Golay {args.smooth:g}s window "
                     f"({n_used} samples), polynomial order 3\n")
         df.to_csv(args.output, mode="a", index=False)
     else:
-        df.to_csv(args.output, index=False)
+        with open(args.output, "w") as f:
+            f.write(f"# method={args.method}\n")
+        df.to_csv(args.output, mode="a", index=False)
+
     if n_blocks > 0:
         sys.stdout.write("\n")
         sys.stdout.flush()
@@ -384,7 +559,8 @@ def main():
             ax1.set_ylabel("Doppler (Hz)")
             ax1.grid(alpha=0.3)
             label = os.path.basename(args.drf_dir.rstrip("/"))
-            ax1.set_title(f"Doppler vs time — {label}")
+            method_label = args.method.upper()
+            ax1.set_title(f"Doppler vs time — {label}  [{method_label}]")
             ax2.plot(df["timestamp_utc"], df["snr_db"], lw=0.7, color="tab:orange")
             ax2.set_ylabel("SNR (dB)")
             ax2.set_xlabel("UTC")
