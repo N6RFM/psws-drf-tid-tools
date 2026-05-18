@@ -1,4 +1,30 @@
 # Changelog
+## v1.6.0 — 2026-05-18
+### Doppler overlay for spectrogram visual inspection (drf_spectrogram.py)
+- **New feature**: `--overlay CSV:label[:color]` superimposes one or
+  more Doppler CSV traces (output of `drf_to_doppler.py`) on the
+  spectrogram panel. Supports multiple overlays for FFT vs autocorr
+  side-by-side comparison. Color auto-cycles (blue, orange, green,
+  red) or can be specified explicitly as a hex value.
+- **New feature**: each overlay trace shows four fit metrics in the
+  legend: `r` (Pearson correlation between FFT and autocorr traces),
+  `RMS diff` (physical magnitude of inter-method disagreement in Hz),
+  `SNR` (median signal-to-noise from the CSV), and `std`
+  (block-to-block smoothness of the extracted Doppler).
+- **New documentation**: `INTERPRETING OVERLAY METRICS` and
+  `DECISION WORKFLOW` sections added to the `drf_spectrogram.py`
+  docstring, explaining how to use r, RMS diff, and std to choose
+  between FFT and autocorr extraction and when each method is
+  preferred based on the lag/period ratio.
+- **New documentation**: `docs/METHODOLOGY.md` Step 1b added —
+  visual inspection with `--overlay` before cross-correlation,
+  including the full decision workflow and link to the research
+  report for the underlying synthetic and real-data evidence.
+- **Implementation note**: non-breaking. All existing behaviour
+  unchanged. `--overlay` is optional; omitting it produces output
+  identical to v1.1.1. Requires `pandas` (already in
+  requirements.txt).
+
 
 ## v1.5.0 — 2026-05-17
 
