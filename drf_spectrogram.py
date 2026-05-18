@@ -111,6 +111,61 @@ PARAMETER GUIDANCE
       Limit the spectrogram to a sub-window (UTC hours/minutes within
       the recorded day). Default: full 24-hour day from the DRF bounds.
 
+INTERPRETING OVERLAY METRICS
+============================
+When --overlay is used, each trace in the legend shows four metrics.
+Here is what they mean and how to use them to choose a method.
+
+  std (Hz)
+      Block-to-block standard deviation of the extracted Doppler.
+      Measures the extractor's noise floor, not accuracy. Autocorr
+      is always smoother than FFT by design (typically 2-3x lower
+      std). A smoother trace is not necessarily more accurate.
+      Use std to spot noisy blocks, not to choose a method.
+
+  r (inter-method Pearson correlation)
+      Correlation between the FFT and autocorr traces over the
+      plot window. Measures how similarly the two methods track
+      the carrier.
+        r > 0.95  Both methods agree. Either is reliable; use FFT.
+        r 0.85-0.95  Mild disagreement. Inspect the spectrogram.
+        r < 0.85  Significant disagreement. One method may be
+                  tracking E-region instead of F-region. Use the
+                  spectrogram overlay to decide which is correct.
+      Note: r does not tell you which method is right, only whether
+      they agree.
+
+  RMS diff (Hz)
+      Root-mean-square difference between FFT and autocorr traces.
+      More interpretable than r because it is in physical units.
+        < 0.10 Hz  Negligible disagreement. Both methods equivalent.
+        0.10-0.30 Hz  Noticeable. Worth checking the overlay visually.
+        > 0.30 Hz  Substantial. One method is likely off-track.
+
+DECISION WORKFLOW
+=================
+1. Look at the spectrogram. Is there a visible sinusoidal TID carrier
+   (slow, wave-like, bright ridge)? If not, data quality issue; stop.
+
+2. Check r and RMS diff:
+     Both agree (r > 0.95, RMS < 0.10 Hz) -> use FFT, proceed to
+     cross-correlation. No further inspection needed.
+     They disagree -> go to step 3.
+
+3. Look at the overlay traces on the spectrogram. Which trace visually
+   follows the bright carrier ridge? That method is tracking the
+   F-region TID signal. The other may be pulled toward the E-region
+   flat component near 0 Hz.
+
+4. If E-region contamination is visible (flat bright band near 0 Hz
+   alongside the TID wave) and autocorr tracks the TID better:
+     - Use autocorr IF the lag/period ratio is < 0.3 (unambiguous).
+     - Prefer FFT IF the lag/period ratio is 0.3-0.5 (ambiguous
+       cross-correlation peaks; autocorr smoothness causes wrong-peak
+       lock in this regime — see research/psws_autocorr_research_report.pdf).
+
+5. Record which method was chosen and why in the run log.
+
 REQUIREMENTS
 ============
     pip install digital_rf numpy matplotlib pandas
@@ -563,6 +618,24 @@ def main():
     # Default color cycle: blue, orange, green, red, purple, brown
     _overlay_colors = ["#2196F3", "#FF9800", "#4CAF50",
                        "#F44336", "#9C27B0", "#795548"]
+
+    # Build spectrogram peak track — carrier frequency per time column
+    # as seen by the spectrogram. Independent of any extraction method.
+    # Used to score each overlay: r and RMS vs this reference.
+    freq_mask = (freqs >= ylim_lo) & (freqs <= ylim_hi)
+    if freq_mask.any():
+        sub_spec     = spec[freq_mask, :]
+        sub_freqs    = freqs[freq_mask]
+        peak_col_idx = np.argmax(sub_spec, axis=0)
+        spec_peak_hz = sub_freqs[peak_col_idx]
+        spec_peak_hr = (np.arange(sub_spec.shape[1]) * window_seconds
+                        ) / 3600.0 + start_offset_hr
+    else:
+        spec_peak_hz = None
+        spec_peak_hr = None
+
+    import pandas as pd
+
     for ov_idx, ov_str in enumerate(args.overlay):
         try:
             csv_path, ov_label, ov_color = parse_overlay(ov_str)
@@ -570,18 +643,12 @@ def main():
             print(f"WARNING: skipping overlay — {e}")
             continue
 
-        # Load the CSV, auto-detect time and doppler columns
         try:
-            import pandas as pd
             ov_df = pd.read_csv(csv_path, comment="#")
         except Exception as e:
             print(f"WARNING: could not read overlay CSV {csv_path!r}: {e}")
             continue
 
-        # Auto-detect time column
-        time_candidates = [
-            "timestamp_utc", "time_utc", "timestamp", "time", "datetime"
-        ]
         tcol = next((c for c in ov_df.columns
                      if any(k in c.lower()
                             for k in ["time", "stamp", "utc", "date"])),
@@ -601,33 +668,76 @@ def main():
             print(f"WARNING: overlay time parse failed: {e}")
             continue
 
-        # Convert UTC timestamps to hours-since-midnight (same x axis)
         ov_df["_hr"] = (
             (ov_df[tcol] - pd.Timestamp(midnight_utc)).dt.total_seconds()
             / 3600.0
         )
 
-        # Clip to the plot window
-        mask = (ov_df["_hr"] >= start_offset_hr) &                (ov_df["_hr"] <= end_offset_hr)
-        ov_plot = ov_df[mask]
+        mask = ((ov_df["_hr"] >= start_offset_hr) &
+                (ov_df["_hr"] <= end_offset_hr))
+        ov_plot = ov_df[mask].copy()
 
         if ov_plot.empty:
-            print(f"WARNING: overlay {csv_path!r} has no data in the "
-                  f"plot window.")
+            print(f"WARNING: overlay {csv_path!r} has no data in "
+                  f"the plot window.")
             continue
 
         color = ov_color if ov_color else _overlay_colors[
             ov_idx % len(_overlay_colors)]
 
+        # Score overlay against spectrogram peak track
+        r_vs_spec   = None
+        rms_vs_spec = None
+        if spec_peak_hz is not None:
+            ov_hrs = ov_plot["_hr"].values
+            ov_dop = ov_plot[dcol].values
+            spec_interp = np.interp(ov_hrs, spec_peak_hr, spec_peak_hz,
+                                    left=np.nan, right=np.nan)
+            valid = (~np.isnan(spec_interp)) & (~np.isnan(ov_dop))
+            if valid.sum() > 3:
+                a = ov_dop[valid]
+                b = spec_interp[valid]
+                if a.std() > 1e-9 and b.std() > 1e-9:
+                    r_vs_spec = float(np.corrcoef(a, b)[0, 1])
+                rms_vs_spec = float(np.sqrt(np.mean((a - b) ** 2)))
+
+        # Smoothness: block-to-block std of Doppler within plot window
+        dop_std = float(ov_plot[dcol].std()) if len(ov_plot) > 1 else None
+        snr_med = (ov_df["snr_db"].median()
+                   if "snr_db" in ov_df.columns else None)
+
+        # Build enriched legend label
+        parts = [ov_label]
+        if r_vs_spec is not None:
+            parts.append(f"r={r_vs_spec:.3f}")
+        if rms_vs_spec is not None:
+            parts.append(f"RMS={rms_vs_spec:.3f} Hz")
+        if snr_med is not None:
+            parts.append(f"SNR={snr_med:.1f} dB")
+        if dop_std is not None:
+            parts.append(f"std={dop_std:.3f} Hz")
+        rich_label = "  |  ".join(parts)
+
         ax_top.plot(ov_plot["_hr"], ov_plot[dcol],
                     color=color, linewidth=1.8,
                     linestyle="-", alpha=0.85,
-                    label=ov_label, zorder=20)
+                    label=rich_label, zorder=20)
+
+        # Print fit metrics to console
+        print(f"  Overlay '{ov_label}':", end="")
+        if r_vs_spec is not None:
+            print(f"  r={r_vs_spec:.3f}", end="")
+        if rms_vs_spec is not None:
+            print(f"  RMS={rms_vs_spec:.3f} Hz", end="")
+        if dop_std is not None:
+            print(f"  std={dop_std:.3f} Hz", end="")
+        print()
 
     if args.overlay:
-        ax_top.legend(loc="upper right", fontsize=9,
-                      framealpha=0.7, facecolor="#111111",
-                      labelcolor="white", edgecolor="gray")
+        ax_top.legend(loc="upper right", fontsize=8.5,
+                      framealpha=0.82, facecolor="#111111",
+                      labelcolor="white", edgecolor="gray",
+                      handlelength=1.5)
 
     plt.tight_layout()
     if args.annotate:
