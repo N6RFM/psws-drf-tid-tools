@@ -213,3 +213,52 @@ asserted.
 - [ ] METHODOLOGY clean-vs-contaminated figure: only contaminated
       half exists. Clean half blocked on Gwyn's data. Do NOT
       manufacture from weak data.
+
+### 2026-05-17 — N5BRG re-investigated: dual-channel; self-download thread closed
+
+PSWS shows N5BRG as a dual-channel Grape-1 installation, archived
+as two separate observations, both 10 MHz / ~31 MB / 24 h:
+- NS: S000038, station N5BRG-Grape1, instrument Grape1-01-Ch0-NS
+  (the original "suspect" pull, FINDINGS entry 2).
+- EW: S000040, station N5BRG-Grape1-MAG1, instrument
+  Grape1-02-Ch1-EW (re-download).
+
+Both have the same sparse metadata schema (uuid S0000xx, lat/lon
+only, no callsign, no KA9Q_* receiver_name) - different from
+W7LUX/N4RVE/AC0G_ND which carry full KA9Q/callsign metadata. The
+earlier "possible wrong N5BRG" flag is resolved: it is the SAME
+station, two antenna channels, not a wrong/different station. The
+metadata-schema difference is a PSWS archiving difference, not a
+station mismatch.
+
+Extraction quality at the event (18-21 UTC), the only window that
+matters:
+- NS (S000038): median ~19 dB, heavy full-day saturation, noise at
+  event time (pair result: sign-flipping, raw r = -0.037, entry 2).
+- EW (S000040): better overall (30-45 dB much of the day) but
+  decays to ~10-25 dB and is disturbed/spiky through 18-21 UTC;
+  worst point ~7 dB near 21:00. Still NOT a clean event-time signal.
+
+Finding. The two N5BRG antenna channels differ materially and
+NEITHER provides a clean event-time signal from the self-download.
+The N5BRG result is antenna-channel-dependent and both channels
+fail in the 18-21 UTC window specifically. EW not run through
+tid_pair.py - outcome (weak/uninterpretable) already determined
+from the SNR/Doppler plot; a third low-confidence pair number would
+add nothing.
+
+Conclusion (reinforced, not changed). Clean-pair control remains
+unobtainable from the self-download - now demonstrated three ways
+(NS noise; EW weak-at-event; channel-dependence itself). Any
+comparison to Gwyn's Path 1 / vector-sum overall (979 m/s @ 157) /
+his method is blocked on BOTH (a) his actual extracted N5BRG data,
+and (b) which antenna channel (NS S000038 vs EW S000040) he used -
+they differ materially, so this is not a detail. Toolkit not
+implicated anywhere in the N5BRG line: every failure is
+data-quality / propagation at event time, and the toolkit correctly
+refused a confident answer each time.
+
+N5BRG self-download thread CLOSED. Do not pursue further N5BRG
+variants without Gwyn's input. Productive next action is Gwyn's
+reply with the full dataset he used (requested) and the NS-vs-EW
+clarification, not more extraction.
