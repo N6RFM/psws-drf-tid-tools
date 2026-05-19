@@ -1,6 +1,16 @@
 # Changelog
 ## v1.6.6 — 2026-05-19
 ### Fix: wire extract_with_overlay into Stage 8 (analyze_event.sh)
+- **Bug fix**: Stage 8 was still using direct drf_to_doppler.py
+  calls instead of extract_with_overlay(). Both reference station
+  and companions now correctly go through extract_with_overlay(),
+  which renders the overlay spectrogram and asks the operator to
+  choose FFT or autocorr per station.
+- Restores extract_with_overlay() function definition lost during
+  a merge conflict resolution.
+
+## v1.6.6 — 2026-05-19
+### Fix: wire extract_with_overlay into Stage 8 (analyze_event.sh)
 - **Bug fix**: Stage 8 was still using direct `drf_to_doppler.py`
   calls instead of `extract_with_overlay()`. Both the reference
   station and companion extractions now correctly go through
