@@ -1093,8 +1093,8 @@ EOF
     REF_PNG_FINAL="${REF_NAME}.png"
     rm -f station_methods.txt
     extract_with_overlay "$REF_NAME" "$MY_STATION" "0"
-    [[ -f "${REF_NAME}.csv" ]] && cp "${REF_NAME}.csv" "$REF_CSV_FINAL"
-    [[ -f "${REF_NAME}.png" ]] && cp "${REF_NAME}.png" "$REF_PNG_FINAL"
+    [[ -f "${REF_NAME}.csv" && "${REF_NAME}.csv" != "$REF_CSV_FINAL" ]] && cp "${REF_NAME}.csv" "$REF_CSV_FINAL"
+    [[ -f "${REF_NAME}.png" && "${REF_NAME}.png" != "$REF_PNG_FINAL" ]] && cp "${REF_NAME}.png" "$REF_PNG_FINAL"
     # Each companion
     IFS=',' read -ra COMPANION_LIST <<< "$COMPANIONS"
     for s in "${COMPANION_LIST[@]}"; do
