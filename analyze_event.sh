@@ -562,6 +562,80 @@ reextract_one_station() {
         --output "${s}.csv" --plot "${s}.png"
 }
 
+# extract_with_overlay — extract Doppler with BOTH methods, show overlay
+# spectrogram, ask operator which method better tracks the carrier,
+# record choice in station_methods.txt.
+#
+# Args:
+#   $1 = station name
+#   $2 = data directory (path to DRF)
+#   $3 = subchannel index
+extract_with_overlay() {
+    local s="$1"
+    local data_dir="$2"
+    local subch="$3"
+    local overlay_png="${s}_overlay_comparison.png"
+
+    echo ""
+    echo "  Extracting FFT and autocorr Doppler for $s..."
+
+    python3 "$TOOLS_DIR/drf_to_doppler.py" "$data_dir"         --start "$WINDOW_START" --end "$WINDOW_END"         --decim-seconds "$DECIM_SECONDS" --subchannel "$subch"         --method fft         --output "${s}_fft.csv" --plot "${s}_fft.png"         2>/dev/null || true
+
+    python3 "$TOOLS_DIR/drf_to_doppler.py" "$data_dir"         --start "$WINDOW_START" --end "$WINDOW_END"         --decim-seconds "$DECIM_SECONDS" --subchannel "$subch"         --method autocorr         --output "${s}_autocorr.csv"         2>/dev/null || true
+
+    ANN_S=$(echo "$WINDOW_START" | grep -oE "T[0-9]{2}:[0-9]{2}" | tr -d T)
+    ANN_E=$(echo "$WINDOW_END"   | grep -oE "T[0-9]{2}:[0-9]{2}" | tr -d T)
+    if [[ -f "${s}_fft.csv" && -f "${s}_autocorr.csv" ]]; then
+        echo "  Rendering overlay spectrogram for $s..."
+        python3 "$TOOLS_DIR/drf_spectrogram.py" "$data_dir"             --output "$overlay_png"             --subchannel "$subch"             --ylim=-2,2             --start "$ANN_S" --end "$ANN_E"             --annotate "${ANN_S},${ANN_E},Analysis window"             --overlay "${s}_fft.csv:FFT"             --overlay "${s}_autocorr.csv:Autocorr:#FF9800"             2>/dev/null || true
+        if [[ -f "$overlay_png" ]]; then
+            open_image "$overlay_png"
+        fi
+    fi
+
+    echo ""
+    echo "  Station: $s"
+    echo "  Review the overlay spectrogram. Which method better tracks"
+    echo "  the carrier (check Inter-method r and RMS diff in legend)?"
+    echo ""
+    echo "  Decision guide:"
+    echo "    r > 0.95, RMS < 0.10 Hz  -> both equivalent, use fft"
+    echo "    autocorr visually tracks carrier better -> autocorr"
+    echo "      BUT only if expected lag < 0.3 * wave period"
+    echo "    otherwise -> fft (safer for ambiguous lag/period ratios)"
+    echo ""
+
+    local chosen_method="fft"
+    while true; do
+        read -p "  Method for $s [fft/autocorr, default=fft]: " METHOD_CHOICE
+        case "${METHOD_CHOICE,,}" in
+            ""|fft)
+                chosen_method="fft"
+                break
+                ;;
+            autocorr|ac|autocorrelation)
+                chosen_method="autocorr"
+                break
+                ;;
+            *)
+                echo "  (Enter fft or autocorr)"
+                ;;
+        esac
+    done
+
+    echo "  Chosen method for $s: $chosen_method"
+
+    if [[ -f "${s}_${chosen_method}.csv" ]]; then
+        cp "${s}_${chosen_method}.csv" "${s}.csv"
+        if [[ -f "${s}_${chosen_method}.png" ]]; then
+            cp "${s}_${chosen_method}.png" "${s}.png"
+        fi
+    fi
+
+    echo -e "${s}\t${chosen_method}" >> station_methods.txt
+    echo "  Recorded: $s -> $chosen_method"
+}
+
 # Re-extract reference + all companion stations at the current
 # WINDOW_START / WINDOW_END. Used by the Pause 4 tightening loop.
 # Returns 0 on success, non-zero on any failure.
