@@ -1,4 +1,18 @@
 # Changelog
+## v1.6.2 — 2026-05-19
+### Per-station extraction method provenance (tid_doa.py)
+- **New feature**: optional `"method"` field in each station entry
+  of the JSON config records which Doppler extraction method was used
+  (`"fft"` or `"autocorr"`). Default `"fft"` — omitting the field is
+  fully backward compatible.
+- **New feature**: method is printed in the run log station list, so
+  mixed FFT/autocorr analyses are self-documenting.
+- **No change to any computation.** Purely provenance. Result on the
+  19 Jan 2026 MSTID verified identical with and without the field.
+- Supports the mixed-method workflow enabled by v1.6.0: use
+  `drf_spectrogram.py --overlay` to choose the best extraction method
+  per station, record the choice in the config, run `tid_doa.py`.
+
 ## v1.6.0 — 2026-05-18
 ### Doppler overlay for spectrogram visual inspection (drf_spectrogram.py)
 - **New feature**: `--overlay CSV:label[:color]` superimposes one or
