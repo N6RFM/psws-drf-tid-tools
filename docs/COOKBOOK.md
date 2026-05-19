@@ -220,6 +220,23 @@ frequency resolution.)
 ---
 
 
+---
+
+### How do I increase the output image resolution?
+
+Use `--dpi N` to set the PNG resolution. Default is 140 dpi (good for
+screen viewing). Use 200-300 for publication quality, or 600 for
+maximum detail:
+
+```bash
+python3 drf_spectrogram.py ./n6rfm --output n6rfm_hires.png --dpi 300 ...
+```
+
+Note: increasing DPI makes each spectrogram column physically larger
+on screen but does not add new frequency or time information. The
+spectrogram's information content is set by --window-minutes and
+the recording sample rate, not by DPI.
+
 ### How do I overlay extracted Doppler traces on a spectrogram?
 
 Use `--overlay CSV:label` (repeatable) to superimpose one or more
