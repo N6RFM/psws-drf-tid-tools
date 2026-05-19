@@ -38,7 +38,8 @@ analysis until Gwyn replies on the two blockers.**
 | v1.6.6 | Fix: wire extract_with_overlay into Stage 8 |
 | v1.6.7 | Fix: cp same-file error in extract_with_overlay |
 
-**Branches:** main (v1.6.7) and research-doppler-extraction only.
+**Branches:** main only (v1.6.7).
+research-doppler-extraction deleted 2026-05-19 — all content merged to main.
 All feature/fix/changelog branches deleted after merging.
 
 ---
