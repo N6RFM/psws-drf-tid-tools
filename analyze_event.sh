@@ -1011,28 +1011,23 @@ for k, v in sub_for.items():
     print(f"{k}\t{v}")
 EOF
 
-    # Reference station extraction (already done in stage 3 — just copy)
+    # Reference station and companions — extract with both methods,
+    # show overlay spectrogram, let operator choose FFT or autocorr.
     REF_NAME="${MY_STATION#./}"
     REF_NAME="${REF_NAME%/}"
     REF_CSV_FINAL="${REF_NAME}.csv"
     REF_PNG_FINAL="${REF_NAME}.png"
-    if [[ ! -f "$REF_CSV_FINAL" ]]; then
-        python3 "$TOOLS_DIR/drf_to_doppler.py" "$MY_STATION" \
-            --start "$WINDOW_START" --end "$WINDOW_END" \
-            --decim-seconds "$DECIM_SECONDS" --subchannel 0 \
-            --output "$REF_CSV_FINAL" --plot "$REF_PNG_FINAL"
-    fi
-
+    rm -f station_methods.txt
+    extract_with_overlay "$REF_NAME" "$MY_STATION" "0"
+    [[ -f "${REF_NAME}.csv" ]] && cp "${REF_NAME}.csv" "$REF_CSV_FINAL"
+    [[ -f "${REF_NAME}.png" ]] && cp "${REF_NAME}.png" "$REF_PNG_FINAL"
     # Each companion
     IFS=',' read -ra COMPANION_LIST <<< "$COMPANIONS"
     for s in "${COMPANION_LIST[@]}"; do
         SUB=$(awk -F'\t' -v s="$s" '$1 == s {print $2; exit}' station_subchannels.txt)
         SUB="${SUB:-0}"
         echo "  $s: --subchannel $SUB"
-        python3 "$TOOLS_DIR/drf_to_doppler.py" "./$s" \
-            --start "$WINDOW_START" --end "$WINDOW_END" \
-            --decim-seconds "$DECIM_SECONDS" --subchannel "$SUB" \
-            --output "${s}.csv" --plot "${s}.png"
+        extract_with_overlay "$s" "./$s" "$SUB"
     done
     save_state 8
 fi
