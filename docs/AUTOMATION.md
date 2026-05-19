@@ -83,6 +83,38 @@ All six flags above are required on the first run. On subsequent
 (resume) runs, they're read from the state file and don't need to be
 re-supplied.
 
+---
+
+## Per-station method selection
+
+At Stages 3 and 8, the script runs both FFT and autocorr extractions
+for each station, renders a `drf_spectrogram.py --overlay` showing
+both traces with inter-method metrics, and asks you to choose:
+
+```
+  Station: ac0g_nd
+  Review the overlay spectrogram — check Inter-method r and RMS diff.
+
+  Decision guide:
+    r > 0.95, RMS < 0.10 Hz  -> both equivalent, use fft (default)
+    autocorr visually tracks carrier better -> autocorr
+      BUT only if expected lag < 0.3 * wave period
+    otherwise -> fft (safer for ambiguous lag/period ratios)
+
+  Method for ac0g_nd [fft/autocorr, default=fft]:
+```
+
+Choices are recorded in `station_methods.txt` and written into the
+`"method"` field of each station's `event.json` entry, making the
+run log fully self-documenting.
+
+The overlay legend shows:
+- **Per-trace:** SNR (dB) and std (Hz)
+- **Inter-method:** Pearson r and RMS diff (Hz) between FFT and autocorr
+
+See [`METHODOLOGY.md`](METHODOLOGY.md) Step 1b for the full decision
+guide with worked clean vs contaminated examples.
+
 
 ---
 
