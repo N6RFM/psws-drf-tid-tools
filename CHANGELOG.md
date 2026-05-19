@@ -1,4 +1,10 @@
 # Changelog
+## v1.6.8 — 2026-05-19
+### drf_spectrogram.py: add --dpi flag
+- **New feature**: `--dpi N` sets output PNG resolution.
+  Default 140 unchanged. Use 200-300 for publication quality,
+  600 for maximum detail (produces ~8000x4000 px output).
+
 ## v1.6.7 — 2026-05-19
 ### Fix: cp same-file error in analyze_event.sh Stage 8
 - **Bug fix**: when the reference station name matched the output

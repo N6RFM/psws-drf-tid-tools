@@ -402,6 +402,9 @@ def main():
     ap.add_argument("--grid", default=None,
                     help="Override the grid square in the auto-generated "
                          "title.")
+    ap.add_argument("--dpi", type=int, default=140,
+                    help="Output PNG resolution in dots per inch. "
+                         "Default: 140. Use 200-300 for publication quality.")
     ap.add_argument("--version", action="version",
                     version="%(prog)s 1.2.0")
     args = ap.parse_args()
@@ -748,7 +751,7 @@ def main():
     if args.annotate:
         # Make room for callout labels above the spectrogram
         fig.subplots_adjust(top=0.86 - 0.04 * (len(args.annotate) - 1))
-    plt.savefig(args.output, dpi=140, bbox_inches="tight")
+    plt.savefig(args.output, dpi=args.dpi, bbox_inches="tight")
     plt.close()
     print(f"\nWrote {args.output}")
 
