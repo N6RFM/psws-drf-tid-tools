@@ -137,8 +137,61 @@ if [[ -f "$STATE_FILE" ]]; then
     # shellcheck disable=SC1090
     source "$STATE_FILE"
     if [[ $RESUME -eq 0 ]]; then
-        echo "Found existing state file from stage $LAST_STAGE. Resuming."
-        echo "(Use --reset to discard and start fresh.)"
+        echo ""
+        echo "Found existing state file (completed through stage $LAST_STAGE)."
+        echo ""
+        echo "Current state:"
+        echo "  Event date:   $EVENT_DATE"
+        echo "  Window:       ${WINDOW_START:-not yet set} -> ${WINDOW_END:-not yet set}"
+        echo "  Companions:   ${COMPANIONS:-not yet set}"
+        echo ""
+        cat <<MENU
+Where would you like to resume?
+
+  [Enter]   Continue from where you left off (stage $LAST_STAGE)
+  0         Start over from the beginning (keep args, clear state)
+  1         Re-render reference spectrogram (Stage 1)
+  2         Re-run TID window auto-detection (Stage 1b)
+  3         Re-choose analysis window (Pause 1)
+  4         Re-extract reference station Doppler (Stage 3)
+  5         Re-find companion stations (Stage 4)
+  6         Re-choose companions (Pause 2)
+  7         Re-download check (Pause 3)
+  8         Re-inspect DRF subchannels (Stage 7)
+  9         Re-extract all station Doppler CSVs (Stage 8)
+  10        Re-check station quality (Pause 4)
+  11        Re-run DOA inversion (Stage 10)
+  12        Re-generate figures (Stage 11)
+
+MENU
+        read -p "Choice [Enter = continue from stage $LAST_STAGE]: " RESUME_CHOICE
+        case "${RESUME_CHOICE}" in
+            "")
+                echo "Resuming from stage $LAST_STAGE."
+                ;;
+            0)
+                echo "Starting over (keeping event args)..."
+                LAST_STAGE=0
+                WINDOW_START=""
+                WINDOW_END=""
+                COMPANIONS=""
+                ;;
+            1)  LAST_STAGE=0  ;;
+            2)  LAST_STAGE=1  ;;
+            3)  LAST_STAGE=1  ;;
+            4)  LAST_STAGE=2  ;;
+            5)  LAST_STAGE=3  ;;
+            6)  LAST_STAGE=4  ;;
+            7)  LAST_STAGE=5  ;;
+            8)  LAST_STAGE=6  ;;
+            9)  LAST_STAGE=7  ;;
+            10) LAST_STAGE=8  ;;
+            11) LAST_STAGE=9  ;;
+            12) LAST_STAGE=10 ;;
+            *)
+                echo "  (Unrecognized choice; resuming from stage $LAST_STAGE.)"
+                ;;
+        esac
     fi
 fi
 
