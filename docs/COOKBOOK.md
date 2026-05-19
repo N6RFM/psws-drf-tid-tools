@@ -123,6 +123,41 @@ python3 drf_to_doppler.py ./ac0g_nd \
 
 ---
 
+
+### How do I use the autocorr extraction method?
+
+Use `--method autocorr` for the lag-1 complex autocorrelation estimator
+(G3ZIL method). It is 2-3x smoother than FFT and preferred for heavily
+E-region-contaminated MSTID pairs where the lag is less than 30% of
+the wave period:
+
+```bash
+python3 drf_to_doppler.py ./ac0g_nd \
+    --start 2026-01-19T00:00:00 --end 2026-01-19T01:15:00 \
+    --decim-seconds 10 --subchannel 4 --method autocorr \
+    --output ac0g_nd_autocorr.csv
+```
+
+Default is `--method fft`. For LSTID events (long period, lag near
+30-50% of period) FFT is preferred — autocorr's smoothness can cause
+wrong-peak lock on ambiguous cross-correlation curves.
+
+### How do I compare FFT and autocorr side by side?
+
+Extract both and overlay on the spectrogram:
+
+```bash
+python3 drf_to_doppler.py ./station --method fft --output station_fft.csv ...
+python3 drf_to_doppler.py ./station --method autocorr --output station_autocorr.csv ...
+python3 drf_spectrogram.py ./station --output overlay.png \
+    --overlay "station_fft.csv:FFT" \
+    --overlay "station_autocorr.csv:Autocorr:#FF9800"
+```
+
+The legend shows inter-method Pearson r and RMS diff. r > 0.95 and
+RMS < 0.10 Hz means both methods are equivalent — use FFT. See
+`docs/METHODOLOGY.md` Step 1b for the full decision guide.
+
 ## Spectrograms
 
 ### How do I make an annotated spectrogram?
@@ -183,6 +218,24 @@ green).
 frequency resolution.)
 
 ---
+
+
+### How do I overlay extracted Doppler traces on a spectrogram?
+
+Use `--overlay CSV:label` (repeatable) to superimpose one or more
+Doppler CSV traces on the spectrogram panel:
+
+```bash
+python3 drf_spectrogram.py ./n6rfm \
+    --output n6rfm_overlay.png \
+    --annotate "00:00,01:15,Analysis window" \
+    --overlay "n6rfm_fft.csv:FFT" \
+    --overlay "n6rfm_autocorr.csv:Autocorr:#FF9800"
+```
+
+The legend shows per-trace SNR and std, plus a single inter-method
+summary line with Pearson r and RMS diff between the two traces.
+Optionally specify a hex color as a third colon-separated field.
 
 ## TID window detection
 
