@@ -16,15 +16,22 @@
 - Restores extract_with_overlay() function definition lost during
   a merge conflict resolution.
 
-## v1.6.6 — 2026-05-19
-### Fix: wire extract_with_overlay into Stage 8 (analyze_event.sh)
-- **Bug fix**: Stage 8 was still using direct `drf_to_doppler.py`
-  calls instead of `extract_with_overlay()`. Both the reference
-  station and companion extractions now correctly go through
-  `extract_with_overlay()`, which renders the overlay spectrogram
-  and asks the operator to choose FFT or autocorr per station.
-- Also restores the `extract_with_overlay()` function definition
-  which was lost during a merge conflict resolution.
+
+## v1.6.5 — 2026-05-19
+### drf_to_doppler.py v1.1.1: --method fft|autocorr promoted to main
+- **New feature**: `--method fft` (default) or `--method autocorr`
+  (lag-1 complex autocorrelation, G3ZIL method). Previously only on
+  the research branch; now available to all users.
+- Required by `drf_spectrogram.py --overlay` and
+  `analyze_event.sh extract_with_overlay()`.
+- Clean-data gate: SNR delta 0.0 dB, r=0.933, autocorr 3x smoother.
+
+## v1.6.4 — 2026-05-19
+### Interactive resume menu in analyze_event.sh
+- **New feature**: when a state file is found, shows current state
+  summary and numbered menu (0-12) to jump to any pipeline stage.
+- Press Enter to continue from where you left off (default).
+- Enter 0 to start over; 1-12 to jump directly to any stage.
 
 ## v1.6.3 — 2026-05-19
 ### Per-station FFT vs autocorr method selection (analyze_event.sh)
@@ -56,6 +63,14 @@
 - Supports the mixed-method workflow enabled by v1.6.0: use
   `drf_spectrogram.py --overlay` to choose the best extraction method
   per station, record the choice in the config, run `tid_doa.py`.
+
+## v1.6.1 — 2026-05-18
+### Fix: inter-method r display in drf_spectrogram.py --overlay
+- **Bug fix**: FFT trace showed tautological r=1.000 (correlation
+  with spectrogram peak track — same operation as FFT extraction).
+- Inter-method r and RMS diff now computed once between FFT and
+  autocorr traces, shown as a single summary legend entry.
+- Per-trace legend now shows SNR and std only.
 
 ## v1.6.0 — 2026-05-18
 ### Doppler overlay for spectrogram visual inspection (drf_spectrogram.py)

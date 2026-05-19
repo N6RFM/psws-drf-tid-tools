@@ -448,6 +448,48 @@ with SNR mostly above 40 dB. AC0G_ND's SNR begins to fade after about
 
 ---
 
+
+### Step 4b: visual method validation with overlay spectrogram
+
+The default extraction method is FFT. For most clean signals this is
+the right choice. However, if a station path has E-region contamination
+(a flat bright band near 0 Hz on the spectrogram alongside the TID
+wave), the autocorr method may track the F-region TID carrier more
+cleanly.
+
+Extract both methods and overlay them on the spectrogram:
+
+```bash
+python3 drf_to_doppler.py ./ac0g_nd \
+    --start 2026-01-19T00:00:00 --end 2026-01-19T01:15:00 \
+    --decim-seconds 10 --subchannel 4 --method fft \
+    --output ac0g_nd_fft.csv
+
+python3 drf_to_doppler.py ./ac0g_nd \
+    --start 2026-01-19T00:00:00 --end 2026-01-19T01:15:00 \
+    --decim-seconds 10 --subchannel 4 --method autocorr \
+    --output ac0g_nd_autocorr.csv
+
+python3 drf_spectrogram.py ./ac0g_nd \
+    --output ac0g_nd_overlay.png --subchannel 4 \
+    --start 00:00 --end 01:15 \
+    --annotate "00:00,01:15,Analysis window" \
+    --overlay "ac0g_nd_fft.csv:FFT" \
+    --overlay "ac0g_nd_autocorr.csv:Autocorr:#FF9800"
+```
+
+The legend shows inter-method r and RMS diff. Decision guide:
+
+- r > 0.95 and RMS < 0.10 Hz: both equivalent, use FFT (default)
+- autocorr visually tracks TID better and lag < 0.3 * period: use autocorr
+- otherwise: use FFT (safer for ambiguous lag/period ratios)
+
+Full guidance with worked examples is in docs/METHODOLOGY.md Step 1b.
+Record your choice as a "method" field per station in event.json
+(see Step 6). If you use analyze_event.sh this step runs automatically.
+
+---
+
 ## Step 5: cross-correlate one pair as a sanity check
 
 Before running the full multi-station inversion, it is worth doing a
@@ -540,10 +582,10 @@ Accept the suggested defaults; the resulting `event.json` looks like:
   "use_bandpass": false,
   "min_expected_speed_m_s": 100,
   "stations": [
-    {"name": "N6RFM",   "file": "n6rfm.csv",   "lat": 32.94, "lon":  -97.21},
-    {"name": "AA6BD",   "file": "aa6bd.csv",   "lat": 35.06, "lon":  -85.13},
-    {"name": "W7LUX",   "file": "w7lux.csv",   "lat": 35.10, "lon": -111.71},
-    {"name": "AC0G_ND", "file": "ac0g_nd.csv", "lat": 46.88, "lon":  -96.83}
+    {"name": "N6RFM",   "file": "n6rfm.csv",   "method": "fft", "lat": 32.94, "lon":  -97.21},
+    {"name": "AA6BD",   "file": "aa6bd.csv",   "method": "fft", "lat": 35.06, "lon":  -85.13},
+    {"name": "W7LUX",   "file": "w7lux.csv",   "method": "fft", "lat": 35.10, "lon": -111.71},
+    {"name": "AC0G_ND", "file": "ac0g_nd.csv", "method": "fft", "lat": 46.88, "lon":  -96.83}
   ]
 }
 ```

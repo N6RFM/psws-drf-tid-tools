@@ -15,27 +15,51 @@ hand, `analyze_event.sh` is the natural next step for everyday use.
 
 ## What it does
 
-The script runs eleven stages with **four human-input pauses**:
+The script runs eleven stages with **four human-input pauses plus per-station method selection**:
 
 | Stage | What happens | Pause? |
 |---|---|---|
 | 1   | Render reference-station 24-hour spectrogram (+ prior-day flare spectrogram if available) | — |
-| 1b  | Auto-detect candidate TID windows: extract a 24-hr survey CSV at 60s, run `tid_window_detector.py`, pad and snap the top-ranked window, re-render the spectrogram with the proposal highlighted | — |
+| 1b  | Auto-detect candidate TID windows: extract a 24-hr survey CSV at 60s, run `tid_window_detector.py`, snap the top-ranked window to 15-min boundaries, re-render with proposal highlighted | — |
 | 2   | Confirm or override the auto-proposed analysis window | ⏸ Pause 1 |
-| 3   | Sanity-check extraction on reference station, open the PNG for the user to confirm | — |
+| 3   | Extract reference station Doppler with **both FFT and autocorr**, show overlay spectrogram, ask which method better tracks the carrier | 🔬 Method select |
 | 4   | Run `find_event_stations.py`, display ranked candidates | — |
 | 5   | Ask user which companion stations to use | ⏸ Pause 2 |
 | 6   | Show download URLs; wait for the user to extract tarballs | ⏸ Pause 3 |
 | 7   | Run `drf_inspect.py` on all stations; auto-detect 10 MHz subchannel | — |
-| 8   | Extract Doppler CSV for every station with detected subchannels | — |
-| 9   | Run `quality_summary.py` to score each station; open every Doppler PNG; ask if any station should be dropped | ⏸ Pause 4 |
-| 10  | Build DOA config (with `tid_doa_config.py --auto`) and run `tid_doa.py` | — |
+| 8   | For each companion: extract with **both FFT and autocorr**, show overlay spectrogram, ask which method to use. Choices recorded in `station_methods.txt` | 🔬 Method select |
+| 9   | Run `quality_summary.py`; open every Doppler PNG; ask if any station should be dropped or window tightened | ⏸ Pause 4 |
+| 10  | Build DOA config (`event.json`) with `"method"` field per station; run `tid_doa.py` | — |
 | 11  | Generate annotated spectrogram, stacked Doppler plot, and array-geometry map | — |
 
 Between pauses everything is automatic. The script is also
 **resumable** — state is saved to `.analyze_event_state` after each
-stage. If you Ctrl-C partway through or hit an error, re-running picks
-up from the last completed stage. Use `--reset` to discard the state
+stage. If you Ctrl-C partway through or hit an error, re-running shows
+an **interactive resume menu**:
+
+```
+Found existing state file (completed through stage 8).
+
+Current state:
+  Event date:   2026-01-19
+  Window:       2026-01-19T00:00:00 -> 2026-01-19T01:10:00
+  Companions:   aa6bd,w7lux
+
+Where would you like to resume?
+  [Enter]   Continue from where you left off (stage 8)
+  0         Start over from the beginning (keep args, clear state)
+  1         Re-render reference spectrogram (Stage 1)
+  ...
+  9         Re-extract all station Doppler CSVs (Stage 8)
+  10        Re-check station quality (Pause 4)
+  11        Re-run DOA inversion (Stage 10)
+  12        Re-generate figures (Stage 11)
+```
+
+Press Enter to continue from the last completed stage, or enter a
+number to jump directly to any stage — useful when data is already
+downloaded and you only want to re-run DOA, re-choose a window, or
+re-extract with a different method. Use `--reset` to discard the state
 and start over.
 
 ---
@@ -58,6 +82,74 @@ chmod +x analyze_event.sh
 All six flags above are required on the first run. On subsequent
 (resume) runs, they're read from the state file and don't need to be
 re-supplied.
+
+---
+
+## Per-station method selection
+
+At Stages 3 and 8, the script runs both FFT and autocorr extractions
+for each station, renders a `drf_spectrogram.py --overlay` showing
+both traces with inter-method metrics, and asks you to choose:
+
+```
+  Station: ac0g_nd
+  Review the overlay spectrogram — check Inter-method r and RMS diff.
+
+  Decision guide:
+    r > 0.95, RMS < 0.10 Hz  -> both equivalent, use fft (default)
+    autocorr visually tracks carrier better -> autocorr
+      BUT only if expected lag < 0.3 * wave period
+    otherwise -> fft (safer for ambiguous lag/period ratios)
+
+  Method for ac0g_nd [fft/autocorr, default=fft]:
+```
+
+Choices are recorded in `station_methods.txt` and written into the
+`"method"` field of each station's `event.json` entry, making the
+run log fully self-documenting.
+
+The overlay legend shows:
+- **Per-trace:** SNR (dB) and std (Hz)
+- **Inter-method:** Pearson r and RMS diff (Hz) between FFT and autocorr
+
+See [`METHODOLOGY.md`](METHODOLOGY.md) Step 1b for the full decision
+guide with worked clean vs contaminated examples.
+
+
+---
+
+## Per-station method selection
+
+At Stages 3 and 8, the script runs both FFT and autocorr extractions
+for each station, renders a `drf_spectrogram.py --overlay` showing
+both traces, and asks you to choose:
+
+```
+  Station: ac0g_nd
+  Review the overlay spectrogram. Which method better tracks
+  the carrier (check Inter-method r and RMS diff in legend)?
+
+  Decision guide:
+    r > 0.95, RMS < 0.10 Hz  -> both equivalent, use fft
+    autocorr visually tracks carrier better -> autocorr
+      BUT only if expected lag < 0.3 * wave period
+    otherwise -> fft (safer for ambiguous lag/period ratios)
+
+  Method for ac0g_nd [fft/autocorr, default=fft]:
+```
+
+Choices are recorded in `station_methods.txt` and written into the
+`"method"` field of each station's `event.json` entry, so the run log
+is fully self-documenting.
+
+The overlay legend shows:
+- **Per-trace:** SNR (dB) and std (Hz) — signal quality and smoothness
+- **Inter-method (once):** Pearson r and RMS diff (Hz) between the two
+  traces — the decision-relevant metrics
+
+See [`METHODOLOGY.md`](METHODOLOGY.md) Step 1b for the full decision
+guide with worked clean vs contaminated examples.
+
 
 ---
 
