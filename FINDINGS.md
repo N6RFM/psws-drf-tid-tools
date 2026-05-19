@@ -444,3 +444,145 @@ affects the like-for-like validity of Entry 5.
 **Current state.** Investigation is unblocked and producing results.
 Two open clarifications from Gwyn before drawing conclusions.
 No production change warranted yet.
+### 2026-05-18 — Entry 7: Synthetic Monte Carlo experiment
+
+**Motivation.** Real-data results (Entries 4-5) show autocorr
+outperforms FFT on contaminated LSTID pairs. But real data confounds
+extraction method with signal quality, contamination level, and
+geometry. A controlled synthetic experiment is needed to isolate the
+effect of extraction method under known conditions.
+
+**Method.** Two-phasor I/Q signal model: F-region TID carrier +
+E-region contamination at amplitude ratio epsilon. Known ground-truth
+lag. 1,260 trials across MSTID/LSTID wave types, three SNR levels
+(30/40/50 dB), and seven epsilon values (0.0–1.0). Lock rate = fraction
+of trials where the extracted lag is within 10% of ground truth.
+
+**Results (SNR=40 dB):**
+
+| Wave | Condition | FFT lock% | AC lock% | Advantage |
+|------|-----------|-----------|----------|-----------|
+| MSTID | eps=0.0-0.7 | 100 | 100 | None |
+| MSTID | eps=1.0 | 63 | 93 | AC +30pp |
+| LSTID | eps=0.5-0.7 | 100 | 60-90 | FFT +10-40pp |
+| LSTID | eps=1.0 | 10 | 37 | AC +27pp (both fail) |
+
+**Reading.** The synthetic experiment reproduces both real-data
+observations mechanistically. For MSTID-like signals, autocorr is
+superior under heavy contamination. For LSTID-like signals (long
+period, lag near 0.3-0.5 periods), FFT is superior because autocorr's
+smoothness causes wrong-peak lock when multiple cross-correlation peaks
+are comparable in height. Files: `research/synthetic/`.
+
+**Status.** Complete. Confirms the method-selection guidance:
+use FFT for LSTID (long period), autocorr for heavily contaminated
+MSTID (short period, unambiguous lag).
+
+---
+
+### 2026-05-18 — Entry 8: Jan 2026 MSTID four-configuration comparison
+
+**Event.** 19 January 2026, 00:00-01:10 UTC. Original reference
+event that motivated the toolkit. 6 stations available.
+
+**Configurations tested:**
+
+| Method | Stations | Speed | Direction | Diagnostics |
+|--------|----------|-------|-----------|-------------|
+| FFT | 3 (original) | 193 m/s | 190° | All pass ✓ |
+| Autocorr | 3 | 335 m/s | 196° | 2 fail ✗ |
+| FFT | 6 | 709 m/s | 223° | 2 fail ✗ |
+| Autocorr | 6 | 774 m/s | 223° | 2 fail ✗ |
+
+**Key finding.** FFT 3-station is the only result passing all
+diagnostics. Autocorr locks a wrong peak on N6RFM→AA6BD (lag/period
+ratio = 1.08 — two comparable peaks separated by ~10 min). Triangle
+closure diagnostic correctly identifies the wrong-peak lock (88% vs
+0% for FFT). 6-station results fail because adding AC0G_ND (lat 46.9°)
+and eastern cluster stretches the plane-wave assumption.
+
+**This is the clearest demonstration of the decision workflow:**
+the diagnostics correctly identify the reliable result regardless of
+method. FFT 3-station: 193 m/s @ 190°, MSTID confirmed.
+
+---
+
+### 2026-05-19 — Entry 9: v1.6.x toolkit — overlay, method selection, workflow
+
+**Motivation.** Research findings (Entries 4-8) show neither FFT nor
+autocorr is universally better. The operator needs a way to visually
+inspect both extractions and choose per station before cross-correlating.
+
+**Features shipped (v1.6.0 → v1.6.7):**
+
+| Version | Feature |
+|---------|---------|
+| v1.6.0 | drf_spectrogram.py --overlay: superimpose Doppler CSVs on spectrogram |
+| v1.6.1 | Fix: inter-method r computed once (not per-trace); removes tautological FFT r=1.000 |
+| v1.6.2 | tid_doa.py: optional "method" field per station in config and run log |
+| v1.6.3 | analyze_event.sh: extract_with_overlay() helper — both methods, show overlay, ask operator |
+| v1.6.4 | analyze_event.sh: interactive resume menu (jump to any stage 0-12) |
+| v1.6.5 | drf_to_doppler.py v1.1.1 --method fft\|autocorr promoted to main |
+| v1.6.6 | Fix: wire extract_with_overlay into Stage 8 (was missing) |
+| v1.6.7 | Fix: cp same-file error when REF_NAME == REF_CSV_FINAL |
+
+**Overlay legend metrics:**
+- Per-trace: SNR (dB), std (Hz) — signal quality and smoothness
+- Inter-method (once): r (Pearson correlation FFT vs autocorr),
+  RMS diff (Hz) — the decision-relevant metrics
+- r > 0.95, RMS < 0.10 Hz → both equivalent, use FFT
+- r < 0.85 or RMS > 0.30 Hz → inspect spectrogram, choose by eye
+
+**Worked example (METHODOLOGY.md Step 1b):**
+- W7LUX (clean): r=0.934, RMS=0.203 Hz — both methods track carrier
+- AC0G_ND (contaminated): r=0.924, RMS=0.268 Hz — inspect visually
+
+**Key insight from worked example:** r alone does not distinguish
+clean from contaminated (0.934 vs 0.924 is a small difference).
+The spectrogram visual is the tiebreaker.
+
+---
+
+### 2026-05-19 — Entry 10: May 2024 LSTID re-run with mixed methods; collinear geometry finding
+
+**Event.** 17 May 2024, 18:00-20:00 UTC. W7LUX (reference),
+AC0G_ND (subchannel 4, E-region contaminated), N4RVE (subchannel 4).
+60s cadence. Tested full mixed-method pipeline (v1.6.7).
+
+**Results with different method combinations:**
+
+| Method combination | Speed | Direction | Triangle closure |
+|-------------------|-------|-----------|-----------------|
+| All FFT | 596 m/s | 178° | 26% ✗ |
+| AC0G_ND+N4RVE autocorr, W7LUX FFT | 606 m/s | 175° | 26% ✗ |
+| All autocorr | 543 m/s | 178° | 41% ✗ |
+| Gwyn V1.2 | 979 m/s | 157° | — |
+
+**Key finding.** Method choice (FFT vs autocorr) has negligible
+effect on the DOA result for this 3-station array. Speed varies
+only 596-606 m/s across method combinations; direction stays within
+3° (175-178°). All-autocorr is slightly worse (higher triangle
+closure 41% vs 26%).
+
+**The limiting factor is station geometry, not extraction method.**
+W7LUX, AC0G_ND, and N4RVE are nearly collinear along a NW-SE axis
+(SVD ratio 1.2). With near-collinear geometry, small lag errors
+produce large direction errors, and the inversion is ill-conditioned.
+
+**Speed discrepancy vs Gwyn (596 vs 979 m/s) is entirely explained
+by lag difference.** Our lags (~19-21 min) vs Gwyn's (27-35 min).
+Same midpoint geometry (toolkit already uses midpoints, confirmed).
+The lag discrepancy is still the open question from Entry 6.
+
+**Direction is closer than speed** — our 175-178° vs Gwyn's 157°,
+an 18-21° difference consistent with the collinear geometry
+uncertainty.
+
+**Implication for research.** For this event and station array,
+the method question (FFT vs autocorr) is secondary to the geometry
+question (need more stations with azimuthal spread). Gwyn's
+two-path vector decomposition is geometrically better constrained
+than a 3-station collinear DOA.
+
+**Current state.** Two blockers remain (Entry 6). Awaiting Gwyn's
+reply. Pipeline tested and working end-to-end on both events.
