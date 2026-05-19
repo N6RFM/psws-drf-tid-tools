@@ -243,6 +243,85 @@ different analysis intervals or when comparing pairs across the array
 — a higher `r²` indicates a more reliable lag estimate, not a "more
 intense" wave.
 
+### Interpreting the correlation curve
+
+The coefficient `r` summarises the peak; it does not describe the
+*shape* of `R(τ)` around that peak, and the shape is where a lag's
+reliability actually lives. The lag estimate is `argmax R(τ)`. How
+trustworthy that argmax is depends on how the curve behaves near it,
+not on the peak height alone.
+
+A trustworthy pair has **one dominant, reasonably sharp, isolated
+peak**: the maximum is well-localised, clearly above its
+neighbourhood, and not competing with comparable peaks elsewhere in
+the search range. The lag is then insensitive to small changes in
+the data.
+
+Several curve shapes indicate a lag that should not be trusted even
+when the peak `r` looks acceptable:
+
+- **Broad, flat-topped peak.** The maximum is poorly localised: a
+  small change in the data moves `argmax` substantially. The lag has
+  a large effective uncertainty that the single number `r` does not
+  reveal. A contaminated pair can show a high `r` on a broad peak and
+  still yield an unreliable lag.
+
+- **Multiple comparable peaks.** Discussed above for bandpassed
+  signals (lobes one period apart), but the same ambiguity arises
+  from contamination even without bandpassing: if two or more peaks
+  are of similar height, the lag-finder's choice between them is not
+  robust, and the "winning" peak may not correspond to the true
+  wavefront delay.
+
+- **Peak at the edge of the search range.** If the maximum sits
+  against `max_lag_seconds`, the true peak may lie outside the
+  searched window and the reported lag is an artefact of the
+  boundary. (Step 4's lag-distribution check flags this; it is
+  restated here because it is a curve-shape failure, visible
+  directly in `R(τ)`.)
+
+- **Marked asymmetry about the peak.** A strongly skewed peak
+  suggests the two series are not tracking the *same* feature
+  consistently — one signature of multi-hop or off-great-circle
+  propagation, where the paths' midpoint geometry no longer
+  describes a single common wavefront. This is the curve-level
+  manifestation of the single-hop limitation stated in
+  `ASSESSING_RESULTS.md` (§1, assumption 3; §7).
+
+The practical point: the coefficient and the curve answer different
+questions. `r` (and `r²`) says how much shared structure exists at
+the chosen lag; the curve shape says whether *that lag* is robustly
+determined. A pair can pass the coefficient guidance and still fail
+the curve-shape reading — which is why both matter, and why a
+contaminated pair is not always caught by the correlation number
+alone. Inspecting `R(τ)` as a function of lag, not just its
+maximum, is the check the coefficient cannot provide.
+
+**Figure: clean vs E-region-contaminated pair — 17 May 2024 LSTID
+event, 18:00–20:00 UTC, FFT Doppler extraction, 60 s cadence.**
+
+![Cross-correlation curve shape: clean vs contaminated](fig_clean_vs_contaminated.png)
+
+*Left (blue): N4RVE / W7LUX — both paths SNR > 40 dB, no known
+multi-hop contamination. The dominant peak at +21 min is well above
+its neighbourhood (r = 0.67). The secondary peak at −38 min is one
+wave period (~58 min) earlier and is a property of the wave itself,
+not a data-quality issue; it is present on both clean and
+contaminated pairs and does not indicate an unreliable lag.*
+
+*Right (red): AC0G_ND / W7LUX — AC0G_ND path has known E-region
+multi-hop contamination (independently diagnosed by G3ZIL and
+reproduced by the toolkit). The curve shows the characteristic
+contamination signatures: irregular, high-frequency structure on
+the curve body; a broad, flat-topped positive lobe rather than a
+sharp peak; and a lower peak coefficient (r = 0.58 vs 0.67)
+despite both pairs sharing W7LUX. The lag at the peak (+19 min)
+is in the right region but is not robustly determined — the broad
+lobe means a small change in data could shift the argmax
+substantially. This pair's band-filtered results showed
+inconsistent lags across period bands, consistent with the
+curve-shape diagnosis here.*
+
 ## Step 3: Slowness-vector inversion
 
 For N stations at positions `r_1, ..., r_N` (projected to a local

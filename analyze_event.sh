@@ -3,7 +3,7 @@
 #
 # Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 # Created by N6RFM with help from Claude AI.
-# Version: 1.6.3
+# Version: 1.5.0
 # License: MIT (do whatever you want, no warranty).
 #
 # OVERVIEW
@@ -108,7 +108,7 @@ while [[ $# -gt 0 ]]; do
         --reset)           RESET=1; shift ;;
         --resume)          RESUME=1; shift ;;
         -h|--help)         usage ;;
-        --version)         echo "analyze_event.sh 1.6.3"; exit 0 ;;
+        --version)         echo "analyze_event.sh 1.5.0"; exit 0 ;;
         *)
             echo "Unknown argument: $1"
             echo "Try --help"
@@ -137,61 +137,8 @@ if [[ -f "$STATE_FILE" ]]; then
     # shellcheck disable=SC1090
     source "$STATE_FILE"
     if [[ $RESUME -eq 0 ]]; then
-        echo ""
-        echo "Found existing state file (completed through stage $LAST_STAGE)."
-        echo ""
-        echo "Current state:"
-        echo "  Event date:   $EVENT_DATE"
-        echo "  Window:       ${WINDOW_START:-not yet set} -> ${WINDOW_END:-not yet set}"
-        echo "  Companions:   ${COMPANIONS:-not yet set}"
-        echo ""
-        cat <<MENU
-Where would you like to resume?
-
-  [Enter]   Continue from where you left off (stage $LAST_STAGE)
-  0         Start over from the beginning (keep args, clear state)
-  1         Re-render reference spectrogram (Stage 1)
-  2         Re-run TID window auto-detection (Stage 1b)
-  3         Re-choose analysis window (Pause 1)
-  4         Re-extract reference station Doppler (Stage 3)
-  5         Re-find companion stations (Stage 4)
-  6         Re-choose companions (Pause 2)
-  7         Re-download check (Pause 3)
-  8         Re-inspect DRF subchannels (Stage 7)
-  9         Re-extract all station Doppler CSVs (Stage 8)
-  10        Re-check station quality (Pause 4)
-  11        Re-run DOA inversion (Stage 10)
-  12        Re-generate figures (Stage 11)
-
-MENU
-        read -p "Choice [Enter = continue from stage $LAST_STAGE]: " RESUME_CHOICE
-        case "${RESUME_CHOICE}" in
-            "")
-                echo "Resuming from stage $LAST_STAGE."
-                ;;
-            0)
-                echo "Starting over (keeping event args)..."
-                LAST_STAGE=0
-                WINDOW_START=""
-                WINDOW_END=""
-                COMPANIONS=""
-                ;;
-            1)  LAST_STAGE=0  ;;
-            2)  LAST_STAGE=1  ;;
-            3)  LAST_STAGE=1  ;;
-            4)  LAST_STAGE=2  ;;
-            5)  LAST_STAGE=3  ;;
-            6)  LAST_STAGE=4  ;;
-            7)  LAST_STAGE=5  ;;
-            8)  LAST_STAGE=6  ;;
-            9)  LAST_STAGE=7  ;;
-            10) LAST_STAGE=8  ;;
-            11) LAST_STAGE=9  ;;
-            12) LAST_STAGE=10 ;;
-            *)
-                echo "  (Unrecognized choice; resuming from stage $LAST_STAGE.)"
-                ;;
-        esac
+        echo "Found existing state file from stage $LAST_STAGE. Resuming."
+        echo "(Use --reset to discard and start fresh.)"
     fi
 fi
 
@@ -620,16 +567,9 @@ reextract_one_station() {
 # record choice in station_methods.txt.
 #
 # Args:
-#   $1 = station name (used for CSV/PNG filenames and methods file)
+#   $1 = station name
 #   $2 = data directory (path to DRF)
 #   $3 = subchannel index
-#
-# Outputs:
-#   ${station}.csv       — Doppler CSV using the chosen method
-#   ${station}.png       — Doppler plot using the chosen method
-#   ${station}_fft.csv   — FFT extraction (always produced)
-#   ${station}_autocorr.csv — autocorr extraction (always produced)
-#   station_methods.txt  — appended with "station<TAB>method"
 extract_with_overlay() {
     local s="$1"
     local data_dir="$2"
@@ -639,24 +579,20 @@ extract_with_overlay() {
     echo ""
     echo "  Extracting FFT and autocorr Doppler for $s..."
 
-    # FFT extraction
     python3 "$TOOLS_DIR/drf_to_doppler.py" "$data_dir"         --start "$WINDOW_START" --end "$WINDOW_END"         --decim-seconds "$DECIM_SECONDS" --subchannel "$subch"         --method fft         --output "${s}_fft.csv" --plot "${s}_fft.png"         2>/dev/null || true
 
-    # Autocorr extraction
     python3 "$TOOLS_DIR/drf_to_doppler.py" "$data_dir"         --start "$WINDOW_START" --end "$WINDOW_END"         --decim-seconds "$DECIM_SECONDS" --subchannel "$subch"         --method autocorr         --output "${s}_autocorr.csv"         2>/dev/null || true
 
-    # Overlay spectrogram — shows both traces with inter-method metrics
-    ANN_S=$(echo "$WINDOW_START" | grep -oE 'T[0-9]{2}:[0-9]{2}' | tr -d T)
-    ANN_E=$(echo "$WINDOW_END"   | grep -oE 'T[0-9]{2}:[0-9]{2}' | tr -d T)
+    ANN_S=$(echo "$WINDOW_START" | grep -oE "T[0-9]{2}:[0-9]{2}" | tr -d T)
+    ANN_E=$(echo "$WINDOW_END"   | grep -oE "T[0-9]{2}:[0-9]{2}" | tr -d T)
     if [[ -f "${s}_fft.csv" && -f "${s}_autocorr.csv" ]]; then
         echo "  Rendering overlay spectrogram for $s..."
-        python3 "$TOOLS_DIR/drf_spectrogram.py" "$data_dir"             --output "$overlay_png"             --subchannel "$subch"             --ylim=-2,2             --start "$(echo "$WINDOW_START" | grep -oE 'T[0-9]{2}:[0-9]{2}' | tr -d T)"             --end   "$(echo "$WINDOW_END"   | grep -oE 'T[0-9]{2}:[0-9]{2}' | tr -d T)"             --annotate "${ANN_S},${ANN_E},Analysis window"             --overlay "${s}_fft.csv:FFT"             --overlay "${s}_autocorr.csv:Autocorr:#FF9800"             2>/dev/null || true
+        python3 "$TOOLS_DIR/drf_spectrogram.py" "$data_dir"             --output "$overlay_png"             --subchannel "$subch"             --ylim=-2,2             --start "$ANN_S" --end "$ANN_E"             --annotate "${ANN_S},${ANN_E},Analysis window"             --overlay "${s}_fft.csv:FFT"             --overlay "${s}_autocorr.csv:Autocorr:#FF9800"             2>/dev/null || true
         if [[ -f "$overlay_png" ]]; then
             open_image "$overlay_png"
         fi
     fi
 
-    # Ask operator to choose method
     echo ""
     echo "  Station: $s"
     echo "  Review the overlay spectrogram. Which method better tracks"
@@ -682,14 +618,13 @@ extract_with_overlay() {
                 break
                 ;;
             *)
-                echo "  (Enter 'fft' or 'autocorr')"
+                echo "  (Enter fft or autocorr)"
                 ;;
         esac
     done
 
     echo "  Chosen method for $s: $chosen_method"
 
-    # Copy chosen CSV/PNG as the canonical output
     if [[ -f "${s}_${chosen_method}.csv" ]]; then
         cp "${s}_${chosen_method}.csv" "${s}.csv"
         if [[ -f "${s}_${chosen_method}.png" ]]; then
@@ -697,8 +632,7 @@ extract_with_overlay() {
         fi
     fi
 
-    # Record in station_methods.txt
-    echo -e "${s}	${chosen_method}" >> station_methods.txt
+    echo -e "${s}\t${chosen_method}" >> station_methods.txt
     echo "  Recorded: $s -> $chosen_method"
 }
 
@@ -998,12 +932,11 @@ if [[ $LAST_STAGE -lt 3 ]]; then
     hint "Extracting Doppler CSV for the chosen window (~10-30 seconds)."
     REF_CSV="${MY_CALL//\//_}.csv"
     REF_PNG="${MY_CALL//\//_}_quicklook.png"
-    REF_NAME_S3="${MY_STATION#./}"
-    REF_NAME_S3="${REF_NAME_S3%/}"
-    rm -f station_methods.txt
-    extract_with_overlay "$REF_NAME_S3" "$MY_STATION" "0"
-    [[ -f "${REF_NAME_S3}.csv" ]] && cp "${REF_NAME_S3}.csv" "$REF_CSV"
-    [[ -f "${REF_NAME_S3}.png" ]] && cp "${REF_NAME_S3}.png" "$REF_PNG"
+    python3 "$TOOLS_DIR/drf_to_doppler.py" "$MY_STATION" \
+        --start "$WINDOW_START" --end "$WINDOW_END" \
+        --decim-seconds "$DECIM_SECONDS" \
+        --subchannel 0 \
+        --output "$REF_CSV" --plot "$REF_PNG"
     echo "Wrote $REF_PNG (sanity check)"
     open_image "$REF_PNG"
     echo
@@ -1152,19 +1085,17 @@ for k, v in sub_for.items():
     print(f"{k}\t{v}")
 EOF
 
-    # Reference station extraction (already done in stage 3 — just copy)
+    # Reference station and companions — extract with both methods,
+    # show overlay spectrogram, let operator choose FFT or autocorr.
     REF_NAME="${MY_STATION#./}"
     REF_NAME="${REF_NAME%/}"
     REF_CSV_FINAL="${REF_NAME}.csv"
     REF_PNG_FINAL="${REF_NAME}.png"
-    if [[ ! -f "$REF_CSV_FINAL" ]]; then
-        python3 "$TOOLS_DIR/drf_to_doppler.py" "$MY_STATION" \
-            --start "$WINDOW_START" --end "$WINDOW_END" \
-            --decim-seconds "$DECIM_SECONDS" --subchannel 0 \
-            --output "$REF_CSV_FINAL" --plot "$REF_PNG_FINAL"
-    fi
-
-    # Each companion — extract with both methods, let operator choose
+    rm -f station_methods.txt
+    extract_with_overlay "$REF_NAME" "$MY_STATION" "0"
+    [[ -f "${REF_NAME}.csv" ]] && cp "${REF_NAME}.csv" "$REF_CSV_FINAL"
+    [[ -f "${REF_NAME}.png" ]] && cp "${REF_NAME}.png" "$REF_PNG_FINAL"
+    # Each companion
     IFS=',' read -ra COMPANION_LIST <<< "$COMPANIONS"
     for s in "${COMPANION_LIST[@]}"; do
         SUB=$(awk -F'\t' -v s="$s" '$1 == s {print $2; exit}' station_subchannels.txt)
@@ -1335,25 +1266,9 @@ companions   = [s.strip() for s in sys.argv[8].split(',') if s.strip()]
 def sanitize(name):
     return re.sub(r'[^A-Za-z0-9_]+', '_', name)
 
-# Load per-station method choices from station_methods.txt
-import os as _os
-station_methods = {}
-methods_file = "station_methods.txt"
-if _os.path.exists(methods_file):
-    for line in open(methods_file):
-        parts = line.strip().split("\t")
-        if len(parts) == 2:
-            station_methods[parts[0]] = parts[1]
-
-ref_name_key = sanitize(my_call)
-# Try to find the ref station in methods file by matching the ref csv basename
-ref_station_dir = ref_csv.replace(".csv", "")
-ref_method = station_methods.get(ref_station_dir, "fft")
-
 stations = [{
-    "name": ref_name_key,
+    "name": sanitize(my_call),
     "file": ref_csv,
-    "method": ref_method,
     "lat":  round(ref_lat, 4),
     "lon":  round(ref_lon, 4),
 }]
@@ -1393,11 +1308,9 @@ for s in companions:
     if lat is None or lon is None:
         missing.append(s)
         continue
-    comp_method = station_methods.get(s, "fft")
     stations.append({
         "name": sanitize(s),
         "file": f"{s}.csv",
-        "method": comp_method,
         "lat": round(lat, 4),
         "lon": round(lon, 4),
     })
