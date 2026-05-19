@@ -1,4 +1,11 @@
 # Changelog
+## v1.6.7 — 2026-05-19
+### Fix: cp same-file error in analyze_event.sh Stage 8
+- **Bug fix**: when the reference station name matched the output
+  CSV filename (common case), cp failed with "same file" error
+  which killed the script under set -e. Added filename equality
+  check before cp in extract_with_overlay().
+
 ## v1.6.6 — 2026-05-19
 ### Fix: wire extract_with_overlay into Stage 8 (analyze_event.sh)
 - **Bug fix**: Stage 8 was still using direct drf_to_doppler.py
