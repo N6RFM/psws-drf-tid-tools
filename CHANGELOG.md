@@ -1,4 +1,61 @@
 # Changelog
+## v1.6.3 — 2026-05-19
+### Per-station FFT vs autocorr method selection (analyze_event.sh)
+- **New feature**: at each Doppler extraction step (reference station
+  and each companion), the script now runs both FFT and autocorr
+  extractions, renders a `drf_spectrogram.py --overlay` showing both
+  traces with inter-method r and RMS diff metrics, and asks the
+  operator which method better tracks the carrier.
+- **New feature**: choices recorded in `station_methods.txt` and
+  written into the `"method"` field of each station's `event.json`
+  entry, so the run log is fully self-documenting.
+- **Decision guide** shown at each station:
+  r > 0.95 and RMS < 0.10 Hz → both equivalent, use fft;
+  autocorr visually better → autocorr (only if lag < 0.3 * period);
+  otherwise → fft (safer for ambiguous lag/period ratios).
+- Default is `fft` (press Enter to accept). Backward compatible.
+  No change to any computation.
+
+## v1.6.2 — 2026-05-19
+### Per-station extraction method provenance (tid_doa.py)
+- **New feature**: optional `"method"` field in each station entry
+  of the JSON config records which Doppler extraction method was used
+  (`"fft"` or `"autocorr"`). Default `"fft"` — omitting the field is
+  fully backward compatible.
+- **New feature**: method is printed in the run log station list, so
+  mixed FFT/autocorr analyses are self-documenting.
+- **No change to any computation.** Purely provenance. Result on the
+  19 Jan 2026 MSTID verified identical with and without the field.
+- Supports the mixed-method workflow enabled by v1.6.0: use
+  `drf_spectrogram.py --overlay` to choose the best extraction method
+  per station, record the choice in the config, run `tid_doa.py`.
+
+## v1.6.0 — 2026-05-18
+### Doppler overlay for spectrogram visual inspection (drf_spectrogram.py)
+- **New feature**: `--overlay CSV:label[:color]` superimposes one or
+  more Doppler CSV traces (output of `drf_to_doppler.py`) on the
+  spectrogram panel. Supports multiple overlays for FFT vs autocorr
+  side-by-side comparison. Color auto-cycles (blue, orange, green,
+  red) or can be specified explicitly as a hex value.
+- **New feature**: each overlay trace shows four fit metrics in the
+  legend: `r` (Pearson correlation between FFT and autocorr traces),
+  `RMS diff` (physical magnitude of inter-method disagreement in Hz),
+  `SNR` (median signal-to-noise from the CSV), and `std`
+  (block-to-block smoothness of the extracted Doppler).
+- **New documentation**: `INTERPRETING OVERLAY METRICS` and
+  `DECISION WORKFLOW` sections added to the `drf_spectrogram.py`
+  docstring, explaining how to use r, RMS diff, and std to choose
+  between FFT and autocorr extraction and when each method is
+  preferred based on the lag/period ratio.
+- **New documentation**: `docs/METHODOLOGY.md` Step 1b added —
+  visual inspection with `--overlay` before cross-correlation,
+  including the full decision workflow and link to the research
+  report for the underlying synthetic and real-data evidence.
+- **Implementation note**: non-breaking. All existing behaviour
+  unchanged. `--overlay` is optional; omitting it produces output
+  identical to v1.1.1. Requires `pandas` (already in
+  requirements.txt).
+
 
 ## v1.5.0 — 2026-05-17
 

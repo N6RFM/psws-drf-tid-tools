@@ -81,10 +81,10 @@ The event is described by a JSON config file. Example:
       "use_bandpass": false,
       "min_expected_speed_m_s": 100,
       "stations": [
-        {"name": "N6RFM",   "file": "n6rfm.csv",   "lat": 32.94, "lon":  -97.21},
-        {"name": "AA6BD",   "file": "aa6bd.csv",   "lat": 35.06, "lon":  -85.13},
-        {"name": "W7LUX",   "file": "w7lux.csv",   "lat": 35.10, "lon": -111.71},
-        {"name": "AC0G_ND", "file": "ac0g_nd.csv", "lat": 46.88, "lon":  -96.83}
+        {"name": "N6RFM",   "file": "n6rfm.csv",      "method": "fft",      "lat": 32.94, "lon":  -97.21},
+        {"name": "AA6BD",   "file": "aa6bd.csv",      "method": "fft",      "lat": 35.06, "lon":  -85.13},
+        {"name": "W7LUX",   "file": "w7lux.csv",      "method": "fft",      "lat": 35.10, "lon": -111.71},
+        {"name": "AC0G_ND", "file": "ac0g_nd_autocorr.csv", "method": "autocorr", "lat": 46.88, "lon":  -96.83}
       ]
     }
 
@@ -151,7 +151,9 @@ OUTPUT INTERPRETATION
 =====================
 The output prints:
 
-  - Loaded station information and their WWV-path midpoints
+  - Loaded station information and their WWV-path midpoints (including
+    the optional "method" field recording which Doppler extractor was
+    used per station: "fft" or "autocorr"; default "fft")
   - Pairwise lag table: each row gives the cross-correlation lag and
     correlation peak for one (station_i, station_j) pair. Positive lag
     means station_j lags station_i (wave reached i first).
@@ -300,6 +302,7 @@ class StationData:
     midpoint: tuple
     times: np.ndarray   # seconds since epoch
     doppler: np.ndarray
+    method: str = "fft"   # extraction method: "fft" or "autocorr"
 
 
 def load_station(cfg, t_start, t_end, target_dt_s, smooth_seconds=None):
@@ -341,7 +344,8 @@ def load_station(cfg, t_start, t_end, target_dt_s, smooth_seconds=None):
         lat, lon = grid_to_latlon(cfg["grid"])
 
     mid = great_circle_midpoint(WWV_LAT, WWV_LON, lat, lon)
-    return StationData(cfg["name"], lat, lon, mid, times, doppler)
+    method = cfg.get("method", "fft")
+    return StationData(cfg["name"], lat, lon, mid, times, doppler, method)
 
 
 # ---------------------------------------------------------------------------
@@ -630,8 +634,10 @@ def _write_run_log(config, result, diag_text):
                      f"{config.get('smooth_seconds')}s")
     lines.append(f"Stations ({len(stations)}):")
     for s in stations:
+        method_str = s.get("method", "fft")
         lines.append(f"  {s.get('name','?'):<14} "
                      f"file={s.get('file','?')}  "
+                     f"method={method_str}  "
                      f"lat={s.get('lat','?')} lon={s.get('lon','?')}")
     lines.append("")
     lines.append("--- RESULT ---")
