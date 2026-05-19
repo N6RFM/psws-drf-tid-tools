@@ -3,7 +3,7 @@
 #
 # Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 # Created by N6RFM with help from Claude AI.
-# Version: 1.5.0
+# Version: 1.6.3
 # License: MIT (do whatever you want, no warranty).
 #
 # OVERVIEW
@@ -108,7 +108,7 @@ while [[ $# -gt 0 ]]; do
         --reset)           RESET=1; shift ;;
         --resume)          RESUME=1; shift ;;
         -h|--help)         usage ;;
-        --version)         echo "analyze_event.sh 1.5.0"; exit 0 ;;
+        --version)         echo "analyze_event.sh 1.6.3"; exit 0 ;;
         *)
             echo "Unknown argument: $1"
             echo "Try --help"
@@ -562,6 +562,93 @@ reextract_one_station() {
         --output "${s}.csv" --plot "${s}.png"
 }
 
+# extract_with_overlay — extract Doppler with BOTH methods, show overlay
+# spectrogram, ask operator which method better tracks the carrier,
+# record choice in station_methods.txt.
+#
+# Args:
+#   $1 = station name (used for CSV/PNG filenames and methods file)
+#   $2 = data directory (path to DRF)
+#   $3 = subchannel index
+#
+# Outputs:
+#   ${station}.csv       — Doppler CSV using the chosen method
+#   ${station}.png       — Doppler plot using the chosen method
+#   ${station}_fft.csv   — FFT extraction (always produced)
+#   ${station}_autocorr.csv — autocorr extraction (always produced)
+#   station_methods.txt  — appended with "station<TAB>method"
+extract_with_overlay() {
+    local s="$1"
+    local data_dir="$2"
+    local subch="$3"
+    local overlay_png="${s}_overlay_comparison.png"
+
+    echo ""
+    echo "  Extracting FFT and autocorr Doppler for $s..."
+
+    # FFT extraction
+    python3 "$TOOLS_DIR/drf_to_doppler.py" "$data_dir"         --start "$WINDOW_START" --end "$WINDOW_END"         --decim-seconds "$DECIM_SECONDS" --subchannel "$subch"         --method fft         --output "${s}_fft.csv" --plot "${s}_fft.png"         2>/dev/null || true
+
+    # Autocorr extraction
+    python3 "$TOOLS_DIR/drf_to_doppler.py" "$data_dir"         --start "$WINDOW_START" --end "$WINDOW_END"         --decim-seconds "$DECIM_SECONDS" --subchannel "$subch"         --method autocorr         --output "${s}_autocorr.csv"         2>/dev/null || true
+
+    # Overlay spectrogram — shows both traces with inter-method metrics
+    ANN_S=$(echo "$WINDOW_START" | grep -oE 'T[0-9]{2}:[0-9]{2}' | tr -d T)
+    ANN_E=$(echo "$WINDOW_END"   | grep -oE 'T[0-9]{2}:[0-9]{2}' | tr -d T)
+    if [[ -f "${s}_fft.csv" && -f "${s}_autocorr.csv" ]]; then
+        echo "  Rendering overlay spectrogram for $s..."
+        python3 "$TOOLS_DIR/drf_spectrogram.py" "$data_dir"             --output "$overlay_png"             --subchannel "$subch"             --ylim=-2,2             --start "$(echo "$WINDOW_START" | grep -oE 'T[0-9]{2}:[0-9]{2}' | tr -d T)"             --end   "$(echo "$WINDOW_END"   | grep -oE 'T[0-9]{2}:[0-9]{2}' | tr -d T)"             --annotate "${ANN_S},${ANN_E},Analysis window"             --overlay "${s}_fft.csv:FFT"             --overlay "${s}_autocorr.csv:Autocorr:#FF9800"             2>/dev/null || true
+        if [[ -f "$overlay_png" ]]; then
+            open_image "$overlay_png"
+        fi
+    fi
+
+    # Ask operator to choose method
+    echo ""
+    echo "  Station: $s"
+    echo "  Review the overlay spectrogram. Which method better tracks"
+    echo "  the carrier (check Inter-method r and RMS diff in legend)?"
+    echo ""
+    echo "  Decision guide:"
+    echo "    r > 0.95, RMS < 0.10 Hz  -> both equivalent, use fft"
+    echo "    autocorr visually tracks carrier better -> autocorr"
+    echo "      BUT only if expected lag < 0.3 * wave period"
+    echo "    otherwise -> fft (safer for ambiguous lag/period ratios)"
+    echo ""
+
+    local chosen_method="fft"
+    while true; do
+        read -p "  Method for $s [fft/autocorr, default=fft]: " METHOD_CHOICE
+        case "${METHOD_CHOICE,,}" in
+            ""|fft)
+                chosen_method="fft"
+                break
+                ;;
+            autocorr|ac|autocorrelation)
+                chosen_method="autocorr"
+                break
+                ;;
+            *)
+                echo "  (Enter 'fft' or 'autocorr')"
+                ;;
+        esac
+    done
+
+    echo "  Chosen method for $s: $chosen_method"
+
+    # Copy chosen CSV/PNG as the canonical output
+    if [[ -f "${s}_${chosen_method}.csv" ]]; then
+        cp "${s}_${chosen_method}.csv" "${s}.csv"
+        if [[ -f "${s}_${chosen_method}.png" ]]; then
+            cp "${s}_${chosen_method}.png" "${s}.png"
+        fi
+    fi
+
+    # Record in station_methods.txt
+    echo -e "${s}	${chosen_method}" >> station_methods.txt
+    echo "  Recorded: $s -> $chosen_method"
+}
+
 # Re-extract reference + all companion stations at the current
 # WINDOW_START / WINDOW_END. Used by the Pause 4 tightening loop.
 # Returns 0 on success, non-zero on any failure.
@@ -858,11 +945,12 @@ if [[ $LAST_STAGE -lt 3 ]]; then
     hint "Extracting Doppler CSV for the chosen window (~10-30 seconds)."
     REF_CSV="${MY_CALL//\//_}.csv"
     REF_PNG="${MY_CALL//\//_}_quicklook.png"
-    python3 "$TOOLS_DIR/drf_to_doppler.py" "$MY_STATION" \
-        --start "$WINDOW_START" --end "$WINDOW_END" \
-        --decim-seconds "$DECIM_SECONDS" \
-        --subchannel 0 \
-        --output "$REF_CSV" --plot "$REF_PNG"
+    REF_NAME_S3="${MY_STATION#./}"
+    REF_NAME_S3="${REF_NAME_S3%/}"
+    rm -f station_methods.txt
+    extract_with_overlay "$REF_NAME_S3" "$MY_STATION" "0"
+    [[ -f "${REF_NAME_S3}.csv" ]] && cp "${REF_NAME_S3}.csv" "$REF_CSV"
+    [[ -f "${REF_NAME_S3}.png" ]] && cp "${REF_NAME_S3}.png" "$REF_PNG"
     echo "Wrote $REF_PNG (sanity check)"
     open_image "$REF_PNG"
     echo
@@ -1023,16 +1111,13 @@ EOF
             --output "$REF_CSV_FINAL" --plot "$REF_PNG_FINAL"
     fi
 
-    # Each companion
+    # Each companion — extract with both methods, let operator choose
     IFS=',' read -ra COMPANION_LIST <<< "$COMPANIONS"
     for s in "${COMPANION_LIST[@]}"; do
         SUB=$(awk -F'\t' -v s="$s" '$1 == s {print $2; exit}' station_subchannels.txt)
         SUB="${SUB:-0}"
         echo "  $s: --subchannel $SUB"
-        python3 "$TOOLS_DIR/drf_to_doppler.py" "./$s" \
-            --start "$WINDOW_START" --end "$WINDOW_END" \
-            --decim-seconds "$DECIM_SECONDS" --subchannel "$SUB" \
-            --output "${s}.csv" --plot "${s}.png"
+        extract_with_overlay "$s" "./$s" "$SUB"
     done
     save_state 8
 fi
@@ -1197,9 +1282,25 @@ companions   = [s.strip() for s in sys.argv[8].split(',') if s.strip()]
 def sanitize(name):
     return re.sub(r'[^A-Za-z0-9_]+', '_', name)
 
+# Load per-station method choices from station_methods.txt
+import os as _os
+station_methods = {}
+methods_file = "station_methods.txt"
+if _os.path.exists(methods_file):
+    for line in open(methods_file):
+        parts = line.strip().split("\t")
+        if len(parts) == 2:
+            station_methods[parts[0]] = parts[1]
+
+ref_name_key = sanitize(my_call)
+# Try to find the ref station in methods file by matching the ref csv basename
+ref_station_dir = ref_csv.replace(".csv", "")
+ref_method = station_methods.get(ref_station_dir, "fft")
+
 stations = [{
-    "name": sanitize(my_call),
+    "name": ref_name_key,
     "file": ref_csv,
+    "method": ref_method,
     "lat":  round(ref_lat, 4),
     "lon":  round(ref_lon, 4),
 }]
@@ -1239,9 +1340,11 @@ for s in companions:
     if lat is None or lon is None:
         missing.append(s)
         continue
+    comp_method = station_methods.get(s, "fft")
     stations.append({
         "name": sanitize(s),
         "file": f"{s}.csv",
+        "method": comp_method,
         "lat": round(lat, 4),
         "lon": round(lon, 4),
     })
