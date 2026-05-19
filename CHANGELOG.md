@@ -1,4 +1,16 @@
 # Changelog
+## v1.6.4 — 2026-05-19
+### Interactive resume menu in analyze_event.sh
+- **New feature**: when a state file is found on re-run, instead of
+  silently resuming, the script shows the current state summary
+  (date, window, companions) and a numbered menu of all pipeline
+  stages to jump to.
+- Press Enter to continue from where you left off (default).
+- Enter 0 to start over (keeps event args, clears stage state).
+- Enter 1-12 to jump directly to any stage — useful when data files
+  are already downloaded and CSVs created but you want to re-run
+  DOA only, re-choose a window, or re-extract with a different method.
+
 ## v1.6.2 — 2026-05-19
 ### Per-station extraction method provenance (tid_doa.py)
 - **New feature**: optional `"method"` field in each station entry
