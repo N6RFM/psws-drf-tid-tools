@@ -1,4 +1,21 @@
 # Changelog
+## v1.6.3 — 2026-05-19
+### Per-station FFT vs autocorr method selection (analyze_event.sh)
+- **New feature**: at each Doppler extraction step (reference station
+  and each companion), the script now runs both FFT and autocorr
+  extractions, renders a `drf_spectrogram.py --overlay` showing both
+  traces with inter-method r and RMS diff metrics, and asks the
+  operator which method better tracks the carrier.
+- **New feature**: choices recorded in `station_methods.txt` and
+  written into the `"method"` field of each station's `event.json`
+  entry, so the run log is fully self-documenting.
+- **Decision guide** shown at each station:
+  r > 0.95 and RMS < 0.10 Hz → both equivalent, use fft;
+  autocorr visually better → autocorr (only if lag < 0.3 * period);
+  otherwise → fft (safer for ambiguous lag/period ratios).
+- Default is `fft` (press Enter to accept). Backward compatible.
+  No change to any computation.
+
 ## v1.6.2 — 2026-05-19
 ### Per-station extraction method provenance (tid_doa.py)
 - **New feature**: optional `"method"` field in each station entry
