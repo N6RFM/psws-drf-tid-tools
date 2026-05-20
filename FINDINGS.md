@@ -669,3 +669,34 @@ using temporal continuity to track the correct cross-correlation peak.
 
 This is a significant positive result. CWT warrants further
 investigation on additional events and better-conditioned arrays.
+
+**Synthetic Monte Carlo results (CWT vs FFT vs autocorr, SNR=40dB, 50 trials):**
+
+| Wave | eps | FFT% | Autocorr% | CWT% | Best |
+|------|-----|------|-----------|------|------|
+| MSTID | 0.0-0.5 | 100 | 100 | 100 | Equal |
+| MSTID | 0.7 | 100 | 100 | 62 | FFT/AC |
+| MSTID | 1.0 | 64 | 82 | 38 | AC |
+| LSTID | 0.0-0.3 | 100 | 98-100 | 18-100 | FFT |
+| LSTID | 0.5-0.7 | 100 | 56-68 | 6-8 | FFT |
+| LSTID | 1.0 | 8 | 34 | 0 | AC |
+
+CWT underperforms both FFT and autocorr in the synthetic experiment.
+The temporal continuity tracker is not effective in the synthetic model
+because the idealized two-phasor signal has a constant lag — small
+prediction errors from noise accumulate and cause wrong-peak selection.
+
+**Reconciliation with real-data results:** CWT gives smoother
+extraction and passes the Jan 2026 MSTID diagnostics because real
+Doppler is genuinely smooth and slowly varying, which suits temporal
+continuity tracking. The synthetic model is too idealized for CWT's
+strengths to show. The real-data results remain the primary evidence.
+
+**Overall CWT assessment:**
+- Real clean data: similar to FFT, slightly smoother
+- Real contaminated data: smoother than FFT and autocorr, passes diagnostics
+- Synthetic: worse than FFT and autocorr across all conditions
+- Conclusion: CWT is promising for real contaminated data but requires
+  validation on more events before production recommendation.
+  The synthetic experiment does not validate CWT — it validates FFT
+  (clean/LSTID) and autocorr (contaminated MSTID) as before.
