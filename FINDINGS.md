@@ -652,3 +652,20 @@ autocorr, or CWT — produces a self-consistent result on this array.
 CWT is a promising direction for contaminated station Doppler
 extraction but requires validation on a better-conditioned array
 before it can be recommended for production use.
+
+**Jan 2026 MSTID validation:**
+
+| Method | Speed | Direction | Triangle closure | Diagnostics |
+|--------|-------|-----------|-----------------|-------------|
+| FFT 3-station | 193 m/s | 190° | 0% ✓ | All pass ✓ |
+| Autocorr 3-station | 335 m/s | 196° | 88% ✗ | 2 fail ✗ |
+| CWT 3-station | 227 m/s | 191° | 12% ✓ | All pass ✓ |
+
+CWT passes all diagnostics on the Jan 2026 MSTID — the first method
+other than FFT to do so. Direction matches FFT closely (191° vs 190°).
+Speed is higher (227 vs 193 m/s) but within the MSTID range.
+CWT avoids the wrong-peak lock that broke autocorr (88% closure) by
+using temporal continuity to track the correct cross-correlation peak.
+
+This is a significant positive result. CWT warrants further
+investigation on additional events and better-conditioned arrays.
