@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import warnings
 import sys
-sys.path.insert(0, '/home/claude')
+sys.path.insert(0, '/home/bob/psws-tools-pr/research/synthetic')
 warnings.filterwarnings('ignore')
 
 from synthetic_tid_experiment import (make_station, extract_doppler_series, xcorr_lag)
@@ -39,13 +39,14 @@ def run_trial(cfg, snr_db, epsilon, seed):
     max_lag = cfg['duration_s'] * 0.40
     out = {'tid_type': args.tid, 'snr_db': snr_db, 'epsilon': epsilon,
            'gt_lag': cfg['gt_lag'], 'tid_period_s': cfg['tid_period_s']}
-    for method in ('fft', 'autocorr'):
+    for method in ('fft', 'autocorr', 'cwt'):
         d1, _ = extract_doppler_series(s1, fs, cfg['block_s'], method)
         d2, _ = extract_doppler_series(s2, fs, cfg['block_s'], method)
         lag, r = xcorr_lag(d1, d2, cfg['block_s'], max_lag_s=max_lag)
         out[f'{method}_lag']  = lag
         out[f'{method}_err']  = lag - cfg['gt_lag']
         out[f'{method}_r']    = r
+        out[f'{method}_lock'] = int(abs(lag - cfg['gt_lag']) < 0.1 * cfg['tid_period_s'])
     return out
 
 if __name__ == '__main__':
