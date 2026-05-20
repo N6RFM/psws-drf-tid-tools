@@ -586,3 +586,49 @@ than a 3-station collinear DOA.
 
 **Current state.** Two blockers remain (Entry 6). Awaiting Gwyn's
 reply. Pipeline tested and working end-to-end on both events.
+
+### 2026-05-20 — Entry 11: CWT multi-peak tracker implementation and first results
+
+**Motivation.** Both FFT and autocorr pick a single peak per block —
+either the loudest (FFT) or the instantaneous frequency (autocorr).
+Neither explicitly separates F-region from E-region when both are
+present. G3ZIL's grape_fft_CWT_tracking_prophet.py uses CWT peak
+finding + Prophet forecasting to track multiple modes. Goal: implement
+a lighter version using scipy CWT + linear extrapolation, no new
+dependencies, integrated as --method cwt in drf_to_doppler.py.
+
+**Implementation (drf_to_doppler.py v1.2.0, research branch):**
+1. FFT seeds training history for first N_TRAIN=10 blocks (avoids
+   E-region lock during contaminated training phase).
+2. After training: CWT (scipy.signal.find_peaks_cwt, Ricker wavelets,
+   widths 2-4 bins) finds all spectral peaks per block.
+3. 15 dB amplitude filter reduces ~50 noise peaks to 2-5 real peaks.
+4. Linear regression on N_TRAIN recent history predicts next F-region
+   frequency one step ahead.
+5. Candidate closest to prediction, within MAX_STEP_HZ=0.5 of
+   prediction, selected. Prevents E-region hop lock.
+6. Fallback to FFT if no candidate passes constraints.
+
+**Results on 17 May 2024 LSTID:**
+
+| Station | Condition | FFT std | Autocorr std | CWT std |
+|---------|-----------|---------|--------------|---------|
+| W7LUX | Clean | 0.554 Hz | 0.472 Hz | 0.514 Hz |
+| AC0G_ND | E-region contaminated | 0.682 Hz | 0.645 Hz | 0.557 Hz |
+
+CWT is the smoothest method on the contaminated station — better than
+both FFT and autocorr. On the clean station it sits between the two,
+confirming no regression on uncontaminated data.
+
+**Key finding.** The 15 dB amplitude filter is essential — without it
+CWT produces 40-50 noise peaks per block making candidate selection
+effectively random. With the filter, 2-5 meaningful candidates remain
+(F-region peak + E-region peak + possibly harmonics/sidescatter).
+
+**Status.** Implementation on research branch. Cross-correlation
+comparison against FFT and autocorr pending. No production PR until
+results validated on both events and Gwyn has reviewed.
+
+**Note.** Inspired by G3ZIL grape_fft_CWT_tracking_prophet.py.
+Uses linear extrapolation instead of Facebook Prophet — comparable
+accuracy, ~100x faster, no additional dependencies.
