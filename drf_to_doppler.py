@@ -556,7 +556,20 @@ def estimate_carrier_freq_bandpass(iq_block, fs_hz, search_band_hz=5.0,
         snr = float(20.0*np.log10(sub[idx]/(np.median(sub)+1e-12)))
         return float(freqs[mask][idx]), snr
 
-    # FFT helper — returns (freq, snr_db) using unfiltered signal
+    # Unfiltered spectrum for SNR (computed once, used throughout)
+    _w = np.hanning(n)
+    _spec_unfiltered = np.abs(np.fft.fftshift(np.fft.fft(x * _w)))
+    _freqs_all = np.fft.fftshift(np.fft.fftfreq(n, d=1.0/fs_hz))
+    _mask_all = np.abs(_freqs_all) <= search_band_hz
+    _sub_unfiltered = _spec_unfiltered[_mask_all]
+    _freqs_sb = _freqs_all[_mask_all]
+
+    def _snr_from_unfiltered(freq):
+        """SNR from unfiltered spectrum at given freq (peak/median)."""
+        return float(20.0 * np.log10(
+            _sub_unfiltered.max() / (np.median(_sub_unfiltered) + 1e-12)))
+
+    # FFT helper — freq from given signal, SNR always from unfiltered
     def fft_peak(sig):
         w = np.hanning(len(sig))
         spec_full = np.fft.fftshift(np.fft.fft(sig * w))
@@ -565,7 +578,7 @@ def estimate_carrier_freq_bandpass(iq_block, fs_hz, search_band_hz=5.0,
         spec = np.abs(spec_full[mask])
         freqs = freqs_full[mask]
         idx = int(np.argmax(spec))
-        snr = float(20.0*np.log10(spec[idx]/(np.median(spec)+1e-12)))
+        snr = _snr_from_unfiltered(freqs[idx])  # always unfiltered SNR
         # Quadratic interpolation
         if 0 < idx < len(spec)-1:
             a, b, c = spec[idx-1], spec[idx], spec[idx+1]
