@@ -8,6 +8,10 @@ Version: 1.1.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.3.0  Added --method bandpass: adaptive narrow bandpass pre-filter
+          centered on prior block's frequency, then FFT peak. Suppresses
+          E-region component before extraction rather than separating
+          peaks after. No new dependencies.
   v1.2.0  Added --method cwt: CWT multi-peak finder with linear
           extrapolation tracker. Separates F-region from E-region
           by temporal continuity. No new dependencies.
@@ -109,6 +113,30 @@ while E-region hops can appear/disappear abruptly. Inspired by
 Gwyn Griffiths' (G3ZIL) grape_fft_CWT_tracking_prophet.py but uses
 linear extrapolation instead of Facebook Prophet, giving comparable
 accuracy with no additional dependencies and ~100x faster execution.
+
+ALGORITHM — ADAPTIVE BANDPASS (--method bandpass)
+================================================
+Applies a narrow bandpass filter centered on the previous block's
+extracted frequency before running FFT peak detection. This suppresses
+the E-region component (which sits near a fixed frequency) before
+extraction, rather than trying to separate peaks afterwards.
+
+  1. Training phase (first N_TRAIN=5 blocks): FFT peak extraction to
+     build reliable frequency history. Short training because the
+     bandpass is less sensitive to initialization than CWT.
+  2. Tracking phase:
+     a. Predict center frequency from mean of last N_TRAIN extractions.
+        Clamp to search_band_hz to prevent runaway.
+     b. Apply FIR bandpass filter (scipy.signal.firwin, Hamming window,
+        numtaps=101) centered on prediction, width ±FILTER_HZ.
+     c. Run FFT peak detection on filtered signal.
+     d. If filtered peak is within FILTER_HZ of prediction, accept.
+        Otherwise fall back to unfiltered FFT.
+  3. Output: same CSV format as fft/autocorr.
+
+Filter bandwidth FILTER_HZ=0.6 Hz: wide enough to pass the TID Doppler
+excursion (typ. ±0.5 Hz over 2 hours) but narrow enough to suppress
+E-region when the two components are separated by ≥0.8 Hz.
 
 ALGORITHM — AUTOCORRELATION (--method autocorr)
 ================================================
@@ -481,6 +509,125 @@ def estimate_carrier_freq_cwt(iq_block, fs_hz, search_band_hz=5.0,
     return float(best_freq), float(snr_db)
 
 
+def estimate_carrier_freq_bandpass(iq_block, fs_hz, search_band_hz=5.0,
+                                   _state=None):
+    """Adaptive narrow bandpass pre-filter + FFT peak detection.
+
+    Suppresses E-region component by filtering around the predicted
+    F-region carrier frequency before FFT peak extraction.
+
+    Parameters
+    ----------
+    iq_block : array-like of complex
+    fs_hz : float
+    search_band_hz : float
+    _state : dict or None
+        Mutable state dict. Must be same dict on every call.
+        Keys: 'history' (list of freqs), 'block_idx' (int)
+
+    Returns
+    -------
+    doppler_hz : float
+    snr_db : float
+    """
+    from scipy import signal as _sig
+
+    N_TRAIN   = 5      # short training — bandpass less sensitive to init
+    FILTER_HZ = 0.6    # half-bandwidth of bandpass filter (Hz)
+
+    if _state is None:
+        _state = {'history': [], 'block_idx': 0}
+
+    x = np.asarray(iq_block, dtype=complex)
+    n = len(x)
+
+    # Adaptive filter length: must be odd, at most n//3, minimum 11
+    NUMTAPS = min(101, (n // 3) | 1)   # odd via bitwise OR 1
+    NUMTAPS = max(NUMTAPS, 11)
+    if n < NUMTAPS + 4:
+        # Block too short for any useful filter — fall back to plain FFT
+        _state['block_idx'] += 1
+        w = np.hanning(n)
+        spec = np.abs(np.fft.fftshift(np.fft.fft(x * w)))
+        freqs = np.fft.fftshift(np.fft.fftfreq(n, d=1.0/fs_hz))
+        mask = np.abs(freqs) <= search_band_hz
+        sub = spec[mask]
+        idx = int(np.argmax(sub))
+        snr = float(20.0*np.log10(sub[idx]/(np.median(sub)+1e-12)))
+        return float(freqs[mask][idx]), snr
+
+    # FFT helper — returns (freq, snr_db) using unfiltered signal
+    def fft_peak(sig):
+        w = np.hanning(len(sig))
+        spec_full = np.fft.fftshift(np.fft.fft(sig * w))
+        freqs_full = np.fft.fftshift(np.fft.fftfreq(len(sig), d=1.0/fs_hz))
+        mask = np.abs(freqs_full) <= search_band_hz
+        spec = np.abs(spec_full[mask])
+        freqs = freqs_full[mask]
+        idx = int(np.argmax(spec))
+        snr = float(20.0*np.log10(spec[idx]/(np.median(spec)+1e-12)))
+        # Quadratic interpolation
+        if 0 < idx < len(spec)-1:
+            a, b, c = spec[idx-1], spec[idx], spec[idx+1]
+            d = a - 2*b + c
+            if d != 0:
+                return float(freqs[idx]+0.5*(a-c)/d*(freqs[1]-freqs[0])), snr
+        return float(freqs[idx]), snr
+
+    j = _state['block_idx']
+    hist = _state['history']
+
+    if j < N_TRAIN:
+        # Training phase: plain FFT
+        freq, snr = fft_peak(x)
+        hist.append(freq)
+        _state['block_idx'] += 1
+        return freq, snr
+
+    # Prediction: mean of recent history, clamped to search band
+    predicted = float(np.clip(np.mean(hist[-N_TRAIN:]),
+                               -search_band_hz, search_band_hz))
+
+    # Design bandpass filter centered on prediction
+    lo = max(predicted - FILTER_HZ,  -fs_hz/2 + 0.01)
+    hi = min(predicted + FILTER_HZ,   fs_hz/2 - 0.01)
+
+    # Normalize to Nyquist (0-1 scale for firwin)
+    nyq = fs_hz / 2.0
+    lo_n = max(lo / nyq + 0.5, 0.01)   # shift: baseband is at 0.5 for complex
+    hi_n = min(hi / nyq + 0.5, 0.99)
+
+    try:
+        # For complex baseband: use lowpass equivalent in frequency-shifted domain
+        # Shift signal to center on prediction, lowpass filter, shift back
+        t = np.arange(n) / fs_hz
+        x_shifted = x * np.exp(-2j * np.pi * predicted * t)
+        h = _sig.firwin(NUMTAPS, FILTER_HZ / nyq,
+                        window='hamming', pass_zero=True)
+        x_filt_shifted = _sig.filtfilt(h, 1.0, x_shifted)
+        x_filtered = x_filt_shifted * np.exp(2j * np.pi * predicted * t)
+
+        freq_filt, snr_filt = fft_peak(x_filtered)
+
+        # Accept filtered result if within FILTER_HZ of prediction
+        if abs(freq_filt - predicted) <= FILTER_HZ * 1.5:
+            chosen_freq = freq_filt
+            chosen_snr = snr_filt
+        else:
+            # Filtered result wandered — fall back to unfiltered FFT
+            chosen_freq, chosen_snr = fft_peak(x)
+
+    except Exception:
+        chosen_freq, chosen_snr = fft_peak(x)
+
+    hist.append(chosen_freq)
+    if len(hist) > N_TRAIN * 3:
+        hist.pop(0)
+    _state['block_idx'] += 1
+
+    return float(chosen_freq), float(chosen_snr)
+
+
 def estimate_carrier_freq_autocorr(iq_block, fs_hz, search_band_hz=5.0):
     """Complex autocorrelation (lag-1) instantaneous-frequency estimator.
 
@@ -609,7 +756,7 @@ def main():
                          "search window around 0 Hz, in Hz. The WWV carrier "
                          "should be within this range after baseband mixing. "
                          "Ignored for --method autocorr. Default: 5.0")
-    ap.add_argument("--method", choices=["fft", "autocorr", "cwt"], default="fft",
+    ap.add_argument("--method", choices=["fft", "autocorr", "cwt", "bandpass"], default="fft",
                     help="Doppler extraction method. 'fft': FFT peak-tracking "
                          "with quadratic interpolation (default, v1.0 "
                          "behaviour). 'autocorr': complex lag-1 "
@@ -631,7 +778,7 @@ def main():
                          "(Doppler trace + SNR). Recommended for sanity-"
                          "checking before downstream analysis.")
     ap.add_argument("--version", action="version",
-                    version="%(prog)s 1.2.0")
+                    version="%(prog)s 1.3.0")
     args = ap.parse_args()
 
     t_start = parse_iso(args.start)
@@ -688,12 +835,19 @@ def main():
     if args.method == "autocorr":
         _estimate = estimate_carrier_freq_autocorr
         _cwt_state = None
+        _bp_state = None
     elif args.method == "cwt":
         _estimate = None   # handled in loop
         _cwt_state = {'history': [], 'block_idx': 0}
+        _bp_state = None
+    elif args.method == "bandpass":
+        _estimate = None   # handled in loop
+        _cwt_state = None
+        _bp_state = {'history': [], 'block_idx': 0}
     else:
         _estimate = estimate_carrier_freq
         _cwt_state = None
+        _bp_state = None
 
     times = []
     dopplers = []
@@ -722,6 +876,9 @@ def main():
         if _cwt_state is not None:
             f_hz, snr = estimate_carrier_freq_cwt(
                 iq, fs_hz, args.search_band_hz, _cwt_state)
+        elif _bp_state is not None:
+            f_hz, snr = estimate_carrier_freq_bandpass(
+                iq, fs_hz, args.search_band_hz, _bp_state)
         else:
             f_hz, snr = _estimate(iq, fs_hz, args.search_band_hz)
         ts = pd.Timestamp(seg_start * sr_den / sr_num, unit="s", tz="UTC")
