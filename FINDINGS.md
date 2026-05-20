@@ -700,3 +700,53 @@ strengths to show. The real-data results remain the primary evidence.
   validation on more events before production recommendation.
   The synthetic experiment does not validate CWT — it validates FFT
   (clean/LSTID) and autocorr (contaminated MSTID) as before.
+
+### 2026-05-20 — Entry 12: Adaptive bandpass pre-filter implementation
+
+**Motivation.** CWT (Entry 11) showed smoother extraction on real
+contaminated data but underperformed in synthetic. Option 3 from the
+robustness investigation: apply a narrow bandpass filter centered on
+the prior block's frequency before FFT extraction, suppressing the
+E-region component before peak detection rather than separating peaks
+after.
+
+**Implementation (drf_to_doppler.py v1.3.0, research branch):**
+- Training phase (N_TRAIN=5 blocks): plain FFT to seed history.
+- Tracking phase: shift signal to center on predicted frequency,
+  apply FIR lowpass (scipy.signal.firwin, Hamming, FILTER_HZ=0.6 Hz
+  half-bandwidth), shift back, then FFT peak.
+- NUMTAPS adaptive: min(101, n//3)|1 — fits any block size including
+  10s cadence at 10 sps (100 samples).
+- SNR from unfiltered spectrum (same metric as FFT method).
+- Fallback to FFT if filtered peak outside 1.5*FILTER_HZ of prediction.
+
+**Results — AC0G_ND (E-region contaminated, 60s cadence):**
+
+| Method | std (Hz) |
+|--------|----------|
+| FFT | 0.682 |
+| Autocorr | 0.645 |
+| CWT | 0.557 |
+| Bandpass | **0.414** |
+
+Bandpass is the smoothest of all four methods on the contaminated station.
+
+**Results — Jan 2026 MSTID (10s cadence, 3 stations):**
+
+| Method | Speed | Direction | Triangle closure | Diagnostics |
+|--------|-------|-----------|-----------------|-------------|
+| FFT | 193 m/s | 190° | 0% ✓ | All pass ✓ |
+| CWT | 227 m/s | 191° | 12% ✓ | All pass ✓ |
+| Bandpass | 242 m/s | 192° | 28% ✗ | 4/5 pass |
+| Autocorr | 335 m/s | 196° | 88% ✗ | 2 fail ✗ |
+
+Bandpass better than autocorr, worse than FFT and CWT. The
+N6RFM→AA6BD lag differs slightly from FFT (-1020s vs -1300s) causing
+28% triangle closure — the filter is tracking a slightly different
+peak on that pair.
+
+**Assessment.** Bandpass gives the smoothest Doppler on contaminated
+stations but doesn't improve DOA on the Jan 2026 MSTID. The filter
+bandwidth (±0.6 Hz) may need tuning per event — wider for large TID
+excursions, narrower for heavily contaminated signals. Promising
+direction, needs more testing.
