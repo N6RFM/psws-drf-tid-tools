@@ -632,3 +632,23 @@ results validated on both events and Gwyn has reviewed.
 **Note.** Inspired by G3ZIL grape_fft_CWT_tracking_prophet.py.
 Uses linear extrapolation instead of Facebook Prophet — comparable
 accuracy, ~100x faster, no additional dependencies.
+
+**DOA comparison (all methods, May 2024 LSTID, W7LUX+AC0G_ND+N4RVE):**
+
+| Config | Speed | Direction | Triangle closure |
+|--------|-------|-----------|-----------------|
+| All FFT | 596 m/s | 178° | 26% ✗ |
+| AC0G_ND+N4RVE autocorr | 606 m/s | 175° | 26% ✗ |
+| All autocorr | 543 m/s | 178° | 41% ✗ |
+| W7LUX FFT + CWT rest | 600 m/s | 180° | 52% ✗ |
+
+CWT gives smoother Doppler (lower std) but worse DOA triangle closure
+than FFT. The CWT tracker swaps the W7LUX→AC0G_ND and W7LUX→N4RVE
+lags relative to FFT, which increases triangle closure error.
+
+**Conclusion for this event:** station geometry (SVD=1.2, collinear
+array) is the dominant uncertainty. No extraction method — FFT,
+autocorr, or CWT — produces a self-consistent result on this array.
+CWT is a promising direction for contaminated station Doppler
+extraction but requires validation on a better-conditioned array
+before it can be recommended for production use.
