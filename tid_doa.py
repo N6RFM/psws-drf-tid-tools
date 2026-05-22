@@ -343,8 +343,25 @@ def cross_correlate_lag_candidates(x, y, fs_hz, max_lag_s, n_candidates=3):
     order = np.argsort(peak_corrs)[::-1]
     top = order[:n_candidates]
 
-    return [(float(sub_lags[peak_indices[i]]), float(sub_corr[peak_indices[i]]))
-            for i in top]
+    # Parabolic interpolation to refine each peak location sub-sample.
+    # Shifts the nominal peak lag toward the true maximum, reducing
+    # triangle closure errors caused by discretisation on sinusoidal xcorr.
+    def _parabolic_refine(idx, corr_arr, lag_arr):
+        if idx == 0 or idx == len(corr_arr) - 1:
+            return lag_arr[idx], corr_arr[idx]
+        y0, y1, y2 = corr_arr[idx-1], corr_arr[idx], corr_arr[idx+1]
+        denom = 2*(2*y1 - y0 - y2)
+        if abs(denom) < 1e-12:
+            return lag_arr[idx], corr_arr[idx]
+        delta = (y0 - y2) / denom  # fractional sample offset
+        dt = lag_arr[1] - lag_arr[0] if len(lag_arr) > 1 else 0.0
+        refined_lag  = lag_arr[idx] + delta * dt
+        refined_corr = y1 - 0.25*(y0 - y2)*delta
+        return float(refined_lag), float(refined_corr)
+
+    refined = [_parabolic_refine(peak_indices[i], sub_corr, sub_lags)
+               for i in top]
+    return refined
 
 
 # ---------------------------------------------------------------------------
@@ -500,18 +517,17 @@ def solve_doa(stations, fs_hz, period_band_s, max_lag_s, use_bandpass=False):
         # a worse peak when the closure benefit is small.
         is_all_top = all(combo[p] == 0 for p in range(n_pairs))
         if is_all_top:
-            # Always accept the all-top combination as baseline
-            if best_closure == float('inf'):
+            # All-top combination always sets (or improves) the baseline.
+            # No inf-guard: if a later all-top combo has better closure it wins.
+            if closure < best_closure:
                 best_closure = closure
                 best_taus = taus
                 best_corrs = corrs
         elif closure < best_closure * 0.5:
-            # Only accept non-top combination if it halves closure
+            # Non-top combination only wins if it halves closure.
             best_closure = closure
             best_taus = taus
             best_corrs = corrs
-
-    # Build pair_rows, pair_taus, pair_info from best combination
     for p, (i, j, dr) in enumerate(pair_geom):
         tau = best_taus[p]
         c   = best_corrs[p]
