@@ -750,3 +750,48 @@ stations but doesn't improve DOA on the Jan 2026 MSTID. The filter
 bandwidth (±0.6 Hz) may need tuning per event — wider for large TID
 excursions, narrower for heavily contaminated signals. Promising
 direction, needs more testing.
+
+### 2026-05-21 — Entry 13: Multi-peak xcorr selection in tid_doa.py
+
+**Motivation.** The wrong-peak lock problem on autocorr (88% triangle
+closure, 335 m/s on Jan 2026 MSTID) was not caused by the extraction
+method — it was caused by the cross-correlation peak selector in
+tid_doa.py taking the single global maximum (argmax), which happened
+to be a wrong-period alias on the N6RFM→AA6BD pair.
+
+**Root cause.** The N6RFM→AA6BD xcorr curve has multiple comparable
+peaks at -11.7 min (r=0.546) and -21.7 min (r=0.528). The 0.018
+correlation difference is noise — both are plausible. FFT extraction
+happened to produce a slightly smoother signal that pushed the true
+peak (-21.7 min) above the alias. Autocorr extraction produced a
+slightly different signal where the alias (-11.7 min) was marginally
+higher, causing wrong-peak lock.
+
+**Fix (tid_doa.py, research branch):**
+Added cross_correlate_lag_candidates() using scipy.signal.find_peaks
+to find all local maxima in the xcorr curve within max_lag_s.
+solve_doa() now tries all combinations of top-3 candidates per pair
+(27 combinations for 3 stations) and selects the combination that
+minimises triangle closure, accepting non-top candidates only if they
+reduce closure by more than 50%.
+
+**Results — Jan 2026 MSTID (3 stations, clean FFT CSVs):**
+
+| Method | Speed | Direction | Triangle closure | Diagnostics |
+|--------|-------|-----------|-----------------|-------------|
+| FFT | 193 m/s | 190° | 0% ✓ | All pass ✓ |
+| Autocorr | 218 m/s | 191° | ✓ | All pass ✓ |
+| CWT | 227 m/s | 191° | 12% ✓ | All pass ✓ |
+| Bandpass | 242 m/s | 192° | 28% ✗ | 4/5 pass |
+
+Autocorr now passes all diagnostics — wrong-peak lock resolved.
+All three methods (FFT, autocorr, CWT) agree on direction (~190-191°)
+and give physically plausible MSTID speeds (193-227 m/s).
+
+**Key insight.** The xcorr peak selector was the primary failure mode,
+not the extraction method. With multi-peak selection, method choice
+matters less for the DOA result — the triangle closure constraint
+disambiguates the correct peak across pairs.
+
+**Status.** Multi-peak selector on research branch. Pending validation
+on May 2024 LSTID and additional events before merging to main.
