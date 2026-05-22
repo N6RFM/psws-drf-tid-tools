@@ -551,16 +551,16 @@ class GuidedExtractApp(QtWidgets.QMainWindow):
     def _install_shortcuts(self):
         for i in range(min(9, self.n_stations)):
             key = str(i + 1)
-            QtWidgets.QShortcut(
+            sc = QtWidgets.QShortcut(
                 QtGui.QKeySequence(key), self,
                 lambda checked=False, idx=i: self._select_station(idx)
             )
-        QtWidgets.QShortcut(QtGui.QKeySequence("F"), self, self._fit_active)
-        QtWidgets.QShortcut(QtGui.QKeySequence("A"), self, self._fit_all)
-        QtWidgets.QShortcut(QtGui.QKeySequence("W"), self, self._write_guided)
-        QtWidgets.QShortcut(QtGui.QKeySequence("R"), self, self._reset_active)
-        QtWidgets.QShortcut(QtGui.QKeySequence("C"), self, self._clear_all)
-        QtWidgets.QShortcut(QtGui.QKeySequence("Q"), self, self.close)
+            sc.setContext(QtCore.Qt.ApplicationShortcut)
+        for key, cb in [("F", self._fit_active), ("A", self._fit_all),
+                        ("W", self._write_guided), ("R", self._reset_active),
+                        ("C", self._clear_all), ("Q", self.close)]:
+            sc = QtWidgets.QShortcut(QtGui.QKeySequence(key), self, cb)
+            sc.setContext(QtCore.Qt.ApplicationShortcut)
 
     def _select_station(self, idx):
         self.active_idx = idx
