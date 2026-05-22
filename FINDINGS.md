@@ -795,3 +795,70 @@ disambiguates the correct peak across pairs.
 
 **Status.** Multi-peak selector on research branch. Pending validation
 on May 2024 LSTID and additional events before merging to main.
+
+---
+
+## Entry 14 — May 2024 LSTID collinear array: multi-peak xcorr selector results
+**Date:** 2026-05-22
+**Event:** 2024-05-17 18:00–20:00 UTC, LSTID, collinear array W7LUX/AC0G_ND/N4RVE
+**Configs:** event_fft_3stn.json, event_autocorr_3stn.json, event_cwt_3stn.json
+**Code:** tid_doa.py commit a23f6e5 (multi-peak xcorr selector)
+
+### Previous results (pre-selector, argmax only)
+| Method | Triangle closure |
+|--------|-----------------|
+| FFT    | 26%             |
+| Autocorr | 26%           |
+| CWT (mixed) | 52%        |
+
+### New results (multi-peak selector active)
+| Method | Closure | RMS residual | Speed | From | Corr range | All-pass |
+|--------|---------|--------------|-------|------|------------|---------|
+| FFT clean | 0.0% | 0.0% | 603 m/s | 2.9° | 0.51–0.67 | Yes ✅ |
+| Autocorr clean | 0.0% | 0.0% | 163 m/s | 5.9° | 0.33–0.44 | No (weak pairs) |
+| CWT all | 2.6% | 0.9% | 286 m/s | 261.2° | 0.33–0.53 | No (weak pairs) |
+| CWT mixed (old baseline) | 0.0% | 0.0% | 200 m/s | 325.0° | — | No (weak pairs) |
+
+### Pairwise lags — FFT (trusted result)
+- W7LUX → AC0G_ND: -1140 s, r=0.576
+- W7LUX → N4RVE:   -1260 s, r=0.672
+- AC0G_ND → N4RVE:  -120 s, r=0.513
+
+### Assessment
+
+**Multi-peak selector fixed the collinear wrong-peak problem for FFT.** Triangle closure
+went from 26% to 0.0% with a clean, internally consistent plane-wave solution. The FFT
+result (603 m/s, from 2.9°, all diagnostics pass) is the trusted result for this event.
+
+**Autocorr shows a new failure mode: consistent wrong-peak lock.** The selector found a
+combination with 0% closure (W7LUX→AC0G_ND=-4380s, W7LUX→N4RVE=-4500s,
+AC0G_ND→N4RVE=-120s) that is internally self-consistent but ~3.8× the FFT lags.
+This is a subharmonic alias — a secondary xcorr peak at 3–4× the true lag that satisfies
+triangle closure because all three pairs are consistently wrong. The selector cannot
+distinguish a consistently-wrong solution from a correct one using closure alone.
+Weak correlations (0.33–0.44) are the only diagnostic flag; the result passes closure.
+
+**CWT results are discarded.** Four configs give three different azimuths (261°, 325°,
+and implicitly the two CWT runs disagree with FFT by >90°). Weak correlations and
+direction scatter indicate CWT is not tracking coherently on this event.
+
+**The collinear geometry conditioning (SVR=1.2) is good** — the array is not actually
+degenerate, the prior 26% failures were purely wrong-peak, now corrected for FFT.
+
+### Implications for the selector design
+The multi-peak selector optimises for triangle closure. This is effective when wrong-peak
+errors are *inconsistent* across pairs (the prior failure mode). It fails when all pairs
+independently land on the same harmonic alias, producing consistent but wrong lags.
+A possible fix: add a physics prior — prefer the candidate combination whose implied
+speed falls within a plausible TID range (100–1000 m/s). This would reject the
+autocorr -4380s solution (163 m/s borderline, but mainly: those lags imply the wave
+crossed 987 km in 4380s = 225 m/s... actually plausible). Harder: add a continuity
+prior across time windows — the lag should not jump discontinuously between windows.
+
+### Recommended next steps
+1. Accept FFT result as the May 2024 LSTID ground truth: 603 m/s, from 2.9°.
+2. Investigate autocorr subharmonic alias: plot the full xcorr function for
+   W7LUX→AC0G_ND and verify the -4380s peak vs the -1140s peak amplitudes.
+3. Consider adding a speed-plausibility filter to the multi-peak selector as a
+   secondary criterion when closure is tied or near-zero across multiple combos.
+4. Test bandpass pre-filter on this event (untested per Entry 12 table).
