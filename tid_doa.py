@@ -291,6 +291,62 @@ def cross_correlate_lag(x, y, fs_hz, max_lag_s):
     return float(sub_lags[idx]), float(sub_corr[idx])
 
 
+def cross_correlate_lag_candidates(x, y, fs_hz, max_lag_s, n_candidates=3):
+    """Return top N candidate (lag, correlation) pairs sorted by correlation.
+
+    Finds all local maxima in the cross-correlation curve within max_lag_s
+    and returns the top n_candidates by correlation value. This allows the
+    DOA solver to try multiple peak combinations and select the one with
+    the best triangle closure, rather than blindly taking the single global
+    maximum which may be a wrong-period alias.
+
+    Parameters
+    ----------
+    x, y : array-like
+        Doppler time series (will be z-normalised internally).
+    fs_hz : float
+        Sample rate in Hz.
+    max_lag_s : float
+        Maximum lag to consider (seconds).
+    n_candidates : int
+        Number of candidate peaks to return (default 3).
+
+    Returns
+    -------
+    candidates : list of (lag_s, correlation) tuples, sorted by correlation
+        descending. Always at least 1 entry (the global maximum).
+    """
+    from scipy.signal import find_peaks as _find_peaks
+
+    x = (x - np.mean(x)) / (np.std(x) + 1e-12)
+    y = (y - np.mean(y)) / (np.std(y) + 1e-12)
+    n = len(x)
+    corr = correlate(y, x, mode="full") / n
+    lags = (np.arange(2*n - 1) - (n - 1)) / fs_hz
+    mask = np.abs(lags) <= max_lag_s
+    if not mask.any():
+        return [(0.0, 0.0)]
+
+    sub_corr = corr[mask]
+    sub_lags  = lags[mask]
+
+    # Find all local maxima (positive peaks only)
+    peak_indices, props = _find_peaks(sub_corr, height=0.0)
+
+    if len(peak_indices) == 0:
+        # No positive local maximum — fall back to global max
+        idx = int(np.argmax(sub_corr))
+        return [(float(sub_lags[idx]), float(sub_corr[idx]))]
+
+    # Sort by correlation descending, take top n_candidates
+    peak_corrs = sub_corr[peak_indices]
+    order = np.argsort(peak_corrs)[::-1]
+    top = order[:n_candidates]
+
+    return [(float(sub_lags[peak_indices[i]]), float(sub_corr[peak_indices[i]]))
+            for i in top]
+
+
 # ---------------------------------------------------------------------------
 # Loading
 # ---------------------------------------------------------------------------
@@ -388,15 +444,80 @@ def solve_doa(stations, fs_hz, period_band_s, max_lag_s, use_bandpass=False):
     pair_rows = []
     pair_taus = []
     pair_info = []
+    # Collect candidate peaks per pair — use multi-peak aware function
+    # to avoid wrong-period alias lock. The best combination is selected
+    # below by minimising triangle closure.
+    N_CAND = 3   # candidates per pair to try
+    pair_candidates = []   # list of [(lag, corr), ...] per pair
+    pair_geom = []         # list of (i, j, dr) per pair
+
     for i in range(N):
         for j in range(i + 1, N):
-            tau, c = cross_correlate_lag(sigs[i], sigs[j], fs_hz, max_lag_s)
-            # Model: arrival time at station k is t_k = s . r_k.
-            # Lag of j relative to i is tau_ij = t_j - t_i = s . (r_j - r_i).
+            cands = cross_correlate_lag_candidates(
+                sigs[i], sigs[j], fs_hz, max_lag_s, n_candidates=N_CAND)
             dr = pos[j] - pos[i]
-            pair_rows.append(dr)
-            pair_taus.append(tau)
-            pair_info.append({
+            pair_candidates.append(cands)
+            pair_geom.append((i, j, dr))
+
+    # Select combination of peaks (one per pair) that minimises triangle
+    # closure across all station triples. For N pairs with N_CAND candidates
+    # each, total combinations = N_CAND^N_pairs. For 3 stations: 3^3 = 27.
+    import itertools as _it
+
+    n_pairs = len(pair_candidates)
+    best_taus = [c[0][0] for c in pair_candidates]   # default: top candidate
+    best_corrs = [c[0][1] for c in pair_candidates]
+    best_closure = float('inf')
+
+    for combo in _it.product(*[range(len(c)) for c in pair_candidates]):
+        taus = [pair_candidates[p][combo[p]][0] for p in range(n_pairs)]
+        corrs = [pair_candidates[p][combo[p]][1] for p in range(n_pairs)]
+
+        # Compute triangle closure for this combination
+        # For each triple (i,j,k): tau_ij + tau_jk should equal tau_ik
+        # Build a lookup: (i,j) -> tau
+        tau_map = {}
+        for p, (i, j, dr) in enumerate(pair_geom):
+            tau_map[(i, j)] = taus[p]
+            tau_map[(j, i)] = -taus[p]
+
+        closure_sum = 0.0
+        n_triples = 0
+        for i in range(N):
+            for j in range(i+1, N):
+                for k in range(j+1, N):
+                    # tau_ij + tau_jk - tau_ik should be 0
+                    t_ij = tau_map.get((i,j), 0.0)
+                    t_jk = tau_map.get((j,k), 0.0)
+                    t_ik = tau_map.get((i,k), 0.0)
+                    closure_sum += abs(t_ij + t_jk - t_ik)
+                    n_triples += 1
+
+        closure = closure_sum / max(n_triples, 1)
+        # Only accept this combination if ALL pairs use their top
+        # candidate OR if closure improvement is substantial (>50% reduction).
+        # This prevents marginal correlation differences from swapping to
+        # a worse peak when the closure benefit is small.
+        is_all_top = all(combo[p] == 0 for p in range(n_pairs))
+        if is_all_top:
+            # Always accept the all-top combination as baseline
+            if best_closure == float('inf'):
+                best_closure = closure
+                best_taus = taus
+                best_corrs = corrs
+        elif closure < best_closure * 0.5:
+            # Only accept non-top combination if it halves closure
+            best_closure = closure
+            best_taus = taus
+            best_corrs = corrs
+
+    # Build pair_rows, pair_taus, pair_info from best combination
+    for p, (i, j, dr) in enumerate(pair_geom):
+        tau = best_taus[p]
+        c   = best_corrs[p]
+        pair_rows.append(dr)
+        pair_taus.append(tau)
+        pair_info.append({
                 "i": stations[i].name,
                 "j": stations[j].name,
                 "lag_s": tau,
