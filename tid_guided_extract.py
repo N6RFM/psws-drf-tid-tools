@@ -274,6 +274,7 @@ class GuidedExtractApp(QtWidgets.QMainWindow):
         self.plots  = []   # PlotItem per station
         self.auto_curves  = []   # grey automated trace
         self.fit_curves   = []   # coloured fitted sinusoid
+        self.fit_dim_curves = []   # dim fit outside segment
         self.click_scatters = []  # red click dots
         self.seg_regions  = []   # LinearRegionItem per plot
 
@@ -304,6 +305,8 @@ class GuidedExtractApp(QtWidgets.QMainWindow):
             # Fitted sinusoid (hidden until fit is computed)
             fit_pen = pg.mkPen(color=colour, width=2)
             fit_curve = p.plot([], [], pen=fit_pen, name="fit")
+            dim_pen = pg.mkPen(color=colour, width=1, style=QtCore.Qt.DotLine)
+            fit_dim_curve = p.plot([], [], pen=dim_pen, name="fit_dim")
 
             # Click scatter
             scatter = pg.ScatterPlotItem(
@@ -332,6 +335,7 @@ class GuidedExtractApp(QtWidgets.QMainWindow):
             self.plots.append(p)
             self.auto_curves.append(auto)
             self.fit_curves.append(fit_curve)
+            self.fit_dim_curves.append(fit_dim_curve)
             self.click_scatters.append(scatter)
             self.seg_regions.append(region)
 
@@ -399,11 +403,20 @@ class GuidedExtractApp(QtWidgets.QMainWindow):
         stn = self.stations[idx]
         if stn.fit is None:
             self.fit_curves[idx].setData([], [])
+            if hasattr(self, "fit_dim_curves"):
+                self.fit_dim_curves[idx].setData([], [])
             return
         amp, omega, phase = stn.fit
         t_arr = stn.t_rel
         y_fit = evaluate_sinusoid(t_arr, amp, omega, phase)
-        self.fit_curves[idx].setData(t_arr, y_fit)
+        t0, t1 = self.seg_t0, self.seg_t1
+        if t0 is not None and t1 is not None and hasattr(self, "fit_dim_curves"):
+            # Bright inside segment, dim outside
+            seg_mask = (t_arr >= t0) & (t_arr <= t1)
+            self.fit_curves[idx].setData(t_arr[seg_mask], y_fit[seg_mask])
+            self.fit_dim_curves[idx].setData(t_arr[~seg_mask], y_fit[~seg_mask])
+        else:
+            self.fit_curves[idx].setData(t_arr, y_fit)
 
     # ------------------------------------------------------------------
     # Fit logic
@@ -455,9 +468,24 @@ class GuidedExtractApp(QtWidgets.QMainWindow):
             r = self._fit_station(idx, omega=omega_ref)
             results.append(r)
         n_ok = sum(1 for r in results if r is not None)
+        # Compute phase lags relative to station 0
+        lag_str = ""
+        ref_phase = results[0][2] if results[0] else None
+        ref_omega = results[0][1] if results[0] else None
+        if ref_phase is not None:
+            lags = []
+            for i, r in enumerate(results[1:], 1):
+                if r is not None:
+                    dphi = r[2] - ref_phase
+                    # Wrap to [-pi, pi]
+                    dphi = (dphi + np.pi) % (2*np.pi) - np.pi
+                    lag_s = dphi / ref_omega
+                    lags.append(f"{self.stations[i].name}:{lag_s:+.0f}s")
+            if lags:
+                lag_str = "  lags vs stn1: " + "  ".join(lags)
         self._set_status(
             f"Fit all: {n_ok}/{self.n_stations} succeeded  "
-            f"(shared T={period:.0f} s)"
+            f"T={period:.0f} s{lag_str}"
         )
         self._update_status()
 
