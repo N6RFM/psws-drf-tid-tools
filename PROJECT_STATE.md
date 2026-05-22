@@ -85,18 +85,19 @@ Gwyn's result (V1.2): 979 ±80 m/s @ 157°, period ~58 min.
 
 Our DOA results (W7LUX + AC0G_ND + N4RVE, midpoint geometry):
 
-| Method | Speed | Direction | Triangle closure |
-|--------|-------|-----------|-----------------|
-| All FFT | 596 m/s | 178° | 26% ✗ |
-| AC0G_ND+N4RVE autocorr | 606 m/s | 175° | 26% ✗ |
-| All autocorr | 543 m/s | 178° | 41% ✗ |
-| Gwyn V1.2 | 979 m/s | 157° | — |
+| Method | Speed | Direction | Closure (argmax) | Closure (multi-peak+interp) |
+|--------|-------|-----------|-----------------|----------------------------|
+| All FFT | 605 m/s | 4.0° | 26% ✗ | **3.6% ✓** |
+| All autocorr | 163 m/s | 5.9° | 41% ✗ | 1.1% ✓ (speed wrong⚠️) |
+| All CWT | 288 m/s | 261° | 52% ✗ | 1.7% ✓ (speed/dir wrong⚠️) |
+| Gwyn V1.2 | 979 m/s | 157° | — | — |
 
-**Key finding:** method choice (FFT vs autocorr) has little effect on
-the DOA result for this array. The limiting factor is station geometry —
-W7LUX, AC0G_ND, N4RVE are nearly collinear (SVD ratio 1.2). Speed
-discrepancy vs Gwyn is entirely explained by lag difference (our
-~19-21 min vs his 27-35 min) — see blocker 1.
+**Trusted result:** FFT with multi-peak selector + parabolic interpolation:
+605 m/s, from 4.0° (southward LSTID), all 5 diagnostics pass (Entries 13-15).
+**Key finding (updated):** closure failures were wrong-peak lock + discretisation,
+not station geometry. Multi-peak selector (Entry 13) + parabolic interpolation
+(Entry 15) reduced FFT closure from 26% to 3.6%. Speed discrepancy vs Gwyn
+(605 vs 979 m/s) remains open — see blocker 1.
 
 ### 4.3 Real data — 19 Jan 2026 MSTID
 Data: `~/Downloads/tid_event_20260119/`
