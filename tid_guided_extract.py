@@ -339,8 +339,9 @@ class GuidedExtractApp(QtWidgets.QMainWindow):
             self.click_scatters.append(scatter)
             self.seg_regions.append(region)
 
-        # Sync all regions to the first one's position
+        # Sync all regions and initialise seg_t0/seg_t1 from default position
         self._sync_regions()
+        self.seg_t0, self.seg_t1 = self.seg_regions[0].getRegion()
 
     # ------------------------------------------------------------------
     # Segment region sync
