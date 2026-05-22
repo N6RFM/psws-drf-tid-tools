@@ -5,7 +5,7 @@ session. Not a release artifact. Update it when state changes
 materially; treat it as the first thing to read when picking the
 project back up.
 
-**Last updated:** 2026-05-20 (evening)  |  **Status: PAUSED — awaiting G3ZIL reply**
+**Last updated:** 2026-05-21  |  **Status: ACTIVE RESEARCH — awaiting G3ZIL reply on 2 blockers**
 
 ---
 
