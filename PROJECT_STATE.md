@@ -165,12 +165,25 @@ the DOA result — geometry is the dominant uncertainty.
 
 ## 8. Next steps (when Gwyn replies)
 
-1. Resolve lag discrepancy — document or implement fix.
-2. Confirm N5BRG channel — re-run Entry 5 if different.
-3. Run diagnostics on autocorr extractions for May 2024 event.
-4. Write formal finding with full table and honest caveats.
-5. Consider whether additional stations with azimuthal spread
-   can be found for the May 2024 event to improve DOA geometry.
+**Completed this session (2026-05-22):**
+- ✅ Multi-peak xcorr selector tested on May 2024 LSTID collinear array
+- ✅ Parabolic lag interpolation implemented and validated
+- ✅ FFT closure reduced from 26% to 3.6% (all diagnostics pass)
+- ✅ Autocorr/CWT closure also improved but speeds/directions unreliable
+- ✅ Trusted result: 605 m/s, from 4.0° (southward LSTID)
+- ✅ Jan 2026 MSTID regression confirmed clean (0.6% closure)
+
+**Still blocked on Gwyn reply:**
+1. Resolve lag discrepancy (our 19-21 min vs his 27-35 min on AC0G_ND/W7LUX)
+   and speed discrepancy (605 vs 979 m/s) for May 2024 LSTID.
+2. Confirm N5BRG subchannel — re-run Entry 5 if different.
+3. Consider additional stations with azimuthal spread for May 2024 event.
+
+**Low-priority deferred:**
+4. Autocorr subharmonic alias fix (speed wrong on May 2024; FFT is reliable).
+5. Bandpass pre-filter test on May 2024 event (untested per Entry 12 table).
+6. Write formal finding with full table and honest caveats once lag
+   discrepancy with Gwyn is resolved.
 
 ---
 
