@@ -305,3 +305,28 @@ spline. Probably overkill given Options 1 and 2.
 Implement Option 2 first — it is the most useful and requires the least
 change to the existing tool structure. Add a --correction-mode flag to
 tid_spect_click.py with values: sinusoid (current default), spline, offset.
+
+---
+## 12. How to resume in a new session
+
+**Opening prompt:**
+"Continuing psws-drf-tid-tools research session. Read PROJECT_STATE.md
+and FINDINGS.md on the [branch] branch to get current state. We are
+on the [branch] branch."
+
+**Which branch:**
+- Algorithmic work (xcorr, DOA): research
+- GUI tools: research_gui
+- Production pipeline: main
+
+**Key past chat sessions (search claude.ai):**
+- May 2026-05-22: multi-peak selector + parabolic interpolation +
+  GUI tools (tid_guided_extract.py, tid_spect_click.py)
+  URL: https://claude.ai/chat/46433a60-59b2-4f5e-920e-7a7cd3af4cfb
+
+**First commands in a new session:**
+    cd ~/psws-tools-pr
+    git branch --show-current
+    git log --oneline -5
+    cat PROJECT_STATE.md
+    tail -50 FINDINGS.md
