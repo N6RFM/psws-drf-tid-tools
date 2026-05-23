@@ -1057,3 +1057,95 @@ The spectrogram-based tool (tid_spect_click.py) is preferred over
 the Doppler-trace tool (tid_guided_extract.py) — the carrier track
 is far easier to identify visually in the spectrogram than in the
 noisy extracted Doppler time series.
+
+---
+
+## Entry 17 — Click-guided corridor extraction: implementation and first results
+**Date:** 2026-05-23
+**Branch:** research_gui
+**Commits:** corridor extraction added to drf_to_doppler.py + tid_spect_click.py
+
+### Implementation
+Two components added:
+
+**tid_spect_click.py — X key exports corridor JSON**
+After clicking phase samples and pressing F to fit, pressing X writes
+a `*_corridor.json` file containing the clicked (t_utc_hours, doppler_hz)
+points and a half_bandwidth_hz value (default 0.5 Hz).
+
+**drf_to_doppler.py — --corridor flag**
+New `CorridorTrack` class loads the JSON and provides time-varying
+corridor centre by linear interpolation between clicked points.
+The FFT peak search is restricted to [centre - half_bw, centre + half_bw]
+at each block, rejecting contamination outside the corridor.
+Only supported with --method fft.
+
+### Validation on W7LUX May 2024 LSTID
+Corridor extraction correctly identified the true TID carrier:
+- Corridor SNR: 18-40 dB (weaker — true F-region carrier)
+- Automated SNR: 47-55 dB (stronger — spurious E-region/multipath peak)
+- Lower SNR = correct answer: automated extractor was locking onto
+  a stronger spurious feature, not the TID carrier
+
+Corridor correctly fixed multiple wrong-peak rows:
+| Time  | Automated | Corridor | Notes |
+|-------|-----------|----------|-------|
+| 18:22 | +0.050 Hz | +0.795 Hz | Auto jumped to wrong peak |
+| 18:54-55 | +0.119 Hz | -0.692 Hz | Auto wrong sign |
+| 19:01-03 | +0.132 Hz | -0.580 Hz | Auto wrong peak |
+| 19:48 | +0.043 Hz | -1.275 Hz | Auto completely wrong |
+
+### DOA result with corridor W7LUX
+| Method | Speed | From | Closure | All-pass |
+|--------|-------|------|---------|---------|
+| Automated FFT (all 3 stations) | 605 m/s | 4.0° | 3.6% | Yes ✅ |
+| Corridor W7LUX + auto AC0G/N4RVE | 338 m/s | 189.2° | 4.2% | No ⚠️ |
+
+The corridor DOA disagrees with automated — 180° direction flip and
+half the speed. Investigation showed this is NOT a code bug but a
+systematic lag shift:
+
+### Root cause: 180s lag shift in corridor extraction
+Xcorr analysis of corridor W7LUX vs AC0G_ND:
+- Corridor W7LUX peak lag: -1320s (r=0.654) — better correlation than auto
+- Automated W7LUX peak lag: -1140s (r=0.576)
+- Difference: 180s = 3 resample intervals
+
+The corridor extracts a slightly different phase of the TID carrier
+(the smooth underlying wave) vs the automated extractor (the noisy
+instantaneous peak). The 180s phase difference propagates to the DOA
+solver, shifting the xcorr peak and causing the multi-peak selector
+to find an inconsistent solution with the AC0G_ND→N4RVE pair.
+
+The all-top combo {-1320, -1320, -375} gives 375s closure — too large,
+so the selector picks an alias combo {2220, 2040, -120} with 60s closure
+which happens to give the 180°-flipped direction.
+
+### Key insight: corridor needs to be applied to ALL stations
+Applying corridor extraction to only one station while using automated
+CSVs for the others creates inconsistency. The corridor finds a slightly
+different carrier phase, breaking the triangle closure with the
+automated extractions. For the approach to work correctly:
+- All stations must use corridor extraction, OR
+- The corridor must be verified to track the same phase as the
+  automated extractor (difference < 1 resample interval = 60s)
+
+### Clicking difficulty on contaminated stations
+AC0G_ND and N4RVE spectrograms have significant E-region contamination
+making it difficult to identify and click the true TID carrier.
+The clicking guidelines need further refinement. Key issues:
+- Users tend to click on bright features which are often contamination
+- The true TID carrier can be much dimmer than competing features
+- Gaps in the carrier track make consistent clicking difficult
+
+### Next steps
+1. Implement consistency check: after corridor extraction, compare
+   the resulting CSV against the automated CSV. If the xcorr between
+   them shows a lag offset > 60s, warn the user that the corridor
+   may be tracking a different phase.
+2. Consider wider half_bandwidth (1.0 Hz) to reduce sensitivity to
+   exact corridor centre placement.
+3. Test with corridor on all 3 stations simultaneously when
+   clicking quality can be guaranteed.
+4. Add visual feedback in tid_spect_click.py showing the corridor
+   boundaries overlaid on the spectrogram after X is pressed.
