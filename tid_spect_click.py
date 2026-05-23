@@ -670,19 +670,32 @@ def main():
     args = _parse_args()
     print("tid_spect_click.py  v0.1.0")
 
+
+    import os as _os, json as _json
     transform = None
-    if args.tlim and args.ylim:
+    sidecar_path = args.sidecar
+    if sidecar_path is None:
+        auto = _os.path.splitext(args.spectrogram)[0] + "_axes.json"
+        if _os.path.exists(auto):
+            sidecar_path = auto
+            print(f"  Auto-detected sidecar: {auto}")
+
+    pil = Image.open(args.spectrogram)
+    w, h = pil.size
+    pf = tuple(float(x) for x in args.plot_fraction.split(",")) if args.plot_fraction else None
+
+    if sidecar_path:
+        with open(sidecar_path) as _f:
+            sc = _json.load(_f)
+        t0, t1 = sc["t_start_utc_hours"], sc["t_end_utc_hours"]
+        d0, d1 = sc["doppler_lo_hz"], sc["doppler_hi_hz"]
+        print(f"  Sidecar axes: t={t0}-{t1} h, doppler={d0}-{d1} Hz")
+        transform = AxisTransform.from_limits(w, h, (t0, t1), (d0, d1), plot_fraction=pf)
+    elif args.tlim and args.ylim:
         t0, t1 = (float(x) for x in args.tlim.split(","))
         d0, d1 = (float(x) for x in args.ylim.split(","))
         print(f"  Using known axes: t={t0}-{t1} h, doppler={d0}-{d1} Hz")
-        # Load image to get dimensions
-        pil = Image.open(args.spectrogram)
-        w, h = pil.size
-        pf = None
-        if args.plot_fraction:
-            pf = tuple(float(x) for x in args.plot_fraction.split(","))
-        transform = AxisTransform.from_limits(w, h, (t0, t1), (d0, d1),
-                                              plot_fraction=pf)
+        transform = AxisTransform.from_limits(w, h, (t0, t1), (d0, d1), plot_fraction=pf)
 
     app = QtWidgets.QApplication(sys.argv)
     app.setApplicationName("TID Spectrogram Click")
