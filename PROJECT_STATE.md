@@ -5,22 +5,26 @@ session. Not a release artifact. Update it when state changes
 materially; treat it as the first thing to read when picking the
 project back up.
 
-**Last updated:** 2026-05-21  |  **Status: ACTIVE RESEARCH — awaiting G3ZIL reply on 2 blockers**
+**Last updated:** 2026-05-22  |  **Status: ACTIVE RESEARCH — awaiting G3ZIL reply on blockers; research_gui branch active**
 
 ---
 
 ## 1. One-paragraph status
 
 Main is at **v1.6.7** with a complete, tested, end-to-end mixed
-FFT/autocorr workflow. The research branch (`research-doppler-extraction`)
-is paused pending Gwyn's reply on two questions. The investigation
-into FFT vs autocorr Doppler extraction is substantially complete —
-two real events analysed, 1,260 synthetic Monte Carlo trials run,
-two PDF reports written, and the full decision workflow integrated
-into `analyze_event.sh`. The research branch content (FINDINGS.md,
-research/ folder, PDF reports) was merged to main by Gwyn on
-2026-05-19 and is now visible to all users. **Do not start new
-analysis until Gwyn replies on the two blockers.**
+FFT/autocorr workflow. Two active research branches:
+
+**`research`** — xcorr algorithmic improvements complete (Entries 13-15):
+multi-peak selector + parabolic lag interpolation reduce May 2024 LSTID
+collinear array closure from 26% to 3.6% (FFT, all diagnostics pass).
+Trusted result: 605 m/s, from 4.0°. Paused pending Gwyn's reply on
+speed discrepancy (605 vs 979 m/s).
+
+**`research_gui`** — new interactive guided extraction tools (2026-05-22):
+`tid_guided_extract.py` (click on Doppler trace) and `tid_spect_click.py`
+(click on spectrogram PNG). `drf_spectrogram.py` now writes `_axes.json`
+sidecar. End-to-end test on May 2024 LSTID: guided result 600 m/s / 9.6°
+vs automated 605 m/s / 4.0° — agree within 6°, both all-pass.
 
 ---
 

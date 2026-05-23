@@ -984,3 +984,76 @@ gives 0s, which is < 34*0.5 = 17s, so it wins. Fixing this requires either:
 (a) a physics-based speed plausibility filter, or
 (b) increasing N_CAND and relying on interpolation to make all-top competitive.
 Deferred — FFT is reliable; autocorr is a secondary method for this event type.
+
+---
+
+## Entry 16 — Interactive guided extraction tools (research_gui branch)
+**Date:** 2026-05-22
+**Branch:** research_gui
+**Commits:** 208c057 → a86d06b (8 commits)
+
+### Tools developed
+Two new interactive QC tools for guided Doppler extraction:
+
+**tid_guided_extract.py** (v0.1.0)
+Displays automated Doppler CSV traces in a stacked pyqtgraph window.
+User clicks ground-truth phase samples on the TID wave per station;
+sinusoid fitted from clicks replaces automated values in the selected
+time window, writing `*_guided.csv`. Keys: 1-9 station, F fit, A fit-all
+(shared period), W write, R reset, C clear, Q quit.
+
+**tid_spect_click.py** (v0.1.0)
+Displays spectrogram PNG with automated Doppler CSV overlay. User clicks
+directly on the carrier track in the spectrogram image. More intuitive
+than clicking the noisy extracted trace — the TID oscillation is directly
+visible as the wavy carrier track. Same fit/write workflow as above.
+
+**drf_spectrogram.py enhancement**
+Now writes `<output_stem>_axes.json` sidecar alongside every PNG,
+containing t_start/end (UTC hours), doppler_lo/hi (Hz), and dpi.
+`tid_spect_click.py` auto-detects and loads the sidecar, eliminating
+manual --tlim/--ylim arguments and margin guessing.
+
+### Key design decisions
+- Plot fraction defaults calibrated from drf_spectrogram.py 600dpi output
+  by pixel-detecting cyan analysis-window lines (px 2646=18h, px 4810=20h)
+  and spectrogram panel bounds (rows 184-2690 of 4278).
+  Result: left=0.0582, right=0.8421, bottom=0.3712, top=0.9570.
+- Period hint (--period-hint SECONDS) required when clicks don't span
+  a full TID cycle — the span heuristic overestimates period otherwise
+  (T=7346s observed vs correct 3600s).
+- ApplicationShortcut context required for PyQt5 keyboard shortcuts to
+  fire when GraphicsLayoutWidget has focus.
+- Write guard added: W key does nothing until at least one click is made,
+  preventing spurious write on launch from shell keypress bleed-through.
+
+### End-to-end validation — May 2024 LSTID collinear array
+Generated spectrograms with sidecars for W7LUX, AC0G_ND, N4RVE.
+AC0G_ND subchannel 4 required (10 MHz channel); subchannel 0 gives
+2.5 MHz noise with no visible carrier.
+AC0G_ND spectrogram showed heavy E-region contamination — no coherent
+carrier visible to click on. Used automated FFT CSV for AC0G_ND.
+W7LUX and N4RVE guided successfully via spectrogram clicking.
+
+| Method | Speed | From | Closure | All-pass |
+|--------|-------|------|---------|---------|
+| Spectrogram-guided (W7LUX+N4RVE) | 600 m/s | 9.6° | 3.2% | Yes ✅ |
+| Automated FFT baseline | 605 m/s | 4.0° | 3.6% | Yes ✅ |
+
+Agreement within 5 m/s and 5.6°. Both all-pass.
+
+### Assessment
+The guided tool confirms the automated FFT result on this event —
+the carrier is clean enough on W7LUX and N4RVE that automated
+extraction is already reliable. The guided tool's primary value is:
+1. **Validation** — independent confirmation of automated result
+2. **Contaminated stations** — when automated extraction fails
+   (wrong peak, E-region lock), guided clicking on the spectrogram
+   can recover the true carrier phase
+3. **Ground truth** — human-verified phase samples for testing
+   new automated extraction algorithms
+
+The spectrogram-based tool (tid_spect_click.py) is preferred over
+the Doppler-trace tool (tid_guided_extract.py) — the carrier track
+is far easier to identify visually in the spectrogram than in the
+noisy extracted Doppler time series.
