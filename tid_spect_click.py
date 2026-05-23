@@ -604,6 +604,48 @@ class SpectClickApp(QtWidgets.QMainWindow):
         out = self.csv_path.parent / (self.csv_path.stem + "_corridor.json")
         with open(out, "w") as _f:
             _json.dump(corridor, _f, indent=2)
+        # Consistency check: xcorr corridor centres vs automated CSV
+        # to detect phase offset (>60s = likely tracking different feature)
+        try:
+            import numpy as _np
+            from scipy.signal import correlate as _corr, correlation_lags as _lags
+            t_arr = _np.array([c["t_utc_hours"] for c in corridor["clicks"]])
+            d_arr = _np.array([c["doppler_hz"]   for c in corridor["clicks"]])
+            csv_t = self.csv_t_hours
+            csv_d = self.csv_doppler.copy()
+            # Interpolate corridor centres onto CSV time grid
+            corr_centres = _np.interp(csv_t, t_arr, d_arr)
+            # Only compare within clicked time range
+            in_range = (csv_t >= t_arr[0]) & (csv_t <= t_arr[-1])
+            if in_range.sum() > 10:
+                x = corr_centres[in_range] - corr_centres[in_range].mean()
+                y = csv_d[in_range] - csv_d[in_range].mean()
+                cc = _corr(y, x, mode="full") / (
+                    (_np.std(x) * _np.std(y) * in_range.sum()) + 1e-12)
+                lag_steps = _lags(in_range.sum(), in_range.sum(), mode="full")
+                dt_h = (csv_t[1] - csv_t[0]) if len(csv_t) > 1 else (1/60)
+                lag_s = lag_steps * dt_h * 3600
+                peak_idx = int(_np.argmax(cc))
+                offset_s = float(lag_s[peak_idx])
+                peak_r   = float(cc[peak_idx])
+                if abs(offset_s) > 60:
+                    warn = (f"⚠️ WARNING: corridor offset {offset_s:+.0f}s vs "
+                            f"automated CSV (r={peak_r:.2f}) — "
+                            f"may be tracking different carrier feature")
+                    self._set_status(warn)
+                    print(warn)
+                else:
+                    ok = (f"✓ Consistency OK: offset {offset_s:+.0f}s "
+                          f"(r={peak_r:.2f}) — corridor tracks same carrier")
+                    self._set_status(
+                        f"Corridor written: {out.name}  "
+                        f"({len(self.clicks_t)} points, ±{half_bw} Hz)  {ok}"
+                    )
+                    print(ok)
+                    return
+        except Exception as _e:
+            print(f"  Consistency check failed: {_e}")
+
         self._set_status(
             f"Corridor written: {out.name}  "
             f"({len(self.clicks_t)} points, ±{half_bw} Hz)"
