@@ -303,7 +303,44 @@ def utc_to_drf_sample(dt, sr_num, sr_den):
     return int(round(epoch_seconds * sr_num / sr_den))
 
 
-def estimate_carrier_freq(iq_block, fs_hz, search_band_hz=5.0):
+class CorridorTrack:
+    """
+    Time-varying frequency corridor loaded from a tid_spect_click.py
+    corridor JSON file.  Provides centre_hz(t_utc) by linear interpolation
+    between the user's clicked points.
+
+    Outside the clicked time range the corridor centre is clamped to the
+    nearest endpoint (flat extrapolation) so extraction still runs at the
+    edges of the window.
+    """
+
+    def __init__(self, json_path):
+        import json as _json
+        with open(json_path) as f:
+            d = _json.load(f)
+        self.half_bw = float(d["half_bandwidth_hz"])
+        pts = d["clicks"]
+        # Sort by time
+        pts = sorted(pts, key=lambda p: p["t_utc_hours"])
+        self._t = np.array([p["t_utc_hours"] for p in pts])
+        self._d = np.array([p["doppler_hz"]   for p in pts])
+        print(f"  Corridor: {len(pts)} points, "
+              f"t={self._t[0]:.2f}-{self._t[-1]:.2f} h, "
+              f"±{self.half_bw} Hz")
+
+    def centre_hz(self, t_utc):
+        """Return interpolated corridor centre at a pandas Timestamp."""
+        t_h = t_utc.hour + t_utc.minute / 60.0 + t_utc.second / 3600.0
+        return float(np.interp(t_h, self._t, self._d))
+
+    def search_lo_hi(self, t_utc):
+        """Return (lo, hi) Hz search limits for a given timestamp."""
+        c = self.centre_hz(t_utc)
+        return c - self.half_bw, c + self.half_bw
+
+
+def estimate_carrier_freq(iq_block, fs_hz, search_band_hz=5.0,
+                          search_lo=None, search_hi=None):
     """FFT peak frequency of a complex I/Q block, restricted to +/- search_band.
 
     Returns
@@ -320,7 +357,10 @@ def estimate_carrier_freq(iq_block, fs_hz, search_band_hz=5.0):
     w = np.hanning(n)
     spec = np.fft.fftshift(np.fft.fft(iq_block * w))
     freqs = np.fft.fftshift(np.fft.fftfreq(n, d=1.0 / fs_hz))
-    mask = np.abs(freqs) <= search_band_hz
+    if search_lo is not None and search_hi is not None:
+        mask = (freqs >= search_lo) & (freqs <= search_hi)
+    else:
+        mask = np.abs(freqs) <= search_band_hz
     if not mask.any():
         return np.nan, 0.0
     sub = np.abs(spec[mask])
@@ -778,6 +818,14 @@ def main():
                          "lag, no detrending). Run the clean-data validation "
                          "gate before using autocorr results in research "
                          "comparisons (see docstring). Default: fft")
+    ap.add_argument("--corridor", default=None, metavar="JSON",
+                    help="Path to corridor JSON file written by "
+                         "tid_spect_click.py (press X in the GUI). "
+                         "When provided, the FFT peak search is restricted "
+                         "to a narrow band around the user-clicked carrier "
+                         "track at each time step, rejecting E-region "
+                         "contamination outside the corridor. "
+                         "Only supported with --method fft.")
     ap.add_argument("--smooth", type=float, default=None,
                     metavar="N",
                     help="apply Savitzky-Golay smoothing with N-second "
@@ -798,6 +846,12 @@ def main():
     t_end   = parse_iso(args.end)
     if t_end <= t_start:
         sys.exit("end must be after start")
+
+    corridor = None
+    if args.corridor:
+        if args.method != "fft":
+            sys.exit("--corridor is only supported with --method fft")
+        corridor = CorridorTrack(args.corridor)
 
     if not _HAVE_DRF:
         sys.exit("digital_rf not installed. Run: pip install digital_rf")
@@ -893,7 +947,17 @@ def main():
             f_hz, snr = estimate_carrier_freq_bandpass(
                 iq, fs_hz, args.search_band_hz, _bp_state)
         else:
-            f_hz, snr = _estimate(iq, fs_hz, args.search_band_hz)
+            if corridor is not None:
+                ts_probe = pd.Timestamp(
+                    seg_start * sr_den / sr_num, unit="s", tz="UTC"
+                )
+                lo, hi = corridor.search_lo_hi(ts_probe)
+                f_hz, snr = _estimate(
+                    iq, fs_hz, args.search_band_hz,
+                    search_lo=lo, search_hi=hi
+                )
+            else:
+                f_hz, snr = _estimate(iq, fs_hz, args.search_band_hz)
         ts = pd.Timestamp(seg_start * sr_den / sr_num, unit="s", tz="UTC")
         times.append(ts)
         dopplers.append(f_hz)
