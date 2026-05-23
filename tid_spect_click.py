@@ -560,6 +560,9 @@ class SpectClickApp(QtWidgets.QMainWindow):
     # ------------------------------------------------------------------
 
     def _write(self):
+        if not self.clicks_t:
+            # Guard against spurious W keypress on launch before any interaction
+            return
         if self.fit is None:
             self._set_status("No fit yet — press F first")
             return
