@@ -206,3 +206,44 @@ automated CSV directly.
 Ensure the _axes.json file is in the same directory as the PNG and
 has the same stem name (w7lux_spect.png → w7lux_spect_axes.json).
 Regenerate with drf_spectrogram.py if missing.
+
+---
+
+## Clicking guidelines — how to place phase samples correctly
+
+The goal is to trace the **smooth F-region TID carrier**, not the brightest
+feature in the spectrogram at each moment.
+
+**DO:**
+- Click on the centre of the smooth, slowly-varying bright line near 0 Hz
+- Aim for points where the carrier is clearly isolated with no competing
+  features nearby
+- Space clicks evenly across the segment — aim for one click every
+  15-20 minutes
+- Include at least one clear crest and one clear trough if visible
+- If the carrier is temporarily obscured by interference, skip that region
+  and place clicks where it re-emerges clearly
+
+**DO NOT:**
+- Click on sharp vertical spikes — these are E-region hops, not TID
+- Click where multiple bright lines are present — pick the smoothest one
+- Click on the brightest feature if it is clearly jumping erratically
+- Click only in one part of the segment — spread clicks across the full window
+
+**Verifying your clicks are correct:**
+After pressing F, the fitted sinusoid (blue) should:
+- Pass smoothly through all your red dots
+- Have a period matching the visible TID oscillation (~3600s for LSTID)
+- Have an amplitude matching the visible carrier excursion (~0.3-1.5 Hz)
+
+If the fit looks wrong (wrong period, huge amplitude, flat line):
+- Press R to reset and re-click more carefully
+- Try --period-hint 3600 if not already set
+- Zoom in with scroll wheel to see the carrier more clearly before clicking
+
+**The critical test:**
+After pressing X to export the corridor JSON, check that the corridor
+centre values track the same oscillation as the automated FFT CSV.
+Large systematic offsets (>0.3 Hz sustained over many minutes) indicate
+the clicks are on a different feature than the automated extractor.
+Run the comparison script in the troubleshooting section to verify.
