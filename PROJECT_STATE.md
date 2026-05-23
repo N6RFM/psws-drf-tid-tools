@@ -198,3 +198,79 @@ the DOA result — geometry is the dominant uncertainty.
 - Always pull before pushing (Gwyn has write access).
 - Do not start new analysis until Gwyn replies and blockers resolved.
 - This is a pause point.
+
+---
+## 10. GUI tools (research_gui branch)
+
+### 10.1 Overview
+Two interactive tools for human-guided Doppler extraction, plus a
+drf_spectrogram.py enhancement. Use when automated extraction fails
+or to validate automated results.
+
+| Tool | Input | Use when |
+|------|-------|----------|
+| tid_spect_click.py | Spectrogram PNG + CSV | Carrier visible in spectrogram |
+| tid_guided_extract.py | CSV only | No spectrogram available |
+
+### 10.2 Quick-start tutorial — tid_spect_click.py
+
+**Step 1: Generate spectrogram with sidecar**
+
+    python drf_spectrogram.py ./w7lux \
+        --subchannel 0 \
+        --output w7lux_spect.png \
+        --start 16:00 --end 22:00 \
+        --ylim="-5,5" --dpi 150 \
+        --overlay w7lux_fft_clean.csv:FFT
+
+This writes w7lux_spect.png and w7lux_spect_axes.json (sidecar).
+The sidecar stores the time/Doppler axis limits so the click tool
+knows how to map pixel coordinates to physical units.
+
+**Step 2: Launch the click tool**
+
+    python tid_spect_click.py \
+        --spectrogram w7lux_spect.png \
+        --csv w7lux_fft_clean.csv \
+        --name W7LUX \
+        --seg-start 18 --seg-end 20 \
+        --period-hint 3600
+
+The sidecar is auto-detected. --seg-start/end sets the analysis
+window in decimal UTC hours. --period-hint is the expected TID
+period in seconds — use if clicks do not span a full cycle.
+
+**Step 3: Click phase samples**
+- The spectrogram appears with the automated Doppler trace overlaid in grey
+- The yellow region marks the analysis segment (drag edges to adjust)
+- Click 5-7 points along the carrier track (the wavy red/orange line)
+  within the segment — aim for crests, troughs, and zero-crossings
+- Red dots appear at each click
+
+**Step 4: Fit and write**
+- Press F — sinusoid fitted through clicks, overlaid in blue
+- Check status bar: amplitude, period, phase should look reasonable
+- Press W — writes w7lux_fft_clean_guided.csv
+
+**Step 5: Run DOA on guided CSVs**
+Update your event config to point to the _guided.csv files and
+run tid_doa.py as normal.
+
+### 10.3 Subchannel notes (May 2024 LSTID event)
+- W7LUX: subchannel 0 (10 MHz, SNR 51.6 dB) — clean, guided tool works well
+- AC0G_ND: subchannel 4 (10 MHz, SNR 42 dB) — E-region contaminated,
+  guided tool marginal; use automated FFT CSV
+- N4RVE: subchannel 4 (10 MHz, SNR 42.3 dB) — usable, guided tool works
+
+### 10.4 Known limitations
+- --period-hint required when clicks span less than one full TID cycle
+- Y-axis view includes amplitude subplot from PNG — scroll to zoom ±1 Hz
+- Contaminated stations: if no coherent carrier visible, use automated CSV
+- Sidecar workflow strongly preferred over interactive 4-click calibration
+
+### 10.5 Validation result — May 2024 LSTID
+| Method | Speed | From | Closure | All-pass |
+|--------|-------|------|---------|---------|
+| Spectrogram-guided | 600 m/s | 9.6° | 3.2% | Yes |
+| Automated FFT | 605 m/s | 4.0° | 3.6% | Yes |
+Agreement within 5 m/s and 6 degrees. Guided tool confirmed automated result.
