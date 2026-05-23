@@ -345,6 +345,20 @@ class SpectClickApp(QtWidgets.QMainWindow):
             name="fit_dim",
         )
 
+        # Corridor boundary curves (shown after X is pressed)
+        self.corridor_hi_curve = self.plot.plot(
+            [], [],
+            pen=pg.mkPen(color="#ffff00", width=1,
+                         style=QtCore.Qt.DashLine),
+            name="corridor_hi",
+        )
+        self.corridor_lo_curve = self.plot.plot(
+            [], [],
+            pen=pg.mkPen(color="#ffff00", width=1,
+                         style=QtCore.Qt.DashLine),
+            name="corridor_lo",
+        )
+
         # Phase click scatter
         self.scatter = pg.ScatterPlotItem(
             size=9,
@@ -425,6 +439,19 @@ class SpectClickApp(QtWidgets.QMainWindow):
             self._handle_cal_click(vx, vy)
         else:
             self._handle_phase_click(vx, vy)
+
+    def _refresh_corridor(self, t_arr, d_arr, half_bw):
+        """Draw corridor bounds on the spectrogram after X export."""
+        if len(t_arr) < 2:
+            self.corridor_hi_curve.setData([], [])
+            self.corridor_lo_curve.setData([], [])
+            return
+        import numpy as _np
+        # Build dense time array across clicked range
+        t_dense = _np.linspace(t_arr[0], t_arr[-1], 300)
+        centre   = _np.interp(t_dense, t_arr, d_arr)
+        self.corridor_hi_curve.setData(t_dense, centre + half_bw)
+        self.corridor_lo_curve.setData(t_dense, centre - half_bw)
 
     def _handle_cal_click(self, vx, vy):
         """Handle calibration clicks — prompt user for physical value."""
@@ -604,6 +631,12 @@ class SpectClickApp(QtWidgets.QMainWindow):
         out = self.csv_path.parent / (self.csv_path.stem + "_corridor.json")
         with open(out, "w") as _f:
             _json.dump(corridor, _f, indent=2)
+
+        # Show corridor bounds on spectrogram
+        import numpy as _np2
+        t_arr = _np2.array([c["t_utc_hours"] for c in corridor["clicks"]])
+        d_arr = _np2.array([c["doppler_hz"]   for c in corridor["clicks"]])
+        self._refresh_corridor(t_arr, d_arr, half_bw)
         # Consistency check: xcorr corridor centres vs automated CSV
         # to detect phase offset (>60s = likely tracking different feature)
         try:
@@ -669,6 +702,8 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self.cal_scatter.setData([])
         self._refresh_scatter()
         self._refresh_fit()
+        self.corridor_hi_curve.setData([], [])
+        self.corridor_lo_curve.setData([], [])
         self._update_status()
 
     # ------------------------------------------------------------------
