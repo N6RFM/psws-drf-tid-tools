@@ -650,6 +650,9 @@ def _parse_args():
                    help="Known time axis limits in decimal UTC hours (e.g. 16,22)")
     p.add_argument("--ylim", metavar="LO,HI",
                    help="Known Doppler axis limits in Hz (e.g. -5,5)")
+    p.add_argument("--sidecar", metavar="JSON",
+                   help="Axis metadata JSON written by drf_spectrogram.py "
+                        "(auto-detected as <png_stem>_axes.json if present)")
     p.add_argument("--plot-fraction", metavar="L,R,B,T",
                    help="Plot area fractions (left,right,bottom,top) "
                         "default: 0.0582,0.8421,0.3712,0.9570 "
