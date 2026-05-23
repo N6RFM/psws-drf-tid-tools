@@ -274,3 +274,34 @@ run tid_doa.py as normal.
 | Spectrogram-guided | 600 m/s | 9.6° | 3.2% | Yes |
 | Automated FFT | 605 m/s | 4.0° | 3.6% | Yes |
 Agreement within 5 m/s and 6 degrees. Guided tool confirmed automated result.
+
+---
+## 11. Future improvements — guided extraction tool
+
+Current approach: user clicks drive a sinusoid fit which replaces the
+CSV in the segment window. Three better alternatives identified:
+
+**Option 1 — Spline interpolation through clicks**
+Fit a smooth spline directly through the clicked (t, doppler) points.
+No sinusoid assumption — honors the actual wave shape. Good when the
+TID is asymmetric or has varying amplitude. Implement with
+scipy.interpolate.CubicSpline or UnivariateSpline.
+
+**Option 2 — Click-anchored offset correction (preferred)**
+Use clicked points to measure the offset between the automated trace
+and the true carrier at each click location. Interpolate the correction
+between clicks and apply it to the full automated CSV. Preserves the
+fine-grained shape of the automated extraction but removes gross errors
+(wrong peak lock, E-region jumps). Most physically motivated approach —
+"the automated extractor is right locally, just tracking the wrong
+carrier; my clicks tell you where the right one is."
+
+**Option 3 — Local regression**
+Fit a low-order polynomial or Gaussian process through clicks in each
+local time window. More flexible than sinusoid, more constrained than
+spline. Probably overkill given Options 1 and 2.
+
+**Recommendation for next session:**
+Implement Option 2 first — it is the most useful and requires the least
+change to the existing tool structure. Add a --correction-mode flag to
+tid_spect_click.py with values: sinusoid (current default), spline, offset.
