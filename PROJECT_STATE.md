@@ -320,9 +320,30 @@ on the [branch] branch."
 - Production pipeline: main
 
 **Key past chat sessions (search claude.ai):**
-- May 2026-05-22: multi-peak selector + parabolic interpolation +
+- 2026-05-22: multi-peak selector + parabolic interpolation +
   GUI tools (tid_guided_extract.py, tid_spect_click.py)
   URL: https://claude.ai/chat/46433a60-59b2-4f5e-920e-7a7cd3af4cfb
+- 2026-05-23: corridor extraction implementation + validation +
+  consistency check + visual overlay + Guerra et al. FIF/SGOLAY analysis
+  URL: https://claude.ai/chat/f3b5d8a2-9c1e-4f7e-b8d3-2e5c1a6f9b4e
+
+**Next session opening prompt:**
+"Continuing psws-drf-tid-tools research session. Read PROJECT_STATE.md
+and FINDINGS.md on the research_gui branch. Top priority: test
+--method bandpass and --method cwt on AC0G_ND May 2024 event to see
+if better extraction methods reduce wrong-peak lock without corridor.
+Then consider FIF on 2D spectrogram as long-term solution."
+
+**Quick-start commands for next session:**
+    cd ~/psws-tools-pr && git checkout research_gui
+    git log --oneline -5
+    cat PROJECT_STATE.md | grep -A5 "## 13"
+    # Test bandpass on AC0G_ND:
+    cd ~/Downloads/gywn_tid_event_20240517
+    python3 ~/psws-tools-pr/drf_to_doppler.py ./ac0g_nd \
+        --subchannel 4 --start 2024-05-17T18:00:00 \
+        --end 2024-05-17T20:00:00 --decim-seconds 60 \
+        --method bandpass --output ac0g_nd_bandpass.csv
 
 **First commands in a new session:**
     cd ~/psws-tools-pr
