@@ -1149,3 +1149,66 @@ The clicking guidelines need further refinement. Key issues:
    clicking quality can be guaranteed.
 4. Add visual feedback in tid_spect_click.py showing the corridor
    boundaries overlaid on the spectrogram after X is pressed.
+
+---
+
+## Entry 18 — Post-processing detrending (SGOLAY/outlier rejection) cannot fix wrong-peak lock
+**Date:** 2026-05-23
+**Reference:** Guerra et al. 2024 (J. Space Weather Space Clim. 14, 17)
+
+### Context
+Guerra et al. 2024 demonstrate FIF and SGOLAY are the best detrending
+techniques for TID extraction from GNSS TEC time series. We tested
+whether these approaches can fix the wrong-peak lock problem in HF
+Doppler extraction.
+
+### Test: SGOLAY on W7LUX and AC0G_ND
+SGOLAY (2nd order polynomial, windows 31-59 samples) applied to
+the automated FFT Doppler CSV. Results:
+
+**W7LUX (clean station):** SGOLAY correctly recovers the broad TID
+oscillation as background. However wrong-peak spikes (18:22h, 18:52h,
+19:16-17h etc.) survive in the detrended signal because they have
+energy in the TID frequency band and are not distinguishable from
+real TID signal by a frequency-domain filter.
+
+**AC0G_ND (contaminated station):** Additional median outlier rejection
+(threshold 0.5 Hz from 7-min median) correctly flags isolated wrong-peak
+spikes (18:30h, 19:22-25h). However the sustained wrong-peak lock at
+18:00-18:15h (+1.3 Hz for ~15 min) is NOT flagged — the median filter
+treats it as the local centre because it persists long enough.
+
+### Key finding
+Post-processing detrending (SGOLAY, FIF, median filtering) CANNOT fix
+sustained wrong-peak lock in HF Doppler extraction. The fundamental
+reason: a wrong-peak lock that persists >5-10 minutes has energy in
+the TID frequency band (period 10-90 min) and is indistinguishable
+from real TID signal by any frequency-domain or sliding-window filter.
+
+This is qualitatively different from the GNSS TEC case (Guerra et al.)
+where TEC is a continuous physical measurement without discrete peak
+selection. HF Doppler extraction involves a spectral peak finder that
+can lock onto spurious features with high SNR confidence, making the
+resulting time series fundamentally different from a noisy continuous
+measurement.
+
+### Implication
+The wrong-peak problem must be solved at the extraction stage, not
+in post-processing. Valid approaches:
+1. Corridor extraction (implemented) — constrain peak search using
+   user-clicked carrier track. Works but requires consistent clicking
+   on all stations.
+2. Better extraction methods — bandpass/CWT methods in drf_to_doppler.py
+   are more robust to E-region than FFT peak finding.
+3. FIF on the 2D spectrogram — track the slowly-varying carrier in the
+   time-frequency domain directly, rather than applying FIF to the
+   already-extracted 1D Doppler time series. This is the correct
+   interpretation of the Guerra et al. approach for HF Doppler.
+
+### Guerra et al. parameters (for reference, if FIF on spectrogram pursued)
+- LSTID band: 45-90 min period
+- MSTID band: 10-40 min period
+- SGOLAY: 2nd order, window = 2x MA window (120 min LSTID, 60 min MSTID)
+- FIF: ~300x slower than SGOLAY but marginally better accuracy
+- For computational speed: SGOLAY preferred
+- FIF code: http://www.cicone.com (Python available)
