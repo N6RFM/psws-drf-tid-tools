@@ -10,7 +10,17 @@ distances, often caused by atmospheric or geomagnetic events. TIDs
 propagate towards the equator during storms, and can disrupt GNSS/GPS
 navigation, radio communications, and satellite operations.
 
+## IMPORTANT CAVEAT
+
+There a numerous ways to extract TID information from DRF data and/or spectrograms.  
+
+The goals of this toolset are 1) allow citizen scientists a means to explore TIDs and
+2) obtain estimates of TID propagation speed and direction.  The extraction tolls available here serve as
+place holders until more refined and accurate TID extraction tools become available and integrated
+into this toolset.  In the meantime, several user selectable options for TID extraction are available here.
+
 ## What this toolkit does
+
 
 Given Digital RF (DRF) I/Q recordings from several HamSCI Grape or
 WSPRDaemon stations all recording the same WWV carrier, this toolkit
