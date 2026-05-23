@@ -1212,3 +1212,46 @@ in post-processing. Valid approaches:
 - FIF: ~300x slower than SGOLAY but marginally better accuracy
 - For computational speed: SGOLAY preferred
 - FIF code: http://www.cicone.com (Python available)
+
+---
+
+## Entry 19 — Bandpass and CWT extraction on AC0G_ND: method comparison
+**Date:** 2026-05-23
+**Event:** May 2024 LSTID, AC0G_ND subchannel 4
+
+### Extraction method comparison
+| Method | Doppler std | Median SNR | Notes |
+|--------|------------|-----------|-------|
+| FFT    | 0.682 Hz   | 42.0 dB   | baseline |
+| CWT    | 0.557 Hz   | 42.0 dB   | smoother |
+| Bandpass | 0.414 Hz | 42.0 dB   | smoothest |
+
+Lower std = fewer wrong-peak jumps. Bandpass most robust on this station.
+
+### DOA results with AC0G_ND method variants
+| AC0G_ND method | Speed | Direction | Closure | All-pass |
+|----------------|-------|-----------|---------|---------|
+| FFT (baseline) | 605 m/s | 4.0° | 3.6% | Yes ✅ |
+| Bandpass | 161 m/s | 7.1° | 1.4% | No (speed⚠️) |
+| CWT | 340 m/s | — | 4.0% | Yes ✅ |
+
+### Analysis
+Bandpass AC0G_ND: direction correct (7.1° agrees with 4.0°) but speed
+wrong (161 vs 605 m/s). Lags: W7LUX→AC0G=-4490s vs FFT -1163s.
+This is a subharmonic alias — the lag is ~3.8x the true value, consistent
+with the TID period. The multi-peak selector is finding a self-consistent
+alias solution. Same failure mode as autocorr (Entry 14).
+
+CWT AC0G_ND: inconsistent lags (W7LUX→N4RVE positive when should be
+negative). Discarded for this event.
+
+### Conclusion
+The automated FFT baseline remains the best result for this event.
+Changing the extraction method on AC0G_ND does not improve the DOA
+because the wrong-peak problem is in the xcorr peak selection, not
+the Doppler extraction. The multi-peak selector fixes wrong-peak lock
+within the analysis window but is vulnerable to subharmonic aliases
+when the TID period is comparable to the analysis window length.
+
+The 605 m/s, 4.0° result from FFT with multi-peak selector + parabolic
+interpolation (Entry 15) remains the trusted result for this event.
