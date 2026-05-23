@@ -303,6 +303,57 @@ def utc_to_drf_sample(dt, sr_num, sr_den):
     return int(round(epoch_seconds * sr_num / sr_den))
 
 
+
+def extract_sgolay_ridge(iq_full, fs_hz, corridor, decim_seconds,
+                         sgolay_window_min=21.0):
+    """
+    2D STFT ridge tracker with SGOLAY smoothing.
+    Reads all I/Q at once, builds full spectrogram, tracks carrier
+    within user-defined corridor using power-weighted centroid,
+    then applies SGOLAY smoothing across time.
+    """
+    from scipy.signal import savgol_filter as _savgol
+    block_size = int(round(decim_seconds * fs_hz))
+    n_blocks   = len(iq_full) // block_size
+    w          = np.hanning(block_size)
+    freqs      = np.fft.fftshift(np.fft.fftfreq(block_size, d=1.0 / fs_hz))
+    dopplers, snrs, t_offsets = [], [], []
+    for k in range(n_blocks):
+        seg   = iq_full[k * block_size:(k + 1) * block_size]
+        t_sec = k * decim_seconds
+        t_offsets.append(t_sec)
+        spec  = np.abs(np.fft.fftshift(np.fft.fft(seg * w)))
+        lo, hi = corridor._lo_hi_from_offset(t_sec)
+        mask  = (freqs >= lo) & (freqs <= hi)
+        if not mask.any():
+            dopplers.append(np.nan); snrs.append(0.0); continue
+        sub_spec  = spec[mask]
+        sub_freqs = freqs[mask]
+        power = sub_spec ** 2
+        total = power.sum()
+        if total < 1e-12:
+            dopplers.append(float(sub_freqs[np.argmax(sub_spec)]))
+            snrs.append(0.0); continue
+        centroid = float(np.sum(sub_freqs * power) / total)
+        peak_snr = 20 * np.log10(sub_spec.max() / (np.median(spec) + 1e-12))
+        dopplers.append(centroid)
+        snrs.append(float(peak_snr))
+    # SGOLAY smoothing across time
+    arr = np.array(dopplers, dtype=float)
+    valid = ~np.isnan(arr)
+    if valid.sum() > 4:
+        win_s = int(round(sgolay_window_min * 60 / decim_seconds))
+        if win_s >= valid.sum(): win_s = valid.sum() - 1
+        if win_s % 2 == 0: win_s -= 1
+        win_s = max(win_s, 5)
+        arr_filled = pd.Series(arr).interpolate().values
+        arr_smooth = _savgol(arr_filled, win_s, 2)
+        print(f"  2D STFT ridge: {n_blocks} blocks, "
+              f"SGOLAY w={win_s} ({win_s*decim_seconds/60:.0f} min)  "
+              f"std {arr_filled.std():.3f} -> {arr_smooth.std():.3f} Hz")
+        dopplers = list(arr_smooth)
+    return dopplers, snrs, t_offsets
+
 class CorridorTrack:
     """
     Time-varying frequency corridor loaded from a tid_spect_click.py
@@ -336,6 +387,12 @@ class CorridorTrack:
     def search_lo_hi(self, t_utc):
         """Return (lo, hi) Hz search limits for a given timestamp."""
         c = self.centre_hz(t_utc)
+        return c - self.half_bw, c + self.half_bw
+
+    def _lo_hi_from_offset(self, t_sec_offset):
+        """Return (lo, hi) Hz from seconds offset within extraction window."""
+        t_h = self._t[0] + t_sec_offset / 3600.0
+        c = float(np.interp(t_h, self._t, self._d))
         return c - self.half_bw, c + self.half_bw
 
 
@@ -809,7 +866,8 @@ def main():
                          "search window around 0 Hz, in Hz. The WWV carrier "
                          "should be within this range after baseband mixing. "
                          "Ignored for --method autocorr. Default: 5.0")
-    ap.add_argument("--method", choices=["fft", "autocorr", "cwt", "bandpass"], default="fft",
+    ap.add_argument("--method", choices=["fft", "autocorr", "cwt", "bandpass",
+                                         "sgolay-ridge"], default="fft",
                     help="Doppler extraction method. 'fft': FFT peak-tracking "
                          "with quadratic interpolation (default, v1.0 "
                          "behaviour). 'autocorr': complex lag-1 "
@@ -818,6 +876,10 @@ def main():
                          "lag, no detrending). Run the clean-data validation "
                          "gate before using autocorr results in research "
                          "comparisons (see docstring). Default: fft")
+    ap.add_argument("--sgolay-window", type=float, default=21.0,
+                    metavar="MINUTES",
+                    help="SGOLAY smoothing window in minutes for "
+                         "--method sgolay-ridge (default 21 min).")
     ap.add_argument("--corridor", default=None, metavar="JSON",
                     help="Path to corridor JSON file written by "
                          "tid_spect_click.py (press X in the GUI). "
@@ -849,9 +911,11 @@ def main():
 
     corridor = None
     if args.corridor:
-        if args.method != "fft":
-            sys.exit("--corridor is only supported with --method fft")
+        if args.method not in ("fft", "sgolay-ridge"):
+            sys.exit("--corridor is only supported with --method fft or sgolay-ridge")
         corridor = CorridorTrack(args.corridor)
+    if args.method == "sgolay-ridge" and not args.corridor:
+        sys.exit("--method sgolay-ridge requires --corridor")
 
     if not _HAVE_DRF:
         sys.exit("digital_rf not installed. Run: pip install digital_rf")
@@ -920,49 +984,75 @@ def main():
     dopplers = []
     snrs = []
 
+    # sgolay-ridge: read all I/Q at once, use 2D STFT ridge tracker
+    if args.method == 'sgolay-ridge':
+        print('  Reading all I/Q for 2D STFT ridge extraction...')
+        iq_chunks = []
+        for k in range(n_blocks):
+            seg_start_k = s_start + k * block_size
+            try:
+                iq_k = reader.read_vector(seg_start_k, block_size, args.channel)
+            except Exception as e:
+                print(f'  block {k}: read error {e}, using zeros')
+                iq_k = np.zeros(block_size, dtype=complex)
+            if iq_k.ndim == 2:
+                iq_k = iq_k[:, args.subchannel]
+            iq_chunks.append(iq_k)
+        iq_full = np.concatenate(iq_chunks)
+        print(f'  Loaded {len(iq_full):,} samples ({len(iq_full)/fs_hz/60:.1f} min)')
+        dopplers, snrs, t_offsets = extract_sgolay_ridge(
+            iq_full, fs_hz, corridor, args.decim_seconds, args.sgolay_window
+        )
+        times = [
+            pd.Timestamp(s_start * sr_den / sr_num + t, unit='s', tz='UTC')
+            for t in t_offsets
+        ]
+
+
     # Progress dots: print roughly 40 across the loop so long extractions
     # (e.g. 24-hour survey at 60s cadence ~= 1438 blocks) show signs of
     # life. For short extractions, dots-per-block ratio still works out
     # to something reasonable.
-    dot_interval = max(1, n_blocks // 40)
-    for k in range(n_blocks):
-        if k % dot_interval == 0:
-            sys.stdout.write(".")
-            sys.stdout.flush()
-        seg_start = s_start + k * block_size
-        try:
-            iq = reader.read_vector(seg_start, block_size, args.channel)
-        except Exception as e:
-            print(f"  block {k}: read error {e}, skipping")
-            continue
-
-        # Handle multi-subchannel DRF (shape: (N, n_subchannels))
-        if iq.ndim == 2:
-            iq = iq[:, args.subchannel]
-
-        if _cwt_state is not None:
-            f_hz, snr = estimate_carrier_freq_cwt(
-                iq, fs_hz, args.search_band_hz, _cwt_state)
-        elif _bp_state is not None:
-            f_hz, snr = estimate_carrier_freq_bandpass(
-                iq, fs_hz, args.search_band_hz, _bp_state)
-        else:
-            if corridor is not None:
-                ts_probe = pd.Timestamp(
-                    seg_start * sr_den / sr_num, unit="s", tz="UTC"
-                )
-                lo, hi = corridor.search_lo_hi(ts_probe)
-                f_hz, snr = _estimate(
-                    iq, fs_hz, args.search_band_hz,
-                    search_lo=lo, search_hi=hi
-                )
+    if args.method != 'sgolay-ridge':
+        dot_interval = max(1, n_blocks // 40)
+        for k in range(n_blocks):
+            if k % dot_interval == 0:
+                sys.stdout.write(".")
+                sys.stdout.flush()
+            seg_start = s_start + k * block_size
+            try:
+                iq = reader.read_vector(seg_start, block_size, args.channel)
+            except Exception as e:
+                print(f"  block {k}: read error {e}, skipping")
+                continue
+    
+            # Handle multi-subchannel DRF (shape: (N, n_subchannels))
+            if iq.ndim == 2:
+                iq = iq[:, args.subchannel]
+    
+            if _cwt_state is not None:
+                f_hz, snr = estimate_carrier_freq_cwt(
+                    iq, fs_hz, args.search_band_hz, _cwt_state)
+            elif _bp_state is not None:
+                f_hz, snr = estimate_carrier_freq_bandpass(
+                    iq, fs_hz, args.search_band_hz, _bp_state)
             else:
-                f_hz, snr = _estimate(iq, fs_hz, args.search_band_hz)
-        ts = pd.Timestamp(seg_start * sr_den / sr_num, unit="s", tz="UTC")
-        times.append(ts)
-        dopplers.append(f_hz)
-        snrs.append(snr)
-
+                if corridor is not None:
+                    ts_probe = pd.Timestamp(
+                        seg_start * sr_den / sr_num, unit="s", tz="UTC"
+                    )
+                    lo, hi = corridor.search_lo_hi(ts_probe)
+                    f_hz, snr = _estimate(
+                        iq, fs_hz, args.search_band_hz,
+                        search_lo=lo, search_hi=hi
+                    )
+                else:
+                    f_hz, snr = _estimate(iq, fs_hz, args.search_band_hz)
+            ts = pd.Timestamp(seg_start * sr_den / sr_num, unit="s", tz="UTC")
+            times.append(ts)
+            dopplers.append(f_hz)
+            snrs.append(snr)
+    
     df = pd.DataFrame({
         "timestamp_utc": times,
         "doppler_hz": dopplers,
@@ -977,7 +1067,7 @@ def main():
     else:
         df.to_csv(args.output, index=False)
 
-    if n_blocks > 0:
+    if args.method != "sgolay-ridge" and n_blocks > 0:
         sys.stdout.write("\n")
         sys.stdout.flush()
     print(f"Wrote {len(df)} rows to {args.output}")
