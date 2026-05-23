@@ -355,13 +355,14 @@ carrier than the automated extractor. The difference (~180s = 3 resamples)
 is small but enough to shift the xcorr peak, especially when the other
 stations use automated CSVs.
 
-### Top priority for next session
-1. **Consistency check tool** — after corridor extraction, compute xcorr
-   between corridor CSV and automated CSV. If lag offset > 60s, warn user.
-2. **Apply corridor to all stations** — need better clicking guidance and
-   possibly a wider half_bw (1.0 Hz) to make clicking easier.
-3. **Visual corridor overlay** — show corridor boundaries on spectrogram
-   after X is pressed so user can verify coverage.
-4. **Consider alternative:** use corridor centre as a smooth reference and
-   apply offset correction (Entry 16 Option 2) rather than re-running
-   extraction — avoids the phase shift problem entirely.
+### Status (updated 2026-05-23)
+1. ✅ **Consistency check** — xcorr between corridor centres and automated
+   CSV on X press. Shows offset in seconds and correlation. Warns if >60s.
+2. ✅ **Visual corridor overlay** — yellow dashed boundary lines shown on
+   spectrogram after X is pressed.
+3. ⏳ **Apply corridor to all stations** — clicking contaminated stations
+   (AC0G_ND, N4RVE) remains difficult. Better clicking guidance added to
+   GUI_TUTORIAL.md. Wider half_bw may help.
+4. **Key finding (Entry 18):** post-processing (SGOLAY, outlier rejection)
+   cannot fix sustained wrong-peak lock — must be solved at extraction.
+   FIF on 2D spectrogram is the correct long-term approach.
