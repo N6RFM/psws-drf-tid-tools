@@ -387,3 +387,30 @@ stations use automated CSVs.
 4. **Key finding (Entry 18):** post-processing (SGOLAY, outlier rejection)
    cannot fix sustained wrong-peak lock — must be solved at extraction.
    FIF on 2D spectrogram is the correct long-term approach.
+
+---
+## 14. sgolay-ridge method — status (2026-05-23)
+
+### Implementation complete
+- `drf_to_doppler.py --method sgolay-ridge --corridor JSON`
+- Reads all I/Q at once, builds full 2D STFT spectrogram
+- Power-weighted centroid within corridor at each time step
+- SGOLAY smoothing across time (--sgolay-window, default 21 min)
+
+### Results vs automated FFT (W7LUX May 2024 LSTID)
+| Metric | Auto FFT | SGOLAY-ridge |
+|--------|----------|-------------|
+| Speed | 605 m/s | 587 m/s |
+| Direction | 4.0° | 4.5° |
+| Closure | 3.6% | 8.3% |
+| Correlation | 0.574 | 0.699 |
+| All-pass | Yes | Yes |
+
+Better correlations, slightly worse closure. Both all-pass.
+Closure gap because sgolay-ridge applied to W7LUX only —
+needs all stations to use same method for bias to cancel.
+
+### Next steps
+1. Apply sgolay-ridge to all 3 stations simultaneously
+2. Need good corridor clicks on AC0G_ND and N4RVE
+3. Compare 3-station sgolay-ridge DOA vs automated baseline
