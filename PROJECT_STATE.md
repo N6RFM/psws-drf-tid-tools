@@ -330,3 +330,38 @@ on the [branch] branch."
     git log --oneline -5
     cat PROJECT_STATE.md
     tail -50 FINDINGS.md
+
+---
+## 13. Corridor extraction — status (2026-05-23)
+
+### What was implemented
+- `tid_spect_click.py`: X key exports corridor JSON (clicked points + half_bw)
+- `drf_to_doppler.py`: --corridor flag restricts FFT peak search to
+  time-varying frequency band around user-clicked carrier track
+- `GUI_TUTORIAL.md`: clicking guidelines added
+
+### What was learned
+Corridor extraction correctly identifies the true TID carrier (lower SNR,
+physically smooth) vs the automated extractor which locks onto stronger
+spurious E-region features (higher SNR, wrong peak). Validated on W7LUX.
+
+**Key problem identified:** applying corridor to only one station creates
+a systematic ~180s lag shift relative to the automated extractions on the
+other stations. This breaks triangle closure and causes the DOA solver to
+pick an alias solution (180° direction flip).
+
+**Root cause:** the corridor tracks a slightly different phase of the
+carrier than the automated extractor. The difference (~180s = 3 resamples)
+is small but enough to shift the xcorr peak, especially when the other
+stations use automated CSVs.
+
+### Top priority for next session
+1. **Consistency check tool** — after corridor extraction, compute xcorr
+   between corridor CSV and automated CSV. If lag offset > 60s, warn user.
+2. **Apply corridor to all stations** — need better clicking guidance and
+   possibly a wider half_bw (1.0 Hz) to make clicking easier.
+3. **Visual corridor overlay** — show corridor boundaries on spectrogram
+   after X is pressed so user can verify coverage.
+4. **Consider alternative:** use corridor centre as a smooth reference and
+   apply offset correction (Entry 16 Option 2) rather than re-running
+   extraction — avoids the phase shift problem entirely.
