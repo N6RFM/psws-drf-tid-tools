@@ -464,20 +464,20 @@ def main():
     # Determine analysis window
     midnight_utc = record_start_utc.replace(hour=0, minute=0, second=0,
                                             microsecond=0)
+    # Load window JSON from tid_quicklook.py if provided
+    if args.window:
+        import json as _json
+        with open(args.window) as _f:
+            _wj = _json.load(_f)
+        def _h2hhmm(h):
+            hh = int(h); mm = int(round((h - hh) * 60))
+            return f"{hh:02d}:{mm:02d}"
+        if not args.start:
+            args.start = _h2hhmm(_wj["t_start_utc_hours"])
+        if not args.end:
+            args.end = _h2hhmm(_wj["t_end_utc_hours"])
+        print(f"  Window JSON: {args.start}-{args.end} UTC")
     if args.start:
-        # Load window JSON from tid_quicklook.py if provided
-        if args.window:
-            import json as _json
-            with open(args.window) as _f:
-                _wj = _json.load(_f)
-            def _h2hhmm(h):
-                hh = int(h); mm = int(round((h - hh) * 60))
-                return f"{hh:02d}:{mm:02d}"
-            if not args.start:
-                args.start = _h2hhmm(_wj["t_start_utc_hours"])
-            if not args.end:
-                args.end = _h2hhmm(_wj["t_end_utc_hours"])
-            print(f"  Window JSON: {args.start}-{args.end} UTC")
         start_dt = midnight_utc + timedelta(seconds=parse_hhmm(args.start))
     else:
         start_dt = record_start_utc
