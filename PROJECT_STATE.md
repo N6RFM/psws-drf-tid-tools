@@ -414,3 +414,24 @@ needs all stations to use same method for bias to cancel.
 1. Apply sgolay-ridge to all 3 stations simultaneously
 2. Need good corridor clicks on AC0G_ND and N4RVE
 3. Compare 3-station sgolay-ridge DOA vs automated baseline
+
+**Fundamental reframe (important):**
+The corridor is a PRIOR CONSTRAINT — the user defines where to look,
+not what the carrier looks like. Clicks bracket the carrier band;
+the extraction algorithm finds the carrier within that band.
+
+User does NOT need to click on the carrier precisely — just draw a
+band that contains it. Much easier on contaminated spectrograms.
+
+Correct flow:
+  1. User clicks corridor bounds (bracket the carrier region)
+  2. drf_to_doppler.py --method sgolay-ridge extracts carrier within band
+  3. The extracted CSV IS the carrier — no sinusoid fitting needed
+  4. tid_doa.py computes DOA from extracted CSVs
+
+Revised clicking guidance:
+- Click at several time points where the carrier band is clearly visible
+- Each click should be roughly centred on the carrier track
+- Spacing: every 20-30 min is sufficient
+- half_bw 0.5 Hz means clicks within 0.5 Hz of true carrier are fine
+- Wide enough to contain carrier, narrow enough to exclude E-region
