@@ -1424,3 +1424,42 @@ The "method" field in event JSON is metadata only (which extractor
 produced the CSV) — it does not affect the DOA computation.
 Should be renamed "extraction_method" in a future cleanup to avoid
 confusion with the DOA method.
+
+---
+
+## Entry 25 — Comparison of array geometry with Gwyn's method
+**Date:** 2026-05-24
+
+### Midpoint-to-midpoint azimuths and distances
+| Path | Gwyn states | Calculated | Distance |
+|------|------------|-----------|---------|
+| N4RVE→N5BRG | 126° | 111° | 1214 km |
+| AC0G_ND→W7LUX | 221° | 226° | 905 km |
+
+Gwyn's stated azimuths differ from calculated by ~15° on N4RVE→N5BRG.
+Likely due to different receiver coordinates or IPP height assumption.
+
+### Methodological difference
+Gwyn's method:
+- Measures velocity ALONG each path (scalar projection)
+- Two paths roughly perpendicular (126° and 221°) — ideal for 2D decomposition
+- Vector decomposition gives resultant velocity: 979 m/s at 157°
+
+Our method:
+- Fits plane wave to ALL pairwise lags simultaneously (least squares)
+- Uses IPP midpoint coordinates
+- Result: 267 m/s at 242° (coming from)
+
+### Why results differ
+If the TID wavefront is perfectly planar, both methods should agree.
+Possible reasons for ~95° direction discrepancy:
+1. Wrong-peak lock in Gwyn's autocorrelation lags (he uses 27 and 35 min
+   lags from visual inspection of xcorr plots)
+2. Our W7LUX→N4RVE lag may still be wrong despite corridor extraction
+3. The wavefront may not be perfectly planar across this array
+4. Different time windows (Gwyn: 19:00 UTC; ours: 18:29-19:06 UTC)
+
+### Action items
+1. Ask Gwyn for his exact lag values and how he measured them
+2. Verify our W7LUX→N4RVE lag (-239s) is correct by visual inspection
+3. Try replicating Gwyn's 2-path method using our extracted Doppler CSVs
