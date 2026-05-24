@@ -1255,3 +1255,62 @@ when the TID period is comparable to the analysis window length.
 
 The 605 m/s, 4.0° result from FFT with multi-peak selector + parabolic
 interpolation (Entry 15) remains the trusted result for this event.
+
+---
+
+## Entry 21 — Complete guided workflow validated: 458 m/s WSW LSTID
+**Date:** 2026-05-24
+**Branch:** research_gui
+**Event:** May 17 2024, 17:57-19:06 UTC
+
+### Workflow steps completed
+1. `drf_spectrogram.py` — full-day spectrogram (100 dpi) for each station
+2. `tid_quicklook.py` — user selects TID window on full-day spectrogram
+3. `drf_spectrogram.py --window` — zoomed spectrogram for selected window
+4. `tid_quicklook.py` — user refines window on zoomed spectrogram
+5. `drf_to_doppler.py --method fft` — automated FFT extraction for overlay
+6. `drf_spectrogram.py --overlay` — regenerate zoomed spectrogram with FFT overlay
+7. `tid_spect_click.py` — user clicks corridor on zoomed spectrogram
+   - Corridor consistency check confirms tracking correct carrier
+   - Visual corridor overlay shows search band
+8. `drf_to_doppler.py --method sgolay-ridge --corridor` — 2D STFT ridge extraction
+9. `tid_doa.py` — DOA result
+
+### Station details
+| Station | Subchannel | Freq | Window | SNR |
+|---------|-----------|------|--------|-----|
+| W7LUX   | 0 | 10 MHz | 17:35-20:36 | 44.3 dB |
+| AC0G_ND | 4 | 10 MHz | 17:57-19:52 | 37.3 dB |
+| N4RVE   | 4 | 10 MHz | 17:37-19:07 | 32.8 dB |
+Overlap: 17:57-19:06 UTC (69 min)
+
+### DOA result
+| Metric | Value |
+|--------|-------|
+| Phase speed | 458 m/s |
+| Direction | from 258.6° (WSW) |
+| Triangle closure | 0.5% |
+| Correlations | 0.673 / 0.713 / 0.787 |
+| SVR | 1.2 |
+| All-pass | Yes ✅ |
+
+Consistent with westward-propagating LSTID. All five diagnostics pass.
+
+### Key fixes made during workflow
+1. `drf_spectrogram.py --window`: bug fixed (was nested inside if args.start)
+2. `drf_spectrogram.py plot_fraction`: now uses matplotlib axes position
+   (image pixel measurement was unreliable for different spectrogram types)
+3. `tid_quicklook.py`: neutral default region (user decides where TID is)
+4. `tid_quicklook.py`: overlap check after S press warns if <60 min overlap
+5. `tid_spect_click.py`: auto-detects _window.json from tid_quicklook.py
+
+### Lessons learned
+- The corridor as prior constraint works well — user doesn't need to click
+  precisely on carrier, just bracket the search region
+- AC0G_ND corridor (±0.5 Hz around 0 Hz) correctly rejects E-region spikes
+- sgolay-ridge smoothing (21 min window) gives clean extraction with good
+  correlations and excellent triangle closure
+- Time window overlap must be checked early — the overlap warning in
+  tid_quicklook.py is essential
+- Subchannel selection matters: all stations should use same frequency
+  (10 MHz here) for consistent Doppler comparison

@@ -435,3 +435,28 @@ Revised clicking guidance:
 - Spacing: every 20-30 min is sufficient
 - half_bw 0.5 Hz means clicks within 0.5 Hz of true carrier are fine
 - Wide enough to contain carrier, narrow enough to exclude E-region
+
+---
+## 16. Complete guided workflow — validated 2026-05-24
+
+Full workflow implemented and validated on May 2024 LSTID event.
+Result: 458 m/s from 258.6° (WSW), all diagnostics pass.
+
+### Tools in workflow order
+1. drf_spectrogram.py --start 00:00 --end 24:00  → fullday.png + _axes.json
+2. tid_quicklook.py --spectrogram fullday.png     → fullday_window.json
+3. drf_spectrogram.py --window fullday_window.json → zoom.png + _axes.json
+4. tid_quicklook.py --spectrogram zoom.png        → zoom_window.json (refined)
+5. drf_to_doppler.py --method fft                → fft.csv (for overlay)
+6. drf_spectrogram.py --overlay fft.csv:FFT      → zoom.png (with overlay)
+7. tid_spect_click.py --spectrogram zoom.png      → corridor.json
+8. drf_to_doppler.py --method sgolay-ridge        → sgolay.csv
+9. Repeat 1-8 for each station
+10. tid_doa.py event.json                         → DOA result
+
+### Known issues / next steps
+1. plot_fraction bottom (bf) still unreliable for some image types —
+   matplotlib position method works but bbox_inches=tight may shift things
+2. Corridor clicks should cover full analysis window — flat extrapolation
+   outside clicked range may miss carrier at window edges
+3. Consider adding a wrapper script to automate steps 1-10
