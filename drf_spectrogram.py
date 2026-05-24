@@ -768,6 +768,19 @@ def main():
     if args.annotate:
         # Make room for callout labels above the spectrogram
         fig.subplots_adjust(top=0.86 - 0.04 * (len(args.annotate) - 1))
+    # Get axes position BEFORE savefig for accurate plot_fraction
+    fig.canvas.draw()  # force layout computation
+    _pos_top = ax_top.get_position()
+    _fig_w, _fig_h = fig.get_size_inches() * fig.dpi
+    # bbox_inches=tight shifts things — measure after draw but use
+    # normalized figure coordinates directly
+    _pf_from_mpl = [
+        _pos_top.x0,                    # left
+        _pos_top.x0 + _pos_top.width,   # right
+        _pos_top.y0,                    # bottom (from figure bottom)
+        _pos_top.y0 + _pos_top.height,  # top
+    ]
+    print(f"  axes position (MPL): {[round(x,4) for x in _pf_from_mpl]}")
     plt.savefig(args.output, dpi=args.dpi, bbox_inches="tight")
     plt.close()
     print(f"\nWrote {args.output}")
@@ -775,35 +788,8 @@ def main():
     # Write sidecar JSON with axis metadata for tid_spect_click.py
     import json as _json
     sidecar_path = os.path.splitext(args.output)[0] + "_axes.json"
-    # Measure plot fraction from rendered image using column brightness profile
-    try:
-        from PIL import Image as _PILX
-        import numpy as _npx
-        _im = _PILX.open(args.output).convert("RGB")
-        _ar = _npx.array(_im)
-        _h2, _w2 = _ar.shape[:2]
-        # Left/right: dark columns in spectrogram rows
-        _pc = _ar[int(_h2*0.05):int(_h2*0.6), :, :]
-        _cm = _pc.mean(axis=(0,2))
-        _dc = _npx.where(_cm < _cm.max() * 0.3)[0]
-        _lf = float(_dc[0]/_w2) if len(_dc) else 0.0582
-        _rf = float(_dc[-1]/_w2) if len(_dc) else 0.8421
-        # Top/bottom: sample middle column brightness profile
-        _mid = _ar[:, _w2//2, :].mean(axis=1)
-        # Spectrogram is dark (<50), margins/panels are bright (>200)
-        _dark = _npx.where(_mid < 50)[0]
-        if len(_dark) > 10:
-            _spect_top = int(_dark[0])
-            _spect_bot = int(_dark[-1])
-            _tf = float(1 - _spect_top/_h2)
-            _bf = float(1 - _spect_bot/_h2)
-        else:
-            _tf, _bf = 0.9570, 0.3712
-        _pf = [_lf, _rf, _bf, _tf]
-        print(f"  plot_fraction: {[round(x,4) for x in _pf]}")
-    except Exception as _ex:
-        print(f"  plot_fraction measurement failed: {_ex}")
-        _pf = [0.0582, 0.8421, 0.3712, 0.9570]
+    # Use matplotlib axes position for accurate plot_fraction
+    _pf = _pf_from_mpl
     sidecar = {
         "spectrogram_png": os.path.basename(args.output),
         "t_start_utc_hours": start_offset_hr,
