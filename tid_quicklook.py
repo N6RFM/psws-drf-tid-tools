@@ -234,10 +234,10 @@ def main():
               if args.plot_fraction else None)
         transform = AxisTransform(w, h, (t0h, t1h), (d0, d1),
                                   **({"plot_fraction": pf} if pf else {}))
-        # Default region: middle third of time range
-        span = t1h - t0h
-        t_start = t0h + span / 3
-        t_end   = t0h + 2 * span / 3
+        # Default region: narrow 1-hour window near start
+        # User drags to wherever the TID actually is
+        t_start = t0h + 1.0
+        t_end   = t0h + 2.0
     else:
         print("  No sidecar found — image shown without axis calibration")
 
