@@ -1314,3 +1314,43 @@ Consistent with westward-propagating LSTID. All five diagnostics pass.
   tid_quicklook.py is essential
 - Subchannel selection matters: all stations should use same frequency
   (10 MHz here) for consistent Doppler comparison
+
+---
+
+## Entry 22 — 4-station DOA with N5BRG and IPP coordinates
+**Date:** 2026-05-24
+**Event:** May 17 2024, 18:29-19:06 UTC
+
+### Result
+| Metric | Value |
+|--------|-------|
+| Phase speed | 267 m/s |
+| Direction | from 242.3° (WSW) |
+| Triangle closure | 6.9% |
+| Correlations | 0.429-0.748 |
+| All-pass | Yes ✅ |
+
+### Comparison with Gwyn's result (V1.2)
+| Metric | Gwyn | Ours (4-stn) |
+|--------|------|-------------|
+| Speed | 979 m/s | 267 m/s |
+| Direction | 157° (SSE) | 242° (WSW) |
+
+### Analysis of discrepancy
+1. Direction stable at ~242-252° across all our configurations (3-stn, 4-stn,
+   different time windows) — consistent result
+2. Gwyn uses path velocity along specific azimuths (126° and 221°) then
+   vector decomposition — fundamentally different from our plane-wave DOA
+3. ~90° direction difference and ~4x speed difference suggest the two methods
+   are measuring different projections of the wave vector
+4. Our result is internally self-consistent (all diagnostics pass)
+5. Resolution requires direct comparison with Gwyn — methodological difference
+   is the key question
+
+### IPP coordinates used (WWV transmitter at 40.68N, 105.04W)
+| Station | Receiver | IPP midpoint |
+|---------|---------|-------------|
+| W7LUX | 35.10N, 111.71W | 37.89N, 108.37W |
+| AC0G_ND | 46.88N, 96.83W | 43.78N, 100.94W |
+| N4RVE | 44.97N, 123.48W | 42.83N, 114.26W |
+| N5BRG | 35.65N, 97.48W | 38.17N, 101.26W |
