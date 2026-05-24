@@ -53,6 +53,7 @@ import os
 import sys
 from pathlib import Path
 
+import os as _os
 import numpy as np
 from PIL import Image
 from PyQt5 import QtCore, QtGui, QtWidgets
@@ -165,7 +166,48 @@ class QuicklookApp(QtWidgets.QMainWindow):
         print(f"Written: {out}")
         print(f"  t_start: {t0:.4f} h ({fmt(t0)} UTC)")
         print(f"  t_end:   {t1:.4f} h ({fmt(t1)} UTC)")
+        # Check overlap with other station windows in same directory
+        self._check_overlap(out, t0, t1)
         QtCore.QTimer.singleShot(800, self.close)
+
+    def _check_overlap(self, this_json, t0, t1):
+        """Check overlap with other station window JSONs in same directory."""
+        import glob as _glob
+        other_windows = _glob.glob(
+            str(this_json.parent / "*_window.json")
+        )
+        other_windows = [f for f in other_windows
+                         if f != str(this_json)]
+        if not other_windows:
+            return
+        min_overlap = 60.0  # minutes
+        msgs = []
+        for f in other_windows:
+            try:
+                with open(f) as _f:
+                    wj = _json.load(_f)
+                o0 = wj["t_start_utc_hours"]
+                o1 = wj["t_end_utc_hours"]
+                overlap = (min(t1, o1) - max(t0, o0)) * 60
+                name = _os.path.basename(f)
+                if overlap < min_overlap:
+                    msgs.append(
+                        f"⚠️ Only {overlap:.0f} min overlap with {name} "
+                        f"(need ≥{min_overlap:.0f} min)"
+                    )
+                else:
+                    msgs.append(
+                        f"✓ {overlap:.0f} min overlap with {name}"
+                    )
+            except Exception:
+                pass
+        if msgs:
+            print("  Window overlap check:")
+            for m in msgs:
+                print(f"    {m}")
+            self.status_label.setText(
+                "  |  ".join(msgs)
+            )
 
     def _install_shortcuts(self):
         for key, cb in [("S", self._save), ("Q", self.close)]:
