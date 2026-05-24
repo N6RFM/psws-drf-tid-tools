@@ -238,10 +238,14 @@ class SpectClickApp(QtWidgets.QMainWindow):
 
     def __init__(self, img_path, csv_path, name,
                  transform=None, period_hint=None,
-                 seg_start=None, seg_end=None):
+                 seg_start=None, seg_end=None,
+                 drf_dir=None, subchannel=0, sgolay_window=21.0):
         super().__init__()
         self.name        = name
         self.csv_path    = Path(csv_path)
+        self.drf_dir     = drf_dir
+        self.subchannel  = subchannel
+        self.sgolay_window = sgolay_window
         self.period_hint = period_hint   # seconds
         self.transform   = transform     # AxisTransform or None
         self.cal_step    = 0 if transform is None else 4
@@ -359,6 +363,13 @@ class SpectClickApp(QtWidgets.QMainWindow):
             name="corridor_lo",
         )
 
+        # SGOLAY-ridge preview curve (shown after X if --drf-dir provided)
+        self.preview_curve = self.plot.plot(
+            [], [],
+            pen=pg.mkPen(color="#00ff88", width=2),
+            name="sgolay_preview",
+        )
+
         # Phase click scatter
         self.scatter = pg.ScatterPlotItem(
             size=9,
@@ -452,6 +463,73 @@ class SpectClickApp(QtWidgets.QMainWindow):
         centre   = _np.interp(t_dense, t_arr, d_arr)
         self.corridor_hi_curve.setData(t_dense, centre + half_bw)
         self.corridor_lo_curve.setData(t_dense, centre - half_bw)
+
+    def _run_sgolay_preview(self, corridor_json_path):
+        """Run sgolay-ridge extraction and overlay result on spectrogram."""
+        if not self.drf_dir:
+            return
+        import subprocess as _sp, tempfile as _tf, os as _os2
+        import numpy as _np3
+        import pandas as _pd2
+
+        # Determine time window from segment region
+        t0_h, t1_h = self.seg_t0, self.seg_t1
+
+        def _h_to_iso(h):
+            hh = int(h); mm = int((h - hh) * 60); ss = int(((h - hh)*60 - mm)*60)
+            return f"2024-05-17T{hh:02d}:{mm:02d}:{ss:02d}"  # date from sidecar
+
+        # Try to get date from CSV
+        try:
+            df_tmp = _pd2.read_csv(self.csv_path, parse_dates=["timestamp_utc"], nrows=1)
+            date_str = str(df_tmp["timestamp_utc"].iloc[0])[:10]
+        except Exception:
+            date_str = "2024-05-17"
+
+        def _h_to_iso2(h):
+            hh = int(h); rem = (h - hh) * 60; mm = int(rem)
+            ss = int((rem - mm) * 60)
+            return f"{date_str}T{hh:02d}:{mm:02d}:{ss:02d}"
+
+        out_csv = _os2.path.splitext(str(corridor_json_path))[0] + "_preview.csv"
+        cmd = [
+            "python3",
+            _os2.path.join(_os2.path.dirname(_os2.path.abspath(__file__)),
+                          "drf_to_doppler.py"),
+            self.drf_dir,
+            "--subchannel", str(self.subchannel),
+            "--start", _h_to_iso2(t0_h),
+            "--end",   _h_to_iso2(t1_h),
+            "--decim-seconds", "60",
+            "--method", "sgolay-ridge",
+            "--corridor", str(corridor_json_path),
+            "--sgolay-window", str(self.sgolay_window),
+            "--output", out_csv,
+        ]
+        self._set_status("Running sgolay-ridge preview... (may take 10-30s)")
+        QtWidgets.QApplication.processEvents()
+        try:
+            result = _sp.run(cmd, capture_output=True, text=True, timeout=120)
+            if result.returncode != 0:
+                self._set_status(f"Preview failed: {result.stderr[-200:]}")
+                return
+            df_prev = _pd2.read_csv(out_csv, parse_dates=["timestamp_utc"])
+            df_prev["t_h"] = (df_prev["timestamp_utc"].dt.hour +
+                              df_prev["timestamp_utc"].dt.minute/60 +
+                              df_prev["timestamp_utc"].dt.second/3600)
+            t_arr = df_prev["t_h"].values
+            d_arr = df_prev["doppler_hz"].values
+            self.preview_curve.setData(t_arr, d_arr)
+            self._set_status(
+                f"✓ Preview: sgolay-ridge range "
+                f"{d_arr.min():.2f} to {d_arr.max():.2f} Hz  "
+                f"[green curve] — press Q to quit or R to re-click"
+            )
+            print(f"  Preview written: {out_csv}")
+        except _sp.TimeoutExpired:
+            self._set_status("Preview timed out (>120s)")
+        except Exception as _e:
+            self._set_status(f"Preview error: {_e}")
 
     def _handle_cal_click(self, vx, vy):
         """Handle calibration clicks — prompt user for physical value."""
@@ -684,6 +762,8 @@ class SpectClickApp(QtWidgets.QMainWindow):
             f"({len(self.clicks_t)} points, ±{half_bw} Hz)"
         )
         print(f"Corridor written: {out}")
+        # Run sgolay-ridge preview if DRF dir provided
+        self._run_sgolay_preview(out)
 
     def _reset_clicks(self):
         self.clicks_t = []
@@ -704,6 +784,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self._refresh_fit()
         self.corridor_hi_curve.setData([], [])
         self.corridor_lo_curve.setData([], [])
+        self.preview_curve.setData([], [])
         self._update_status()
 
     # ------------------------------------------------------------------
@@ -772,6 +853,14 @@ def _parse_args():
                    help="Pre-set segment end (decimal UTC hours)")
     p.add_argument("--period-hint", type=float, metavar="SECONDS",
                    help="TID period hint in seconds")
+    p.add_argument("--drf-dir", default=None, metavar="DIR",
+                   help="DRF data directory for sgolay-ridge preview after X. "
+                        "If provided, runs sgolay-ridge extraction after corridor "
+                        "export and overlays result on spectrogram.")
+    p.add_argument("--subchannel", type=int, default=0, metavar="N",
+                   help="DRF subchannel index for sgolay-ridge preview (default 0)")
+    p.add_argument("--sgolay-window", type=float, default=21.0, metavar="MINUTES",
+                   help="SGOLAY smoothing window in minutes for preview (default 21)")
     return p.parse_args()
 
 
@@ -830,6 +919,9 @@ def main():
         period_hint  = args.period_hint,
         seg_start    = seg_start,
         seg_end      = seg_end,
+        drf_dir      = args.drf_dir,
+        subchannel   = args.subchannel,
+        sgolay_window = args.sgolay_window,
     )
     win.show()
     sys.exit(app.exec_())
