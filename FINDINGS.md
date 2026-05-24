@@ -1387,3 +1387,40 @@ consistent across all diagnostic metrics where the automated approach fails.
 The direction (242° WSW) is stable and internally consistent. The remaining
 discrepancy with Gwyn's result (157° SSE, 979 m/s) is methodological and
 requires direct discussion with Gwyn to resolve.
+
+---
+
+## Entry 24 — Full method comparison: FFT vs Autocorr vs SGOLAY-ridge
+**Date:** 2026-05-24
+**Event:** May 17 2024, 18:29-19:06 UTC, 4 stations, IPP coordinates
+
+### Complete comparison
+| Metric | Auto FFT | Autocorr | SGOLAY-ridge |
+|--------|----------|----------|-------------|
+| Speed | 222 m/s | 233 m/s | 267 m/s |
+| Direction | 186° (S) | 188° (S) | 242° (WSW) |
+| Closure | 18.1% ❌ | 35.0% ❌ | 6.9% ✅ |
+| Diagnostics | 2 fail ❌ | 1 fail ❌ | All pass ✅ |
+| W7LUX→N4RVE lag | +1081s | +979s | -239s |
+
+### Key findings
+1. FFT and autocorr cluster together (~186-188°, ~220-233 m/s) but both
+   fail diagnostics — they share the same wrong-peak lock on W7LUX→N4RVE
+2. SGOLAY-ridge gives different W7LUX→N4RVE lag (-239s vs +979-1081s)
+   — corridor extraction correctly identifies the true carrier
+3. SGOLAY-ridge is the only method that passes all diagnostics
+4. Autocorr closure (35%) is worst of all — wrong-peak aliases dominate
+5. The automated methods are self-consistent with each other but both wrong
+
+### Conclusion
+The corridor + sgolay-ridge approach is definitively superior to both
+automated methods for this event. The direction (242° WSW) is the most
+reliable result. The automated FFT and autocorr results (186-188° S)
+should not be trusted for this event due to wrong-peak lock on the
+W7LUX→N4RVE pair.
+
+### Note on method field in event JSON
+The "method" field in event JSON is metadata only (which extractor
+produced the CSV) — it does not affect the DOA computation.
+Should be renamed "extraction_method" in a future cleanup to avoid
+confusion with the DOA method.
