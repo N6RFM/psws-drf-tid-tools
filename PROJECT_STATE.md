@@ -343,7 +343,7 @@ Then consider FIF on 2D spectrogram as long-term solution."
     git log --oneline -5
     cat PROJECT_STATE.md | grep -A5 "## 13"
     # Test bandpass on AC0G_ND:
-    cd ~/Downloads/gywn_tid_event_20240517
+    cd ~/Downloads/gwyn_tid_event_20240517
     python3 ~/psws-tools-pr/drf_to_doppler.py ./ac0g_nd \
         --subchannel 4 --start 2024-05-17T18:00:00 \
         --end 2024-05-17T20:00:00 --decim-seconds 60 \

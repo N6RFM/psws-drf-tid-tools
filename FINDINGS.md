@@ -1258,6 +1258,7 @@ interpolation (Entry 15) remains the trusted result for this event.
 ---
 
 ## Entry 21 — Complete guided workflow validated: 458 m/s WSW LSTID
+**NOTE: superseded by Entry 22 (267 m/s, 242° WSW) which uses correct IPP coordinates and 4 stations.**
 **Date:** 2026-05-24
 **Branch:** research_gui
 **Event:** May 17 2024, 17:57-19:06 UTC
