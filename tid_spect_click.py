@@ -756,6 +756,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
                         f"({len(self.clicks_t)} points, ±{half_bw} Hz)  {ok}"
                     )
                     print(ok)
+                    self._run_sgolay_preview(out)
                     return
         except Exception as _e:
             print(f"  Consistency check failed: {_e}")
