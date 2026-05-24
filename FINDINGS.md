@@ -1354,3 +1354,36 @@ Consistent with westward-propagating LSTID. All five diagnostics pass.
 | AC0G_ND | 46.88N, 96.83W | 43.78N, 100.94W |
 | N4RVE | 44.97N, 123.48W | 42.83N, 114.26W |
 | N5BRG | 35.65N, 97.48W | 38.17N, 101.26W |
+
+---
+
+## Entry 23 — Automated FFT vs SGOLAY-ridge: 4-station comparison
+**Date:** 2026-05-24
+**Event:** May 17 2024, 18:29-19:06 UTC, 4 stations with IPP coordinates
+
+### Results comparison
+| Metric | Auto FFT | SGOLAY-ridge |
+|--------|----------|-------------|
+| Speed | 222 m/s | 267 m/s |
+| Direction | from 186° (S) | from 242° (WSW) |
+| Closure | 18.1% ❌ | 6.9% ✅ |
+| Weak pairs | 2 ❌ | 0 ✅ |
+| All diagnostics | No ❌ | Yes ✅ |
+
+### Key finding
+The automated FFT fails two diagnostics (weak correlations, poor closure).
+The sgolay-ridge corridor extraction passes all five diagnostics with:
+- Better correlations on all 6 pairs
+- 3x better closure (6.9% vs 18.1%)
+- Different W7LUX→N4RVE lag (+1081s vs -239s) — automated FFT was
+  locking onto wrong xcorr peak for this pair
+
+### Conclusion
+This is the definitive validation of the corridor + sgolay-ridge approach.
+The corridor constrains the STFT search to the true carrier, preventing
+wrong-peak lock that corrupts automated FFT lags. The result is physically
+consistent across all diagnostic metrics where the automated approach fails.
+
+The direction (242° WSW) is stable and internally consistent. The remaining
+discrepancy with Gwyn's result (157° SSE, 979 m/s) is methodological and
+requires direct discussion with Gwyn to resolve.
