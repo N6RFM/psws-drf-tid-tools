@@ -1463,3 +1463,59 @@ Possible reasons for ~95° direction discrepancy:
 1. Ask Gwyn for his exact lag values and how he measured them
 2. Verify our W7LUX→N4RVE lag (-239s) is correct by visual inspection
 3. Try replicating Gwyn's 2-path method using our extracted Doppler CSVs
+
+---
+
+## Entry 26 — Critical limitation: diagnostics are not independent validation
+**Date:** 2026-05-24
+
+### The fundamental problem
+The five diagnostics in tid_doa.py (geometry conditioning, plane-wave
+residual, pairwise correlation, triangle closure, phase speed range) measure
+INTERNAL CONSISTENCY only. They were empirically tuned based on early FFT
+results and do not constitute physical validation.
+
+A result can be:
+- Internally consistent (all diagnostics pass) but physically wrong
+- Internally inconsistent (diagnostics fail) but pointing toward real physics
+
+The fact that sgolay-ridge passes all diagnostics while FFT fails is partly
+circular — the diagnostics reward self-consistency, and the corridor
+extraction enforces consistency by construction (smooth carrier tracking).
+
+### What the diagnostics actually tell us
+1. Geometry conditioning (SVR < 30): array not near-collinear — GEOMETRIC
+2. Plane-wave residual (< 25%): lags consistent with a single plane wave — CONSISTENCY
+3. Pairwise correlation (> 0.40): signals are correlated — SIGNAL QUALITY
+4. Triangle closure (< 15%): lags form a consistent triangle — CONSISTENCY
+5. Phase speed range (100-1000 m/s): result in physically plausible range — WEAK PHYSICAL
+
+None of these confirm the result is physically real. They only confirm the
+lags are self-consistent and the signals are correlated.
+
+### What is needed for true validation
+1. Independent measurement of same event:
+   - GNSS TEC keograms (SuperMAG, CORS network)
+   - Ionosonde Doppler (closest: Millstone Hill, Boulder)
+   - SuperDARN ground scatter
+   - Gwyn's independent analysis (different method)
+2. Synthetic data test: inject known TID into synthetic I/Q, verify recovery
+3. Multiple independent events: consistent results across many events
+   build confidence even without per-event ground truth
+
+### Current validation status
+- Our result (267 m/s, 242° WSW) is internally consistent ✅
+- Gwyn's result (979 m/s, 157° SSE) disagrees by ~95° direction and 4x speed
+- Root cause of discrepancy unknown — could be either result being wrong
+- No independent reference measurement available for this event
+- Diagnostics thresholds were tuned on early FFT results — not independent
+
+### Implications for research_gui branch
+The corridor + sgolay-ridge workflow is a significant improvement in
+extraction quality. But "improvement" here means:
+- Fewer wrong-peak locks (demonstrated by SNR analysis)
+- Better pairwise correlations (demonstrated by xcorr)
+- Better internal consistency (demonstrated by closure)
+
+It does NOT yet mean demonstrated physical accuracy. That requires
+comparison with Gwyn and/or independent measurements.

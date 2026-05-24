@@ -460,3 +460,49 @@ Result: 458 m/s from 258.6° (WSW), all diagnostics pass.
 2. Corridor clicks should cover full analysis window — flat extrapolation
    outside clicked range may miss carrier at window edges
 3. Consider adding a wrapper script to automate steps 1-10
+
+---
+## 17. Current status — 2026-05-24 (end of day)
+
+### What was accomplished today
+1. Complete guided workflow implemented and tested end-to-end:
+   tid_quicklook.py → drf_spectrogram.py --window → tid_quicklook.py (refine)
+   → drf_to_doppler.py --method fft (overlay) → tid_spect_click.py (corridor)
+   → drf_to_doppler.py --method sgolay-ridge → tid_doa.py
+
+2. Key bug fixes:
+   - drf_spectrogram.py --window: was nested inside if args.start (fixed)
+   - drf_spectrogram.py plot_fraction: now uses matplotlib axes position
+   - tid_quicklook.py: neutral default region; overlap warning after S
+   - tid_spect_click.py: auto-detects _window.json from tid_quicklook.py
+
+3. 4-station DOA result (W7LUX, AC0G_ND, N4RVE, N5BRG):
+   - sgolay-ridge: 267 m/s from 242° (WSW), all diagnostics pass ✅
+   - auto FFT: 222 m/s from 186° (S), 2 diagnostics fail ❌
+   - autocorr: 233 m/s from 188° (S), 1 diagnostic fails ❌
+   - IPP midpoint coordinates used (WWV transmitter at 40.68N, 105.04W)
+
+4. Comparison with Gwyn's result (979 m/s, 157° SSE):
+   - ~95° direction discrepancy, ~4x speed discrepancy
+   - Root cause unknown — methodological difference is key question
+   - Our diagnostics are internal consistency checks ONLY — not physical validation
+
+### Critical open question
+Are our diagnostics meaningful? They were tuned on early FFT results
+and only measure internal consistency. The 267 m/s WSW result passes
+all diagnostics but this does NOT confirm physical correctness.
+True validation requires independent measurement (GNSS TEC, ionosonde,
+Gwyn's independent method).
+
+### Top priorities for next session
+1. Email Gwyn with our results — ask for his exact lag values and method
+2. Implement Gwyn's 2-path vector decomposition method for direct comparison
+3. Obtain GNSS TEC data for this event for independent validation
+4. Fix corridor coverage: clicks should span full analysis window
+5. Add wrapper script to automate the 10-step workflow
+
+### Resume command
+cd ~/psws-tools-pr && git checkout research_gui
+"Continuing psws-drf-tid-tools. Read PROJECT_STATE.md section 17 and
+FINDINGS entries 21-26. Key question: validate our 267 m/s WSW result
+against Gwyn's 979 m/s SSE — email Gwyn and implement his 2-path method."
