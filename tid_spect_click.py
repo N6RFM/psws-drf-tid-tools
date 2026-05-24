@@ -365,6 +365,8 @@ class SpectClickApp(QtWidgets.QMainWindow):
         )
         self.corridor_hi_curve.setData([], [])
         self.corridor_lo_curve.setData([], [])
+        self.fit_curve.setData([], [])
+        self.fit_dim_curve.setData([], [])
 
         # SGOLAY-ridge preview curve (shown after X if --drf-dir provided)
         self.preview_curve = self.plot.plot(
