@@ -317,6 +317,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         vbox.addWidget(self.glw)
 
         self.plot = self.glw.addPlot()
+        self.plot.setMouseEnabled(x=False, y=False)
         self.plot.setLabel("bottom", "Time (UTC hours)")
         self.plot.setLabel("left", "Doppler shift", units="Hz")
 
