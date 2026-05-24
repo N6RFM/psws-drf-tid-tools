@@ -80,7 +80,7 @@ Clean W7LUX, 17 May 2024: SNR delta 0.0 dB, r=0.933, autocorr
 3x smoother (btb std 0.13 vs 0.38 Hz).
 
 ### 4.2 Real data — 17 May 2024 LSTID
-Data: `~/Downloads/gywn_tid_event_20240517/`
+Data: `~/Downloads/gwyn_tid_event_20240517/`
 Window: 18:00-20:00 UTC, 60s cadence.
 Gwyn's result (V1.2): 979 ±80 m/s @ 157°, period ~58 min.
 
