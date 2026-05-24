@@ -809,14 +809,26 @@ def main():
     app = QtWidgets.QApplication(sys.argv)
     app.setApplicationName("TID Spectrogram Click")
 
+    # Auto-detect window JSON from tid_quicklook.py
+    seg_start = args.seg_start
+    seg_end   = args.seg_end
+    window_f  = _os.path.splitext(args.spectrogram)[0] + "_window.json"
+    if seg_start is None and seg_end is None and _os.path.exists(window_f):
+        with open(window_f) as _f:
+            wj = _json.load(_f)
+        seg_start = wj["t_start_utc_hours"]
+        seg_end   = wj["t_end_utc_hours"]
+        print(f"  Auto-detected window: {seg_start:.2f}-{seg_end:.2f} h "
+              f"(from {_os.path.basename(window_f)})")
+
     win = SpectClickApp(
         img_path     = args.spectrogram,
         csv_path     = args.csv,
         name         = args.name,
         transform    = transform,
         period_hint  = args.period_hint,
-        seg_start    = args.seg_start,
-        seg_end      = args.seg_end,
+        seg_start    = seg_start,
+        seg_end      = seg_end,
     )
     win.show()
     sys.exit(app.exec_())
