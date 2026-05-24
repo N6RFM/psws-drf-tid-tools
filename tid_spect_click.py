@@ -799,6 +799,7 @@ def main():
         t0, t1 = sc["t_start_utc_hours"], sc["t_end_utc_hours"]
         d0, d1 = sc["doppler_lo_hz"], sc["doppler_hi_hz"]
         print(f"  Sidecar axes: t={t0}-{t1} h, doppler={d0}-{d1} Hz")
+        pf = pf or (tuple(sc["plot_fraction"]) if "plot_fraction" in sc else None)
         transform = AxisTransform.from_limits(w, h, (t0, t1), (d0, d1), plot_fraction=pf)
     elif args.tlim and args.ylim:
         t0, t1 = (float(x) for x in args.tlim.split(","))
