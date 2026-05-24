@@ -360,6 +360,10 @@ def main():
     ap.add_argument("--start", default=None,
                     help="Optional UTC start of plot window (HH:MM or "
                          "HH:MM:SS). Default: start of recording.")
+    ap.add_argument("--window", default=None, metavar="JSON",
+                    help="TID window JSON from tid_quicklook.py. "
+                         "Reads t_start/t_end and uses them as --start/--end. "
+                         "Auto-detected as <drf_dir>_fullday_window.json if present.")
     ap.add_argument("--end", default=None,
                     help="Optional UTC end of plot window. Default: "
                          "24 hours after start.")
@@ -461,6 +465,19 @@ def main():
     midnight_utc = record_start_utc.replace(hour=0, minute=0, second=0,
                                             microsecond=0)
     if args.start:
+        # Load window JSON from tid_quicklook.py if provided
+        if args.window:
+            import json as _json
+            with open(args.window) as _f:
+                _wj = _json.load(_f)
+            def _h2hhmm(h):
+                hh = int(h); mm = int(round((h - hh) * 60))
+                return f"{hh:02d}:{mm:02d}"
+            if not args.start:
+                args.start = _h2hhmm(_wj["t_start_utc_hours"])
+            if not args.end:
+                args.end = _h2hhmm(_wj["t_end_utc_hours"])
+            print(f"  Window JSON: {args.start}-{args.end} UTC")
         start_dt = midnight_utc + timedelta(seconds=parse_hhmm(args.start))
     else:
         start_dt = record_start_utc
