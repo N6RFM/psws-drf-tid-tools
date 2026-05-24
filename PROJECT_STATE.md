@@ -5,26 +5,30 @@ session. Not a release artifact. Update it when state changes
 materially; treat it as the first thing to read when picking the
 project back up.
 
-**Last updated:** 2026-05-22  |  **Status: ACTIVE RESEARCH — awaiting G3ZIL reply on blockers; research_gui branch active**
+**Last updated:** 2026-05-24  |  **Status: ACTIVE RESEARCH — research_gui branch active; awaiting Gwyn reply on method discrepancy**
 
 ---
 
 ## 1. One-paragraph status
 
 Main is at **v1.6.7** with a complete, tested, end-to-end mixed
-FFT/autocorr workflow. Two active research branches:
+FFT/autocorr workflow.
 
-**`research`** — xcorr algorithmic improvements complete (Entries 13-15):
-multi-peak selector + parabolic lag interpolation reduce May 2024 LSTID
-collinear array closure from 26% to 3.6% (FFT, all diagnostics pass).
-Trusted result: 605 m/s, from 4.0°. Paused pending Gwyn's reply on
-speed discrepancy (605 vs 979 m/s).
+**`research_gui`** (active) — complete guided extraction workflow implemented
+and validated 2026-05-24. Tools: tid_quicklook.py (TID window selection),
+drf_spectrogram.py (zoomed spectrogram + axes sidecar), tid_spect_click.py
+(corridor clicking with consistency check + overlay), drf_to_doppler.py
+--method sgolay-ridge (2D STFT ridge tracker), tid_doa.py.
 
-**`research_gui`** — new interactive guided extraction tools (2026-05-22):
-`tid_guided_extract.py` (click on Doppler trace) and `tid_spect_click.py`
-(click on spectrogram PNG). `drf_spectrogram.py` now writes `_axes.json`
-sidecar. End-to-end test on May 2024 LSTID: guided result 600 m/s / 9.6°
-vs automated 605 m/s / 4.0° — agree within 6°, both all-pass.
+**4-station result (W7LUX, AC0G_ND, N4RVE, N5BRG, 18:29-19:06 UTC):**
+sgolay-ridge: 267 m/s from 242° (WSW), all diagnostics pass.
+auto FFT fails 2 diagnostics; autocorr fails 1.
+IPP midpoint coordinates used (WWV transmitter 40.68N, 105.04W).
+
+**Critical open question:** diagnostics measure internal consistency only —
+not physical correctness. Gwyn's result (979 m/s, 157° SSE) disagrees by
+~95° direction and ~4x speed. Root cause unknown. True validation requires
+independent measurement (GNSS TEC, ionosonde) or reconciliation with Gwyn.
 
 ---
 
@@ -159,7 +163,7 @@ the DOA result — geometry is the dominant uncertainty.
 
 ## 7. Data (local disk, NOT in repo)
 
-- `~/Downloads/gywn_tid_event_20240517/` — May 2024 LSTID
+- `~/Downloads/gwyn_tid_event_20240517/` — May 2024 LSTID
   ac0g_nd: subchannel 4 (42 dB). w7lux: subchannel 0 (51.6 dB).
   n4rve: subchannel 4 (42.3 dB). n5brg: S000038, marginal SNR.
 - `~/Downloads/tid_event_20260119/` — Jan 2026 MSTID
@@ -440,7 +444,7 @@ Revised clicking guidance:
 ## 16. Complete guided workflow — validated 2026-05-24
 
 Full workflow implemented and validated on May 2024 LSTID event.
-Result: 458 m/s from 258.6° (WSW), all diagnostics pass.
+Result: 267 m/s from 242° (WSW), all diagnostics pass (4-station, IPP coords).
 
 ### Tools in workflow order
 1. drf_spectrogram.py --start 00:00 --end 24:00  → fullday.png + _axes.json

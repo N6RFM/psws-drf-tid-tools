@@ -1,10 +1,9 @@
 # Research: Doppler extraction — FFT vs complex autocorrelation
 
-**Status:** PAUSED — awaiting G3ZIL reply on two questions (lag
-discrepancy and N5BRG channel). Analysis substantially complete
-through Entry 8 (synthetic Monte Carlo). No new analysis until
-blockers resolved. All data, scripts, figures, and PDF reports
-committed to research-doppler-extraction branch.
+**Status:** ACTIVE — research_gui branch. Complete guided workflow
+validated 2026-05-24. Key open question: reconcile 267 m/s WSW result
+with Gwyn's 979 m/s SSE (Entry 26). Entries 1-15 on research branch;
+Entries 16-26 on research_gui branch.
 
 **This branch does not merge to `main` until further notice.** Its
 deliverable is knowledge: a documented finding, and *possibly* a
