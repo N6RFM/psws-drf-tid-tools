@@ -328,9 +328,8 @@ def run_workflow(args):
                 marker = " ← WWV 10 MHz" if freq and abs(freq/1e6 - 10.0) < 0.01 else ""
                 print(f"      subchannel {sub}: {snr:.1f} dB{freq_str}{marker}")
 
-            # Generate thumbnails for ALL multi-subchannel stations
-            # User always visually confirms — never trust SNR alone
-            if len(subs) > 1:
+            # Generate thumbnails for ALL stations — user always visually confirms
+            if True:  # always generate, even single-channel
                 thumb_dir = event_dir / f'{name.lower()}_subchannels'
                 thumb_dir.mkdir(exist_ok=True)
                 print(f'    Generating subchannel thumbnails...')
