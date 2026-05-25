@@ -1737,3 +1737,48 @@ True validation requires independent measurement (GNSS TEC, ionosonde,
 Gwyn's independent analysis). The diagnostics in tid_doa.py were
 calibrated on early FFT results — they favour SGOLAY-ridge partly
 because SGOLAY-ridge enforces smoothness by construction.
+
+---
+
+## Entry 29 — EMD test on W7LUX May 2024 LSTID
+**Date:** 2026-05-25
+**Branch:** research_gui
+
+### Setup
+EMD v0.8.1 applied to w7lux_fft_tid2.csv (182 samples, 60s cadence).
+emd.sift.sift() with default parameters.
+
+### Decomposition
+| IMF | Period | Std | Interpretation |
+|-----|--------|-----|----------------|
+| 1 | 4 min | 0.266 Hz | Noise/spikes |
+| 2 | 9 min | 0.147 Hz | Short-period contamination |
+| 3 | 38 min | 0.379 Hz | MSTID or E-region |
+| 4 | **90 min** | **0.407 Hz** | **LSTID carrier ✅** |
+| 5 | trend | 0.156 Hz | Slow background |
+
+### Comparison with SGOLAY-ridge
+- EMD IMF4 and SGOLAY-ridge track the same 90-min oscillation
+- EMD is smoother — may over-smooth real amplitude variation
+- Phase offset: EMD lags SGOLAY by 540s (r=0.568)
+- They diverge after 19:00 UTC — SGOLAY shows amplitude growth,
+  EMD is more symmetric
+
+### Implications for DOA
+- 540s phase offset means EMD and SGOLAY cannot be mixed across stations
+- EMD must be applied consistently to ALL stations for biases to cancel
+- EMD would give a different set of pairwise lags than SGOLAY-ridge
+- Need to run DOA with EMD on all 4 stations to compare
+
+### Assessment
+EMD correctly identifies the LSTID at 90 min. It is fully automatic
+(no corridor clicking required). The phase offset vs SGOLAY-ridge is
+a systematic bias — consistent across stations it would cancel in DOA.
+Next step: run EMD on all 4 stations and compare DOA result with
+sgolay-ridge result.
+
+### FIF vs EMD
+For this signal (well-separated LSTID at 90 min vs contamination at
+<10 min), EMD works adequately. Mode mixing would be a problem if TID
+and contamination overlapped in period — they don't here. FIF
+implementation deferred.
