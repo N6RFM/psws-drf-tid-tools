@@ -74,9 +74,9 @@ OPTIONS
 
 KEYBOARD SHORTCUTS
 ==================
-    F     Fit sinusoid from clicks
-    W     Write guided CSV
-    R     Reset phase clicks (keeps calibration)
+    V     Toggle automated CSV overlay
+    X     Export corridor JSON + run sgolay-ridge preview
+    R     Reset clicks (keeps calibration)
     C     Clear everything (calibration + clicks)
     Q     Quit
 
@@ -186,42 +186,6 @@ class AxisTransform:
         return obj
 
 
-# ---------------------------------------------------------------------------
-# Sinusoid fitting
-# ---------------------------------------------------------------------------
-
-def fit_sinusoid(clicks_hours, doppler_vals, omega=None, period_hint_s=None):
-    """
-    Fit y(t) = A sin(ωt + φ) from sparse (t_hours, dop_hz) samples.
-    Returns (amplitude, omega_rad_per_s, phase_rad) or None.
-    """
-    if len(clicks_hours) < 3:
-        return None
-    t_s = np.array(clicks_hours) * 3600.0   # convert hours → seconds
-    y   = np.array(doppler_vals)
-
-    if omega is None:
-        if period_hint_s is not None:
-            omega = 2 * np.pi / period_hint_s
-        else:
-            span = t_s[-1] - t_s[0]
-            if span < 1:
-                return None
-            omega = 2 * np.pi / span
-
-    A_mat = np.column_stack([np.sin(omega * t_s), np.cos(omega * t_s)])
-    coeff, *_ = np.linalg.lstsq(A_mat, y, rcond=None)
-    a, b = coeff
-    amplitude = np.sqrt(a**2 + b**2)
-    phase = np.arctan2(b, a)
-    return amplitude, omega, phase
-
-
-def evaluate_sinusoid_hours(t_hours_arr, amplitude, omega, phase):
-    """Evaluate sinusoid on array of times in decimal hours."""
-    t_s = np.array(t_hours_arr) * 3600.0
-    return amplitude * np.sin(omega * t_s + phase)
-
 
 # ---------------------------------------------------------------------------
 # Main application
@@ -252,7 +216,6 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self.cal_pending = None          # pixel coords waiting for value input
         self.clicks_t    = []            # decimal hours
         self.clicks_d    = []            # doppler Hz
-        self.fit         = None          # (amp, omega, phase)
         self._csv_visible = False        # CSV overlay hidden until V pressed
 
         self._load_csv()
@@ -337,37 +300,6 @@ class SpectClickApp(QtWidgets.QMainWindow):
         )
         # _csv_visible already set in __init__ before _build_ui
 
-        # Fitted sinusoid (inside segment — bright)
-        self.fit_curve = self.plot.plot(
-            [], [],
-            pen=pg.mkPen(color="#4e9af1", width=2),
-            name="fit",
-        )
-        # Fitted sinusoid (outside segment — dim dotted)
-        self.fit_dim_curve = self.plot.plot(
-            [], [],
-            pen=pg.mkPen(color="#4e9af1", width=1,
-                         style=QtCore.Qt.DotLine),
-            name="fit_dim",
-        )
-
-        # Corridor boundary curves (shown after X is pressed)
-        self.corridor_hi_curve = self.plot.plot(
-            [], [],
-            pen=pg.mkPen(color="#ffff00", width=1,
-                         style=QtCore.Qt.DashLine),
-            name="corridor_hi",
-        )
-        self.corridor_lo_curve = self.plot.plot(
-            [], [],
-            pen=pg.mkPen(color="#ffff00", width=1,
-                         style=QtCore.Qt.DashLine),
-            name="corridor_lo",
-        )
-        self.corridor_hi_curve.setData([], [])
-        self.corridor_lo_curve.setData([], [])
-        self.fit_curve.setData([], [])
-        self.fit_dim_curve.setData([], [])
 
         # SGOLAY-ridge preview curve (shown after X if --drf-dir provided)
         self.preview_curve = self.plot.plot(
@@ -379,8 +311,6 @@ class SpectClickApp(QtWidgets.QMainWindow):
         # Ensure all curves start empty — clean launch every time
         self.corridor_hi_curve.setData([], [])
         self.corridor_lo_curve.setData([], [])
-        self.fit_curve.setData([], [])
-        self.fit_dim_curve.setData([], [])
         self.preview_curve.setData([], [])
 
         # Delete stale output files from previous sessions
@@ -451,7 +381,6 @@ class SpectClickApp(QtWidgets.QMainWindow):
 
     def _on_region(self):
         self.seg_t0, self.seg_t1 = self.region.getRegion()
-        self._refresh_fit()
         self._update_status()
 
     # ------------------------------------------------------------------
@@ -657,66 +586,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         else:
             self.scatter.setData([])
 
-    # ------------------------------------------------------------------
-    # Fit
-    # ------------------------------------------------------------------
 
-    def _fit(self):
-        if len(self.clicks_t) < 3:
-            self._set_status(f"Need ≥3 clicks (have {len(self.clicks_t)})")
-            return
-        result = fit_sinusoid(
-            self.clicks_t, self.clicks_d,
-            period_hint_s=self.period_hint
-        )
-        if result is None:
-            self._set_status("Fit failed")
-            return
-        self.fit = result
-        amp, omega, phase = result
-        period_s = 2 * np.pi / omega
-        self._set_status(
-            f"Fit: A={amp:.4f} Hz  T={period_s:.0f} s  "
-            f"φ={np.degrees(phase):.1f}°  — press W to write CSV"
-        )
-        self._refresh_fit()
-
-    def _refresh_fit(self):
-        if self.fit is None:
-            self.fit_curve.setData([], [])
-            self.fit_dim_curve.setData([], [])
-            return
-        amp, omega, phase = self.fit
-        t_arr = self.csv_t_hours
-        y_fit = evaluate_sinusoid_hours(t_arr, amp, omega, phase)
-        t0, t1 = self.seg_t0, self.seg_t1
-        seg_mask = (t_arr >= t0) & (t_arr <= t1)
-        self.fit_curve.setData(t_arr[seg_mask], y_fit[seg_mask])
-        self.fit_dim_curve.setData(t_arr[~seg_mask], y_fit[~seg_mask])
-
-    # ------------------------------------------------------------------
-    # Write
-    # ------------------------------------------------------------------
-
-    def _write(self):
-        if not self.clicks_t:
-            # Guard against spurious W keypress on launch before any interaction
-            return
-        if self.fit is None:
-            self._set_status("No fit yet — press F first")
-            return
-        amp, omega, phase = self.fit
-        df = self.df.copy()
-        t_arr = self.csv_t_hours
-        t0, t1 = self.seg_t0, self.seg_t1
-        mask = (t_arr >= t0) & (t_arr <= t1)
-        df.loc[mask, "doppler_hz"] = evaluate_sinusoid_hours(
-            t_arr[mask], amp, omega, phase
-        )
-        out = self.csv_path.parent / (self.csv_path.stem + "_guided" + self.csv_path.suffix)
-        df.to_csv(out, index=False)
-        self._set_status(f"Written: {out}")
-        print(f"Written: {out}")
 
     # ------------------------------------------------------------------
     # Reset / clear
@@ -827,20 +697,16 @@ class SpectClickApp(QtWidgets.QMainWindow):
     def _reset_clicks(self):
         self.clicks_t = []
         self.clicks_d = []
-        self.fit = None
         self._refresh_scatter()
-        self._refresh_fit()
         self._update_status()
 
     def _clear_all(self):
         self.clicks_t = []
         self.clicks_d = []
-        self.fit = None
         self.transform = None
         self.cal_step = 0
         self.cal_scatter.setData([])
         self._refresh_scatter()
-        self._refresh_fit()
         self.corridor_hi_curve.setData([], [])
         self.corridor_lo_curve.setData([], [])
         self.preview_curve.setData([], [])
@@ -860,11 +726,10 @@ class SpectClickApp(QtWidgets.QMainWindow):
             msg = self.CAL_SEQUENCE[self.cal_step]
         else:
             n = len(self.clicks_t)
-            fit_str = "✓fit" if self.fit else f"{n} click(s)"
             seg = f"  seg: {self.seg_t0:.2f}–{self.seg_t1:.2f} h"
             msg = (
-                f"[{self.name}] {fit_str}{seg}   "
-                "[F] fit  [W] write  [X] export corridor  "
+                f"[{self.name}] {n} click(s){seg}   "
+                "[X] export corridor  [V] csv overlay  "
                 "[R] reset  [C] clear  [Q] quit"
             )
         self.status_label.setText(msg)
@@ -875,7 +740,6 @@ class SpectClickApp(QtWidgets.QMainWindow):
 
     def _install_shortcuts(self):
         for key, cb in [("V", self._toggle_csv_overlay),
-                        ("F", self._fit), ("W", self._write),
                         ("X", self._write_corridor),
                         ("R", self._reset_clicks), ("C", self._clear_all),
                         ("Q", self.close)]:
