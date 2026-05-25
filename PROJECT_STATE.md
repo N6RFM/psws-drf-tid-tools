@@ -510,3 +510,23 @@ cd ~/psws-tools-pr && git checkout research_gui
 "Continuing psws-drf-tid-tools. Read PROJECT_STATE.md section 17 and
 FINDINGS entries 21-26. Key question: validate our 267 m/s WSW result
 against Gwyn's 979 m/s SSE — email Gwyn and implement his 2-path method."
+
+---
+## 18. tid_workflow.py — status 2026-05-25
+
+### Implemented
+Complete 10-step guided workflow wrapper. Auto-discovers stations,
+generates thumbnails, handles subchannel selection, computes IPP
+midpoints, saves state for resume. Overlap warning fires if <60 min.
+
+### Known issues
+1. Subchannel thumbnail window hardcoded to 17-21h — should use
+   event time from first station's quicklook selection
+2. Window alignment is the most critical user action — overlap
+   warning now offers quit/redo option
+
+### Next session opening prompt
+"Continuing psws-drf-tid-tools. Read PROJECT_STATE.md sections 17-18
+and FINDINGS entries 24-27 on research_gui branch.
+Priority: email Gwyn with 267 m/s WSW result. Then test
+tid_workflow.py on a fresh event with well-aligned windows."

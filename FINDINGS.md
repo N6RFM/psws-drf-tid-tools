@@ -1519,3 +1519,40 @@ extraction quality. But "improvement" here means:
 
 It does NOT yet mean demonstrated physical accuracy. That requires
 comparison with Gwyn and/or independent measurements.
+
+---
+
+## Entry 27 — tid_workflow.py: complete guided workflow wrapper
+**Date:** 2026-05-25
+**Branch:** research_gui
+
+### Implementation
+New `tid_workflow.py` automates the 10-step guided extraction workflow:
+1. Auto-discover stations in event directory
+2. Full-day spectrogram per station
+3. User selects TID window (tid_quicklook.py)
+4. Zoomed spectrogram
+5. User refines TID window
+6. Automated FFT extraction (overlay)
+7. Zoomed spectrogram with FFT overlay
+8. User clicks corridor (tid_spect_click.py + sgolay preview)
+9. sgolay-ridge extraction
+10. DOA (tid_doa.py)
+
+### Key features
+- State saved after each step — resumable with --resume
+- Auto-discovers DRF stations in event directory
+- Always generates subchannel thumbnails for user to confirm visually
+- Gets receiver coords: DRF metadata → callsign DB → user input
+- Computes IPP midpoints automatically (WWV default transmitter)
+- Overlap check with option to quit and redo windows if <60 min
+- Run logs written to event directory not cwd
+
+### First test (4 stations, May 2024 event)
+- Overlap: 37 min (too short — 3 diagnostics failed)
+- Lesson: window alignment is critical
+- The overlap warning now offers quit option to redo windows
+
+### Usage
+    python3 tid_workflow.py --event-dir ~/Downloads/gwyn_tid_event_20240517
+    python3 tid_workflow.py --event-dir ~/Downloads/gwyn_tid_event_20240517 --resume
