@@ -216,9 +216,6 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self.cal_pending = None          # pixel coords waiting for value input
         self.clicks_t    = []            # decimal hours
         self.clicks_d    = []            # doppler Hz
-        self._csv_visible = False        # CSV overlay hidden until V pressed
-
-        self._load_csv()
         self._load_image(img_path)
         self._build_ui(seg_start, seg_end)
         self._install_shortcuts()
@@ -228,18 +225,6 @@ class SpectClickApp(QtWidgets.QMainWindow):
     # Data loading
     # ------------------------------------------------------------------
 
-    def _load_csv(self):
-        df = pd.read_csv(self.csv_path, parse_dates=["timestamp_utc"])
-        df["timestamp_utc"] = pd.to_datetime(df["timestamp_utc"], utc=True)
-        df = df.sort_values("timestamp_utc").reset_index(drop=True)
-        self.df = df
-        # Convert timestamps to decimal UTC hours for plotting
-        self.csv_t_hours = (
-            df["timestamp_utc"].dt.hour +
-            df["timestamp_utc"].dt.minute / 60 +
-            df["timestamp_utc"].dt.second / 3600
-        ).values
-        self.csv_doppler = df["doppler_hz"].values.astype(float)
 
     def _load_image(self, img_path):
         """Load PNG and convert to format pyqtgraph can display."""
@@ -292,13 +277,6 @@ class SpectClickApp(QtWidgets.QMainWindow):
 
         # Set image scale/position based on transform if available
         self._update_image_transform()
-
-        # Automated Doppler CSV overlay (grey)
-        self.csv_curve = self.plot.plot(
-            [], [],
-            pen=pg.mkPen(color="#888888", width=1),
-        )
-        # _csv_visible already set in __init__ before _build_ui
 
 
         # Corridor boundary curves (shown after X is pressed)
@@ -354,8 +332,10 @@ class SpectClickApp(QtWidgets.QMainWindow):
 
         # Segment region
         if self.transform and self.transform.ready:
-            t0 = self.csv_t_hours[len(self.csv_t_hours)//4]
-            t1 = self.csv_t_hours[3*len(self.csv_t_hours)//4]
+            t_span = self.transform.ax * self.img_w  # total time width
+            t_start = self.transform.bx
+            t0 = t_start + t_span * 0.25
+            t1 = t_start + t_span * 0.75
         else:
             t0, t1 = 0.25, 0.75   # fractions until calibrated
 
@@ -560,7 +540,6 @@ class SpectClickApp(QtWidgets.QMainWindow):
             self._add_cal_marker(vx, vy)
             if self.transform.ready:
                 self._update_image_transform()
-                self._replot_csv()
                 self._set_status(
                     "Calibration complete! Now click phase samples on the carrier track."
                 )
@@ -568,12 +547,6 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self.cal_step += 1
         self._update_status()
 
-    def _replot_csv(self):
-        """Replot CSV overlay in calibrated coordinates (already in hours)."""
-        if self._csv_visible:
-            self.csv_curve.setData(self.csv_t_hours, self.csv_doppler)
-        else:
-            self.csv_curve.setData([], [])
 
     def _add_cal_marker(self, vx, vy):
         pts = [{"pos": [p["pos"][0], p["pos"][1]]}
@@ -649,43 +622,6 @@ class SpectClickApp(QtWidgets.QMainWindow):
         t_arr = _np2.array([c["t_utc_hours"] for c in corridor["clicks"]])
         d_arr = _np2.array([c["doppler_hz"]   for c in corridor["clicks"]])
         self._refresh_corridor(t_arr, d_arr, half_bw)
-        # Consistency check: xcorr corridor centres vs automated CSV
-        # to detect phase offset (>60s = likely tracking different feature)
-        try:
-            import numpy as _np
-            from scipy.signal import correlate as _corr, correlation_lags as _lags
-            t_arr = _np.array([c["t_utc_hours"] for c in corridor["clicks"]])
-            d_arr = _np.array([c["doppler_hz"]   for c in corridor["clicks"]])
-            csv_t = self.csv_t_hours
-            csv_d = self.csv_doppler.copy()
-            # Interpolate corridor centres onto CSV time grid
-            corr_centres = _np.interp(csv_t, t_arr, d_arr)
-            # Only compare within clicked time range
-            in_range = (csv_t >= t_arr[0]) & (csv_t <= t_arr[-1])
-            if in_range.sum() > 10:
-                x = corr_centres[in_range] - corr_centres[in_range].mean()
-                y = csv_d[in_range] - csv_d[in_range].mean()
-                cc = _corr(y, x, mode="full") / (
-                    (_np.std(x) * _np.std(y) * in_range.sum()) + 1e-12)
-                lag_steps = _lags(in_range.sum(), in_range.sum(), mode="full")
-                dt_h = (csv_t[1] - csv_t[0]) if len(csv_t) > 1 else (1/60)
-                lag_s = lag_steps * dt_h * 3600
-                peak_idx = int(_np.argmax(cc))
-                offset_s = float(lag_s[peak_idx])
-                peak_r   = float(cc[peak_idx])
-                info = (f"Corridor: offset vs FFT {offset_s:+.0f}s "
-                        f"(r={peak_r:.2f})")
-                if peak_r < 0.3:
-                    info += " ⚠️ low coherence — check clicks"
-                print(info)
-                self._set_status(
-                    f"Corridor written: {out.name}  "
-                    f"({len(self.clicks_t)} points, ±{half_bw} Hz)  {info}"
-                )
-                self._run_sgolay_preview(out)
-                return
-        except Exception as _e:
-            print(f"  Consistency check failed: {_e}")
 
         self._set_status(
             f"Corridor written: {out.name}  "
@@ -695,15 +631,6 @@ class SpectClickApp(QtWidgets.QMainWindow):
         # Run sgolay-ridge preview if DRF dir provided
         self._run_sgolay_preview(out)
 
-    def _toggle_csv_overlay(self):
-        """Toggle automated CSV overlay on/off (V key)."""
-        self._csv_visible = not self._csv_visible
-        if self._csv_visible:
-            self.csv_curve.setData(self.csv_t_hours, self.csv_doppler)
-            self._set_status("CSV overlay ON (grey) — press V to hide")
-        else:
-            self.csv_curve.setData([], [])
-            self._set_status("CSV overlay OFF — press V to show")
 
     def _reset_clicks(self):
         self.clicks_t = []
@@ -721,8 +648,6 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self.corridor_hi_curve.setData([], [])
         self.corridor_lo_curve.setData([], [])
         self.preview_curve.setData([], [])
-        self.csv_curve.setData([], [])
-        self._csv_visible = False
         self._update_status()
 
     # ------------------------------------------------------------------
@@ -740,7 +665,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
             seg = f"  seg: {self.seg_t0:.2f}–{self.seg_t1:.2f} h"
             msg = (
                 f"[{self.name}] {n} click(s){seg}   "
-                "[X] export corridor  [V] csv overlay  "
+                "[X] export corridor  "
                 "[R] reset  [C] clear  [Q] quit"
             )
         self.status_label.setText(msg)
@@ -750,8 +675,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
     # ------------------------------------------------------------------
 
     def _install_shortcuts(self):
-        for key, cb in [("V", self._toggle_csv_overlay),
-                        ("X", self._write_corridor),
+        for key, cb in [("X", self._write_corridor),
                         ("R", self._reset_clicks), ("C", self._clear_all),
                         ("Q", self.close)]:
             sc = QtWidgets.QShortcut(QtGui.QKeySequence(key), self, cb)
@@ -769,8 +693,8 @@ def _parse_args():
     )
     p.add_argument("--spectrogram", required=True, metavar="PNG",
                    help="Spectrogram image file")
-    p.add_argument("--csv", required=True, metavar="FILE",
-                   help="Automated Doppler CSV")
+    p.add_argument("--csv", default=None, metavar="FILE",
+                   help="Automated Doppler CSV (optional, unused)")
     p.add_argument("--name", default="Station", metavar="NAME",
                    help="Station name label")
     p.add_argument("--tlim", metavar="T0,T1",
