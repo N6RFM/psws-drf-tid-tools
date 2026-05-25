@@ -304,7 +304,12 @@ def run_workflow(args):
         drf_dirs = discover_stations(event_dir)
         if not drf_dirs:
             sys.exit("No DRF stations found in event directory.")
-        print(f"  Found {len(drf_dirs)} station(s):")
+        if args.stations:
+            wanted = [s.strip().lower() for s in args.stations.split(",")]
+            drf_dirs = [d for d in drf_dirs if d.name.lower() in wanted]
+            print(f"  Using {len(drf_dirs)} station(s) (filtered by --stations):")
+        else:
+            print(f"  Found {len(drf_dirs)} station(s):")
         for d in drf_dirs:
             print(f"    {d.name}")
 
