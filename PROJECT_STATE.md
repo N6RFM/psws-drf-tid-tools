@@ -723,3 +723,37 @@ cd ~/psws-tools-pr && git checkout research_gui
 and FINDINGS entries 30-31 on research_gui branch.
 Priority: re-run full workflow on May 2024 event with 17:30-19:30
 window, carefully click AC0G_ND corridor on clean F-region carrier."
+
+---
+## 25. AC0G_ND unusable for May 2024 event — 2026-05-25
+
+### Finding
+AC0G_ND spectrogram shows strong DC ground wave at 0 Hz plus large
+E-region loops at +1 to +3 Hz. No visible F-region TID carrier.
+Station is unusable for this event regardless of corridor placement.
+
+### 3-station geometry problem
+N4RVE/N5BRG/W7LUX triangle has only 24° between baselines — nearly
+collinear. Cannot determine 2D TID velocity. Best result with these
+3 stations: along-baseline component ~300-390 m/s toward WSW.
+
+### tid_workflow.py bugs fixed this session
+- zoom_window now defaults to window after Step 3
+- Step 5 shows current window, Q keeps it as-is
+- Extraction method prompt (sgolay-ridge/fft) at start
+- Window review before extraction with per-station redo
+- h_to_hhmm display bug (17:60 → 18:00) fixed
+- Step 5 opens zoom_clean_png with correct pre-positioning
+- DOA uses correct CSV for chosen method
+- date_str KeyError on resume fixed
+
+### Next steps
+1. Try AC0G_ND subchannel 0 — may have cleaner signal
+2. Find a different event where AC0G_ND is usable
+3. Consider adding a 5th station to improve array geometry
+
+### Resume command
+cd ~/psws-tools-pr && git checkout research_gui
+"Continuing psws-drf-tid-tools. Read PROJECT_STATE.md sections 23-25
+on research_gui branch. AC0G_ND unusable on May 2024 event (ground
+wave at 0 Hz). Try subchannel 0 for AC0G_ND or find better event."
