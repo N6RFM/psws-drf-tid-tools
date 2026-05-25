@@ -140,44 +140,103 @@ def get_station_coords(name, drf_dir):
             print("    Invalid — enter decimal numbers e.g. 35.1042 and -111.7083")
 
 
-def probe_subchannels(drf_dir, date_str, n_probe=5):
-    """Probe all subchannels and return list of (subchannel, snr_db, freq_hz)."""
+def probe_subchannels(drf_dir, date_str, target_mhz=10.0):
+    """
+    Probe all subchannels. Returns list of (subchannel, snr_db, freq_hz).
+    Priority: DRF metadata frequencies > SNR ranking.
+    Auto-selects subchannel closest to target_mhz if frequency metadata available.
+    """
     try:
         import digital_rf as drf_lib
-        import pandas as pd
         r = drf_lib.DigitalRFReader(str(drf_dir))
         ch = r.get_channels()[0]
         props = r.get_properties(ch)
         sr = float(props["samples_per_second"])
         b0, b1 = r.get_bounds(ch)
 
-        # Read a probe block from middle of recording
+        # Read probe block from middle of recording
         mid = (b0 + b1) // 2
-        block = int(sr * 60)  # 60 seconds
+        block = int(sr * 60)
         try:
             iq = r.read_vector(mid, block, ch)
         except Exception:
-            iq = r.read_vector(b0, block, ch)
+            iq = r.read_vector(b0, min(block, b1-b0), ch)
 
+        # Single channel
         if iq.ndim == 1:
-            # Single channel
-            spec = np.abs(np.fft.rfft(iq))
+            spec = np.abs(np.fft.rfft(iq.real))
             snr = 20 * np.log10(spec.max() / (np.median(spec) + 1e-12))
-            return [(0, float(snr), None)]
+            # Try to get center frequency from metadata
+            freq = None
+            for key in ["center_frequencies", "center_frequency",
+                        "rf_centerfreq", "centerfreq"]:
+                val = props.get(key, None)
+                if val is not None:
+                    try:
+                        freq = float(np.atleast_1d(val)[0])
+                    except Exception:
+                        pass
+                    break
+            return [(0, float(snr), freq)]
 
+        # Multi-channel
         n_subs = iq.shape[1]
         results = []
-        freqs = props.get("center_frequencies", [None] * n_subs)
+
+        # Get frequency array from metadata - try multiple key names
+        freqs = None
+        for key in ["center_frequencies", "center_frequency",
+                    "rf_centerfreq", "centerfreq", "subchannel_center_frequencies"]:
+            val = props.get(key, None)
+            if val is not None:
+                try:
+                    arr = np.atleast_1d(val)
+                    if len(arr) == n_subs:
+                        freqs = arr
+                        break
+                    elif len(arr) == 1:
+                        # Single freq — same for all subchannels
+                        freqs = np.full(n_subs, float(arr[0]))
+                        break
+                except Exception:
+                    pass
+
         for sub in range(n_subs):
             col = iq[:, sub]
-            spec = np.abs(np.fft.fftshift(np.fft.fft(col)))
+            # Handle complex data
+            if np.iscomplexobj(col):
+                spec = np.abs(np.fft.fftshift(np.fft.fft(col)))
+            else:
+                spec = np.abs(np.fft.rfft(col))
             snr = 20 * np.log10(spec.max() / (np.median(spec) + 1e-12))
-            freq = freqs[sub] if sub < len(freqs) else None
+            freq = float(freqs[sub]) if freqs is not None else None
             results.append((sub, float(snr), freq))
+
         return sorted(results, key=lambda x: -x[1])
+
     except Exception as e:
         print(f"    Subchannel probe failed: {e}")
         return [(0, 0.0, None)]
+
+
+def best_subchannel(subs, target_mhz=10.0):
+    """
+    Select best subchannel:
+    1. Subchannel with frequency closest to target_mhz (if freq metadata available)
+    2. Subchannel with highest SNR (fallback)
+    """
+    # Try frequency match first
+    freq_matches = [(sub, snr, freq) for sub, snr, freq in subs
+                    if freq is not None]
+    if freq_matches:
+        closest = min(freq_matches, key=lambda x: abs(x[2]/1e6 - target_mhz))
+        diff = abs(closest[2]/1e6 - target_mhz)
+        if diff < 0.1:  # within 100 kHz
+            return closest[0], f"frequency match ({closest[2]/1e6:.3f} MHz)"
+
+    # Fall back to highest SNR
+    best = subs[0]
+    return best[0], f"highest SNR ({best[1]:.1f} dB)"
 
 
 def discover_stations(event_dir):
@@ -262,7 +321,7 @@ def run_workflow(args):
 
             # Probe subchannels
             print(f"    Probing subchannels...")
-            subs = probe_subchannels(drf_dir_s, date_str)
+            subs = probe_subchannels(drf_dir_s, date_str, args.tx_freq_mhz)
             print(f"    Top subchannels by SNR:")
             for sub, snr, freq in subs[:5]:
                 freq_str = f" — {freq/1e6:.3f} MHz" if freq else ""
