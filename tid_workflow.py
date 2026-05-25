@@ -410,7 +410,7 @@ def run_workflow(args):
         zoom_png       = event_dir / f"{stn_key}_tid_zoom.png"
         zoom_clean_png = event_dir / f"{stn_key}_tid_zoom_clean.png"
         fft_csv      = event_dir / f"{stn_key}_fft_tid.csv"
-        corridor_json = event_dir / f"{stn_key}_tid_zoom_clean_fft_tid_corridor.json"
+        corridor_json = event_dir / f"{stn_key}_tid_zoom_clean_corridor.json"
         sgolay_csv   = event_dir / f"{stn_key}_sgolay_tid.csv"
         window_json  = event_dir / f"{stn_key}_fullday_window.json"
         zoom_window  = event_dir / f"{stn_key}_tid_zoom_window.json"
