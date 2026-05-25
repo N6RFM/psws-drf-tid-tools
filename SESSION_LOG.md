@@ -47,3 +47,22 @@ Key open question: reconcile our 267 m/s WSW result with Gwyn's
 
 ### Commits this session
 Run: git log --oneline research_gui | head -30
+
+---
+
+## Session 2026-05-25 (continued)
+
+### Additional fixes
+- tid_spect_click.py: clean launch — no curves shown until user creates them
+- Root cause: FFT overlay curves were baked into spectrogram PNG by --overlay
+- Fix: two separate spectrograms in workflow:
+  - _tid_zoom_clean.png — no overlay, used for corridor clicking
+  - _tid_zoom.png — with FFT overlay, for inspection only
+- V key toggles grey CSV overlay on/off
+- C key clears all curves
+- Stale corridor JSON and preview CSV deleted on launch
+
+### Resume prompt (updated)
+"Continuing psws-drf-tid-tools. Read PROJECT_STATE.md sections 17-21
+and FINDINGS entries 21-30 on research_gui branch. GUI is now clean
+on launch. Key priority: send email to Gwyn."

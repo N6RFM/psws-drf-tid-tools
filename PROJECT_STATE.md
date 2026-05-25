@@ -5,7 +5,7 @@ session. Not a release artifact. Update it when state changes
 materially; treat it as the first thing to read when picking the
 project back up.
 
-**Last updated:** 2026-05-25  |  **Status: ACTIVE RESEARCH — research_gui branch active; awaiting Gwyn reply on method discrepancy**
+**Last updated:** 2026-05-25 (end of session)  |  **Status: ACTIVE RESEARCH — research_gui branch active; awaiting Gwyn reply on method discrepancy**
 
 ---
 
@@ -550,10 +550,10 @@ midpoints, saves state for resume. Overlap warning fires if <60 min.
    warning now offers quit/redo option
 
 ### Next session opening prompt
-"Continuing psws-drf-tid-tools. Read PROJECT_STATE.md sections 17-18
-and FINDINGS entries 24-27 on research_gui branch.
-Priority: email Gwyn with 267 m/s WSW result. Then test
-tid_workflow.py on a fresh event with well-aligned windows."
+"Continuing psws-drf-tid-tools. Read PROJECT_STATE.md sections 17-21
+and FINDINGS entries 24-30 on research_gui branch.
+Priority: send email to Gwyn (drafted). Then test tid_workflow.py
+on a fresh event with well-aligned windows."
 
 ---
 ## 19. Future direction: FIF/EMD on 2D spectrogram (no corridor required)

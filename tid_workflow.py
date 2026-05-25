@@ -407,9 +407,10 @@ def run_workflow(args):
         print(f"{'─'*60}")
 
         fullday_png  = event_dir / f"{stn_key}_fullday.png"
-        zoom_png     = event_dir / f"{stn_key}_tid_zoom.png"
+        zoom_png       = event_dir / f"{stn_key}_tid_zoom.png"
+        zoom_clean_png = event_dir / f"{stn_key}_tid_zoom_clean.png"
         fft_csv      = event_dir / f"{stn_key}_fft_tid.csv"
-        corridor_json = event_dir / f"{stn_key}_fft_tid_corridor.json"
+        corridor_json = event_dir / f"{stn_key}_tid_zoom_clean_fft_tid_corridor.json"
         sgolay_csv   = event_dir / f"{stn_key}_sgolay_tid.csv"
         window_json  = event_dir / f"{stn_key}_fullday_window.json"
         zoom_window  = event_dir / f"{stn_key}_tid_zoom_window.json"
@@ -449,21 +450,21 @@ def run_workflow(args):
             print(f"  Window: {h_to_hhmm(wj['t_start_utc_hours'])}"
                   f"–{h_to_hhmm(wj['t_end_utc_hours'])} UTC")
 
-        # Step 4: Zoomed spectrogram
+        # Step 4: Zoomed spectrogram (clean — no overlay, used for corridor clicking)
         if f"{stn_key}_zoom" not in state:
             print(f"\n[Step 4] Zoomed spectrogram for {name}...")
             r = run([
                 "python3", tool("drf_spectrogram.py"),
                 drf_dir_s,
                 "--subchannel", str(sub),
-                "--output", str(zoom_png),
+                "--output", str(zoom_clean_png),
                 "--window", str(window_json),
                 "--ylim=-5,5", "--dpi", "150",
             ])
             if r.returncode != 0:
                 print(f"  ERROR: zoom spectrogram failed for {name}")
                 continue
-            state[f"{stn_key}_zoom"] = str(zoom_png)
+            state[f"{stn_key}_zoom"] = str(zoom_clean_png)
             save_state(state_file, state)
 
         # Step 5: User refines TID window
@@ -509,7 +510,7 @@ def run_workflow(args):
             state[f"{stn_key}_fft"] = str(fft_csv)
             save_state(state_file, state)
 
-        # Step 7: Zoomed spectrogram with FFT overlay
+        # Step 7: Zoomed spectrogram with FFT overlay (for inspection only)
         if f"{stn_key}_zoom_overlay" not in state:
             print(f"\n[Step 7] Zoomed spectrogram with FFT overlay for {name}...")
             r = run([
@@ -524,17 +525,21 @@ def run_workflow(args):
             if r.returncode != 0:
                 print(f"  ERROR: overlay spectrogram failed for {name}")
                 continue
+            print(f"  Overlay PNG for inspection: {zoom_png.name}")
+            print(f"  Clean PNG for clicking:     {zoom_clean_png.name}")
             state[f"{stn_key}_zoom_overlay"] = True
             save_state(state_file, state)
 
-        # Step 8: User clicks corridor
+        # Step 8: User clicks corridor (use CLEAN PNG — no baked-in overlay)
         if f"{stn_key}_corridor" not in state:
             print(f"\n[Step 8] Click corridor for {name}...")
+            print(f"  → Open {zoom_png.name} to inspect the FFT overlay")
+            print(f"  → Corridor clicking uses clean PNG: {zoom_clean_png.name}")
             print("  → Click ~6 points bracketing the carrier")
             print("  → Press F to fit, X to export corridor + preview, Q to accept")
             run([
                 "python3", tool("tid_spect_click.py"),
-                "--spectrogram", str(zoom_png),
+                "--spectrogram", str(zoom_clean_png),
                 "--csv", str(fft_csv),
                 "--name", name,
                 "--drf-dir", drf_dir_s,
