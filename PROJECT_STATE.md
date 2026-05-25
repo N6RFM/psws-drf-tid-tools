@@ -441,6 +441,30 @@ Revised clicking guidance:
 - Wide enough to contain carrier, narrow enough to exclude E-region
 
 ---
+## 15. Corridor design review — key decisions
+
+### Fundamental reframe (agreed 2026-05-24)
+The corridor is a PRIOR CONSTRAINT — the user defines where to look,
+not what the carrier looks like. Clicks bracket the carrier band;
+the extraction algorithm (sgolay-ridge) finds the carrier within it.
+
+### Design decisions
+1. Corridor JSON stores raw clicked points — linear interpolation
+   between clicks for the centre frequency. This is correct because
+   the corridor is a search region, not a carrier model.
+2. Outside clicked range: flat extrapolation to nearest endpoint.
+   Acceptable if clicks cover the full analysis window.
+3. half_bw default 0.5 Hz — wide enough for F-region carrier,
+   narrow enough to exclude most E-region contamination.
+4. Consistency check on X press: xcorr offset >60s warns user.
+5. sgolay-ridge preview (green curve) shows extracted result
+   on spectrogram so user can verify before committing.
+
+### What the sinusoid fit (F key) is for
+Visual verification only — confirms clicks are on a coherent
+oscillation. The fit is NOT used in extraction. The corridor
+boundaries (yellow dashed lines) are what matter.
+---
 ## 16. Complete guided workflow — validated 2026-05-24
 
 Full workflow implemented and validated on May 2024 LSTID event.
@@ -532,63 +556,6 @@ Priority: email Gwyn with 267 m/s WSW result. Then test
 tid_workflow.py on a fresh event with well-aligned windows."
 
 ---
-## 21. Method cleanup — deferred
-
-Decision to remove any extraction methods (autocorr, cwt, bandpass)
-deferred until after Gwyn's reply on the 267 m/s WSW vs 979 m/s SSE
-discrepancy. His response may:
-1. Clarify which methods are physically correct
-2. Point to extending cwt (his Prophet/CWT approach)
-3. Identify the root cause of the direction discrepancy
-
-All methods recoverable from git history if removed and later needed.
-
----
-## 20. Gwyn's Prophet/CWT approach — relationship to our methods
-
-### Gwyn's method (grape_fft_CWT_tracking_prophet.py)
-Reference: https://github.com/g3zil/grapeDRF_doppler_model
-
-1. CWT peak finding — finds ALL spectral peaks per 60s block (not just max)
-2. Keeps top 2 peaks — F-region and E-region carriers
-3. Facebook Prophet — predicts F-region Doppler one step ahead using
-   a Bayesian time-series model trained on recent history
-4. Peak selection — if top peak is farther from prediction than second
-   peak, swap them (i.e. the other peak is more likely to be F-region)
-5. Outputs two separate Doppler traces (F-region + E-region)
-
-### Key insight
-Gwyn's Prophet prediction and our user corridor serve the same purpose:
-both provide a PRIOR on where the F-region carrier should be. The
-difference is:
-- Prophet: algorithmic prior from recent carrier history
-- Corridor: user visual prior from spectrogram inspection
-
-Prophet is blind to sudden phase jumps (wrong-peak lock can corrupt
-the training data). The corridor is immune to this because it's set
-by the user before extraction.
-
-### Why we didn't use Prophet
-- Heavy dependency (Stan/PyStan compiled C++)
-- Slow: seconds per minute of data (120 fits for 2h event)
-- Fragile installation (platform-dependent)
-- Overkill: linear extrapolation achieves same accuracy for smooth signal
-
-### Future option: CWT + linear extrapolation (no Prophet)
-A lighter version of Gwyn's approach:
-- CWT peak finding (scipy, already a dependency)
-- Rolling linear extrapolation (5-10 samples) instead of Prophet
-- Same two-peak tracking logic
-- Could be added as --method cwt-track in drf_to_doppler.py
-
-This would be fully automatic (no corridor clicking) and more robust
-than the current --method cwt which doesn't do two-peak tracking.
-
-### Priority
-Discuss with Gwyn first — he may have already refined this approach
-and sharing code/results would avoid duplication.
-
----
 ## 19. Future direction: FIF/EMD on 2D spectrogram (no corridor required)
 
 ### Concept
@@ -642,3 +609,60 @@ FIF/EMD would be a parallel extraction method, not a replacement:
 ### Priority
 Medium — implement after Gwyn discrepancy is resolved and current
 workflow is validated on multiple events.
+
+---
+## 20. Gwyn's Prophet/CWT approach — relationship to our methods
+
+### Gwyn's method (grape_fft_CWT_tracking_prophet.py)
+Reference: https://github.com/g3zil/grapeDRF_doppler_model
+
+1. CWT peak finding — finds ALL spectral peaks per 60s block (not just max)
+2. Keeps top 2 peaks — F-region and E-region carriers
+3. Facebook Prophet — predicts F-region Doppler one step ahead using
+   a Bayesian time-series model trained on recent history
+4. Peak selection — if top peak is farther from prediction than second
+   peak, swap them (i.e. the other peak is more likely to be F-region)
+5. Outputs two separate Doppler traces (F-region + E-region)
+
+### Key insight
+Gwyn's Prophet prediction and our user corridor serve the same purpose:
+both provide a PRIOR on where the F-region carrier should be. The
+difference is:
+- Prophet: algorithmic prior from recent carrier history
+- Corridor: user visual prior from spectrogram inspection
+
+Prophet is blind to sudden phase jumps (wrong-peak lock can corrupt
+the training data). The corridor is immune to this because it's set
+by the user before extraction.
+
+### Why we didn't use Prophet
+- Heavy dependency (Stan/PyStan compiled C++)
+- Slow: seconds per minute of data (120 fits for 2h event)
+- Fragile installation (platform-dependent)
+- Overkill: linear extrapolation achieves same accuracy for smooth signal
+
+### Future option: CWT + linear extrapolation (no Prophet)
+A lighter version of Gwyn's approach:
+- CWT peak finding (scipy, already a dependency)
+- Rolling linear extrapolation (5-10 samples) instead of Prophet
+- Same two-peak tracking logic
+- Could be added as --method cwt-track in drf_to_doppler.py
+
+This would be fully automatic (no corridor clicking) and more robust
+than the current --method cwt which doesn't do two-peak tracking.
+
+### Priority
+Discuss with Gwyn first — he may have already refined this approach
+and sharing code/results would avoid duplication.
+
+---
+## 21. Method cleanup — deferred
+
+Decision to remove any extraction methods (autocorr, cwt, bandpass)
+deferred until after Gwyn's reply on the 267 m/s WSW vs 979 m/s SSE
+discrepancy. His response may:
+1. Clarify which methods are physically correct
+2. Point to extending cwt (his Prophet/CWT approach)
+3. Identify the root cause of the direction discrepancy
+
+All methods recoverable from git history if removed and later needed.
