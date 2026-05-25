@@ -613,8 +613,7 @@ def run_workflow(args):
         for stn in completed:
             df = dfs[stn["name"]]
             print(f"    {stn['name']}: {df.timestamp_utc.min()} to {df.timestamp_utc.max()}")
-        print("
-  Options:")
+        print("\n  Options:")
         print("  1. Continue anyway (result may be unreliable)")
         print("  2. Quit and re-run Steps 3-5 with better-aligned windows")
         choice = input("  Choose [1/2]: ").strip()
