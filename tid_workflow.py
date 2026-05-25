@@ -390,9 +390,22 @@ def run_workflow(args):
         save_state(state_file, state)
     else:
         stations = state["stations"]
-        date_str = state["date_str"]
+        date_str = state.get("date_str") or stations[0].get("date_str", "2024-01-01")
         print(f"  Resuming with {len(stations)} station(s): "
               f"{', '.join(s['name'] for s in stations)}")
+
+    # ── Method selection ─────────────────────────────────────────────────
+    if "extraction_method" not in state:
+        print("\nExtraction method:")
+        print("  1. sgolay-ridge  (corridor GUI — recommended)")
+        print("  2. fft           (automated, no user input)")
+        choice = input("Choose [1]: ").strip() or "1"
+        method = "sgolay-ridge" if choice != "2" else "fft"
+        state["extraction_method"] = method
+        save_state(state_file, state)
+    else:
+        method = state["extraction_method"]
+    print(f"  Extraction method: {method}")
 
     # ── Steps 2-9: Per-station workflow ───────────────────────────────────
     for stn in stations:
@@ -491,89 +504,107 @@ def run_workflow(args):
             t1_h = zwj["t_end_utc_hours"]
             print(f"  Refined window: {h_to_hhmm(t0_h)}–{h_to_hhmm(t1_h)} UTC")
 
-        # Step 6: Automated FFT extraction
-        if f"{stn_key}_fft" not in state:
-            print(f"\n[Step 6] Automated FFT extraction for {name}...")
-            r = run([
-                "python3", tool("drf_to_doppler.py"),
-                drf_dir_s,
-                "--subchannel", str(sub),
-                "--start", h_to_iso(date_str, t0_h),
-                "--end",   h_to_iso(date_str, t1_h),
-                "--decim-seconds", "60",
-                "--method", "fft",
-                "--output", str(fft_csv),
-            ])
-            if r.returncode != 0:
-                print(f"  ERROR: FFT extraction failed for {name}")
-                continue
-            state[f"{stn_key}_fft"] = str(fft_csv)
-            save_state(state_file, state)
+        if method == "sgolay-ridge":
+            # Step 6: Plain zoomed spectrogram for visual reference (no overlay)
+            if f"{stn_key}_zoom_overlay" not in state:
+                print(f"\n[Step 6] Zoomed spectrogram for {name} (visual reference)...")
+                r = run([
+                    "python3", tool("drf_spectrogram.py"),
+                    drf_dir_s,
+                    "--subchannel", str(sub),
+                    "--output", str(zoom_png),
+                    "--window", str(window_json),
+                    "--ylim=-5,5", "--dpi", "150",
+                ])
+                if r.returncode != 0:
+                    print(f"  ERROR: spectrogram failed for {name}")
+                    continue
+                print(f"  Reference PNG: {zoom_png.name}")
+                print(f"  Clean PNG for clicking: {zoom_clean_png.name}")
+                state[f"{stn_key}_zoom_overlay"] = True
+                save_state(state_file, state)
 
-        # Step 7: Zoomed spectrogram with FFT overlay (for inspection only)
-        if f"{stn_key}_zoom_overlay" not in state:
-            print(f"\n[Step 7] Zoomed spectrogram with FFT overlay for {name}...")
-            r = run([
-                "python3", tool("drf_spectrogram.py"),
-                drf_dir_s,
-                "--subchannel", str(sub),
-                "--output", str(zoom_png),
-                "--window", str(window_json),
-                "--ylim=-5,5", "--dpi", "150",
-                f"--overlay={fft_csv}:FFT",
-            ])
-            if r.returncode != 0:
-                print(f"  ERROR: overlay spectrogram failed for {name}")
-                continue
-            print(f"  Overlay PNG for inspection: {zoom_png.name}")
-            print(f"  Clean PNG for clicking:     {zoom_clean_png.name}")
-            state[f"{stn_key}_zoom_overlay"] = True
-            save_state(state_file, state)
+            # Step 7: User clicks corridor
+            if f"{stn_key}_corridor" not in state:
+                print(f"\n[Step 7] Click corridor for {name}...")
+                print(f"  → Open {zoom_png.name} for visual reference")
+                print(f"  → Click corridor on clean PNG: {zoom_clean_png.name}")
+                print("  → Click ~6 points bracketing the carrier")
+                print("  → Press X to export corridor + preview, Q to accept")
+                run([
+                    "python3", tool("tid_spect_click.py"),
+                    "--spectrogram", str(zoom_clean_png),
+                    "--name", name,
+                    "--drf-dir", drf_dir_s,
+                    "--subchannel", str(sub),
+                    "--sgolay-window", str(args.sgolay_window),
+                ])
+                if not corridor_json.exists():
+                    print(f"  WARNING: No corridor saved for {name} — skipping")
+                    continue
+                state[f"{stn_key}_corridor"] = str(corridor_json)
+                save_state(state_file, state)
 
-        # Step 8: User clicks corridor (use CLEAN PNG — no baked-in overlay)
-        if f"{stn_key}_corridor" not in state:
-            print(f"\n[Step 8] Click corridor for {name}...")
-            print(f"  → Open {zoom_png.name} to inspect the FFT overlay")
-            print(f"  → Corridor clicking uses clean PNG: {zoom_clean_png.name}")
-            print("  → Click ~6 points bracketing the carrier")
-            print("  → Press F to fit, X to export corridor + preview, Q to accept")
-            run([
-                "python3", tool("tid_spect_click.py"),
-                "--spectrogram", str(zoom_clean_png),
-                "--csv", str(fft_csv),
-                "--name", name,
-                "--drf-dir", drf_dir_s,
-                "--subchannel", str(sub),
-                "--sgolay-window", str(args.sgolay_window),
-            ])
-            if not corridor_json.exists():
-                print(f"  WARNING: No corridor saved for {name} — skipping")
-                continue
-            state[f"{stn_key}_corridor"] = str(corridor_json)
-            save_state(state_file, state)
+            # Step 8: sgolay-ridge extraction
+            if f"{stn_key}_sgolay" not in state:
+                print(f"\n[Step 8] sgolay-ridge extraction for {name}...")
+                r = run([
+                    "python3", tool("drf_to_doppler.py"),
+                    drf_dir_s,
+                    "--subchannel", str(sub),
+                    "--start", h_to_iso(date_str, t0_h),
+                    "--end",   h_to_iso(date_str, t1_h),
+                    "--decim-seconds", "60",
+                    "--method", "sgolay-ridge",
+                    "--corridor", str(corridor_json),
+                    "--sgolay-window", str(args.sgolay_window),
+                    "--output", str(sgolay_csv),
+                ])
+                if r.returncode != 0:
+                    print(f"  ERROR: sgolay-ridge failed for {name}")
+                    continue
+                state[f"{stn_key}_sgolay"] = str(sgolay_csv)
+                save_state(state_file, state)
+            else:
+                print(f"  sgolay CSV: {sgolay_csv.name} (already done)")
 
-        # Step 9: sgolay-ridge extraction
-        if f"{stn_key}_sgolay" not in state:
-            print(f"\n[Step 9] sgolay-ridge extraction for {name}...")
-            r = run([
-                "python3", tool("drf_to_doppler.py"),
-                drf_dir_s,
-                "--subchannel", str(sub),
-                "--start", h_to_iso(date_str, t0_h),
-                "--end",   h_to_iso(date_str, t1_h),
-                "--decim-seconds", "60",
-                "--method", "sgolay-ridge",
-                "--corridor", str(corridor_json),
-                "--sgolay-window", str(args.sgolay_window),
-                "--output", str(sgolay_csv),
-            ])
-            if r.returncode != 0:
-                print(f"  ERROR: sgolay-ridge failed for {name}")
-                continue
-            state[f"{stn_key}_sgolay"] = str(sgolay_csv)
-            save_state(state_file, state)
-        else:
-            print(f"  sgolay CSV: {sgolay_csv.name} (already done)")
+        else:  # method == "fft"
+            # Step 6: FFT extraction
+            if f"{stn_key}_fft" not in state:
+                print(f"\n[Step 6] FFT extraction for {name}...")
+                r = run([
+                    "python3", tool("drf_to_doppler.py"),
+                    drf_dir_s,
+                    "--subchannel", str(sub),
+                    "--start", h_to_iso(date_str, t0_h),
+                    "--end",   h_to_iso(date_str, t1_h),
+                    "--decim-seconds", "60",
+                    "--method", "fft",
+                    "--output", str(fft_csv),
+                ])
+                if r.returncode != 0:
+                    print(f"  ERROR: FFT extraction failed for {name}")
+                    continue
+                state[f"{stn_key}_fft"] = str(fft_csv)
+                save_state(state_file, state)
+
+            # Step 7: Zoomed spectrogram with FFT overlay
+            if f"{stn_key}_zoom_overlay" not in state:
+                print(f"\n[Step 7] Zoomed spectrogram with FFT overlay for {name}...")
+                r = run([
+                    "python3", tool("drf_spectrogram.py"),
+                    drf_dir_s,
+                    "--subchannel", str(sub),
+                    "--output", str(zoom_png),
+                    "--window", str(window_json),
+                    "--ylim=-5,5", "--dpi", "150",
+                    f"--overlay={fft_csv}:FFT",
+                ])
+                if r.returncode != 0:
+                    print(f"  ERROR: overlay spectrogram failed for {name}")
+                    continue
+                state[f"{stn_key}_zoom_overlay"] = True
+                save_state(state_file, state)
 
     # ── Step 10: Check overlap and run DOA ────────────────────────────────
     print(f"\n{'─'*60}")
@@ -585,11 +616,20 @@ def run_workflow(args):
     for stn in stations:
         stn_key = stn["name"].lower()
         sgolay_csv = event_dir / f"{stn_key}_sgolay_tid.csv"
-        if sgolay_csv.exists():
+        fft_csv    = event_dir / f"{stn_key}_fft_tid.csv"
+        if method == "sgolay-ridge" and sgolay_csv.exists():
             completed.append({
                 "name": stn["name"],
                 "file": str(sgolay_csv),
                 "method": "sgolay-ridge",
+                "lat": stn["ipp_lat"],
+                "lon": stn["ipp_lon"],
+            })
+        elif method == "fft" and fft_csv.exists():
+            completed.append({
+                "name": stn["name"],
+                "file": str(fft_csv),
+                "method": "fft",
                 "lat": stn["ipp_lat"],
                 "lon": stn["ipp_lon"],
             })
