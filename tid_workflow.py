@@ -328,17 +328,13 @@ def run_workflow(args):
                 marker = " ← WWV 10 MHz" if freq and abs(freq/1e6 - 10.0) < 0.01 else ""
                 print(f"      subchannel {sub}: {snr:.1f} dB{freq_str}{marker}")
 
-            # Auto-select best subchannel
-            best_sub, reason = best_subchannel(subs, args.tx_freq_mhz)
-            if best_sub is not None:
-                print(f'    Auto-selected subchannel {best_sub} ({reason})')
-                sub_input = input(f'    Use subchannel [{best_sub}]: ').strip()
-                subchannel = int(sub_input) if sub_input else best_sub
-            else:
-                print(f'    No frequency metadata — generating thumbnails...')
+            # Generate thumbnails for ALL multi-subchannel stations
+            # User always visually confirms — never trust SNR alone
+            if len(subs) > 1:
                 thumb_dir = event_dir / f'{stn_key}_subchannels'
                 thumb_dir.mkdir(exist_ok=True)
-                for sub_i, snr_i, _ in subs[:9]:
+                print(f'    Generating subchannel thumbnails...')
+                for sub_i, snr_i, freq_i in subs:
                     thumb = thumb_dir / f'sub{sub_i:02d}.png'
                     if not thumb.exists():
                         run([
@@ -349,16 +345,27 @@ def run_workflow(args):
                             '--start', '17:00', '--end', '21:00',
                             '--ylim=-5,5', '--dpi', '60',
                         ], capture_output=True)
-                print(f'    Thumbnails: {thumb_dir}')
-                print(f'    Open them to find the WWV 10 MHz carrier (clear line near 0 Hz)')
-                for sub_i, snr_i, _ in subs[:5]:
-                    print(f'      subchannel {sub_i}: {snr_i:.1f} dB')
-                while True:
-                    try:
-                        subchannel = int(input('    Enter subchannel number: ').strip())
-                        break
-                    except ValueError:
-                        print('    Enter a number')
+                    freq_str = f' {freq_i/1e6:.3f} MHz' if freq_i else ''
+                    print(f'      sub{sub_i:02d}.png — subchannel {sub_i}{freq_str} SNR={snr_i:.1f} dB')
+                print(f'    Open thumbnails in: {thumb_dir}')
+                print(f'    Look for clear carrier near 0 Hz = WWV 10 MHz')
+            # Auto-suggest based on freq metadata if available
+            best_sub, reason = best_subchannel(subs, args.tx_freq_mhz)
+            if best_sub is not None:
+                print(f'    Suggested: subchannel {best_sub} ({reason})')
+            while True:
+                try:
+                    prompt = f'    Enter subchannel'
+                    if best_sub is not None:
+                        prompt += f' [{best_sub}]'
+                    sub_input = input(prompt + ': ').strip()
+                    subchannel = int(sub_input) if sub_input else (best_sub if best_sub is not None else None)
+                    if subchannel is None:
+                        print('    Please enter a number')
+                        continue
+                    break
+                except ValueError:
+                    print('    Please enter a number')
             # Get coords
             rx_lat, rx_lon = get_station_coords(name, drf_dir_s)
 
