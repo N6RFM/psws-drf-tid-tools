@@ -473,87 +473,80 @@ class SpectClickApp(QtWidgets.QMainWindow):
         """Run sgolay-ridge extraction and overlay result on spectrogram."""
         if not self.drf_dir:
             return
-        import subprocess as _sp, tempfile as _tf, os as _os2
-        import numpy as _np3
+        import subprocess as _sp, os as _os2, threading as _threading
         import pandas as _pd2
 
-        # Determine time window from segment region
-        t0_h, t1_h = self.seg_t0, self.seg_t1
-
-        def _h_to_iso(h):
-            hh = int(h); mm = int((h - hh) * 60); ss = int(((h - hh)*60 - mm)*60)
-            return f"2024-05-17T{hh:02d}:{mm:02d}:{ss:02d}"  # date from sidecar
-
-        # Try to get date from CSV
+        # Get date from CSV
         try:
             df_tmp = _pd2.read_csv(self.csv_path, parse_dates=["timestamp_utc"], nrows=1)
             date_str = str(df_tmp["timestamp_utc"].iloc[0])[:10]
         except Exception:
             date_str = "2024-05-17"
 
-        def _h_to_iso2(h):
-            hh = int(h); rem = (h - hh) * 60; mm = int(rem)
-            ss = int((rem - mm) * 60)
+        def _h_to_iso(h):
+            hh = int(h); rem = (h-hh)*60; mm = int(rem); ss = int((rem-mm)*60)
             return f"{date_str}T{hh:02d}:{mm:02d}:{ss:02d}"
 
+        t0_h, t1_h = self.seg_t0, self.seg_t1
         out_csv = _os2.path.splitext(str(corridor_json_path))[0] + "_preview.csv"
+
         cmd = [
             "python3",
             _os2.path.join(_os2.path.dirname(_os2.path.abspath(__file__)),
                           "drf_to_doppler.py"),
             self.drf_dir,
             "--subchannel", str(self.subchannel),
-            "--start", _h_to_iso2(t0_h),
-            "--end",   _h_to_iso2(t1_h),
+            "--start", _h_to_iso(t0_h),
+            "--end",   _h_to_iso(t1_h),
             "--decim-seconds", "60",
             "--method", "sgolay-ridge",
             "--corridor", str(corridor_json_path),
             "--sgolay-window", str(self.sgolay_window),
             "--output", out_csv,
         ]
-        self._set_status("Running sgolay-ridge preview... (may take 10-30s)")
-        QtWidgets.QApplication.processEvents()
-
-        # Run in thread to avoid blocking Qt event loop
-        import threading as _threading
-
         print(f"  Preview command: {' '.join(cmd)}")
+        self._set_status("Running sgolay-ridge preview... (may take 10-30s)")
+        self._preview_done = False
+        self._preview_csv  = out_csv
+
         def _run():
             try:
-                print("  Preview thread started")
-                result = _sp.run(cmd, stdout=_sp.PIPE, stderr=_sp.PIPE, timeout=120)
-                print(f"  Preview returncode: {result.returncode}")
-                if result.returncode != 0:
-                    err = result.stderr.decode()[-200:]
-                    self._set_status(f"Preview failed: {err}")
-                    print(f"Preview stderr: {result.stderr.decode()}")
-                    return
-                df_prev = _pd2.read_csv(out_csv, parse_dates=["timestamp_utc"])
-                df_prev["t_h"] = (df_prev["timestamp_utc"].dt.hour +
-                                  df_prev["timestamp_utc"].dt.minute/60 +
-                                  df_prev["timestamp_utc"].dt.second/3600)
-                t_arr = df_prev["t_h"].values
-                d_arr = df_prev["doppler_hz"].values
-                # Update UI from main thread via timer
-                def _update():
-                    print(f"  _update called: {len(t_arr)} points, range {d_arr.min():.2f}-{d_arr.max():.2f}")
-                    self.preview_curve.setData(list(t_arr), list(d_arr))
-                    self.preview_curve.update()
-                    self.plot.update()
-                    QtWidgets.QApplication.processEvents()
-                    self._set_status(
-                        f"✓ Preview: sgolay-ridge {d_arr.min():.2f} to "
-                        f"{d_arr.max():.2f} Hz [green] — R to re-click, Q to accept"
-                    )
-                    print(f"  Preview curve updated")
-                QtCore.QTimer.singleShot(100, _update)
-            except _sp.TimeoutExpired:
-                QtCore.QTimer.singleShot(0, lambda: self._set_status("Preview timed out"))
+                _sp.run(cmd, stdout=_sp.PIPE, stderr=_sp.PIPE, timeout=120)
             except Exception as _e:
-                QtCore.QTimer.singleShot(0, lambda: self._set_status(f"Preview error: {_e}"))
+                print(f"  Preview exception: {_e}")
+            finally:
+                self._preview_done = True
 
-        _t = _threading.Thread(target=_run, daemon=True)
-        _t.start()
+        _threading.Thread(target=_run, daemon=True).start()
+
+        # Poll from main Qt thread using a method
+        self._start_preview_poll()
+
+    def _start_preview_poll(self):
+        """Called from main thread — polls until preview CSV is ready."""
+        if not self._preview_done:
+            QtCore.QTimer.singleShot(1000, self._start_preview_poll)
+            return
+        import pandas as _pd3, os as _os3
+        if not _os3.path.exists(self._preview_csv):
+            self._set_status("Preview failed — no output CSV")
+            return
+        try:
+            df_prev = _pd3.read_csv(self._preview_csv, parse_dates=["timestamp_utc"])
+            df_prev["t_h"] = (df_prev["timestamp_utc"].dt.hour +
+                              df_prev["timestamp_utc"].dt.minute/60 +
+                              df_prev["timestamp_utc"].dt.second/3600)
+            t_arr = df_prev["t_h"].values
+            d_arr = df_prev["doppler_hz"].values
+            self.preview_curve.setData(list(t_arr), list(d_arr))
+            self._set_status(
+                f"✓ Preview: sgolay-ridge {d_arr.min():.2f} to "
+                f"{d_arr.max():.2f} Hz [green] — R to re-click, Q to accept"
+            )
+            print(f"  Preview displayed: {len(t_arr)} points")
+        except Exception as _e:
+            self._set_status(f"Preview display error: {_e}")
+            print(f"  Preview display error: {_e}")
 
     def _handle_cal_click(self, vx, vy):
         """Handle calibration clicks — prompt user for physical value."""
