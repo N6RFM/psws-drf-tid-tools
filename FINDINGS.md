@@ -1556,3 +1556,184 @@ New `tid_workflow.py` automates the 10-step guided extraction workflow:
 ### Usage
     python3 tid_workflow.py --event-dir ~/Downloads/gwyn_tid_event_20240517
     python3 tid_workflow.py --event-dir ~/Downloads/gwyn_tid_event_20240517 --resume
+
+---
+
+## Entry 28 — Summary: SGOLAY-ridge strategy vs FFT and autocorr
+**Date:** 2026-05-25
+**Branch:** research_gui
+
+### The fundamental problem all three methods face
+
+All three methods extract a Doppler frequency vs time trace from raw I/Q
+data recorded at HF receivers listening to WWV (or another beacon). The
+I/Q recording contains the received signal — a mixture of the direct
+ionospheric reflection of the beacon (the "carrier") plus contamination
+from E-region multi-hop propagation, interference, and noise.
+
+The goal is to track the carrier frequency over time. A TID modulates
+the ionospheric height, which shifts the carrier frequency sinusoidally
+by typically ±0.5-2 Hz over periods of 15-90 minutes. The DOA analysis
+cross-correlates these traces between station pairs to find time lags,
+then fits a plane wave to determine speed and direction.
+
+The failure mode common to all methods: **wrong-peak lock** — the
+extractor latches onto a strong spurious feature (E-region hop, multipath)
+rather than the true F-region carrier. This produces a plausible-looking
+trace that cross-correlates well internally but gives wrong lags.
+
+---
+
+### Method 1: FFT peak finding (original, --method fft)
+
+**How it works:**
+For each 60-second block of I/Q data, compute the FFT spectrum and find
+the peak frequency within a search band (default ±5 Hz around 0 Hz).
+Parabolic interpolation refines the peak to sub-bin accuracy.
+
+**Strengths:**
+- Simple and fast
+- Works well on clean stations (high SNR, no contamination)
+- Parabolic interpolation gives sub-sample accuracy
+- Multi-peak xcorr selector in tid_doa.py handles some wrong-peak cases
+
+**Weaknesses:**
+- Each block processed independently — no temporal continuity
+- Locks onto the strongest peak in the search band per block
+- E-region contamination often produces a stronger peak than the true carrier
+- Wrong-peak lock can persist for many minutes producing a consistent
+  but incorrect trace
+- Cannot distinguish a strong spurious peak from the true carrier
+
+**When it fails:**
+On contaminated stations (AC0G_ND, N4RVE), the E-region spike is often
+10-20 dB stronger than the F-region carrier. The FFT finds the spike,
+not the carrier. The resulting trace has sharp jumps when the spike
+appears/disappears — std 0.682 Hz vs 0.414 Hz for corridor extraction.
+
+---
+
+### Method 2: Complex autocorrelation (--method autocorr)
+
+**How it works:**
+For each 60-second block, compute the complex autocorrelation at lag=1
+sample (100ms at 10 sps). The phase of the lag-1 autocorrelation gives
+the instantaneous frequency: f = angle(R(1)) / (2π × dt).
+
+**Strengths:**
+- Naturally robust to broadband noise (autocorrelation suppresses
+  uncorrelated noise)
+- Can track slowly-varying frequency even in moderate contamination
+- Smoother trace than FFT on some events
+
+**Weaknesses:**
+- Susceptible to subharmonic aliases — can lock onto a frequency that is
+  a harmonic of the true carrier
+- On LSTID events (long period), the alias can be at 3-4x the true lag,
+  producing self-consistent but wrong DOA results
+- Still processes each block independently
+- Gwyn's method uses autocorrelation but at longer lags with different
+  parameters — our implementation may not match his exactly
+
+**When it fails:**
+On the May 2024 LSTID, autocorr gave consistent triangle closure (0%)
+but at a subharmonic alias lag (-4380s vs the true -1140s). All pairs
+landed on the same alias, so closure was zero but the result was wrong.
+Speed 163 m/s vs FFT 605 m/s — a factor of ~3.8x (the alias order).
+
+---
+
+### Method 3: Corridor + SGOLAY-ridge (new, --method sgolay-ridge)
+
+**How it works:**
+
+**Step A — User defines corridor (tid_spect_click.py):**
+The user opens the Doppler spectrogram and clicks ~6 points that
+bracket the carrier band across the analysis window. These clicks define
+a time-varying frequency corridor (centre ± half_bandwidth Hz, default
+±0.5 Hz). The corridor is a PRIOR CONSTRAINT — it tells the algorithm
+where to look, not what the carrier looks like. Clicks don't need to be
+precise — just bracket the carrier.
+
+A consistency check (xcorr between corridor centres and automated CSV)
+warns if the corridor is tracking a different feature than the automated
+extractor. A sgolay-ridge preview shows the extracted trace overlaid on
+the spectrogram so the user can verify before committing.
+
+**Step B — 2D STFT ridge tracking (drf_to_doppler.py --method sgolay-ridge):**
+1. Read ALL I/Q data for the analysis window at once (not block by block)
+2. Build the full STFT spectrogram (time × frequency, one column per 60s block)
+3. For each time step, restrict the frequency axis to the corridor band
+4. Compute the POWER-WEIGHTED CENTROID within the corridor band:
+       f_centroid = Σ(f × |S(f)|²) / Σ(|S(f)|²)
+   This uses all power in the band, not just the peak bin. More stable
+   than argmax against noise and better-defined when the carrier has
+   finite width.
+5. Apply SGOLAY smoothing across time (default 21-minute window):
+   - Removes residual spike-like artifacts within the corridor
+   - Does NOT phase-shift the TID oscillation (21 min << 60 min TID period)
+   - Guerra et al. 2024: SGOLAY is optimal for TID extraction from TEC
+
+**Why this is fundamentally different:**
+
+| Aspect | FFT/autocorr | SGOLAY-ridge |
+|--------|-------------|-------------|
+| Search space | Full ±5 Hz band | User-defined ±0.5 Hz corridor |
+| Per-block | Yes — independent | No — global STFT |
+| Peak finding | Argmax / autocorr phase | Power-weighted centroid |
+| Temporal info | None | SGOLAY across all blocks |
+| User input | None | Required (corridor clicks) |
+| Contamination handling | Post-hoc (multi-peak selector) | Pre-empted (corridor constraint) |
+
+**The corridor eliminates wrong-peak lock by construction** — if the
+E-region spike is outside the corridor, it cannot affect the extraction.
+The user's visual inspection of the spectrogram is the primary quality
+control, not algorithmic detection.
+
+**Strengths:**
+- Cannot lock onto features outside the corridor
+- Power-weighted centroid more stable than argmax
+- SGOLAY smoothing removes residual artifacts
+- User sees exactly what was extracted (green preview curve)
+- Higher pairwise correlations in DOA (0.699 vs 0.574 on W7LUX)
+
+**Weaknesses:**
+- Requires user interaction (corridor clicking) — not fully automated
+- Corridor must be clicked consistently across all stations for biases
+  to cancel in cross-correlation
+- SGOLAY window must be tuned to TID period (21 min for LSTID, 10 min
+  for MSTID)
+- Power-weighted centroid introduces a small systematic phase offset
+  vs FFT argmax (~60s) which can affect triangle closure when only one
+  station uses corridor extraction
+
+**When it fails:**
+If the user clicks the corridor on the wrong feature (E-region instead
+of F-region carrier), the result is wrong. The consistency check and
+preview mitigate this but don't eliminate it. If only one station uses
+corridor extraction while others use FFT, the phase offset creates
+inconsistency — all stations must use the same method.
+
+---
+
+### Comparison on May 2024 LSTID (4 stations, 18:29-19:06 UTC)
+
+| Method | Speed | Direction | Closure | Diagnostics |
+|--------|-------|-----------|---------|-------------|
+| Auto FFT | 222 m/s | 186° (S) | 18.1% | 2 fail ❌ |
+| Autocorr | 233 m/s | 188° (S) | 35.0% | 1 fail ❌ |
+| SGOLAY-ridge | 267 m/s | 242° (WSW) | 6.9% | All pass ✅ |
+| Gwyn (manual) | 979 m/s | 157° (SSE) | — | — |
+
+The FFT and autocorr agree with each other (both finding the same
+wrong-peak lock on W7LUX→N4RVE) but disagree with SGOLAY-ridge and
+with Gwyn. SGOLAY-ridge gives the best internal consistency but still
+disagrees with Gwyn by ~85° direction and ~4x speed.
+
+### Critical caveat
+All three methods produce internally self-consistent results that pass
+most diagnostics. Internal consistency is NOT physical correctness.
+True validation requires independent measurement (GNSS TEC, ionosonde,
+Gwyn's independent analysis). The diagnostics in tid_doa.py were
+calibrated on early FFT results — they favour SGOLAY-ridge partly
+because SGOLAY-ridge enforces smoothness by construction.
