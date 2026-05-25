@@ -301,6 +301,20 @@ class SpectClickApp(QtWidgets.QMainWindow):
         # _csv_visible already set in __init__ before _build_ui
 
 
+        # Corridor boundary curves (shown after X is pressed)
+        self.corridor_hi_curve = self.plot.plot(
+            [], [],
+            pen=pg.mkPen(color="#ffff00", width=1,
+                         style=QtCore.Qt.DashLine),
+            name="corridor_hi",
+        )
+        self.corridor_lo_curve = self.plot.plot(
+            [], [],
+            pen=pg.mkPen(color="#ffff00", width=1,
+                         style=QtCore.Qt.DashLine),
+            name="corridor_lo",
+        )
+
         # SGOLAY-ridge preview curve (shown after X if --drf-dir provided)
         self.preview_curve = self.plot.plot(
             [], [],
@@ -432,7 +446,9 @@ class SpectClickApp(QtWidgets.QMainWindow):
             hh = int(h); rem = (h-hh)*60; mm = int(rem); ss = int((rem-mm)*60)
             return f"{date_str}T{hh:02d}:{mm:02d}:{ss:02d}"
 
-        t0_h, t1_h = self.seg_t0, self.seg_t1
+        # Use corridor click extent as extraction window
+        t0_h = min(self.clicks_t) if self.clicks_t else self.seg_t0
+        t1_h = max(self.clicks_t) if self.clicks_t else self.seg_t1
         out_csv = _os2.path.splitext(str(corridor_json_path))[0] + "_preview.csv"
 
         cmd = [
@@ -657,22 +673,17 @@ class SpectClickApp(QtWidgets.QMainWindow):
                 peak_idx = int(_np.argmax(cc))
                 offset_s = float(lag_s[peak_idx])
                 peak_r   = float(cc[peak_idx])
-                if abs(offset_s) > 60:
-                    warn = (f"⚠️ WARNING: corridor offset {offset_s:+.0f}s vs "
-                            f"automated CSV (r={peak_r:.2f}) — "
-                            f"may be tracking different carrier feature")
-                    self._set_status(warn)
-                    print(warn)
-                else:
-                    ok = (f"✓ Consistency OK: offset {offset_s:+.0f}s "
-                          f"(r={peak_r:.2f}) — corridor tracks same carrier")
-                    self._set_status(
-                        f"Corridor written: {out.name}  "
-                        f"({len(self.clicks_t)} points, ±{half_bw} Hz)  {ok}"
-                    )
-                    print(ok)
-                    self._run_sgolay_preview(out)
-                    return
+                info = (f"Corridor: offset vs FFT {offset_s:+.0f}s "
+                        f"(r={peak_r:.2f})")
+                if peak_r < 0.3:
+                    info += " ⚠️ low coherence — check clicks"
+                print(info)
+                self._set_status(
+                    f"Corridor written: {out.name}  "
+                    f"({len(self.clicks_t)} points, ±{half_bw} Hz)  {info}"
+                )
+                self._run_sgolay_preview(out)
+                return
         except Exception as _e:
             print(f"  Consistency check failed: {_e}")
 
