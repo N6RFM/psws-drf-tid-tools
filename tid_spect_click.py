@@ -504,7 +504,6 @@ class SpectClickApp(QtWidgets.QMainWindow):
             "--sgolay-window", str(self.sgolay_window),
             "--output", out_csv,
         ]
-        print(f"  Preview command: {' '.join(cmd)}")
         self._set_status("Running sgolay-ridge preview... (may take 10-30s)")
         self._preview_done = False
         self._preview_csv  = out_csv
@@ -543,7 +542,6 @@ class SpectClickApp(QtWidgets.QMainWindow):
                 f"✓ Preview: sgolay-ridge {d_arr.min():.2f} to "
                 f"{d_arr.max():.2f} Hz [green] — R to re-click, Q to accept"
             )
-            print(f"  Preview displayed: {len(t_arr)} points")
         except Exception as _e:
             self._set_status(f"Preview display error: {_e}")
             print(f"  Preview display error: {_e}")
