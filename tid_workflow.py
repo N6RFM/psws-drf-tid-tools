@@ -84,7 +84,8 @@ def tool(name):
 
 
 def h_to_hhmm(h):
-    hh = int(h); mm = int(round((h - hh) * 60))
+    total_min = int(round(h * 60))
+    hh, mm = divmod(total_min, 60)
     return f"{hh:02d}:{mm:02d}"
 
 
