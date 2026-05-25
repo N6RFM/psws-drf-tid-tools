@@ -608,6 +608,83 @@ def run_workflow(args):
                 state[f"{stn_key}_zoom_overlay"] = True
                 save_state(state_file, state)
 
+    # ── Window review before extraction ─────────────────────────────────
+    while True:
+        print(f"\n{'─'*60}")
+        print("Window summary (before extraction):")
+        all_windowed = True
+        for stn in stations:
+            stn_key = stn["name"].lower()
+            zwj = state.get(f"{stn_key}_zoom_window")
+            if zwj:
+                t0 = zwj["t_start_utc_hours"]
+                t1 = zwj["t_end_utc_hours"]
+                print(f"  {stn['name']:<12} {h_to_hhmm(t0)}–{h_to_hhmm(t1)} UTC")
+            else:
+                print(f"  {stn['name']:<12} (no window)")
+                all_windowed = False
+        print()
+        ans = input("Proceed with extraction? [Y] or station name to redo window: ").strip()
+        if ans.upper() in ("", "Y", "YES"):
+            break
+        redo_name = ans.upper()
+        redo_stn = next((s for s in stations if s["name"].upper() == redo_name), None)
+        if redo_stn is None:
+            print(f"  Unknown station '{ans}' — enter a station name or Y to proceed")
+            continue
+        # Clear window state for this station so Steps 3-5 re-run
+        stn_key = redo_stn["name"].lower()
+        for key in [f"{stn_key}_window", f"{stn_key}_zoom",
+                    f"{stn_key}_zoom_window", f"{stn_key}_zoom_overlay",
+                    f"{stn_key}_fft", f"{stn_key}_corridor", f"{stn_key}_sgolay"]:
+            state.pop(key, None)
+        save_state(state_file, state)
+        print(f"  Cleared {redo_stn['name']} — re-running Steps 3-5...")
+        # Re-run Steps 3-5 for this station only
+        name = redo_stn["name"]
+        drf_dir_s = redo_stn["drf_dir"]
+        sub = redo_stn["subchannel"]
+        date_str = redo_stn["date_str"]
+        fullday_png    = event_dir / f"{stn_key}_fullday.png"
+        zoom_clean_png = event_dir / f"{stn_key}_tid_zoom_clean.png"
+        window_json    = event_dir / f"{stn_key}_fullday_window.json"
+        zoom_window    = event_dir / f"{stn_key}_tid_zoom_window.json"
+        # Step 3 redo
+        print(f"\n[Step 3] Select TID window for {name}...")
+        run(["python3", tool("tid_quicklook.py"),
+             "--spectrogram", str(fullday_png)])
+        if not window_json.exists():
+            print(f"  WARNING: No window saved — skipping")
+            continue
+        with open(window_json) as _f:
+            wj = json.load(_f)
+        state[f"{stn_key}_window"] = wj
+        save_state(state_file, state)
+        # Step 4 redo
+        print(f"\n[Step 4] Zoomed spectrogram for {name}...")
+        run([
+            "python3", tool("drf_spectrogram.py"),
+            drf_dir_s, "--subchannel", str(sub),
+            "--output", str(zoom_clean_png),
+            "--window", str(window_json),
+            "--ylim=-5,5", "--dpi", "150",
+        ])
+        state[f"{stn_key}_zoom"] = str(zoom_clean_png)
+        save_state(state_file, state)
+        # Step 5 redo
+        print(f"\n[Step 5] Refine TID window for {name}...")
+        run(["python3", tool("tid_quicklook.py"),
+             "--spectrogram", str(zoom_clean_png),
+             "--seg-start", str(wj["t_start_utc_hours"]),
+             "--seg-end",   str(wj["t_end_utc_hours"])])
+        if zoom_window.exists():
+            with open(zoom_window) as _f:
+                zwj = json.load(_f)
+            state[f"{stn_key}_zoom_window"] = zwj
+        else:
+            state[f"{stn_key}_zoom_window"] = wj
+        save_state(state_file, state)
+
     # ── Step 10: Check overlap and run DOA ────────────────────────────────
     print(f"\n{'─'*60}")
     print("[Step 10] DOA")
