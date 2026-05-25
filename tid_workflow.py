@@ -331,7 +331,7 @@ def run_workflow(args):
             # Generate thumbnails for ALL multi-subchannel stations
             # User always visually confirms — never trust SNR alone
             if len(subs) > 1:
-                thumb_dir = event_dir / f'{stn_key}_subchannels'
+                thumb_dir = event_dir / f'{name.lower()}_subchannels'
                 thumb_dir.mkdir(exist_ok=True)
                 print(f'    Generating subchannel thumbnails...')
                 for sub_i, snr_i, freq_i in subs:
