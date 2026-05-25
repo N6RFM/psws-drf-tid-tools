@@ -330,11 +330,35 @@ def run_workflow(args):
 
             # Auto-select best subchannel
             best_sub, reason = best_subchannel(subs, args.tx_freq_mhz)
-            print(f'    Auto-selected subchannel {best_sub} ({reason})')
-            sub_input = input(f'    Use subchannel [{best_sub}]: ').strip()
-            subchannel = int(sub_input) if sub_input else best_sub
-            subchannel = int(sub_input) if sub_input else best_sub
-
+            if best_sub is not None:
+                print(f'    Auto-selected subchannel {best_sub} ({reason})')
+                sub_input = input(f'    Use subchannel [{best_sub}]: ').strip()
+                subchannel = int(sub_input) if sub_input else best_sub
+            else:
+                print(f'    No frequency metadata — generating thumbnails...')
+                thumb_dir = event_dir / f'{stn_key}_subchannels'
+                thumb_dir.mkdir(exist_ok=True)
+                for sub_i, snr_i, _ in subs[:9]:
+                    thumb = thumb_dir / f'sub{sub_i:02d}.png'
+                    if not thumb.exists():
+                        run([
+                            'python3', tool('drf_spectrogram.py'),
+                            drf_dir_s,
+                            '--subchannel', str(sub_i),
+                            '--output', str(thumb),
+                            '--start', '17:00', '--end', '21:00',
+                            '--ylim=-5,5', '--dpi', '60',
+                        ], capture_output=True)
+                print(f'    Thumbnails: {thumb_dir}')
+                print(f'    Open them to find the WWV 10 MHz carrier (clear line near 0 Hz)')
+                for sub_i, snr_i, _ in subs[:5]:
+                    print(f'      subchannel {sub_i}: {snr_i:.1f} dB')
+                while True:
+                    try:
+                        subchannel = int(input('    Enter subchannel number: ').strip())
+                        break
+                    except ValueError:
+                        print('    Enter a number')
             # Get coords
             rx_lat, rx_lon = get_station_coords(name, drf_dir_s)
 
