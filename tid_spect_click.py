@@ -625,7 +625,10 @@ class SpectClickApp(QtWidgets.QMainWindow):
 
     def _replot_csv(self):
         """Replot CSV overlay in calibrated coordinates (already in hours)."""
-        self.csv_curve.setData(self.csv_t_hours, self.csv_doppler)
+        if self._csv_visible:
+            self.csv_curve.setData(self.csv_t_hours, self.csv_doppler)
+        else:
+            self.csv_curve.setData([], [])
 
     def _add_cal_marker(self, vx, vy):
         pts = [{"pos": [p["pos"][0], p["pos"][1]]}
