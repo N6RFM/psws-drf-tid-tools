@@ -206,7 +206,8 @@ class SpectClickApp(QtWidgets.QMainWindow):
                  drf_dir=None, subchannel=0, sgolay_window=21.0):
         super().__init__()
         self.name        = name
-        self.csv_path    = Path(csv_path)
+        self.img_path    = img_path
+        self.csv_path    = Path(csv_path) if csv_path else None
         self.drf_dir     = drf_dir
         self.subchannel  = subchannel
         self.sgolay_window = sgolay_window
@@ -308,7 +309,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         # Delete stale output files from previous sessions
         import os as _os_clean
         for _suffix in ["_corridor.json", "_corridor_preview.csv"]:
-            _stale = str(self.csv_path).replace(".csv", _suffix)
+            _stale = str(Path(self.img_path).parent / (Path(self.img_path).stem + _suffix))
             if _os_clean.path.exists(_stale):
                 _os_clean.remove(_stale)
                 print(f"  Removed stale: {_os_clean.path.basename(_stale)}")
@@ -415,12 +416,27 @@ class SpectClickApp(QtWidgets.QMainWindow):
         import subprocess as _sp, os as _os2, threading as _threading
         import pandas as _pd2
 
-        # Get date from CSV
-        try:
-            df_tmp = _pd2.read_csv(self.csv_path, parse_dates=["timestamp_utc"], nrows=1)
-            date_str = str(df_tmp["timestamp_utc"].iloc[0])[:10]
-        except Exception:
-            date_str = "2024-05-17"
+        # Get date from sidecar, img filename, or DRF dir name
+        import re as _re, json as _json2
+        date_str = None
+        # Try sidecar JSON first
+        _sidecar = str(self.img_path).replace(".png", "_axes.json")
+        if not date_str and _os2.path.exists(_sidecar):
+            try:
+                _sc = _json2.load(open(_sidecar))
+                date_str = _sc.get("date_utc")
+            except Exception:
+                pass
+        # Try filename or drf_dir for YYYY-MM-DD
+        if not date_str:
+            for _s in [str(self.img_path), str(self.drf_dir)]:
+                _m = _re.search(r"(\d{4}-\d{2}-\d{2})", _s)
+                if _m:
+                    date_str = _m.group(1)
+                    break
+        if not date_str:
+            date_str = "2024-05-17"  # last resort fallback
+            print(f"  WARNING: could not determine date, using {date_str}")
 
         def _h_to_iso(h):
             hh = int(h); rem = (h-hh)*60; mm = int(rem); ss = int((rem-mm)*60)
@@ -429,7 +445,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         # Use corridor click extent as extraction window
         t0_h = min(self.clicks_t) if self.clicks_t else self.seg_t0
         t1_h = max(self.clicks_t) if self.clicks_t else self.seg_t1
-        out_csv = _os2.path.splitext(str(corridor_json_path))[0] + "_preview.csv"
+        out_csv = str(corridor_json_path).replace(".json", "_preview.csv")
 
         cmd = [
             "python3",
@@ -599,7 +615,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
                 "drf_to_doppler.py --corridor"
             ),
         }
-        out = self.csv_path.parent / (self.csv_path.stem + "_corridor.json")
+        out = Path(self.img_path).parent / (Path(self.img_path).stem + "_corridor.json")
         with open(out, "w") as _f:
             _json.dump(corridor, _f, indent=2)
 
