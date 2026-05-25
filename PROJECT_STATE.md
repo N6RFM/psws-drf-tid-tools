@@ -757,3 +757,34 @@ cd ~/psws-tools-pr && git checkout research_gui
 "Continuing psws-drf-tid-tools. Read PROJECT_STATE.md sections 23-25
 on research_gui branch. AC0G_ND unusable on May 2024 event (ground
 wave at 0 Hz). Try subchannel 0 for AC0G_ND or find better event."
+
+---
+## 26. Jan 2026 event analysis — 2026-05-25
+
+### Event
+2026-01-19, 00:00-01:36 UTC, 4 stations: AA6BD, AC0G_ND, N6RFM, W7LUX
+
+### Result (sgolay-ridge)
+- Speed: 283 m/s
+- Direction from: 30° (NNE) — wave travelling SSW
+- Consistent with auroral LSTID travelling equatorward
+- 2 of 5 diagnostics outside range (residual 44.8%, closure 38.2%)
+- Weak link: AC0G_ND→N6RFM lag (+26.6 min, r=0.576)
+- Three of four triangles close within 5 min ✅
+
+### Station quality
+- AA6BD: std=0.610 Hz, SNR=45 dB
+- AC0G_ND: std=0.387 Hz, SNR=60 dB  ← much better than May 2024
+- N6RFM: std=0.373 Hz, SNR=55 dB
+- W7LUX: std=0.327 Hz, SNR=58 dB
+
+### Key improvement vs May 2024
+AC0G_ND is clean on this event (subchannel 4, SNR=60 dB, no DC ground
+wave contamination). Array geometry is better — SVR=1.4 vs 1.6.
+
+### Resume command
+cd ~/psws-tools-pr && git checkout research_gui
+"Continuing psws-drf-tid-tools. Read PROJECT_STATE.md sections 24-26
+on research_gui branch. Jan 2026 event gave 283 m/s from 30° (NNE).
+Next: re-run with tighter max_lag to fix AC0G_ND->N6RFM aliasing,
+then push all commits to origin."
