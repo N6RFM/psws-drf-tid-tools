@@ -1,0 +1,572 @@
+#!/usr/bin/env python3
+r"""
+tid_workflow.py — guided TID direction-of-arrival workflow
+
+Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
+Version: 0.1.0
+
+OVERVIEW
+========
+Automates the 10-step guided extraction workflow:
+
+  Step 1:  Discover stations in event directory
+  Step 2:  Full-day spectrogram for each station
+  Step 3:  User selects TID window (tid_quicklook.py)
+  Step 4:  Zoomed spectrogram
+  Step 5:  User refines TID window (tid_quicklook.py)
+  Step 6:  Automated FFT extraction (overlay)
+  Step 7:  Zoomed spectrogram with FFT overlay
+  Step 8:  User clicks corridor (tid_spect_click.py + sgolay preview)
+  Step 9:  sgolay-ridge extraction
+  Step 10: DOA (tid_doa.py)
+
+State is saved after each interactive step so the workflow can be
+resumed if interrupted.
+
+USAGE
+=====
+    # Run full workflow
+    python3 tid_workflow.py --event-dir ~/Downloads/gwyn_tid_event_20240517
+
+    # Resume from saved state
+    python3 tid_workflow.py --event-dir ~/Downloads/gwyn_tid_event_20240517 --resume
+
+    # With WWV transmitter (default)
+    python3 tid_workflow.py --event-dir ~/Downloads/gwyn_tid_event_20240517 \
+        --tx-lat 40.68 --tx-lon -105.04 --tx-name WWV
+
+REQUIREMENTS
+============
+    pip install digital_rf numpy pandas scipy matplotlib pyqtgraph PyQt5 Pillow
+
+KNOWN PSWS STATIONS (built-in callsign database)
+=================================================
+Coordinates used for IPP midpoint calculation if not in DRF metadata.
+"""
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+import numpy as np
+
+# ── Built-in callsign database ──────────────────────────────────────────────
+KNOWN_STATIONS = {
+    "W7LUX":   (35.1042, -111.7083),
+    "AC0G_ND": (46.8750,  -96.8333),
+    "N4RVE":   (44.9700, -123.4800),
+    "N5BRG":   (35.6500,  -97.4800),
+    "N6RFM":   (32.9400,  -97.2100),
+    "AA6BD":   (35.0600,  -85.1300),
+    "K0LO":    (39.9500, -105.1500),
+    "W3HH":    (39.9500,  -75.1500),
+    "WA2HXB":  (41.0500,  -74.1300),
+    "KD9UKK":  (41.7000,  -86.2300),
+}
+
+# ── Helpers ──────────────────────────────────────────────────────────────────
+
+TOOLS_DIR = Path(__file__).parent.resolve()
+
+
+def run(cmd, **kwargs):
+    """Run a command, print it, return CompletedProcess."""
+    print(f"\n  $ {' '.join(str(c) for c in cmd)}")
+    return subprocess.run(cmd, **kwargs)
+
+
+def tool(name):
+    """Return full path to a tool in the same directory as this script."""
+    return str(TOOLS_DIR / name)
+
+
+def h_to_hhmm(h):
+    hh = int(h); mm = int(round((h - hh) * 60))
+    return f"{hh:02d}:{mm:02d}"
+
+
+def h_to_iso(date_str, h):
+    hh = int(h); rem = (h - hh) * 60; mm = int(rem); ss = int((rem - mm) * 60)
+    return f"{date_str}T{hh:02d}:{mm:02d}:{ss:02d}"
+
+
+def midpoint(rx_lat, rx_lon, tx_lat, tx_lon):
+    """Simple geographic midpoint."""
+    return (rx_lat + tx_lat) / 2, (rx_lon + tx_lon) / 2
+
+
+def read_drf_metadata(drf_dir):
+    """Try to read lat/lon from DRF metadata."""
+    try:
+        import digital_rf as drf
+        r = drf.DigitalRFReader(str(drf_dir))
+        ch = r.get_channels()[0]
+        props = r.get_properties(ch)
+        lat = props.get("latitude", None)
+        lon = props.get("longitude", None)
+        if lat is not None and lon is not None:
+            return float(lat), float(lon)
+    except Exception:
+        pass
+    return None, None
+
+
+def get_station_coords(name, drf_dir):
+    """Get receiver lat/lon: DRF metadata → callsign DB → user input."""
+    # 1. Try DRF metadata
+    lat, lon = read_drf_metadata(drf_dir)
+    if lat is not None:
+        print(f"    Coords from DRF metadata: {lat:.4f}N, {lon:.4f}E")
+        return lat, lon
+
+    # 2. Try callsign database
+    key = name.upper().replace("-", "_")
+    for k, (la, lo) in KNOWN_STATIONS.items():
+        if k in key or key in k:
+            print(f"    Coords from callsign DB ({k}): {la:.4f}N, {lo:.4f}E")
+            return la, lo
+
+    # 3. User input
+    print(f"    Coords not found for {name}.")
+    while True:
+        try:
+            lat = float(input(f"    Enter latitude for {name} (decimal degrees N): "))
+            lon = float(input(f"    Enter longitude for {name} (decimal degrees E, negative=W): "))
+            return lat, lon
+        except ValueError:
+            print("    Invalid — enter decimal numbers e.g. 35.1042 and -111.7083")
+
+
+def probe_subchannels(drf_dir, date_str, n_probe=5):
+    """Probe all subchannels and return list of (subchannel, snr_db, freq_hz)."""
+    try:
+        import digital_rf as drf_lib
+        import pandas as pd
+        r = drf_lib.DigitalRFReader(str(drf_dir))
+        ch = r.get_channels()[0]
+        props = r.get_properties(ch)
+        sr = float(props["samples_per_second"])
+        b0, b1 = r.get_bounds(ch)
+
+        # Read a probe block from middle of recording
+        mid = (b0 + b1) // 2
+        block = int(sr * 60)  # 60 seconds
+        try:
+            iq = r.read_vector(mid, block, ch)
+        except Exception:
+            iq = r.read_vector(b0, block, ch)
+
+        if iq.ndim == 1:
+            # Single channel
+            spec = np.abs(np.fft.rfft(iq))
+            snr = 20 * np.log10(spec.max() / (np.median(spec) + 1e-12))
+            return [(0, float(snr), None)]
+
+        n_subs = iq.shape[1]
+        results = []
+        freqs = props.get("center_frequencies", [None] * n_subs)
+        for sub in range(n_subs):
+            col = iq[:, sub]
+            spec = np.abs(np.fft.fftshift(np.fft.fft(col)))
+            snr = 20 * np.log10(spec.max() / (np.median(spec) + 1e-12))
+            freq = freqs[sub] if sub < len(freqs) else None
+            results.append((sub, float(snr), freq))
+        return sorted(results, key=lambda x: -x[1])
+    except Exception as e:
+        print(f"    Subchannel probe failed: {e}")
+        return [(0, 0.0, None)]
+
+
+def discover_stations(event_dir):
+    """Find all DRF station directories in event_dir."""
+    stations = []
+    for d in sorted(Path(event_dir).iterdir()):
+        if not d.is_dir():
+            continue
+        # Check if it looks like a DRF directory
+        try:
+            import digital_rf as drf_lib
+            r = drf_lib.DigitalRFReader(str(d))
+            chs = r.get_channels()
+            if chs:
+                stations.append(d)
+        except Exception:
+            pass
+    return stations
+
+
+def load_state(state_file):
+    if Path(state_file).exists():
+        with open(state_file) as f:
+            return json.load(f)
+    return {}
+
+
+def save_state(state_file, state):
+    with open(state_file, "w") as f:
+        json.dump(state, f, indent=2)
+    print(f"  State saved: {state_file}")
+
+
+def get_date_from_drf(drf_dir):
+    """Get recording date from DRF."""
+    try:
+        import digital_rf as drf_lib
+        import pandas as pd
+        r = drf_lib.DigitalRFReader(str(drf_dir))
+        ch = r.get_channels()[0]
+        props = r.get_properties(ch)
+        sr = float(props["samples_per_second"])
+        b0, _ = r.get_bounds(ch)
+        t0 = pd.Timestamp(b0 / sr, unit="s", tz="UTC")
+        return t0.strftime("%Y-%m-%d")
+    except Exception:
+        return None
+
+
+# ── Main workflow ─────────────────────────────────────────────────────────────
+
+def run_workflow(args):
+    event_dir = Path(args.event_dir).resolve()
+    state_file = event_dir / "tid_workflow_state.json"
+    state = load_state(state_file) if args.resume else {}
+
+    print(f"\n{'='*60}")
+    print(f"TID Workflow — {event_dir.name}")
+    print(f"{'='*60}")
+
+    # ── Step 1: Discover stations ─────────────────────────────────────────
+    print(f"\n[Step 1] Discovering stations in {event_dir}...")
+    if "stations" not in state:
+        drf_dirs = discover_stations(event_dir)
+        if not drf_dirs:
+            sys.exit("No DRF stations found in event directory.")
+        print(f"  Found {len(drf_dirs)} station(s):")
+        for d in drf_dirs:
+            print(f"    {d.name}")
+
+        # Get date from first station
+        date_str = get_date_from_drf(drf_dirs[0])
+        if not date_str:
+            date_str = input("  Enter event date (YYYY-MM-DD): ").strip()
+        print(f"  Event date: {date_str}")
+
+        # Probe subchannels and get coords for each station
+        stations = []
+        for drf_dir_s in drf_dirs:
+            name = drf_dir_s.name.upper()
+            print(f"\n  Station: {name}")
+
+            # Probe subchannels
+            print(f"    Probing subchannels...")
+            subs = probe_subchannels(drf_dir_s, date_str)
+            print(f"    Top subchannels by SNR:")
+            for sub, snr, freq in subs[:5]:
+                freq_str = f" ({freq/1e6:.3f} MHz)" if freq else ""
+                print(f"      subchannel {sub}: {snr:.1f} dB{freq_str}")
+
+            # User selects subchannel
+            best_sub = subs[0][0]
+            sub_input = input(f"    Use subchannel [{best_sub}]: ").strip()
+            subchannel = int(sub_input) if sub_input else best_sub
+
+            # Get coords
+            rx_lat, rx_lon = get_station_coords(name, drf_dir_s)
+
+            # Compute IPP midpoint
+            ipp_lat, ipp_lon = midpoint(
+                rx_lat, rx_lon, args.tx_lat, args.tx_lon
+            )
+            print(f"    IPP midpoint: {ipp_lat:.4f}N, {ipp_lon:.4f}E")
+
+            stations.append({
+                "name": name,
+                "drf_dir": str(drf_dir_s),
+                "subchannel": subchannel,
+                "receiver_lat": rx_lat,
+                "receiver_lon": rx_lon,
+                "ipp_lat": ipp_lat,
+                "ipp_lon": ipp_lon,
+                "date_str": date_str,
+            })
+
+        state["stations"] = stations
+        state["date_str"] = date_str
+        save_state(state_file, state)
+    else:
+        stations = state["stations"]
+        date_str = state["date_str"]
+        print(f"  Resuming with {len(stations)} station(s): "
+              f"{', '.join(s['name'] for s in stations)}")
+
+    # ── Steps 2-9: Per-station workflow ───────────────────────────────────
+    for stn in stations:
+        name = stn["name"]
+        drf_dir_s = stn["drf_dir"]
+        sub = stn["subchannel"]
+        date_str = stn["date_str"]
+        stn_key = name.lower()
+
+        print(f"\n{'─'*60}")
+        print(f"Station: {name}  (subchannel {sub})")
+        print(f"{'─'*60}")
+
+        fullday_png  = event_dir / f"{stn_key}_fullday.png"
+        zoom_png     = event_dir / f"{stn_key}_tid_zoom.png"
+        fft_csv      = event_dir / f"{stn_key}_fft_tid.csv"
+        corridor_json = event_dir / f"{stn_key}_fft_tid_corridor.json"
+        sgolay_csv   = event_dir / f"{stn_key}_sgolay_tid.csv"
+        window_json  = event_dir / f"{stn_key}_fullday_window.json"
+        zoom_window  = event_dir / f"{stn_key}_tid_zoom_window.json"
+
+        # Step 2: Full-day spectrogram
+        if f"{stn_key}_fullday" not in state:
+            print(f"\n[Step 2] Full-day spectrogram for {name}...")
+            r = run([
+                "python3", tool("drf_spectrogram.py"),
+                drf_dir_s,
+                "--subchannel", str(sub),
+                "--output", str(fullday_png),
+                "--start", "00:00", "--end", "24:00",
+                "--ylim", "-5,5", "--dpi", "100",
+            ])
+            if r.returncode != 0:
+                print(f"  ERROR: spectrogram failed for {name}")
+                continue
+            state[f"{stn_key}_fullday"] = str(fullday_png)
+            save_state(state_file, state)
+
+        # Step 3: User selects TID window
+        if f"{stn_key}_window" not in state:
+            print(f"\n[Step 3] Select TID window for {name}...")
+            print("  → Drag yellow region to bracket the TID, press S to save, Q to quit")
+            run(["python3", tool("tid_quicklook.py"),
+                 "--spectrogram", str(fullday_png)])
+            if not window_json.exists():
+                print(f"  WARNING: No window saved for {name} — skipping")
+                continue
+            with open(window_json) as f:
+                wj = json.load(f)
+            state[f"{stn_key}_window"] = wj
+            save_state(state_file, state)
+        else:
+            wj = state[f"{stn_key}_window"]
+            print(f"  Window: {h_to_hhmm(wj['t_start_utc_hours'])}"
+                  f"–{h_to_hhmm(wj['t_end_utc_hours'])} UTC")
+
+        # Step 4: Zoomed spectrogram
+        if f"{stn_key}_zoom" not in state:
+            print(f"\n[Step 4] Zoomed spectrogram for {name}...")
+            r = run([
+                "python3", tool("drf_spectrogram.py"),
+                drf_dir_s,
+                "--subchannel", str(sub),
+                "--output", str(zoom_png),
+                "--window", str(window_json),
+                "--ylim", "-5,5", "--dpi", "150",
+            ])
+            if r.returncode != 0:
+                print(f"  ERROR: zoom spectrogram failed for {name}")
+                continue
+            state[f"{stn_key}_zoom"] = str(zoom_png)
+            save_state(state_file, state)
+
+        # Step 5: User refines TID window
+        if f"{stn_key}_zoom_window" not in state:
+            print(f"\n[Step 5] Refine TID window for {name}...")
+            print("  → Drag yellow region to refine, press S to save, Q to quit")
+            run(["python3", tool("tid_quicklook.py"),
+                 "--spectrogram", str(zoom_png)])
+            if zoom_window.exists():
+                with open(zoom_window) as f:
+                    zwj = json.load(f)
+                state[f"{stn_key}_zoom_window"] = zwj
+                t0_h = zwj["t_start_utc_hours"]
+                t1_h = zwj["t_end_utc_hours"]
+            else:
+                # Fall back to fullday window
+                t0_h = wj["t_start_utc_hours"]
+                t1_h = wj["t_end_utc_hours"]
+                state[f"{stn_key}_zoom_window"] = wj
+            save_state(state_file, state)
+        else:
+            zwj = state[f"{stn_key}_zoom_window"]
+            t0_h = zwj["t_start_utc_hours"]
+            t1_h = zwj["t_end_utc_hours"]
+            print(f"  Refined window: {h_to_hhmm(t0_h)}–{h_to_hhmm(t1_h)} UTC")
+
+        # Step 6: Automated FFT extraction
+        if f"{stn_key}_fft" not in state:
+            print(f"\n[Step 6] Automated FFT extraction for {name}...")
+            r = run([
+                "python3", tool("drf_to_doppler.py"),
+                drf_dir_s,
+                "--subchannel", str(sub),
+                "--start", h_to_iso(date_str, t0_h),
+                "--end",   h_to_iso(date_str, t1_h),
+                "--decim-seconds", "60",
+                "--method", "fft",
+                "--output", str(fft_csv),
+            ])
+            if r.returncode != 0:
+                print(f"  ERROR: FFT extraction failed for {name}")
+                continue
+            state[f"{stn_key}_fft"] = str(fft_csv)
+            save_state(state_file, state)
+
+        # Step 7: Zoomed spectrogram with FFT overlay
+        if f"{stn_key}_zoom_overlay" not in state:
+            print(f"\n[Step 7] Zoomed spectrogram with FFT overlay for {name}...")
+            r = run([
+                "python3", tool("drf_spectrogram.py"),
+                drf_dir_s,
+                "--subchannel", str(sub),
+                "--output", str(zoom_png),
+                "--window", str(window_json),
+                "--ylim", "-5,5", "--dpi", "150",
+                "--overlay", f"{fft_csv}:FFT",
+            ])
+            if r.returncode != 0:
+                print(f"  ERROR: overlay spectrogram failed for {name}")
+                continue
+            state[f"{stn_key}_zoom_overlay"] = True
+            save_state(state_file, state)
+
+        # Step 8: User clicks corridor
+        if f"{stn_key}_corridor" not in state:
+            print(f"\n[Step 8] Click corridor for {name}...")
+            print("  → Click ~6 points bracketing the carrier")
+            print("  → Press F to fit, X to export corridor + preview, Q to accept")
+            run([
+                "python3", tool("tid_spect_click.py"),
+                "--spectrogram", str(zoom_png),
+                "--csv", str(fft_csv),
+                "--name", name,
+                "--drf-dir", drf_dir_s,
+                "--subchannel", str(sub),
+                "--sgolay-window", str(args.sgolay_window),
+            ])
+            if not corridor_json.exists():
+                print(f"  WARNING: No corridor saved for {name} — skipping")
+                continue
+            state[f"{stn_key}_corridor"] = str(corridor_json)
+            save_state(state_file, state)
+
+        # Step 9: sgolay-ridge extraction
+        if f"{stn_key}_sgolay" not in state:
+            print(f"\n[Step 9] sgolay-ridge extraction for {name}...")
+            r = run([
+                "python3", tool("drf_to_doppler.py"),
+                drf_dir_s,
+                "--subchannel", str(sub),
+                "--start", h_to_iso(date_str, t0_h),
+                "--end",   h_to_iso(date_str, t1_h),
+                "--decim-seconds", "60",
+                "--method", "sgolay-ridge",
+                "--corridor", str(corridor_json),
+                "--sgolay-window", str(args.sgolay_window),
+                "--output", str(sgolay_csv),
+            ])
+            if r.returncode != 0:
+                print(f"  ERROR: sgolay-ridge failed for {name}")
+                continue
+            state[f"{stn_key}_sgolay"] = str(sgolay_csv)
+            save_state(state_file, state)
+        else:
+            print(f"  sgolay CSV: {sgolay_csv.name} (already done)")
+
+    # ── Step 10: Check overlap and run DOA ────────────────────────────────
+    print(f"\n{'─'*60}")
+    print("[Step 10] DOA")
+    print(f"{'─'*60}")
+
+    # Collect completed stations
+    completed = []
+    for stn in stations:
+        stn_key = stn["name"].lower()
+        sgolay_csv = event_dir / f"{stn_key}_sgolay_tid.csv"
+        if sgolay_csv.exists():
+            completed.append({
+                "name": stn["name"],
+                "file": str(sgolay_csv),
+                "method": "sgolay-ridge",
+                "lat": stn["ipp_lat"],
+                "lon": stn["ipp_lon"],
+            })
+
+    if len(completed) < 3:
+        print(f"  Only {len(completed)} station(s) completed — need ≥3 for DOA")
+        return
+
+    # Check time overlap
+    import pandas as pd
+    dfs = {}
+    for stn in completed:
+        df = pd.read_csv(stn["file"], parse_dates=["timestamp_utc"])
+        dfs[stn["name"]] = df
+        print(f"  {stn['name']}: {df.timestamp_utc.min()} to "
+              f"{df.timestamp_utc.max()} ({len(df)} rows)")
+
+    t_start = max(df.timestamp_utc.min() for df in dfs.values())
+    t_end   = min(df.timestamp_utc.max() for df in dfs.values())
+    overlap_min = (t_end - t_start).total_seconds() / 60
+    print(f"\n  Overlap: {t_start} to {t_end} ({overlap_min:.0f} min)")
+
+    if overlap_min < 30:
+        print(f"  ⚠️ WARNING: only {overlap_min:.0f} min overlap — DOA may be unreliable")
+        print("  Consider re-running Steps 3-5 to select better-aligned windows")
+
+    # Write event config
+    event_config = {
+        "event_start_utc": t_start.isoformat(),
+        "event_end_utc":   t_end.isoformat(),
+        "resample_seconds": 60,
+        "use_bandpass": False,
+        "min_expected_speed_m_s": 100,
+        "stations": completed,
+    }
+    config_path = event_dir / "tid_workflow_event.json"
+    with open(config_path, "w") as f:
+        json.dump(event_config, f, indent=2)
+    print(f"\n  Event config: {config_path.name}")
+
+    # Run DOA
+    r = run(["python3", tool("tid_doa.py"), str(config_path)])
+    if r.returncode == 0:
+        state["doa_done"] = True
+        save_state(state_file, state)
+
+    print(f"\n{'='*60}")
+    print("Workflow complete.")
+    print(f"{'='*60}")
+
+
+# ── CLI ───────────────────────────────────────────────────────────────────────
+
+def _parse_args():
+    p = argparse.ArgumentParser(
+        description="Guided TID direction-of-arrival workflow",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    p.add_argument("--event-dir", required=True, metavar="DIR",
+                   help="Directory containing DRF station subdirectories")
+    p.add_argument("--resume", action="store_true",
+                   help="Resume from saved state (tid_workflow_state.json)")
+    p.add_argument("--tx-lat", type=float, default=40.68, metavar="DEG",
+                   help="Transmitter latitude (default: WWV 40.68N)")
+    p.add_argument("--tx-lon", type=float, default=-105.04, metavar="DEG",
+                   help="Transmitter longitude (default: WWV -105.04E)")
+    p.add_argument("--tx-name", default="WWV", metavar="NAME",
+                   help="Transmitter name for labeling (default: WWV)")
+    p.add_argument("--sgolay-window", type=float, default=21.0, metavar="MIN",
+                   help="SGOLAY smoothing window in minutes (default 21)")
+    return p.parse_args()
+
+
+if __name__ == "__main__":
+    args = _parse_args()
+    run_workflow(args)
