@@ -253,6 +253,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self.clicks_t    = []            # decimal hours
         self.clicks_d    = []            # doppler Hz
         self.fit         = None          # (amp, omega, phase)
+        self._csv_visible = False        # CSV overlay hidden until V pressed
 
         self._load_csv()
         self._load_image(img_path)
