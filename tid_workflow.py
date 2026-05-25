@@ -328,9 +328,11 @@ def run_workflow(args):
                 marker = " ← WWV 10 MHz" if freq and abs(freq/1e6 - 10.0) < 0.01 else ""
                 print(f"      subchannel {sub}: {snr:.1f} dB{freq_str}{marker}")
 
-            # User selects subchannel
-            best_sub = subs[0][0]
-            sub_input = input(f"    Use subchannel [{best_sub}]: ").strip()
+            # Auto-select best subchannel
+            best_sub, reason = best_subchannel(subs, args.tx_freq_mhz)
+            print(f'    Auto-selected subchannel {best_sub} ({reason})')
+            sub_input = input(f'    Use subchannel [{best_sub}]: ').strip()
+            subchannel = int(sub_input) if sub_input else best_sub
             subchannel = int(sub_input) if sub_input else best_sub
 
             # Get coords
