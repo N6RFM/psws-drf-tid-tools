@@ -660,7 +660,7 @@ def run_workflow(args):
             wj = json.load(_f)
         state[f"{stn_key}_window"] = wj
         save_state(state_file, state)
-        # Step 4 redo
+        # Step 4 redo — use fullday window for zoom extent
         print(f"\n[Step 4] Zoomed spectrogram for {name}...")
         run([
             "python3", tool("drf_spectrogram.py"),
@@ -671,7 +671,7 @@ def run_workflow(args):
         ])
         state[f"{stn_key}_zoom"] = str(zoom_clean_png)
         save_state(state_file, state)
-        # Step 5 redo
+        # Step 5 redo — pre-position to Step 3 window
         print(f"\n[Step 5] Refine TID window for {name}...")
         run(["python3", tool("tid_quicklook.py"),
              "--spectrogram", str(zoom_clean_png),
@@ -683,6 +683,18 @@ def run_workflow(args):
             state[f"{stn_key}_zoom_window"] = zwj
         else:
             state[f"{stn_key}_zoom_window"] = wj
+            zwj = wj
+        # Regenerate zoom PNG with refined window so corridor clicking
+        # uses the correct time range
+        print(f"  Regenerating zoom spectrogram with refined window...")
+        run([
+            "python3", tool("drf_spectrogram.py"),
+            drf_dir_s, "--subchannel", str(sub),
+            "--output", str(zoom_clean_png),
+            "--window", str(zoom_window) if zoom_window.exists() else str(window_json),
+            "--ylim=-5,5", "--dpi", "150",
+        ])
+        state[f"{stn_key}_zoom"] = str(zoom_clean_png)
         save_state(state_file, state)
 
     # ── Step 10: Check overlap and run DOA ────────────────────────────────
