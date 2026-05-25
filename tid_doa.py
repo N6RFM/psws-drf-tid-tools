@@ -742,7 +742,12 @@ def _write_run_log(config, result, diag_text):
     Non-fatal on any error -- a logging failure must never break a run.
     """
     import os, sys, subprocess, datetime
-    runs_dir = os.path.join(os.getcwd(), "runs")
+    # Use event config directory for runs log, fall back to cwd
+    _config_path = config.get("_config_path", None)
+    if _config_path:
+        runs_dir = os.path.join(os.path.dirname(os.path.abspath(_config_path)), "runs")
+    else:
+        runs_dir = os.path.join(os.getcwd(), "runs")
     os.makedirs(runs_dir, exist_ok=True)
     ts = datetime.datetime.now(datetime.timezone.utc).strftime(
         "%Y-%m-%dT%H%M%SZ")
