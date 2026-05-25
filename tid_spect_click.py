@@ -331,10 +331,11 @@ class SpectClickApp(QtWidgets.QMainWindow):
 
         # Automated Doppler CSV overlay (grey)
         self.csv_curve = self.plot.plot(
-            self.csv_t_hours, self.csv_doppler,
+            [], [],
             pen=pg.mkPen(color="#888888", width=1),
             name="auto",
         )
+        self._csv_visible = False  # hidden by default — press V to toggle
 
         # Fitted sinusoid (inside segment — bright)
         self.fit_curve = self.plot.plot(
@@ -367,6 +368,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self.corridor_lo_curve.setData([], [])
         self.fit_curve.setData([], [])
         self.fit_dim_curve.setData([], [])
+        self.preview_curve.setData([], [])
 
         # SGOLAY-ridge preview curve (shown after X if --drf-dir provided)
         self.preview_curve = self.plot.plot(
@@ -795,6 +797,16 @@ class SpectClickApp(QtWidgets.QMainWindow):
         # Run sgolay-ridge preview if DRF dir provided
         self._run_sgolay_preview(out)
 
+    def _toggle_csv_overlay(self):
+        """Toggle automated CSV overlay on/off (V key)."""
+        self._csv_visible = not self._csv_visible
+        if self._csv_visible:
+            self.csv_curve.setData(self.csv_t_hours, self.csv_doppler)
+            self._set_status("CSV overlay ON (grey) — press V to hide")
+        else:
+            self.csv_curve.setData([], [])
+            self._set_status("CSV overlay OFF — press V to show")
+
     def _reset_clicks(self):
         self.clicks_t = []
         self.clicks_d = []
@@ -845,6 +857,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
     def _install_shortcuts(self):
         for key, cb in [("F", self._fit), ("W", self._write),
                         ("X", self._write_corridor),
+                ("V", self._toggle_csv_overlay),
                         ("R", self._reset_clicks), ("C", self._clear_all),
                         ("Q", self.close)]:
             sc = QtWidgets.QShortcut(QtGui.QKeySequence(key), self, cb)
