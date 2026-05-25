@@ -530,3 +530,15 @@ midpoints, saves state for resume. Overlap warning fires if <60 min.
 and FINDINGS entries 24-27 on research_gui branch.
 Priority: email Gwyn with 267 m/s WSW result. Then test
 tid_workflow.py on a fresh event with well-aligned windows."
+
+---
+## 21. Method cleanup — deferred
+
+Decision to remove any extraction methods (autocorr, cwt, bandpass)
+deferred until after Gwyn's reply on the 267 m/s WSW vs 979 m/s SSE
+discrepancy. His response may:
+1. Clarify which methods are physically correct
+2. Point to extending cwt (his Prophet/CWT approach)
+3. Identify the root cause of the direction discrepancy
+
+All methods recoverable from git history if removed and later needed.
