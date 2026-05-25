@@ -587,3 +587,58 @@ than the current --method cwt which doesn't do two-peak tracking.
 ### Priority
 Discuss with Gwyn first — he may have already refined this approach
 and sharing code/results would avoid duplication.
+
+---
+## 19. Future direction: FIF/EMD on 2D spectrogram (no corridor required)
+
+### Concept
+The original sgolay-ridge proposal was to apply Fast Iterative Filtering
+(FIF, Cicone & Zhou 2021, Guerra et al. 2024) directly to the 2D STFT
+spectrogram to automatically separate the slowly-varying TID carrier
+from faster contamination — without requiring user corridor clicks.
+
+### How it would work
+1. Compute full STFT spectrogram (time × frequency)
+2. At each frequency bin, apply FIF/EMD across time to decompose into
+   intrinsic mode functions (IMFs)
+3. Sum IMFs in the TID period band (45-90 min for LSTID, 10-40 min MSTID)
+4. Extract the carrier ridge from the filtered spectrogram
+5. No user input required — fully automatic
+
+### Why we stopped
+- Cicone's FIF is MATLAB only — no Python package available
+- PyPI FIF package was empty/wrong
+- All Cicone GitHub repos are .m files
+
+### Path forward
+Two options:
+
+**Option A — EMD (available now):**
+    pip install emd
+EMD (Empirical Mode Decomposition, Huang et al. 1998) is the precursor
+to FIF. Similar decomposition into IMFs, slightly slower than FIF but
+well-tested in Python. Available immediately.
+
+**Option B — Implement FIF from scratch:**
+FIF algorithm is fully described in Cicone & Zhou 2021 (Numer. Math.
+147:1-28). Core steps: iterative low-pass filtering using FFT-based
+kernel, convergence criterion on IMF. ~100 lines of Python.
+
+### Implementation sketch (Option A with EMD)
+    import emd
+    # spectrogram shape: (n_times, n_freqs)
+    # For each freq bin near 0 Hz (carrier region):
+    imfs = emd.sift.sift(spectrogram[:, freq_bin])
+    # Sum IMFs with period in TID band
+    tid_component = sum IMFs where period in [45, 90] min
+    # Find carrier ridge = freq bin with max tid_component at each time
+
+### Relationship to corridor method
+FIF/EMD would be a parallel extraction method, not a replacement:
+- Corridor + sgolay-ridge: user-guided, best accuracy, slower
+- FIF/EMD on spectrogram: fully automatic, no user input, faster
+- Could be used to SUGGEST a corridor to the user before clicking
+
+### Priority
+Medium — implement after Gwyn discrepancy is resolved and current
+workflow is validated on multiple events.
