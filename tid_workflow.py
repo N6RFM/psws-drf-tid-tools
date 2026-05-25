@@ -458,6 +458,8 @@ def run_workflow(args):
             with open(window_json) as f:
                 wj = json.load(f)
             state[f"{stn_key}_window"] = wj
+            # Default zoom_window to window — Step 5 may refine it
+            state[f"{stn_key}_zoom_window"] = wj
             save_state(state_file, state)
         else:
             wj = state[f"{stn_key}_window"]
