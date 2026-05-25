@@ -517,9 +517,12 @@ class SpectClickApp(QtWidgets.QMainWindow):
         # Run in thread to avoid blocking Qt event loop
         import threading as _threading
 
+        print(f"  Preview command: {' '.join(cmd)}")
         def _run():
             try:
+                print("  Preview thread started")
                 result = _sp.run(cmd, stdout=_sp.PIPE, stderr=_sp.PIPE, timeout=120)
+                print(f"  Preview returncode: {result.returncode}")
                 if result.returncode != 0:
                     err = result.stderr.decode()[-200:]
                     self._set_status(f"Preview failed: {err}")
@@ -533,13 +536,17 @@ class SpectClickApp(QtWidgets.QMainWindow):
                 d_arr = df_prev["doppler_hz"].values
                 # Update UI from main thread via timer
                 def _update():
-                    self.preview_curve.setData(t_arr, d_arr)
+                    print(f"  _update called: {len(t_arr)} points, range {d_arr.min():.2f}-{d_arr.max():.2f}")
+                    self.preview_curve.setData(list(t_arr), list(d_arr))
+                    self.preview_curve.update()
+                    self.plot.update()
+                    QtWidgets.QApplication.processEvents()
                     self._set_status(
                         f"✓ Preview: sgolay-ridge {d_arr.min():.2f} to "
                         f"{d_arr.max():.2f} Hz [green] — R to re-click, Q to accept"
                     )
-                    print(f"  Preview written: {out_csv}")
-                QtCore.QTimer.singleShot(0, _update)
+                    print(f"  Preview curve updated")
+                QtCore.QTimer.singleShot(100, _update)
             except _sp.TimeoutExpired:
                 QtCore.QTimer.singleShot(0, lambda: self._set_status("Preview timed out"))
             except Exception as _e:
