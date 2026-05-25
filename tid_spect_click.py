@@ -513,28 +513,40 @@ class SpectClickApp(QtWidgets.QMainWindow):
         ]
         self._set_status("Running sgolay-ridge preview... (may take 10-30s)")
         QtWidgets.QApplication.processEvents()
-        try:
-            result = _sp.run(cmd, capture_output=True, text=True, timeout=120)
-            if result.returncode != 0:
-                self._set_status(f"Preview failed: {result.stderr[-200:]}")
-                return
-            df_prev = _pd2.read_csv(out_csv, parse_dates=["timestamp_utc"])
-            df_prev["t_h"] = (df_prev["timestamp_utc"].dt.hour +
-                              df_prev["timestamp_utc"].dt.minute/60 +
-                              df_prev["timestamp_utc"].dt.second/3600)
-            t_arr = df_prev["t_h"].values
-            d_arr = df_prev["doppler_hz"].values
-            self.preview_curve.setData(t_arr, d_arr)
-            self._set_status(
-                f"✓ Preview: sgolay-ridge range "
-                f"{d_arr.min():.2f} to {d_arr.max():.2f} Hz  "
-                f"[green curve] — press Q to quit or R to re-click"
-            )
-            print(f"  Preview written: {out_csv}")
-        except _sp.TimeoutExpired:
-            self._set_status("Preview timed out (>120s)")
-        except Exception as _e:
-            self._set_status(f"Preview error: {_e}")
+
+        # Run in thread to avoid blocking Qt event loop
+        import threading as _threading
+
+        def _run():
+            try:
+                result = _sp.run(cmd, stdout=_sp.PIPE, stderr=_sp.PIPE, timeout=120)
+                if result.returncode != 0:
+                    err = result.stderr.decode()[-200:]
+                    self._set_status(f"Preview failed: {err}")
+                    print(f"Preview stderr: {result.stderr.decode()}")
+                    return
+                df_prev = _pd2.read_csv(out_csv, parse_dates=["timestamp_utc"])
+                df_prev["t_h"] = (df_prev["timestamp_utc"].dt.hour +
+                                  df_prev["timestamp_utc"].dt.minute/60 +
+                                  df_prev["timestamp_utc"].dt.second/3600)
+                t_arr = df_prev["t_h"].values
+                d_arr = df_prev["doppler_hz"].values
+                # Update UI from main thread via timer
+                def _update():
+                    self.preview_curve.setData(t_arr, d_arr)
+                    self._set_status(
+                        f"✓ Preview: sgolay-ridge {d_arr.min():.2f} to "
+                        f"{d_arr.max():.2f} Hz [green] — R to re-click, Q to accept"
+                    )
+                    print(f"  Preview written: {out_csv}")
+                QtCore.QTimer.singleShot(0, _update)
+            except _sp.TimeoutExpired:
+                QtCore.QTimer.singleShot(0, lambda: self._set_status("Preview timed out"))
+            except Exception as _e:
+                QtCore.QTimer.singleShot(0, lambda: self._set_status(f"Preview error: {_e}"))
+
+        _t = _threading.Thread(target=_run, daemon=True)
+        _t.start()
 
     def _handle_cal_click(self, vx, vy):
         """Handle calibration clicks — prompt user for physical value."""
