@@ -725,6 +725,20 @@ class SpectClickApp(QtWidgets.QMainWindow):
         with open(out, "w") as _f:
             _json.dump(corridor, _f, indent=2)
 
+        # Warn if clicks don't cover the full segment window
+        import numpy as _npw
+        t_arr_w = _npw.array([c["t_utc_hours"] for c in corridor["clicks"]])
+        gap_start = t_arr_w[0] - self.seg_t0
+        gap_end   = self.seg_t1 - t_arr_w[-1]
+        warn_msgs = []
+        if gap_start > 0.25:  # >15 min gap at start
+            warn_msgs.append(f"start gap {gap_start*60:.0f} min")
+        if gap_end > 0.25:    # >15 min gap at end
+            warn_msgs.append(f"end gap {gap_end*60:.0f} min")
+        if warn_msgs:
+            print(f"  ⚠️ Corridor coverage gaps: {', '.join(warn_msgs)} "
+                  f"— add clicks near segment edges for better coverage")
+
         # Show corridor bounds on spectrogram
         import numpy as _np2
         t_arr = _np2.array([c["t_utc_hours"] for c in corridor["clicks"]])
