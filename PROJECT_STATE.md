@@ -703,3 +703,23 @@ cd ~/psws-tools-pr && git checkout research_gui
 and FINDINGS entries 28-31 on research_gui branch.
 Priorities: (1) email Gwyn re 267 m/s WSW vs 979 m/s SSE discrepancy,
 (2) EMD 4-station DOA run, (3) tid_workflow.py Step 7 clean PNG fix."
+
+---
+## 24. tid_workflow.py improvements — 2026-05-25
+
+### Changes
+- Extraction method prompt at start (sgolay-ridge or fft)
+- sgolay-ridge path: no FFT step, plain zoom spectrogram → corridor → sgolay
+- fft path: fft extraction → overlay spectrogram, no corridor step
+- DOA uses correct CSV for chosen method
+- Step 5 now opens zoom_clean_png with yellow region pre-set from Step 3
+- Window review after all stations complete Steps 3-5: shows summary,
+  allows any station to be redone before extraction begins
+- date_str KeyError on resume fixed
+
+### Resume command
+cd ~/psws-tools-pr && git checkout research_gui
+"Continuing psws-drf-tid-tools. Read PROJECT_STATE.md sections 22-24
+and FINDINGS entries 30-31 on research_gui branch.
+Priority: re-run full workflow on May 2024 event with 17:30-19:30
+window, carefully click AC0G_ND corridor on clean F-region carrier."
