@@ -265,8 +265,9 @@ def run_workflow(args):
             subs = probe_subchannels(drf_dir_s, date_str)
             print(f"    Top subchannels by SNR:")
             for sub, snr, freq in subs[:5]:
-                freq_str = f" ({freq/1e6:.3f} MHz)" if freq else ""
-                print(f"      subchannel {sub}: {snr:.1f} dB{freq_str}")
+                freq_str = f" — {freq/1e6:.3f} MHz" if freq else ""
+                marker = " ← WWV 10 MHz" if freq and abs(freq/1e6 - 10.0) < 0.01 else ""
+                print(f"      subchannel {sub}: {snr:.1f} dB{freq_str}{marker}")
 
             # User selects subchannel
             best_sub = subs[0][0]
@@ -331,7 +332,7 @@ def run_workflow(args):
                 "--subchannel", str(sub),
                 "--output", str(fullday_png),
                 "--start", "00:00", "--end", "24:00",
-                "--ylim", "-5,5", "--dpi", "100",
+                "--ylim=-5,5", "--dpi", "100",
             ])
             if r.returncode != 0:
                 print(f"  ERROR: spectrogram failed for {name}")
@@ -366,7 +367,7 @@ def run_workflow(args):
                 "--subchannel", str(sub),
                 "--output", str(zoom_png),
                 "--window", str(window_json),
-                "--ylim", "-5,5", "--dpi", "150",
+                "--ylim=-5,5", "--dpi", "150",
             ])
             if r.returncode != 0:
                 print(f"  ERROR: zoom spectrogram failed for {name}")
@@ -426,8 +427,8 @@ def run_workflow(args):
                 "--subchannel", str(sub),
                 "--output", str(zoom_png),
                 "--window", str(window_json),
-                "--ylim", "-5,5", "--dpi", "150",
-                "--overlay", f"{fft_csv}:FFT",
+                "--ylim=-5,5", "--dpi", "150",
+                f"--overlay={fft_csv}:FFT",
             ])
             if r.returncode != 0:
                 print(f"  ERROR: overlay spectrogram failed for {name}")
