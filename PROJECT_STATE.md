@@ -542,3 +542,48 @@ discrepancy. His response may:
 3. Identify the root cause of the direction discrepancy
 
 All methods recoverable from git history if removed and later needed.
+
+---
+## 20. Gwyn's Prophet/CWT approach — relationship to our methods
+
+### Gwyn's method (grape_fft_CWT_tracking_prophet.py)
+Reference: https://github.com/g3zil/grapeDRF_doppler_model
+
+1. CWT peak finding — finds ALL spectral peaks per 60s block (not just max)
+2. Keeps top 2 peaks — F-region and E-region carriers
+3. Facebook Prophet — predicts F-region Doppler one step ahead using
+   a Bayesian time-series model trained on recent history
+4. Peak selection — if top peak is farther from prediction than second
+   peak, swap them (i.e. the other peak is more likely to be F-region)
+5. Outputs two separate Doppler traces (F-region + E-region)
+
+### Key insight
+Gwyn's Prophet prediction and our user corridor serve the same purpose:
+both provide a PRIOR on where the F-region carrier should be. The
+difference is:
+- Prophet: algorithmic prior from recent carrier history
+- Corridor: user visual prior from spectrogram inspection
+
+Prophet is blind to sudden phase jumps (wrong-peak lock can corrupt
+the training data). The corridor is immune to this because it's set
+by the user before extraction.
+
+### Why we didn't use Prophet
+- Heavy dependency (Stan/PyStan compiled C++)
+- Slow: seconds per minute of data (120 fits for 2h event)
+- Fragile installation (platform-dependent)
+- Overkill: linear extrapolation achieves same accuracy for smooth signal
+
+### Future option: CWT + linear extrapolation (no Prophet)
+A lighter version of Gwyn's approach:
+- CWT peak finding (scipy, already a dependency)
+- Rolling linear extrapolation (5-10 samples) instead of Prophet
+- Same two-peak tracking logic
+- Could be added as --method cwt-track in drf_to_doppler.py
+
+This would be fully automatic (no corridor clicking) and more robust
+than the current --method cwt which doesn't do two-peak tracking.
+
+### Priority
+Discuss with Gwyn first — he may have already refined this approach
+and sharing code/results would avoid duplication.
