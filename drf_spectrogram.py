@@ -306,36 +306,6 @@ def compute_spectrogram(reader, channel, subchannel,
     return spec, freqs, times
 
 
-def compute_peak_amplitude(reader, channel, subchannel,
-                            start_sample, n_seconds, window_seconds, fs_hz):
-    """Read the same window and compute peak amplitude per minute."""
-    n_per_bin = int(window_seconds * fs_hz)
-    n_columns = int(n_seconds / window_seconds)
-    out = np.zeros(n_columns, dtype=float)
-    progress_every = max(1, n_columns // 40)
-    for col in range(n_columns):
-        offset = col * n_per_bin
-        try:
-            if subchannel is not None:
-                block = reader.read_vector(start_sample + offset,
-                                            n_per_bin, channel)
-                if block.ndim == 2:
-                    block = block[:, subchannel]
-            else:
-                block = reader.read_vector(start_sample + offset,
-                                            n_per_bin, channel)
-                if block.ndim == 2:
-                    block = block[:, 0]
-        except Exception:
-            out[col] = 0
-            continue
-        out[col] = float(np.max(np.abs(block)))
-        if col % progress_every == 0:
-            sys.stdout.write(".")
-            sys.stdout.flush()
-    print()
-    return out
-
 
 # ----------------------------------------------------------------------------
 # Main
@@ -501,15 +471,9 @@ def main():
         reader, args.channel, args.subchannel,
         start_sample, n_seconds, window_seconds, fs_hz)
 
-    print("Computing peak amplitude per minute...")
-    peaks = compute_peak_amplitude(
-        reader, args.channel, args.subchannel,
-        start_sample, n_seconds, window_seconds, fs_hz)
-
     # Plot
     ylim_lo, ylim_hi = (float(x) for x in args.ylim.split(","))
-    fig, (ax_top, ax_bot) = plt.subplots(2, 1, figsize=(14, 8),
-                                         gridspec_kw={"height_ratios": [2.5, 1]})
+    fig, ax_top = plt.subplots(1, 1, figsize=(14, 6))
 
     # gnuradio-like colormap (black-darkgreen-green-yellow-red)
     cmap = mcolors.LinearSegmentedColormap.from_list(
@@ -532,6 +496,7 @@ def main():
                        interpolation="nearest")
     ax_top.set_ylim(ylim_lo, ylim_hi)
     ax_top.set_ylabel("Doppler shift (Hz)")
+    ax_top.set_xlabel(f"Hours UTC on {record_start_utc.strftime('%Y-%m-%d')}")
 
     title_str = args.title
     if not title_str:
@@ -614,25 +579,6 @@ def main():
                         ha="left", va="top",
                         fontsize=9, color="yellow", weight="bold",
                         zorder=12)
-
-    # Bottom panel: peak amplitude
-    peak_times_hr = (np.arange(len(peaks)) * window_seconds) / 3600.0 \
-                    + start_offset_hr
-    ax_bot.plot(peak_times_hr, peaks, color="steelblue", linewidth=0.8)
-    ax_bot.set_xlim(start_offset_hr, end_offset_hr)
-    ax_bot.set_ylabel("Peak amplitude\n(uncalibrated)")
-    ax_bot.set_xlabel(f"Hours UTC on {record_start_utc.strftime('%Y-%m-%d')}")
-    ax_bot.grid(True, alpha=0.3)
-    # Mark the same annotation regions on the bottom panel
-    ylim_peak = ax_bot.get_ylim()
-    for ann_str in args.annotate:
-        t0_s, t1_s, _ = parse_annotation(ann_str)
-        ax_bot.axvspan(t0_s / 3600.0, t1_s / 3600.0,
-                       facecolor="orange", alpha=0.18, zorder=0)
-    for vl_str in args.vline:
-        t_s, _ = parse_vline(vl_str)
-        ax_bot.axvline(x=t_s / 3600.0, color="red", linestyle="--",
-                       linewidth=1.0, alpha=0.5)
 
     # Overlay Doppler CSV traces on the spectrogram panel
     # Default color cycle: blue, orange, green, red, purple, brown
