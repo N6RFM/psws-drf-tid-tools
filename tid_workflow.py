@@ -607,9 +607,22 @@ def run_workflow(args):
     overlap_min = (t_end - t_start).total_seconds() / 60
     print(f"\n  Overlap: {t_start} to {t_end} ({overlap_min:.0f} min)")
 
-    if overlap_min < 30:
-        print(f"  ⚠️ WARNING: only {overlap_min:.0f} min overlap — DOA may be unreliable")
-        print("  Consider re-running Steps 3-5 to select better-aligned windows")
+    if overlap_min < 60:
+        print(f"
+  ⚠️ WARNING: only {overlap_min:.0f} min overlap (need ≥60 min for reliable DOA)")
+        print("  Stations with misaligned windows:")
+        for stn in completed:
+            df = dfs[stn["name"]]
+            print(f"    {stn['name']}: {df.timestamp_utc.min()} to {df.timestamp_utc.max()}")
+        print("
+  Options:")
+        print("  1. Continue anyway (result may be unreliable)")
+        print("  2. Quit and re-run Steps 3-5 with better-aligned windows")
+        choice = input("  Choose [1/2]: ").strip()
+        if choice == "2":
+            print("  Quitting. Delete tid_workflow_state.json entries for")
+            print("  affected stations and re-run with --resume to redo windows.")
+            return
 
     # Write event config
     event_config = {
