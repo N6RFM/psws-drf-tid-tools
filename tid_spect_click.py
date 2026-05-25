@@ -369,6 +369,13 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self.fit_curve.setData([], [])
         self.fit_dim_curve.setData([], [])
         self.preview_curve.setData([], [])
+        # Delete stale output files from previous sessions
+        import os as _os_clean
+        for _suffix in ["_corridor.json", "_corridor_preview.csv"]:
+            _stale = str(self.csv_path).replace(".csv", _suffix)
+            if _os_clean.path.exists(_stale):
+                _os_clean.remove(_stale)
+                print(f"  Removed stale file: {_os_clean.path.basename(_stale)}")
 
         # SGOLAY-ridge preview curve (shown after X if --drf-dir provided)
         self.preview_curve = self.plot.plot(
@@ -827,6 +834,8 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self.corridor_hi_curve.setData([], [])
         self.corridor_lo_curve.setData([], [])
         self.preview_curve.setData([], [])
+        self.csv_curve.setData([], [])
+        self._csv_visible = False
         self._update_status()
 
     # ------------------------------------------------------------------
