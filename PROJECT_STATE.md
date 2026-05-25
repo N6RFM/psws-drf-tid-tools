@@ -666,3 +666,40 @@ discrepancy. His response may:
 3. Identify the root cause of the direction discrepancy
 
 All methods recoverable from git history if removed and later needed.
+
+---
+## 22. GUI cleanup — 2026-05-25 (research_gui)
+
+### Changes made this session
+
+**drf_spectrogram.py:**
+- Removed bottom amplitude panel (compute_peak_amplitude, ax_bot, peaks)
+- Single-panel figure now (14×6 inches) — spectrogram fills full output
+- Dead code (compute_peak_amplitude function) removed
+- Added date_utc field to sidecar axes JSON for use by tid_spect_click.py
+
+**tid_spect_click.py:**
+- Removed sinusoid fit workflow (F/W keys, fit_curve, fit_dim_curve,
+  _fit, _write, _refresh_fit, fit_sinusoid, evaluate_sinusoid_hours)
+- Removed CSV overlay (V key, csv_curve, _load_csv, _toggle_csv_overlay,
+  _replot_csv, --csv now optional no-op)
+- Removed FFT consistency check (xcorr vs automated CSV) — irrelevant
+  to corridor+sgolay workflow
+- sgolay preview extraction window now uses corridor click extent
+  (min/max of clicks_t) not the yellow segment handles
+- Corridor output path based on spectrogram stem not CSV stem
+- Date for sgolay preview subprocess extracted from sidecar date_utc
+- Stale file cleanup uses spectrogram stem
+
+### Current tool interface (tid_spect_click.py)
+Required: --spectrogram PNG --name NAME --drf-dir DIR
+Optional: --subchannel N --sgolay-window MINUTES --seg-start --seg-end
+Keys: X (export corridor + run preview), R (reset clicks),
+      C (clear all), Q (quit)
+
+### Resume command
+cd ~/psws-tools-pr && git checkout research_gui
+"Continuing psws-drf-tid-tools. Read PROJECT_STATE.md sections 19-22
+and FINDINGS entries 28-31 on research_gui branch.
+Priorities: (1) email Gwyn re 267 m/s WSW vs 979 m/s SSE discrepancy,
+(2) EMD 4-station DOA run, (3) tid_workflow.py Step 7 clean PNG fix."
