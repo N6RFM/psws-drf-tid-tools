@@ -608,8 +608,7 @@ def run_workflow(args):
     print(f"\n  Overlap: {t_start} to {t_end} ({overlap_min:.0f} min)")
 
     if overlap_min < 60:
-        print(f"
-  ⚠️ WARNING: only {overlap_min:.0f} min overlap (need ≥60 min for reliable DOA)")
+        print(f"\n  ⚠️ WARNING: only {overlap_min:.0f} min overlap (need ≥60 min for reliable DOA)")
         print("  Stations with misaligned windows:")
         for stn in completed:
             df = dfs[stn["name"]]
