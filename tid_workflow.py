@@ -624,6 +624,8 @@ def _parse_args():
                    help="Transmitter longitude (default: WWV -105.04E)")
     p.add_argument("--tx-name", default="WWV", metavar="NAME",
                    help="Transmitter name for labeling (default: WWV)")
+    p.add_argument("--tx-freq-mhz", type=float, default=10.0, metavar="MHZ",
+                   help="Transmitter frequency MHz for subchannel selection (default 10.0)")
     p.add_argument("--sgolay-window", type=float, default=21.0, metavar="MIN",
                    help="SGOLAY smoothing window in minutes (default 21)")
     return p.parse_args()
