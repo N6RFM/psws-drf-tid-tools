@@ -485,7 +485,9 @@ def run_workflow(args):
             print(f"\n[Step 5] Refine TID window for {name}...")
             print("  → Drag yellow region to refine, press S to save, Q to quit")
             run(["python3", tool("tid_quicklook.py"),
-                 "--spectrogram", str(zoom_png)])
+                 "--spectrogram", str(zoom_clean_png),
+                 "--seg-start", str(wj["t_start_utc_hours"]),
+                 "--seg-end",   str(wj["t_end_utc_hours"])])
             if zoom_window.exists():
                 with open(zoom_window) as f:
                     zwj = json.load(f)
