@@ -90,6 +90,7 @@ def h_to_hhmm(h):
 
 
 def h_to_iso(date_str, h):
+    h = max(0.0, h)  # clamp negative hours to midnight
     hh = int(h); rem = (h - hh) * 60; mm = int(rem); ss = int((rem - mm) * 60)
     return f"{date_str}T{hh:02d}:{mm:02d}:{ss:02d}"
 
@@ -799,6 +800,8 @@ def _parse_args():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
+    p.add_argument("--stations", default=None, metavar="A,B,C",
+                   help="Comma-separated station names to use (default: all found)")
     p.add_argument("--event-dir", required=True, metavar="DIR",
                    help="Directory containing DRF station subdirectories")
     p.add_argument("--resume", action="store_true",
