@@ -5,7 +5,7 @@ session. Not a release artifact. Update it when state changes
 materially; treat it as the first thing to read when picking the
 project back up.
 
-**Last updated:** 2026-05-24  |  **Status: ACTIVE RESEARCH — research_gui branch active; awaiting Gwyn reply on method discrepancy**
+**Last updated:** 2026-05-25  |  **Status: ACTIVE RESEARCH — research_gui branch active; awaiting Gwyn reply on method discrepancy**
 
 ---
 
