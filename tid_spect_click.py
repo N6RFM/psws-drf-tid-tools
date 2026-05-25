@@ -333,9 +333,8 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self.csv_curve = self.plot.plot(
             [], [],
             pen=pg.mkPen(color="#888888", width=1),
-            name="auto",
         )
-        self._csv_visible = False  # hidden by default — press V to toggle
+        # _csv_visible already set in __init__ before _build_ui
 
         # Fitted sinusoid (inside segment — bright)
         self.fit_curve = self.plot.plot(
@@ -874,9 +873,9 @@ class SpectClickApp(QtWidgets.QMainWindow):
     # ------------------------------------------------------------------
 
     def _install_shortcuts(self):
-        for key, cb in [("F", self._fit), ("W", self._write),
+        for key, cb in [("V", self._toggle_csv_overlay),
+                        ("F", self._fit), ("W", self._write),
                         ("X", self._write_corridor),
-                ("V", self._toggle_csv_overlay),
                         ("R", self._reset_clicks), ("C", self._clear_all),
                         ("Q", self.close)]:
             sc = QtWidgets.QShortcut(QtGui.QKeySequence(key), self, cb)
