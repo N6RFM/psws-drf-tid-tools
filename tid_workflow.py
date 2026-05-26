@@ -819,6 +819,8 @@ def _parse_args():
                    help="Transmitter frequency MHz for subchannel selection (default 10.0)")
     p.add_argument("--sgolay-window", type=float, default=21.0, metavar="MIN",
                    help="SGOLAY smoothing window in minutes (default 21)")
+    p.add_argument("--max-lag", type=float, default=None, metavar="MIN",
+                   help="Maximum xcorr lag in minutes (default: auto). Set to ~1/3 of TID period.")
     return p.parse_args()
 
 
