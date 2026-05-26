@@ -855,3 +855,29 @@ Priority: (1) update Jan 2026 analysis document with 254-283 m/s
 corrected result, (2) fix tid_quicklook.py to clamp negative window
 values at source, (3) test on additional events,
 (4) push research_gui to origin when ready."
+
+---
+## 29. Workflow streamlining and DOA improvements — 2026-05-26
+
+### Changes
+- Streamlined to 8 steps (removed redundant Step 6 reference PNG)
+- Step 5 window refinement now opt-in (y/N, default skip)
+- "Same window for all stations" prompt after first window saved
+- --max-lag CLI flag added (set max_lag_seconds in event JSON)
+- Post-DOA interactive drop-station loop with comparison table
+- tid_doa.py suggests specific station to drop in [3] and [4]
+- h_to_hhmm clamps negative hours for display
+
+### Jan 2026 event results summary
+All runs consistently give 35-37° NNE direction.
+Speed varies 202-262 m/s depending on corridors/max_lag.
+AC0G_ND essential despite weak pairs — without it array is collinear.
+Best estimate: 254-283 m/s from ~31-35° NNE.
+
+### Resume command
+cd ~/psws-tools-pr && git checkout research_gui
+"Continuing psws-drf-tid-tools. Read PROJECT_STATE.md sections 27-29
+and FINDINGS entries 34-37 on research_gui branch.
+Priority: (1) update Jan 2026 analysis document with corrected
+254-283 m/s result, (2) fix tid_quicklook.py negative window clamping,
+(3) push research_gui to origin."
