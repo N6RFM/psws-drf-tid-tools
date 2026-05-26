@@ -685,8 +685,17 @@ def format_diagnostics(result):
         if weak:
             flagged += 1
             L.append(f"    >> {len(weak)} weak pair(s): " + "; ".join(weak))
-            L.append("       Consider dropping the least-coherent station")
-            L.append("       and re-running to test robustness.")
+            # Count weak-pair appearances per station
+            from collections import Counter
+            weak_count = Counter()
+            for p in pairs:
+                if p["corr"] < DIAG_CORR_WEAK:
+                    weak_count[p["i"]] += 1
+                    weak_count[p["j"]] += 1
+            worst_stn = weak_count.most_common(1)[0][0]
+            L.append(f"       Consider dropping {worst_stn} "
+                     f"({weak_count[worst_stn]} weak pair(s)) "
+                     f"and re-running to test robustness.")
         L.append("")
 
     closures = _triangle_closures(pairs)
@@ -706,6 +715,25 @@ def format_diagnostics(result):
                      f"{tri[0]}/{tri[1]}/{tri[2]}). One pair correlation")
             L.append("       likely locked a wrong peak; check the pairwise")
             L.append("       table; a window tighten or drop may help.")
+            # Suggest which station in the worst triple to drop
+            triple_stns = list(tri)
+            # Find weakest-corr pair among pairs in this triple
+            triple_pairs = [p for p in pairs
+                            if p["i"] in triple_stns and p["j"] in triple_stns]
+            if triple_pairs:
+                worst_pair = min(triple_pairs, key=lambda p: p["corr"])
+                # Suggest dropping the station that appears in fewest
+                # other strong pairs — proxy: the one with lower mean corr
+                from collections import defaultdict
+                stn_corrs = defaultdict(list)
+                for p in pairs:
+                    stn_corrs[p["i"]].append(p["corr"])
+                    stn_corrs[p["j"]].append(p["corr"])
+                drop_stn = min(
+                    [worst_pair["i"], worst_pair["j"]],
+                    key=lambda s: sum(stn_corrs[s])/len(stn_corrs[s]))
+            L.append(f"       Suggested drop: {drop_stn} "
+                     f"(lowest mean corr in worst triple)")
         L.append("")
 
     sp = result.get("speed_m_s", float("nan"))
