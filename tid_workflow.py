@@ -778,16 +778,36 @@ def run_workflow(args):
         json.dump(event_config, f, indent=2)
     print(f"\n  Event config: {config_path.name}")
 
-    # Run DOA
-    r = run(["python3", tool("tid_doa.py"), str(config_path)])
-    if r.returncode == 0:
-        state["doa_done"] = True
-        save_state(state_file, state)
-
+    # Run DOA — with interactive drop-station loop
+    active_stations = list(completed)
+    while True:
+        event_config["stations"] = active_stations
+        with open(config_path, "w") as f:
+            json.dump(event_config, f, indent=2)
+        print(f"\n  Running DOA with {len(active_stations)} stations: "
+              f"{[s['name'] for s in active_stations]}")
+        r = run(["python3", tool("tid_doa.py"), str(config_path)])
+        if r.returncode == 0:
+            state["doa_done"] = True
+            save_state(state_file, state)
+        if len(active_stations) <= 3:
+            break
+        ans = input("\n  Drop a station and re-run DOA? "
+                    "[station name or Enter to finish]: ").strip().upper()
+        if not ans:
+            break
+        match = [s for s in active_stations if s["name"].upper() == ans]
+        if not match:
+            print(f"  Unknown station '{ans}' — valid: "
+                  f"{[s['name'] for s in active_stations]}")
+            continue
+        active_stations = [s for s in active_stations
+                           if s["name"].upper() != ans]
+        print(f"  Dropped {ans}. Remaining: "
+              f"{[s['name'] for s in active_stations]}")
     print(f"\n{'='*60}")
     print("Workflow complete.")
     print(f"{'='*60}")
-
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
