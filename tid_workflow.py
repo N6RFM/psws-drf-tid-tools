@@ -776,6 +776,9 @@ def run_workflow(args):
         "min_expected_speed_m_s": 100,
         "stations": completed,
     }
+    if args.max_lag is not None:
+        event_config["max_lag_seconds"] = args.max_lag * 60
+        print(f"  max_lag_seconds: {args.max_lag * 60:.0f} s ({args.max_lag:.0f} min)")
     config_path = event_dir / "tid_workflow_event.json"
     with open(config_path, "w") as f:
         json.dump(event_config, f, indent=2)
