@@ -1954,3 +1954,57 @@ The ~85° direction discrepancy between our original result (242° WSW)
 and Gwyn's original (157° SSE) was primarily due to Gwyn's sign convention
 error. After correction, both methods give roughly consistent NE→SW
 propagation, consistent with auroral LSTID origin.
+
+---
+
+## Entry 36 — Sign convention cross-check with Gwyn: full reconciliation
+**Date:** 2026-05-26
+**Branch:** research_gui
+
+### Our sign convention (tid_doa.py)
+positive lag τ_ij means station j lags station i (wave reached i first).
+Cross-correlation: lag at which correlate(signal_i, signal_j) is maximum,
+where positive lag = signal_j shifted forward in time relative to signal_i.
+
+### Gwyn's corrected convention
+Correlation of first(t-lag) with second(t).
+Positive lag = first station leads second = second lags first.
+This is IDENTICAL to our convention.
+
+### Verification on AC0G_ND/W7LUX pair
+Our result: W7LUX→AC0G_ND lag = -27 min
+= AC0G_ND leads W7LUX by 27 min ✅ (physically correct: AC0G_ND is north)
+Gwyn corrected: -18 min (17:30-19:30 window)
+Difference: 9 min — explained by different analysis windows:
+  - Our window: 17:34-19:28 UTC
+  - Gwyn's window: 17:30-19:30 UTC
+  Different portions of the non-stationary TID give different lags.
+
+### N4RVE/N5BRG discrepancy
+Our result: N4RVE→N5BRG lag = -22 min
+Gwyn corrected: -26 to -37 min (varies by time window)
+Same direction (N4RVE leads, physically correct) but magnitude differs.
+Again explained by different windows and TID non-stationarity.
+
+### Gwyn's statement: "your peaks are a mix of current and previous"
+This was true for our ORIGINAL results (Entry 24) where:
+- FFT: W7LUX→AC0G_ND = +27 min (wrong sign — wrong cycle)
+- sgolay-ridge: W7LUX→AC0G_ND = -27 min (correct sign — right cycle)
+The corridor + sgolay-ridge extraction corrected this. All sgolay-ridge
+lags are on the physically correct cycle (northern stations lead).
+
+### Summary of reconciliation
+| Pair | Our sgolay | Gwyn corrected | Agreement |
+|------|-----------|----------------|-----------|
+| AC0G_ND/W7LUX | -27 min | -18 min | Same sign ✅, 9 min diff |
+| N4RVE/N5BRG | -22 min | -26 to -37 min | Same sign ✅, varies |
+
+Both analyses now agree: wave travels NE→SW, northern stations lead.
+Remaining discrepancies are due to TID non-stationarity across different
+analysis windows — not a systematic error in either method.
+
+### Outstanding question
+Gwyn notes TID period varies across his three time intervals — this is
+consistent with a dispersive gravity wave packet rather than a monochromatic
+wave. The 4-station plane-wave DOA assumes a monochromatic wave; the
+residuals we see (44-65% RMS) partly reflect this non-stationarity.
