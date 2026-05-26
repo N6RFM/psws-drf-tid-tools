@@ -834,3 +834,24 @@ cd ~/psws-tools-pr && git checkout research_gui
 and FINDINGS entries 31-33 on research_gui branch.
 Priority: update Jan 2026 analysis document with corrected 283 m/s
 result and peak-time validation. May 2024 event still unresolved."
+
+---
+## 28. End of session — 2026-05-26
+
+### Final commit state
+research_gui is 23 commits ahead of origin. All changes local only.
+
+### Last confirmed result
+Jan 2026 event with --max-lag 30:
+- Speed: 254 m/s from 31° (NNE)
+- Extraction: sgolay-ridge, 4 stations
+- max_lag_seconds=1800 prevents AC0G_ND→N6RFM aliasing
+
+### Resume command
+cd ~/psws-tools-pr && git checkout research_gui
+"Continuing psws-drf-tid-tools. Read PROJECT_STATE.md sections 26-28
+and FINDINGS entries 32-34 on research_gui branch.
+Priority: (1) update Jan 2026 analysis document with 254-283 m/s
+corrected result, (2) fix tid_quicklook.py to clamp negative window
+values at source, (3) test on additional events,
+(4) push research_gui to origin when ready."
