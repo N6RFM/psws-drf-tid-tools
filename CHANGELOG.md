@@ -1,3 +1,84 @@
+## v2.0.0 — 2026-05-26
+
+### Guided workflow (tid_workflow.py) — major new feature
+
+A complete 8-step guided workflow that takes you from raw DRF data to
+a validated DOA result in a single interactive session:
+
+1. Station discovery and subchannel selection with thumbnail spectrograms
+2. Full-day spectrogram generation
+3. Interactive TID window selection (tid_quicklook.py)
+4. Zoomed spectrogram generation
+5. Optional window refinement (opt-in, default skip)
+6. Doppler extraction — corridor clicking (sgolay-ridge) or automated
+7. Extraction output and visual validation
+8. DOA inversion with interactive drop-station loop and comparison table
+
+Key features:
+- State saved after each interactive step — `--resume` to continue
+- `--stations A,B,C` to use a subset of stations in the event directory
+- `--max-lag MIN` to constrain xcorr search and prevent period aliasing
+- "Same window for all stations" prompt after first window is set
+- Window review with per-station redo before extraction begins
+- Post-DOA interactive drop-station loop with comparison table
+- DOA diagnostics suggest specific station to drop when flagged
+
+### New extraction method: sgolay-ridge
+
+`drf_to_doppler.py --method sgolay-ridge` implements a 2D STFT ridge
+tracker with a user-defined corridor. Combined with `tid_spect_click.py`
+for corridor clicking, this is the recommended method for events with
+E-region contamination.
+
+Validation on the Jan 2026 event: sgolay-ridge gave 262 m/s from 37°
+NNE (physically correct) while fft locked on the wrong xcorr peak
+(99 m/s from 167°, opposite direction) due to AC0G/ND contamination.
+
+### New extraction method: cwt
+
+`drf_to_doppler.py --method cwt` implements a CWT multi-peak tracker
+with linear extrapolation (in addition to the existing fft and autocorr).
+
+### tid_quicklook.py improvements
+
+- Duplicate axes hidden — pyqtgraph axes were overlapping the axes
+  baked into the spectrogram PNG
+- `--seg-start` / `--seg-end` flags to pre-position the yellow region
+
+### tid_spect_click.py improvements
+
+- Removed sinusoid fit workflow (replaced by sgolay-ridge extraction)
+- Removed CSV overlay and FFT consistency check (no longer needed)
+- X key: export corridor and run sgolay preview (green curve)
+
+### drf_spectrogram.py improvements
+
+- Removed bottom amplitude panel (single-panel figure)
+- `--callsign` now passed through automatically by tid_workflow.py
+  so spectrogram titles show station name instead of (?)
+- `date_utc` field added to sidecar JSON
+
+### tid_doa.py improvements
+
+- Diagnostics [3] and [4] now suggest a specific station to drop
+  (names the station with most weak pairs / lowest mean corr in
+  worst closure triple)
+
+### Documentation
+
+- `WORKFLOW_TUTORIAL.md` — complete guided workflow walkthrough
+- `MANUAL_TUTORIAL.md` — step-by-step manual pipeline tutorial
+- `README.md` updated to reflect v2.0 guided workflow as primary method
+
+### Validated scientific result
+
+First physically validated result from psws-drf-tid-tools:
+- Event: 19 January 2026 LSTID (00:00–01:36 UTC)
+- Stations: N6RFM, AA6BD, W7LUX, AC0G/ND
+- Result: 254–283 m/s from 30–35° NNE (equatorward auroral LSTID)
+- Validation: peak-time cross-check from stacked spectrogram gives
+  ~280 m/s on two independent baselines, consistent with DOA result
+
 # Changelog
 ## v1.6.8 — 2026-05-19
 ### drf_spectrogram.py: add --dpi flag
