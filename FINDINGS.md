@@ -2075,3 +2075,37 @@ is clear from the AC0G/ND trace after 01:00 UTC.
 
 ### Action
 Report these findings to Gwyn with the comparison plots.
+
+---
+
+## Entry 39 — AA6BD carrier identification: sgolay-ridge is correct
+**Date:** 2026-05-26
+**Branch:** research_gui
+
+### Finding
+Initial assessment assumed AA6BD sgolay-ridge was tracking E-region
+contamination because it showed a large positive excursion (+1.2 Hz)
+that the automated methods did not show.
+
+Visual inspection of the AA6BD zoom spectrogram shows the opposite:
+- The bright red/orange arc rising to +1.5 Hz from 00:30-01:15 UTC
+  IS the F-region carrier showing the TID Doppler oscillation
+- The automated methods (fft, autocorr, cwt, cwt-prophet) are all
+  locked onto the near-zero flat feature at the start and fail to
+  follow the TID excursion upward
+
+### Implication
+The sgolay-ridge trace for AA6BD is the physically correct extraction.
+The automated methods are systematically underestimating the Doppler
+amplitude on this station — they track the wrong peak throughout the
+TID event.
+
+### Impact on DOA
+The AA6BD sgolay-ridge lags will differ significantly from the
+automated method lags. The sgolay-ridge DOA result is more reliable
+for AA6BD specifically.
+
+### Action
+Re-run DOA with sgolay-ridge for all stations and compare with
+automated method DOA. The large discrepancy on AA6BD explains why
+the residuals have been consistently high (~35%) across all runs.
