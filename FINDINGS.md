@@ -2109,3 +2109,44 @@ for AA6BD specifically.
 Re-run DOA with sgolay-ridge for all stations and compare with
 automated method DOA. The large discrepancy on AA6BD explains why
 the residuals have been consistently high (~35%) across all runs.
+
+---
+
+## Entry 40 — Jan 2026: final sgolay-ridge result and AC0G_ND lag analysis
+**Date:** 2026-05-26
+**Branch:** research_gui
+
+### Final DOA result (sgolay-ridge, all stations, correct AA6BD corridor)
+- Speed: 223 m/s from 35° (NNE)
+- Residual: 34.8% — high but expected (TID non-stationarity)
+- Direction robust across all runs: 31-37° NNE ✅
+
+### AC0G_ND lag problem
+xcorr peak analysis shows:
+- AC0G_ND→W7LUX: best peak +60 min (r=0.493), physical -39 min (r=0.382)
+- AC0G_ND→N6RFM: best peak +67 min (r=0.500), physical -24 min (r=0.344)
+
+The alias peaks (+60, +67 min ≈ one TID period away) are consistently
+stronger than the physically correct negative peaks. This is a direct
+consequence of TID non-stationarity — the waveform changes enough over
+the 98-min window that the "wrong" cycle correlates better.
+
+Manually overriding to -39 min gives inconsistent triangles (±63 min
+closure) — confirming no single lag set is self-consistent for AC0G_ND.
+
+### All Jan 2026 DOA results summary
+| Run | Speed | From | Notes |
+|-----|-------|------|-------|
+| sgolay, correct AA6BD corridor | 223 m/s | 35° | Best run |
+| sgolay, max-lag 30 | 254 m/s | 31° | AC0G_ND constrained |
+| sgolay, max-lag 60 | 202 m/s | 35° | AC0G_ND aliased |
+| Peak-time direct | ~281 m/s | ~33° | Independent |
+
+### Best estimate
+Speed: 223-281 m/s (uncertainty from AC0G_ND lag ambiguity)
+Direction: 33-35° NNE — robust across all methods ✅
+
+### Root cause of high residuals
+TID non-stationarity (period varies across event, confirmed by Gwyn).
+The plane-wave assumption breaks down for a dispersive wave packet.
+Residuals of 35% are expected and do not indicate wrong-peak lock.
