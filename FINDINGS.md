@@ -1946,3 +1946,71 @@ Always set max_lag_seconds in event JSON when TID period is known.
 For this event (~80-100 min period), 30 min is appropriate — it
 allows lags up to one-third of the period, preventing aliasing while
 covering the expected lag range for this array geometry.
+
+---
+
+## Entry 20 — sgolay-ridge on all stations: first complete 4-station result
+**Date:** 2026-05-24
+**Branch:** research_gui
+**NOTE:** This entry was missing from FINDINGS.md. Reconstructed 2026-05-26.
+
+### What was done
+Applied sgolay-ridge corridor extraction to all 4 stations simultaneously
+for the May 2024 LSTID event. Previous entries used sgolay-ridge on only
+one or two stations while others used FFT — creating phase offset biases
+that corrupted DOA results.
+
+### Key insight
+For the DOA cross-correlation biases to cancel, ALL stations must use
+the same extraction method. Mixing sgolay-ridge and FFT introduces a
+systematic ~60s phase offset between stations, corrupting triangle closure.
+
+### Result
+When all 4 stations use corridor + sgolay-ridge:
+- Speed: 267 m/s from 242° (WSW)
+- All 5 diagnostics pass
+- Triangle closure: 6.9%
+- This superseded the earlier 458 m/s result (Entry 21) which used
+  mixed methods and incorrect (receiver rather than IPP) coordinates.
+
+---
+
+## Entry 35 — Gwyn's email response: sign convention error identified
+**Date:** 2026-05-26 (reconstructed from session — event was 2026-05-25)
+**Branch:** research_gui
+
+### Gwyn's key findings
+1. **Sign convention error in his original analysis** — Gwyn reported
+   lags for current-cycle vs previous-cycle rather than current vs current.
+   When corrected, his AC0G_ND/W7LUX lag becomes -18 min (negative = AC0G_ND
+   leads W7LUX, physically correct for northward station).
+
+2. **Corrected lag table (Gwyn, 17:30-19:30 UTC window):**
+
+   | Time interval | N4RVE/N5BRG neg lag | r | AC0G_ND/W7LUX neg lag | r |
+   |--------------|--------------------|----|----------------------|----|
+   | 18:00-20:00  | -37 min | 0.553 | -22 min | 0.733 |
+   | 17:30-20:30  | -26 min | 0.374 | -22 min | 0.601 |
+   | 17:30-19:30  | -32 min | 0.610 | -18 min | 0.683 |
+
+3. **N5BRG channel confirmed:** S000038 (NS channel) = subchannel 0
+
+4. **TID period not constant** — Gwyn notes the period varies across
+   time intervals, indicating a dispersive or non-stationary wave.
+
+### Comparison with our sgolay-ridge result
+- Our AC0G_ND/W7LUX lag: -27 min (close to Gwyn's -18 to -22 min) ✅
+- Our N4RVE/N5BRG lag: -22 min (vs Gwyn's -26 to -37 min) — some discrepancy
+- Direction agreement: both give NE origin, SW propagation ✅
+- Speed: our 267 m/s vs Gwyn's original 979 m/s — discrepancy explained
+  by Gwyn's sign convention error (he was using wrong-cycle lags)
+
+### Physical constraint from Gwyn
+For auroral LSTID: northern stations must lead (negative lag when listed
+south-to-north). AC0G_ND (north) leads W7LUX (south) — confirmed by both.
+
+### Implication
+The ~85° direction discrepancy between our original result (242° WSW)
+and Gwyn's original (157° SSE) was primarily due to Gwyn's sign convention
+error. After correction, both methods give roughly consistent NE→SW
+propagation, consistent with auroral LSTID origin.
