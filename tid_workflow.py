@@ -13,12 +13,10 @@ Automates the 10-step guided extraction workflow:
   Step 2:  Full-day spectrogram for each station
   Step 3:  User selects TID window (tid_quicklook.py)
   Step 4:  Zoomed spectrogram
-  Step 5:  User refines TID window (tid_quicklook.py)
-  Step 6:  Automated FFT extraction (overlay)
-  Step 7:  Zoomed spectrogram with FFT overlay
-  Step 8:  User clicks corridor (tid_spect_click.py + sgolay preview)
-  Step 9:  sgolay-ridge extraction
-  Step 10: DOA (tid_doa.py)
+  Step 5:  Optionally refine TID window (opt-in)
+  Step 6:  sgolay-ridge: corridor clicking  |  fft: FFT extraction
+  Step 7:  sgolay-ridge: sgolay extraction  |  fft: FFT overlay spectrogram
+  Step 8:  DOA (tid_doa.py)
 
 State is saved after each interactive step so the workflow can be
 resumed if interrupted.
@@ -490,55 +488,35 @@ def run_workflow(args):
             state[f"{stn_key}_zoom"] = str(zoom_clean_png)
             save_state(state_file, state)
 
-        # Step 5: User refines TID window
+        # Step 5: Opt-in window refinement (skipped by default)
         if f"{stn_key}_zoom_window" not in state:
-            print(f"\n[Step 5] Refine TID window for {name}...")
-            print("  → Drag yellow region to refine, press S to save, Q to quit")
-            run(["python3", tool("tid_quicklook.py"),
-                 "--spectrogram", str(zoom_clean_png),
-                 "--seg-start", str(wj["t_start_utc_hours"]),
-                 "--seg-end",   str(wj["t_end_utc_hours"])])
-            if zoom_window.exists():
-                with open(zoom_window) as f:
-                    zwj = json.load(f)
-                state[f"{stn_key}_zoom_window"] = zwj
-                t0_h = zwj["t_start_utc_hours"]
-                t1_h = zwj["t_end_utc_hours"]
-            else:
-                # Fall back to fullday window
-                t0_h = wj["t_start_utc_hours"]
-                t1_h = wj["t_end_utc_hours"]
-                state[f"{stn_key}_zoom_window"] = wj
+            ans = input(f"  Refine window for {name}? [y/N]: ").strip().lower()
+            if ans == "y":
+                print(f"\n[Step 5] Refine TID window for {name}...")
+                print("  → Drag yellow region to refine, S to save, Q to keep")
+                run(["python3", tool("tid_quicklook.py"),
+                     "--spectrogram", str(zoom_clean_png),
+                     "--seg-start", str(wj["t_start_utc_hours"]),
+                     "--seg-end",   str(wj["t_end_utc_hours"])])
+                if zoom_window.exists():
+                    with open(zoom_window) as f:
+                        zwj = json.load(f)
+                    state[f"{stn_key}_zoom_window"] = zwj
+            t0_h = state[f"{stn_key}_zoom_window"]["t_start_utc_hours"]
+            t1_h = state[f"{stn_key}_zoom_window"]["t_end_utc_hours"]
             save_state(state_file, state)
         else:
             zwj = state[f"{stn_key}_zoom_window"]
             t0_h = zwj["t_start_utc_hours"]
             t1_h = zwj["t_end_utc_hours"]
-            print(f"  Refined window: {h_to_hhmm(t0_h)}–{h_to_hhmm(t1_h)} UTC")
-
+        print(f"  Analysis window: {h_to_hhmm(t0_h)}–{h_to_hhmm(t1_h)} UTC")
         if method == "sgolay-ridge":
-            # Step 6: Plain zoomed spectrogram for visual reference (no overlay)
-            if f"{stn_key}_zoom_overlay" not in state:
-                print(f"\n[Step 6] Zoomed spectrogram for {name} (visual reference)...")
-                r = run([
-                    "python3", tool("drf_spectrogram.py"),
-                    drf_dir_s,
-                    "--subchannel", str(sub),
-                    "--output", str(zoom_png),
-                    "--window", str(window_json),
-                    "--ylim=-5,5", "--dpi", "150",
-                ])
-                if r.returncode != 0:
-                    print(f"  ERROR: spectrogram failed for {name}")
-                    continue
-                print(f"  Reference PNG: {zoom_png.name}")
-                print(f"  Clean PNG for clicking: {zoom_clean_png.name}")
-                state[f"{stn_key}_zoom_overlay"] = True
-                save_state(state_file, state)
-
-            # Step 7: User clicks corridor
+            # Step 6: Corridor clicking (zoom_clean_png already generated in Step 4)
+            state[f"{stn_key}_zoom_overlay"] = True
+            save_state(state_file, state)
+            # Step 6/7: User clicks corridor
             if f"{stn_key}_corridor" not in state:
-                print(f"\n[Step 7] Click corridor for {name}...")
+                print(f"\n[Step 6] Click corridor for {name}...")
                 print(f"  → Open {zoom_png.name} for visual reference")
                 print(f"  → Click corridor on clean PNG: {zoom_clean_png.name}")
                 print("  → Click ~6 points bracketing the carrier")
@@ -557,9 +535,9 @@ def run_workflow(args):
                 state[f"{stn_key}_corridor"] = str(corridor_json)
                 save_state(state_file, state)
 
-            # Step 8: sgolay-ridge extraction
+            # Step 7: sgolay-ridge extraction
             if f"{stn_key}_sgolay" not in state:
-                print(f"\n[Step 8] sgolay-ridge extraction for {name}...")
+                print(f"\n[Step 7] sgolay-ridge extraction for {name}...")
                 r = run([
                     "python3", tool("drf_to_doppler.py"),
                     drf_dir_s,
@@ -709,7 +687,7 @@ def run_workflow(args):
 
     # ── Step 10: Check overlap and run DOA ────────────────────────────────
     print(f"\n{'─'*60}")
-    print("[Step 10] DOA")
+    print("[Step 8] DOA")
     print(f"{'─'*60}")
 
     # Collect completed stations — prefer sgolay if exists, else fft
