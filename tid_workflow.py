@@ -466,6 +466,21 @@ def run_workflow(args):
             # Default zoom_window to window — Step 5 may refine it
             state[f"{stn_key}_zoom_window"] = wj
             save_state(state_file, state)
+            # Offer to apply same window to all remaining stations
+            remaining = [s for s in stations
+                         if f"{s['name'].lower()}_window" not in state
+                         and s["name"] != name]
+            if remaining:
+                ans = input(f"  Apply {h_to_hhmm(wj["t_start_utc_hours"])}–"
+                            f"{h_to_hhmm(wj["t_end_utc_hours"])} to all "
+                            f"remaining stations? [y/N]: ").strip().lower()
+                if ans == "y":
+                    for rs in remaining:
+                        rk = rs["name"].lower()
+                        state[f"{rk}_window"] = wj
+                        state[f"{rk}_zoom_window"] = wj
+                    save_state(state_file, state)
+                    print(f"  Applied to: {[s['name'] for s in remaining]}")
         else:
             wj = state[f"{stn_key}_window"]
             print(f"  Window: {h_to_hhmm(wj['t_start_utc_hours'])}"
