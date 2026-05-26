@@ -120,14 +120,14 @@ def get_station_coords(name, drf_dir):
     # 1. Try DRF metadata
     lat, lon = read_drf_metadata(drf_dir)
     if lat is not None:
-        print(f"    Coords from DRF metadata: {lat:.4f}N, {lon:.4f}E")
+        print(f"    Coords from DRF metadata: {lat:.4f}N, {abs(lon):.4f}{'W' if lon < 0 else 'E'}")
         return lat, lon
 
     # 2. Try callsign database
     key = name.upper().replace("-", "_")
     for k, (la, lo) in KNOWN_STATIONS.items():
         if k in key or key in k:
-            print(f"    Coords from callsign DB ({k}): {la:.4f}N, {lo:.4f}E")
+            print(f"    Coords from callsign DB ({k}): {la:.4f}N, {abs(lo):.4f}{'W' if lo < 0 else 'E'}")
             return la, lo
 
     # 3. User input
@@ -379,7 +379,7 @@ def run_workflow(args):
             ipp_lat, ipp_lon = midpoint(
                 rx_lat, rx_lon, args.tx_lat, args.tx_lon
             )
-            print(f"    IPP midpoint: {ipp_lat:.4f}N, {ipp_lon:.4f}E")
+            print(f"    IPP midpoint: {ipp_lat:.4f}N, {abs(ipp_lon):.4f}{'W' if ipp_lon < 0 else 'E'}")
 
             stations.append({
                 "name": name,
