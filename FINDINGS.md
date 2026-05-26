@@ -2038,3 +2038,40 @@ For non-stationary TIDs, the analysis window should be kept as short
 as possible while still capturing at least one full cycle. For this
 ~80-100 min period TID, 90-100 min is optimal. The 118-min window
 used here includes partial second cycle introducing phase ambiguity.
+
+---
+
+## Entry 38 — cwt-prophet vs cwt vs sgolay-ridge: Jan 2026 comparison
+**Date:** 2026-05-26
+**Branch:** research_gui
+
+### Method
+Added --method cwt-prophet to drf_to_doppler.py — identical to --method cwt
+except Facebook Prophet replaces linear extrapolation for carrier prediction.
+Compared all 5 methods on N6RFM and AC0G/ND for Jan 2026 event.
+
+### N6RFM result
+- fft, autocorr, cwt-prophet: identical until ~01:10, then wrong-peak spike at 01:15
+- cwt (linear): avoids the 01:15 spike — smoother through contamination
+- sgolay-ridge: different shape in first 30 min (corridor coverage gap), then consistent
+
+### AC0G/ND result
+- fft and cwt-prophet: identical throughout — both wrong-peak lock after 01:00 UTC
+- autocorr: smoother but still wrong-peaks after 01:15
+- cwt (linear): tracks with fft until 01:15, then also wrong-peaks
+- sgolay-ridge: smoothly follows carrier through entire window — most reliable
+
+### Key finding
+Prophet's Bayesian prediction provides NO advantage over linear extrapolation
+for TID Doppler tracking on these events. Both cwt variants fail on AC0G/ND
+after 01:00 UTC when E-region contamination becomes strong. Only sgolay-ridge
+(with user-defined corridor) reliably avoids wrong-peak lock.
+
+### Implication for Gwyn comparison
+cwt-prophet matches fft exactly on both stations — so a head-to-head comparison
+with Gwyn's Prophet results would show the same lags as our fft analysis.
+The advantage of corridor-based extraction over any automated prediction method
+is clear from the AC0G/ND trace after 01:00 UTC.
+
+### Action
+Report these findings to Gwyn with the comparison plots.
