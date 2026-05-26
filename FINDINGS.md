@@ -2008,3 +2008,33 @@ Gwyn notes TID period varies across his three time intervals — this is
 consistent with a dispersive gravity wave packet rather than a monochromatic
 wave. The 4-station plane-wave DOA assumes a monochromatic wave; the
 residuals we see (44-65% RMS) partly reflect this non-stationarity.
+
+---
+
+## Entry 37 — Jan 2026: corridor extraction variability and lag consistency
+**Date:** 2026-05-26
+**Branch:** research_gui
+
+### Observation
+Fresh corridor re-clicking on all 4 stations for the Jan 2026 event
+produces lags that are not fully plane-wave consistent:
+- N6RFM→W7LUX: -21s (~0 min) — inconsistent with other pairs
+- Expected from AA6BD pairs: +278s (+4.6 min)
+- AC0G_ND→W7LUX: xcorr peak at ±45 min, weak (r=0.408)
+
+### Root cause
+TID non-stationarity (confirmed by Gwyn, Entry 36): the wave period
+and amplitude vary across the 2-hour analysis window. Different
+corridor clicks on different sessions capture different portions of
+the waveform, giving slightly different phase offsets.
+
+### Best validated result for this event
+254-283 m/s from 30-35° NNE (from previous sgolay sessions with
+max_lag=30-60 min). Direction is robust across all sessions.
+Speed uncertainty ~15% reflects TID non-stationarity.
+
+### Recommendation
+For non-stationary TIDs, the analysis window should be kept as short
+as possible while still capturing at least one full cycle. For this
+~80-100 min period TID, 90-100 min is optimal. The 118-min window
+used here includes partial second cycle introducing phase ambiguity.
