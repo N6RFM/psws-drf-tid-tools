@@ -804,7 +804,7 @@ def run_workflow(args):
                     try: from_deg = float(line.split()[2])
                     except: pass
                 if "diagnostic(s) outside" in line:
-                    try: n_flags = int(line.strip().split()[2])
+                    try: n_flags = int(line.strip().split()[1])
                     except: pass
         doa_results.append({
             "stations": list(stn_names),
