@@ -712,13 +712,13 @@ def run_workflow(args):
     print("[Step 10] DOA")
     print(f"{'─'*60}")
 
-    # Collect completed stations
+    # Collect completed stations — prefer sgolay if exists, else fft
     completed = []
     for stn in stations:
         stn_key = stn["name"].lower()
         sgolay_csv = event_dir / f"{stn_key}_sgolay_tid.csv"
         fft_csv    = event_dir / f"{stn_key}_fft_tid.csv"
-        if method == "sgolay-ridge" and sgolay_csv.exists():
+        if sgolay_csv.exists():
             completed.append({
                 "name": stn["name"],
                 "file": str(sgolay_csv),
@@ -726,7 +726,7 @@ def run_workflow(args):
                 "lat": stn["ipp_lat"],
                 "lon": stn["ipp_lon"],
             })
-        elif method == "fft" and fft_csv.exists():
+        elif fft_csv.exists():
             completed.append({
                 "name": stn["name"],
                 "file": str(fft_csv),
