@@ -606,6 +606,158 @@ def estimate_carrier_freq_cwt(iq_block, fs_hz, search_band_hz=5.0,
     return float(best_freq), float(snr_db)
 
 
+
+def estimate_carrier_freq_cwt_prophet(iq_block, fs_hz, search_band_hz=5.0,
+                                      _state=None):
+    """CWT multi-peak finder with Facebook Prophet time-series predictor.
+
+    Identical to --method cwt except the linear extrapolation predictor
+    is replaced by Facebook Prophet. This enables a direct apples-to-apples
+    comparison with Gwyn Griffiths' (G3ZIL) grape_fft_CWT_tracking_prophet.py.
+
+    Prophet fits a Bayesian trend+seasonality model on the full carrier
+    history and predicts the next F-region frequency. The CWT candidate
+    closest to the prediction (within MAX_STEP_HZ) is chosen.
+
+    Requires: pip install prophet
+    """
+    try:
+        from prophet import Prophet as _Prophet
+        import pandas as _pd
+    except ImportError:
+        raise ImportError(
+            "--method cwt-prophet requires the prophet package. "
+            "Install with: pip install prophet")
+    from scipy import signal as _sig
+
+    N_TRAIN = 10
+    CWT_WIDTHS = (2, 4)
+    LEVEL_FLOOR = -80.0
+    MAX_STEP_HZ = 0.5
+
+    if _state is None:
+        _state = {'history': [], 'block_idx': 0}
+
+    x = np.asarray(iq_block, dtype=complex)
+    n = len(x)
+    if n < 16:
+        _state['block_idx'] += 1
+        return np.nan, 0.0
+
+    # FFT spectrum
+    w = np.hanning(n)
+    spec_full = np.fft.fftshift(np.fft.fft(x * w))
+    freqs_full = np.fft.fftshift(np.fft.fftfreq(n, d=1.0 / fs_hz))
+    mask = np.abs(freqs_full) <= search_band_hz
+    if not mask.any():
+        _state['block_idx'] += 1
+        return np.nan, 0.0
+    spec = np.abs(spec_full[mask])
+    freqs = freqs_full[mask]
+    spec_db = 20.0 * np.log10(spec + 1e-12)
+    idx_max = int(np.argmax(spec_db))
+    snr_db = float(spec_db[idx_max] - 20.0 * np.log10(
+        np.median(spec) + 1e-12))
+
+    def fft_peak_freq():
+        idx = idx_max
+        if 0 < idx < len(spec) - 1:
+            a, b, c = spec[idx-1], spec[idx], spec[idx+1]
+            denom = a - 2*b + c
+            if denom != 0:
+                df = freqs[1] - freqs[0]
+                return float(freqs[idx] + 0.5*(a-c)/denom * df)
+        return float(freqs[idx])
+
+    j = _state['block_idx']
+    hist = _state['history']
+
+    if j < N_TRAIN:
+        chosen_freq = fft_peak_freq()
+        hist.append((j, chosen_freq))
+        _state['block_idx'] += 1
+        return float(chosen_freq), float(snr_db)
+
+    # CWT peak finding (identical to --method cwt)
+    try:
+        peak_indices = list(_sig.find_peaks_cwt(
+            spec_db, widths=np.arange(*CWT_WIDTHS)))
+    except Exception:
+        peak_indices = [idx_max]
+    if not peak_indices:
+        peak_indices = [idx_max]
+    peak_level_threshold = spec_db[idx_max] - 15.0
+    peak_indices = [pi for pi in peak_indices
+                    if spec_db[pi] >= peak_level_threshold]
+    if not peak_indices:
+        peak_indices = [idx_max]
+    refined = []
+    for pi in peak_indices:
+        lo = max(0, pi - 1)
+        hi = min(len(spec_db) - 1, pi + 1)
+        refined.append(lo + int(np.argmax(spec_db[lo:hi+1])))
+    refined = list(dict.fromkeys(refined))
+
+    def interp_freq(idx, radius=2):
+        lo = max(0, idx - radius)
+        hi = min(len(spec_db) - 1, idx + radius)
+        w2 = 10 ** (spec_db[lo:hi+1] / 20.0)
+        return float(np.dot(freqs[lo:hi+1], w2) / (w2.sum() + 1e-30))
+
+    candidates = [(interp_freq(ri), spec_db[ri]) for ri in refined]
+    candidates.sort(key=lambda t: -t[1])
+
+    # Prophet prediction (replaces linear extrapolation)
+    recent = hist[-max(N_TRAIN, len(hist)):]
+    df_hist = _pd.DataFrame({
+        'ds': _pd.date_range('2000-01-01', periods=len(recent), freq='60s'),
+        'y': [h[1] for h in recent]
+    })
+    try:
+        import logging as _logging
+        _logging.getLogger('prophet').setLevel(_logging.WARNING)
+        _logging.getLogger('cmdstanpy').setLevel(_logging.WARNING)
+        m = _Prophet(
+            changepoint_prior_scale=0.05,
+            seasonality_mode='additive',
+            daily_seasonality=False,
+            weekly_seasonality=False,
+            yearly_seasonality=False,
+        )
+        m.fit(df_hist, iter=200)
+        future = m.make_future_dataframe(periods=1, freq='60s')
+        forecast = m.predict(future)
+        predicted = float(np.clip(
+            forecast['yhat'].iloc[-1],
+            -search_band_hz, search_band_hz))
+    except Exception:
+        # Fallback to linear extrapolation if Prophet fails
+        t_vals = np.array([h[0] for h in recent], dtype=float)
+        f_vals = np.array([h[1] for h in recent], dtype=float)
+        t_norm = t_vals - t_vals[-1]
+        slope = float(np.polyfit(t_norm, f_vals, 1)[0]) if t_norm.std() > 0 else 0.0
+        predicted = float(np.clip(f_vals[-1] + slope,
+                                   -search_band_hz, search_band_hz))
+
+    fft_freq = fft_peak_freq()
+    best_freq = None
+    best_dist = MAX_STEP_HZ
+    for cfreq, clevel in candidates:
+        if clevel < LEVEL_FLOOR:
+            continue
+        d = abs(cfreq - predicted)
+        if d < best_dist:
+            best_dist = d
+            best_freq = cfreq
+    if best_freq is None:
+        best_freq = fft_freq
+
+    hist.append((j, best_freq))
+    if len(hist) > N_TRAIN * 4:
+        hist.pop(0)
+    _state['block_idx'] += 1
+    return float(best_freq), float(snr_db)
+
 def estimate_carrier_freq_bandpass(iq_block, fs_hz, search_band_hz=5.0,
                                    _state=None):
     """Adaptive narrow bandpass pre-filter + FFT peak detection.
@@ -866,7 +1018,7 @@ def main():
                          "search window around 0 Hz, in Hz. The WWV carrier "
                          "should be within this range after baseband mixing. "
                          "Ignored for --method autocorr. Default: 5.0")
-    ap.add_argument("--method", choices=["fft", "autocorr", "cwt", "bandpass",
+    ap.add_argument("--method", choices=["fft", "autocorr", "cwt", "cwt-prophet", "bandpass",
                                          "sgolay-ridge"], default="fft",
                     help="Doppler extraction method. 'fft': FFT peak-tracking "
                          "with quadratic interpolation (default, v1.0 "
@@ -1031,8 +1183,12 @@ def main():
                 iq = iq[:, args.subchannel]
     
             if _cwt_state is not None:
-                f_hz, snr = estimate_carrier_freq_cwt(
-                    iq, fs_hz, args.search_band_hz, _cwt_state)
+                if args.method == 'cwt-prophet':
+                    f_hz, snr = estimate_carrier_freq_cwt_prophet(
+                        iq, fs_hz, args.search_band_hz, _cwt_state)
+                else:
+                    f_hz, snr = estimate_carrier_freq_cwt(
+                        iq, fs_hz, args.search_band_hz, _cwt_state)
             elif _bp_state is not None:
                 f_hz, snr = estimate_carrier_freq_bandpass(
                     iq, fs_hz, args.search_band_hz, _bp_state)
