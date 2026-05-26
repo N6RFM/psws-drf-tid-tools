@@ -1845,3 +1845,36 @@ Step 7 generates clean PNG for clicking.
 tid_spect_click.py is now a focused corridor-clicking tool only.
 No legacy sinusoid fit code remains. --csv argument retained as
 optional no-op for backward compatibility with tid_workflow.py calls.
+
+---
+
+## Entry 32 — Jan 2026 event: sgolay-ridge vs FFT comparison
+**Date:** 2026-05-25
+**Branch:** research_gui
+
+### Event
+2026-01-19, 00:00-01:36 UTC, 4 stations: AA6BD, AC0G_ND, N6RFM, W7LUX
+
+### Results
+| Metric | SGOLAY-ridge | FFT |
+|--------|-------------|-----|
+| Speed | 283 m/s | 99 m/s |
+| From | 30° (NNE) | 167° (SSE) |
+| Residual | 44.8% | 46.7% |
+| Closure | 38.2% | 3.8% |
+| Diagnostics fail | 2/5 | 3/5 |
+
+### Interpretation
+FFT has better closure but physically wrong speed (99 m/s, below TID
+range) and opposite direction. AA6BD→AC0G_ND lag jumped from -2 min
+(sgolay) to +77 min (FFT) — wrong-peak lock on AC0G_ND confirmed.
+
+SGOLAY-ridge gives physically plausible result: 283 m/s from NNE,
+consistent with auroral LSTID travelling equatorward. Higher residual
+is due to AC0G_ND→N6RFM aliasing (6 min closure on one triangle).
+
+### Conclusion
+This event confirms Entry 28 finding on a completely independent dataset:
+FFT produces internally consistent but physically wrong lags when
+AC0G_ND is contaminated. SGOLAY-ridge corridor extraction correctly
+identifies the F-region carrier and gives the physically meaningful result.
