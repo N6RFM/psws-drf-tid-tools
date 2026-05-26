@@ -95,8 +95,9 @@ class QuicklookApp(QtWidgets.QMainWindow):
         vbox.addWidget(self.glw)
 
         self.plot = self.glw.addPlot()
-        self.plot.setLabel("bottom", "Time (UTC hours)")
-        self.plot.setLabel("left", "Doppler shift", units="Hz")
+        # Hide axes — labels and ticks are already baked into the PNG
+        self.plot.hideAxis("bottom")
+        self.plot.hideAxis("left")
 
         # Load and display spectrogram image
         pil_img = Image.open(self.img_path).convert("RGBA")

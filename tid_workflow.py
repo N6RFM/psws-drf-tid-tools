@@ -349,6 +349,7 @@ def run_workflow(args):
                             '--output', str(thumb),
                             '--start', '17:00', '--end', '21:00',
                             '--ylim=-5,5', '--dpi', '60',
+                            '--callsign', name,
                         ], capture_output=True)
                     freq_str = f' {freq_i/1e6:.3f} MHz' if freq_i else ''
                     print(f'      sub{sub_i:02d}.png — subchannel {sub_i}{freq_str} SNR={snr_i:.1f} dB')
@@ -444,6 +445,7 @@ def run_workflow(args):
                 "--output", str(fullday_png),
                 "--start", "00:00", "--end", "24:00",
                 "--ylim=-5,5", "--dpi", "100",
+                "--callsign", name,
             ])
             if r.returncode != 0:
                 print(f"  ERROR: spectrogram failed for {name}")
@@ -496,6 +498,7 @@ def run_workflow(args):
                 "--output", str(zoom_clean_png),
                 "--window", str(window_json),
                 "--ylim=-5,5", "--dpi", "150",
+                "--callsign", name,
             ])
             if r.returncode != 0:
                 print(f"  ERROR: zoom spectrogram failed for {name}")
@@ -603,6 +606,7 @@ def run_workflow(args):
                     "--output", str(zoom_png),
                     "--window", str(window_json),
                     "--ylim=-5,5", "--dpi", "150",
+                    "--callsign", name,
                     f"--overlay={fft_csv}:FFT",
                 ])
                 if r.returncode != 0:
@@ -671,6 +675,7 @@ def run_workflow(args):
             "--output", str(zoom_clean_png),
             "--window", str(window_json),
             "--ylim=-5,5", "--dpi", "150",
+            "--callsign", name,
         ])
         state[f"{stn_key}_zoom"] = str(zoom_clean_png)
         save_state(state_file, state)
@@ -696,6 +701,7 @@ def run_workflow(args):
             "--output", str(zoom_clean_png),
             "--window", str(zoom_window) if zoom_window.exists() else str(window_json),
             "--ylim=-5,5", "--dpi", "150",
+            "--callsign", name,
         ])
         state[f"{stn_key}_zoom"] = str(zoom_clean_png)
         save_state(state_file, state)
