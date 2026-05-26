@@ -14,8 +14,8 @@ Automates the 10-step guided extraction workflow:
   Step 3:  User selects TID window (tid_quicklook.py)
   Step 4:  Zoomed spectrogram
   Step 5:  Optionally refine TID window (opt-in)
-  Step 6:  sgolay-ridge: corridor clicking  |  fft: FFT extraction
-  Step 7:  sgolay-ridge: sgolay extraction  |  fft: FFT overlay spectrogram
+  Step 6:  sgolay-ridge: corridor clicking  |  fft/autocorr/cwt: automated extraction
+  Step 7:  sgolay-ridge: sgolay extraction  |  fft: overlay spectrogram  |  autocorr/cwt: (none)
   Step 8:  DOA (tid_doa.py)
 
 State is saved after each interactive step so the workflow can be
@@ -405,9 +405,12 @@ def run_workflow(args):
     if "extraction_method" not in state:
         print("\nExtraction method:")
         print("  1. sgolay-ridge  (corridor GUI — recommended)")
-        print("  2. fft           (automated, no user input)")
+        print("  2. fft           (automated)")
+        print("  3. autocorr      (automated, Gwyn G3ZIL method)")
+        print("  4. cwt           (automated, CWT multi-peak tracker)")
         choice = input("Choose [1]: ").strip() or "1"
-        method = "sgolay-ridge" if choice != "2" else "fft"
+        method = {"1": "sgolay-ridge", "2": "fft",
+                  "3": "autocorr", "4": "cwt"}.get(choice, "sgolay-ridge")
         state["extraction_method"] = method
         save_state(state_file, state)
     else:
@@ -576,10 +579,12 @@ def run_workflow(args):
             else:
                 print(f"  sgolay CSV: {sgolay_csv.name} (already done)")
 
-        else:  # method == "fft"
-            # Step 6: FFT extraction
-            if f"{stn_key}_fft" not in state:
-                print(f"\n[Step 6] FFT extraction for {name}...")
+        else:  # method in (fft, autocorr, cwt)
+            # Step 6: Automated extraction
+            csv_key = f"{stn_key}_{method.replace('-', '_')}"
+            out_csv = event_dir / f"{stn_key}_{method}_tid.csv"
+            if csv_key not in state:
+                print(f"\n[Step 6] {method} extraction for {name}...")
                 r = run([
                     "python3", tool("drf_to_doppler.py"),
                     drf_dir_s,
@@ -587,14 +592,21 @@ def run_workflow(args):
                     "--start", h_to_iso(date_str, t0_h),
                     "--end",   h_to_iso(date_str, t1_h),
                     "--decim-seconds", "60",
-                    "--method", "fft",
-                    "--output", str(fft_csv),
+                    "--method", method,
+                    "--output", str(out_csv),
                 ])
                 if r.returncode != 0:
-                    print(f"  ERROR: FFT extraction failed for {name}")
+                    print(f"  ERROR: {method} extraction failed for {name}")
                     continue
-                state[f"{stn_key}_fft"] = str(fft_csv)
+                state[csv_key] = str(out_csv)
+                # Keep fft_csv alias for overlay step
+                if method == "fft":
+                    state[f"{stn_key}_fft"] = str(out_csv)
                 save_state(state_file, state)
+            else:
+                out_csv = Path(state[csv_key])
+                print(f"  {method} CSV: {out_csv.name} (already done)")
+            fft_csv = out_csv  # used by overlay step
 
             # Step 7: Zoomed spectrogram with FFT overlay
             if f"{stn_key}_zoom_overlay" not in state:
@@ -711,28 +723,32 @@ def run_workflow(args):
     print("[Step 8] DOA")
     print(f"{'─'*60}")
 
-    # Collect completed stations — prefer sgolay if exists, else fft
+    # Collect completed stations — prefer sgolay, then current method CSV
     completed = []
     for stn in stations:
         stn_key = stn["name"].lower()
-        sgolay_csv = event_dir / f"{stn_key}_sgolay_tid.csv"
-        fft_csv    = event_dir / f"{stn_key}_fft_tid.csv"
-        if sgolay_csv.exists():
-            completed.append({
-                "name": stn["name"],
-                "file": str(sgolay_csv),
-                "method": "sgolay-ridge",
-                "lat": stn["ipp_lat"],
-                "lon": stn["ipp_lon"],
-            })
-        elif fft_csv.exists():
-            completed.append({
-                "name": stn["name"],
-                "file": str(fft_csv),
-                "method": "fft",
-                "lat": stn["ipp_lat"],
-                "lon": stn["ipp_lon"],
-            })
+        sgolay_csv   = event_dir / f"{stn_key}_sgolay_tid.csv"
+        fft_csv      = event_dir / f"{stn_key}_fft_tid.csv"
+        autocorr_csv = event_dir / f"{stn_key}_autocorr_tid.csv"
+        cwt_csv      = event_dir / f"{stn_key}_cwt_tid.csv"
+        # Priority: sgolay > current method > fft > autocorr > cwt
+        candidates = [
+            (sgolay_csv,   "sgolay-ridge"),
+            (event_dir / f"{stn_key}_{method}_tid.csv", method),
+            (fft_csv,      "fft"),
+            (autocorr_csv, "autocorr"),
+            (cwt_csv,      "cwt"),
+        ]
+        for csv, meth in candidates:
+            if csv.exists():
+                completed.append({
+                    "name": stn["name"],
+                    "file": str(csv),
+                    "method": meth,
+                    "lat": stn["ipp_lat"],
+                    "lon": stn["ipp_lon"],
+                })
+                break
 
     if len(completed) < 3:
         print(f"  Only {len(completed)} station(s) completed — need ≥3 for DOA")
