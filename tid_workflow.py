@@ -780,16 +780,48 @@ def run_workflow(args):
 
     # Run DOA — with interactive drop-station loop
     active_stations = list(completed)
+    doa_results = []
     while True:
         event_config["stations"] = active_stations
         with open(config_path, "w") as f:
             json.dump(event_config, f, indent=2)
-        print(f"\n  Running DOA with {len(active_stations)} stations: "
-              f"{[s['name'] for s in active_stations]}")
+        stn_names = [s["name"] for s in active_stations]
+        print(f"\n  Running DOA with {len(active_stations)} stations: {stn_names}")
         r = run(["python3", tool("tid_doa.py"), str(config_path)])
         if r.returncode == 0:
             state["doa_done"] = True
             save_state(state_file, state)
+        # Parse speed/direction from run log
+        speed, from_deg, n_flags = None, None, 0
+        log_files = sorted((event_dir / "runs").glob("*.log"))
+        if log_files:
+            log_txt = log_files[-1].read_text()
+            for line in log_txt.splitlines():
+                if line.startswith("Phase speed:"):
+                    try: speed = float(line.split()[2])
+                    except: pass
+                if line.startswith("Coming from:"):
+                    try: from_deg = float(line.split()[2])
+                    except: pass
+                if "diagnostic(s) outside" in line:
+                    try: n_flags = int(line.strip().split()[2])
+                    except: pass
+        doa_results.append({
+            "stations": list(stn_names),
+            "speed": speed,
+            "from": from_deg,
+            "flags": n_flags,
+        })
+        if len(doa_results) > 1:
+            print(f"\n  Comparison:")
+            print(f"  {'Stations':<35} {'Speed':>8} {'From':>7} {'Flags':>6}")
+            print(f"  {'-'*60}")
+            for res in doa_results:
+                sp = f"{res['speed']:.0f} m/s" if res["speed"] else "  ---  "
+                fr = f"{res['from']:.0f} deg" if res["from"] else "  ---"
+                stns = ",".join(res["stations"])
+                print(f"  {stns:<35} {sp:>8} {fr:>7} {res['flags']:>6}")
+            print(f"  {'-'*60}")
         if len(active_stations) <= 3:
             break
         ans = input("\n  Drop a station and re-run DOA? "
@@ -798,13 +830,10 @@ def run_workflow(args):
             break
         match = [s for s in active_stations if s["name"].upper() == ans]
         if not match:
-            print(f"  Unknown station '{ans}' — valid: "
-                  f"{[s['name'] for s in active_stations]}")
+            print(f"  Unknown station '{ans}' — valid: {[s['name'] for s in active_stations]}")
             continue
-        active_stations = [s for s in active_stations
-                           if s["name"].upper() != ans]
-        print(f"  Dropped {ans}. Remaining: "
-              f"{[s['name'] for s in active_stations]}")
+        active_stations = [s for s in active_stations if s["name"].upper() != ans]
+        print(f"  Dropped {ans}. Remaining: {[s['name'] for s in active_stations]}")
     print(f"\n{'='*60}")
     print("Workflow complete.")
     print(f"{'='*60}")
