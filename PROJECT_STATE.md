@@ -784,7 +784,53 @@ wave contamination). Array geometry is better — SVR=1.4 vs 1.6.
 
 ### Resume command
 cd ~/psws-tools-pr && git checkout research_gui
-"Continuing psws-drf-tid-tools. Read PROJECT_STATE.md sections 24-26
-on research_gui branch. Jan 2026 event gave 283 m/s from 30° (NNE).
-Next: re-run with tighter max_lag to fix AC0G_ND->N6RFM aliasing,
-then push all commits to origin."
+"Continuing psws-drf-tid-tools. Read PROJECT_STATE.md sections 24-27
+and FINDINGS entries 30-33 on research_gui branch.
+Priority: update Jan 2026 analysis document with corrected 283 m/s
+result, then test on additional events."
+
+---
+## 27. Session summary — 2026-05-25 (end of day)
+
+### Accomplished this session
+1. GUI cleanup: amplitude panel removed, sinusoid fit removed,
+   CSV overlay removed, consistency check removed
+2. tid_workflow.py major improvements:
+   - Extraction method prompt (sgolay-ridge/fft)
+   - Window review with per-station redo before extraction
+   - zoom_window defaults to window after Step 3
+   - h_to_hhmm display bug fixed (17:60 → 18:00)
+   - Negative time clamp in h_to_iso
+   - --stations flag for station subset selection
+   - DOA uses correct CSV for chosen method
+3. May 2024 event: AC0G_ND unusable (DC ground wave at 0 Hz)
+   3-station array near-collinear — cannot resolve 2D velocity
+4. Jan 2026 event: first clean 4-station sgolay-ridge result
+   - 283 m/s from 30° (NNE) — equatorward auroral LSTID
+   - Confirmed by peak-time cross-check from Figure 4
+   - FFT gives wrong result (99 m/s, 167°) — wrong-peak lock
+5. Jan 2026 analysis document: speed error identified
+   - Document reports 666 m/s (early FFT analysis, wrong IPP)
+   - Correct result: 283 m/s (sgolay + peak-time cross-check)
+   - Direction (35° NNE) was already correct
+
+### Critical finding
+The sgolay-ridge result (283 m/s) is validated by two independent
+methods on the Jan 2026 event:
+1. DOA least-squares with sgolay-ridge extracted lags
+2. Direct peak-time measurement from Figure 4 spectrogram
+
+This is the first physically validated result from psws-drf-tid-tools.
+
+### Open items
+1. Update Jan 2026 analysis document with corrected speed
+2. May 2024 event still unresolved — needs better station geometry
+3. AC0G_ND May 2024: try subchannel 0 or find event where it is clean
+4. Push research_gui branch to origin when ready
+
+### Resume command
+cd ~/psws-tools-pr && git checkout research_gui
+"Continuing psws-drf-tid-tools. Read PROJECT_STATE.md sections 25-27
+and FINDINGS entries 31-33 on research_gui branch.
+Priority: update Jan 2026 analysis document with corrected 283 m/s
+result and peak-time validation. May 2024 event still unresolved."

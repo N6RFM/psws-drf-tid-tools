@@ -1878,3 +1878,35 @@ This event confirms Entry 28 finding on a completely independent dataset:
 FFT produces internally consistent but physically wrong lags when
 AC0G_ND is contaminated. SGOLAY-ridge corridor extraction correctly
 identifies the F-region carrier and gives the physically meaningful result.
+
+---
+
+## Entry 33 — Jan 2026 document speed error identified
+**Date:** 2026-05-25
+**Branch:** research_gui
+
+### Finding
+The draft analysis document reports 666 m/s for the Jan 2026 event.
+This is inconsistent with the peak times shown in Figure 4:
+
+- AC0G_ND→N6RFM: 23 min over 388 km → 280 m/s
+- AA6BD→N6RFM: 16 min over 271 km → 282 m/s
+
+Both direct baseline calculations give ~280 m/s, matching our
+sgolay-ridge DOA result of 283 m/s from 30°.
+
+The document's lag table has 5-7 min triangle closure errors across
+all four triangles, making least-squares inversion ill-conditioned.
+The 666 m/s figure was from an early FFT autocorr analysis before
+IPP midpoint coordinates were used correctly.
+
+### Correct result
+- Speed: ~280-283 m/s (consistent across 3 independent methods:
+  sgolay DOA, peak-time on AC0G_ND→N6RFM, peak-time on AA6BD→N6RFM)
+- From: 30-35° (NNE) — equatorward auroral LSTID
+- The document's direction (35°) is correct; speed needs correction.
+
+### Action
+Update the draft document to report 283 m/s and add peak-time
+cross-check as independent validation of the sgolay-ridge result.
+This will be the first physically validated result from psws-drf-tid-tools.
