@@ -306,36 +306,6 @@ def compute_spectrogram(reader, channel, subchannel,
     return spec, freqs, times
 
 
-def compute_peak_amplitude(reader, channel, subchannel,
-                            start_sample, n_seconds, window_seconds, fs_hz):
-    """Read the same window and compute peak amplitude per minute."""
-    n_per_bin = int(window_seconds * fs_hz)
-    n_columns = int(n_seconds / window_seconds)
-    out = np.zeros(n_columns, dtype=float)
-    progress_every = max(1, n_columns // 40)
-    for col in range(n_columns):
-        offset = col * n_per_bin
-        try:
-            if subchannel is not None:
-                block = reader.read_vector(start_sample + offset,
-                                            n_per_bin, channel)
-                if block.ndim == 2:
-                    block = block[:, subchannel]
-            else:
-                block = reader.read_vector(start_sample + offset,
-                                            n_per_bin, channel)
-                if block.ndim == 2:
-                    block = block[:, 0]
-        except Exception:
-            out[col] = 0
-            continue
-        out[col] = float(np.max(np.abs(block)))
-        if col % progress_every == 0:
-            sys.stdout.write(".")
-            sys.stdout.flush()
-    print()
-    return out
-
 
 # ----------------------------------------------------------------------------
 # Main
@@ -360,6 +330,10 @@ def main():
     ap.add_argument("--start", default=None,
                     help="Optional UTC start of plot window (HH:MM or "
                          "HH:MM:SS). Default: start of recording.")
+    ap.add_argument("--window", default=None, metavar="JSON",
+                    help="TID window JSON from tid_quicklook.py. "
+                         "Reads t_start/t_end and uses them as --start/--end. "
+                         "Auto-detected as <drf_dir>_fullday_window.json if present.")
     ap.add_argument("--end", default=None,
                     help="Optional UTC end of plot window. Default: "
                          "24 hours after start.")
@@ -460,6 +434,19 @@ def main():
     # Determine analysis window
     midnight_utc = record_start_utc.replace(hour=0, minute=0, second=0,
                                             microsecond=0)
+    # Load window JSON from tid_quicklook.py if provided
+    if args.window:
+        import json as _json
+        with open(args.window) as _f:
+            _wj = _json.load(_f)
+        def _h2hhmm(h):
+            hh = int(h); mm = int(round((h - hh) * 60))
+            return f"{hh:02d}:{mm:02d}"
+        if not args.start:
+            args.start = _h2hhmm(_wj["t_start_utc_hours"])
+        if not args.end:
+            args.end = _h2hhmm(_wj["t_end_utc_hours"])
+        print(f"  Window JSON: {args.start}-{args.end} UTC")
     if args.start:
         start_dt = midnight_utc + timedelta(seconds=parse_hhmm(args.start))
     else:
@@ -484,15 +471,9 @@ def main():
         reader, args.channel, args.subchannel,
         start_sample, n_seconds, window_seconds, fs_hz)
 
-    print("Computing peak amplitude per minute...")
-    peaks = compute_peak_amplitude(
-        reader, args.channel, args.subchannel,
-        start_sample, n_seconds, window_seconds, fs_hz)
-
     # Plot
     ylim_lo, ylim_hi = (float(x) for x in args.ylim.split(","))
-    fig, (ax_top, ax_bot) = plt.subplots(2, 1, figsize=(14, 8),
-                                         gridspec_kw={"height_ratios": [2.5, 1]})
+    fig, ax_top = plt.subplots(1, 1, figsize=(14, 6))
 
     # gnuradio-like colormap (black-darkgreen-green-yellow-red)
     cmap = mcolors.LinearSegmentedColormap.from_list(
@@ -515,6 +496,7 @@ def main():
                        interpolation="nearest")
     ax_top.set_ylim(ylim_lo, ylim_hi)
     ax_top.set_ylabel("Doppler shift (Hz)")
+    ax_top.set_xlabel(f"Hours UTC on {record_start_utc.strftime('%Y-%m-%d')}")
 
     title_str = args.title
     if not title_str:
@@ -597,25 +579,6 @@ def main():
                         ha="left", va="top",
                         fontsize=9, color="yellow", weight="bold",
                         zorder=12)
-
-    # Bottom panel: peak amplitude
-    peak_times_hr = (np.arange(len(peaks)) * window_seconds) / 3600.0 \
-                    + start_offset_hr
-    ax_bot.plot(peak_times_hr, peaks, color="steelblue", linewidth=0.8)
-    ax_bot.set_xlim(start_offset_hr, end_offset_hr)
-    ax_bot.set_ylabel("Peak amplitude\n(uncalibrated)")
-    ax_bot.set_xlabel(f"Hours UTC on {record_start_utc.strftime('%Y-%m-%d')}")
-    ax_bot.grid(True, alpha=0.3)
-    # Mark the same annotation regions on the bottom panel
-    ylim_peak = ax_bot.get_ylim()
-    for ann_str in args.annotate:
-        t0_s, t1_s, _ = parse_annotation(ann_str)
-        ax_bot.axvspan(t0_s / 3600.0, t1_s / 3600.0,
-                       facecolor="orange", alpha=0.18, zorder=0)
-    for vl_str in args.vline:
-        t_s, _ = parse_vline(vl_str)
-        ax_bot.axvline(x=t_s / 3600.0, color="red", linestyle="--",
-                       linewidth=1.0, alpha=0.5)
 
     # Overlay Doppler CSV traces on the spectrogram panel
     # Default color cycle: blue, orange, green, red, purple, brown
@@ -751,9 +714,42 @@ def main():
     if args.annotate:
         # Make room for callout labels above the spectrogram
         fig.subplots_adjust(top=0.86 - 0.04 * (len(args.annotate) - 1))
+    # Get axes position BEFORE savefig for accurate plot_fraction
+    fig.canvas.draw()  # force layout computation
+    _pos_top = ax_top.get_position()
+    _fig_w, _fig_h = fig.get_size_inches() * fig.dpi
+    # bbox_inches=tight shifts things — measure after draw but use
+    # normalized figure coordinates directly
+    _pf_from_mpl = [
+        _pos_top.x0,                    # left
+        _pos_top.x0 + _pos_top.width,   # right
+        _pos_top.y0,                    # bottom (from figure bottom)
+        _pos_top.y0 + _pos_top.height,  # top
+    ]
+    print(f"  axes position (MPL): {[round(x,4) for x in _pf_from_mpl]}")
     plt.savefig(args.output, dpi=args.dpi, bbox_inches="tight")
     plt.close()
     print(f"\nWrote {args.output}")
+
+    # Write sidecar JSON with axis metadata for tid_spect_click.py
+    import json as _json
+    sidecar_path = os.path.splitext(args.output)[0] + "_axes.json"
+    # Use matplotlib axes position for accurate plot_fraction
+    _pf = _pf_from_mpl
+    sidecar = {
+        "spectrogram_png": os.path.basename(args.output),
+        "t_start_utc_hours": start_offset_hr,
+        "t_end_utc_hours":   end_offset_hr,
+        "doppler_lo_hz":     ylim_lo,
+        "doppler_hi_hz":     ylim_hi,
+        "dpi":               args.dpi,
+        "plot_fraction":     _pf,
+        "date_utc": record_start_utc.strftime("%Y-%m-%d"),
+    "_note": "Generated by drf_spectrogram.py for use with tid_spect_click.py"
+    }
+    with open(sidecar_path, "w") as _f:
+        _json.dump(sidecar, _f, indent=2)
+    print(f"Wrote {sidecar_path}")
 
 
 if __name__ == "__main__":

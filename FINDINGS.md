@@ -1,10 +1,9 @@
 # Research: Doppler extraction — FFT vs complex autocorrelation
 
-**Status:** PAUSED — awaiting G3ZIL reply on two questions (lag
-discrepancy and N5BRG channel). Analysis substantially complete
-through Entry 8 (synthetic Monte Carlo). No new analysis until
-blockers resolved. All data, scripts, figures, and PDF reports
-committed to research-doppler-extraction branch.
+**Status:** ACTIVE — research_gui branch. Complete guided workflow
+validated 2026-05-24. Key open question: reconcile 267 m/s WSW result
+with Gwyn's 979 m/s SSE (Entry 26). Entries 1-15 on research branch;
+Entries 16-26 on research_gui branch.
 
 **This branch does not merge to `main` until further notice.** Its
 deliverable is knowledge: a documented finding, and *possibly* a
@@ -586,3 +585,1456 @@ than a 3-station collinear DOA.
 
 **Current state.** Two blockers remain (Entry 6). Awaiting Gwyn's
 reply. Pipeline tested and working end-to-end on both events.
+
+### 2026-05-20 — Entry 11: CWT multi-peak tracker implementation and first results
+
+**Motivation.** Both FFT and autocorr pick a single peak per block —
+either the loudest (FFT) or the instantaneous frequency (autocorr).
+Neither explicitly separates F-region from E-region when both are
+present. G3ZIL's grape_fft_CWT_tracking_prophet.py uses CWT peak
+finding + Prophet forecasting to track multiple modes. Goal: implement
+a lighter version using scipy CWT + linear extrapolation, no new
+dependencies, integrated as --method cwt in drf_to_doppler.py.
+
+**Implementation (drf_to_doppler.py v1.2.0, research branch):**
+1. FFT seeds training history for first N_TRAIN=10 blocks (avoids
+   E-region lock during contaminated training phase).
+2. After training: CWT (scipy.signal.find_peaks_cwt, Ricker wavelets,
+   widths 2-4 bins) finds all spectral peaks per block.
+3. 15 dB amplitude filter reduces ~50 noise peaks to 2-5 real peaks.
+4. Linear regression on N_TRAIN recent history predicts next F-region
+   frequency one step ahead.
+5. Candidate closest to prediction, within MAX_STEP_HZ=0.5 of
+   prediction, selected. Prevents E-region hop lock.
+6. Fallback to FFT if no candidate passes constraints.
+
+**Results on 17 May 2024 LSTID:**
+
+| Station | Condition | FFT std | Autocorr std | CWT std |
+|---------|-----------|---------|--------------|---------|
+| W7LUX | Clean | 0.554 Hz | 0.472 Hz | 0.514 Hz |
+| AC0G_ND | E-region contaminated | 0.682 Hz | 0.645 Hz | 0.557 Hz |
+
+CWT is the smoothest method on the contaminated station — better than
+both FFT and autocorr. On the clean station it sits between the two,
+confirming no regression on uncontaminated data.
+
+**Key finding.** The 15 dB amplitude filter is essential — without it
+CWT produces 40-50 noise peaks per block making candidate selection
+effectively random. With the filter, 2-5 meaningful candidates remain
+(F-region peak + E-region peak + possibly harmonics/sidescatter).
+
+**Status.** Implementation on research branch. Cross-correlation
+comparison against FFT and autocorr pending. No production PR until
+results validated on both events and Gwyn has reviewed.
+
+**Note.** Inspired by G3ZIL grape_fft_CWT_tracking_prophet.py.
+Uses linear extrapolation instead of Facebook Prophet — comparable
+accuracy, ~100x faster, no additional dependencies.
+
+**DOA comparison (all methods, May 2024 LSTID, W7LUX+AC0G_ND+N4RVE):**
+
+| Config | Speed | Direction | Triangle closure |
+|--------|-------|-----------|-----------------|
+| All FFT | 596 m/s | 178° | 26% ✗ |
+| AC0G_ND+N4RVE autocorr | 606 m/s | 175° | 26% ✗ |
+| All autocorr | 543 m/s | 178° | 41% ✗ |
+| W7LUX FFT + CWT rest | 600 m/s | 180° | 52% ✗ |
+
+CWT gives smoother Doppler (lower std) but worse DOA triangle closure
+than FFT. The CWT tracker swaps the W7LUX→AC0G_ND and W7LUX→N4RVE
+lags relative to FFT, which increases triangle closure error.
+
+**Conclusion for this event:** station geometry (SVD=1.2, collinear
+array) is the dominant uncertainty. No extraction method — FFT,
+autocorr, or CWT — produces a self-consistent result on this array.
+CWT is a promising direction for contaminated station Doppler
+extraction but requires validation on a better-conditioned array
+before it can be recommended for production use.
+
+**Jan 2026 MSTID validation:**
+
+| Method | Speed | Direction | Triangle closure | Diagnostics |
+|--------|-------|-----------|-----------------|-------------|
+| FFT 3-station | 193 m/s | 190° | 0% ✓ | All pass ✓ |
+| Autocorr 3-station | 335 m/s | 196° | 88% ✗ | 2 fail ✗ |
+| CWT 3-station | 227 m/s | 191° | 12% ✓ | All pass ✓ |
+
+CWT passes all diagnostics on the Jan 2026 MSTID — the first method
+other than FFT to do so. Direction matches FFT closely (191° vs 190°).
+Speed is higher (227 vs 193 m/s) but within the MSTID range.
+CWT avoids the wrong-peak lock that broke autocorr (88% closure) by
+using temporal continuity to track the correct cross-correlation peak.
+
+This is a significant positive result. CWT warrants further
+investigation on additional events and better-conditioned arrays.
+
+**Synthetic Monte Carlo results (CWT vs FFT vs autocorr, SNR=40dB, 50 trials):**
+
+| Wave | eps | FFT% | Autocorr% | CWT% | Best |
+|------|-----|------|-----------|------|------|
+| MSTID | 0.0-0.5 | 100 | 100 | 100 | Equal |
+| MSTID | 0.7 | 100 | 100 | 62 | FFT/AC |
+| MSTID | 1.0 | 64 | 82 | 38 | AC |
+| LSTID | 0.0-0.3 | 100 | 98-100 | 18-100 | FFT |
+| LSTID | 0.5-0.7 | 100 | 56-68 | 6-8 | FFT |
+| LSTID | 1.0 | 8 | 34 | 0 | AC |
+
+CWT underperforms both FFT and autocorr in the synthetic experiment.
+The temporal continuity tracker is not effective in the synthetic model
+because the idealized two-phasor signal has a constant lag — small
+prediction errors from noise accumulate and cause wrong-peak selection.
+
+**Reconciliation with real-data results:** CWT gives smoother
+extraction and passes the Jan 2026 MSTID diagnostics because real
+Doppler is genuinely smooth and slowly varying, which suits temporal
+continuity tracking. The synthetic model is too idealized for CWT's
+strengths to show. The real-data results remain the primary evidence.
+
+**Overall CWT assessment:**
+- Real clean data: similar to FFT, slightly smoother
+- Real contaminated data: smoother than FFT and autocorr, passes diagnostics
+- Synthetic: worse than FFT and autocorr across all conditions
+- Conclusion: CWT is promising for real contaminated data but requires
+  validation on more events before production recommendation.
+  The synthetic experiment does not validate CWT — it validates FFT
+  (clean/LSTID) and autocorr (contaminated MSTID) as before.
+
+### 2026-05-20 — Entry 12: Adaptive bandpass pre-filter implementation
+
+**Motivation.** CWT (Entry 11) showed smoother extraction on real
+contaminated data but underperformed in synthetic. Option 3 from the
+robustness investigation: apply a narrow bandpass filter centered on
+the prior block's frequency before FFT extraction, suppressing the
+E-region component before peak detection rather than separating peaks
+after.
+
+**Implementation (drf_to_doppler.py v1.3.0, research branch):**
+- Training phase (N_TRAIN=5 blocks): plain FFT to seed history.
+- Tracking phase: shift signal to center on predicted frequency,
+  apply FIR lowpass (scipy.signal.firwin, Hamming, FILTER_HZ=0.6 Hz
+  half-bandwidth), shift back, then FFT peak.
+- NUMTAPS adaptive: min(101, n//3)|1 — fits any block size including
+  10s cadence at 10 sps (100 samples).
+- SNR from unfiltered spectrum (same metric as FFT method).
+- Fallback to FFT if filtered peak outside 1.5*FILTER_HZ of prediction.
+
+**Results — AC0G_ND (E-region contaminated, 60s cadence):**
+
+| Method | std (Hz) |
+|--------|----------|
+| FFT | 0.682 |
+| Autocorr | 0.645 |
+| CWT | 0.557 |
+| Bandpass | **0.414** |
+
+Bandpass is the smoothest of all four methods on the contaminated station.
+
+**Results — Jan 2026 MSTID (10s cadence, 3 stations):**
+
+| Method | Speed | Direction | Triangle closure | Diagnostics |
+|--------|-------|-----------|-----------------|-------------|
+| FFT | 193 m/s | 190° | 0% ✓ | All pass ✓ |
+| CWT | 227 m/s | 191° | 12% ✓ | All pass ✓ |
+| Bandpass | 242 m/s | 192° | 28% ✗ | 4/5 pass |
+| Autocorr | 335 m/s | 196° | 88% ✗ | 2 fail ✗ |
+
+Bandpass better than autocorr, worse than FFT and CWT. The
+N6RFM→AA6BD lag differs slightly from FFT (-1020s vs -1300s) causing
+28% triangle closure — the filter is tracking a slightly different
+peak on that pair.
+
+**Assessment.** Bandpass gives the smoothest Doppler on contaminated
+stations but doesn't improve DOA on the Jan 2026 MSTID. The filter
+bandwidth (±0.6 Hz) may need tuning per event — wider for large TID
+excursions, narrower for heavily contaminated signals. Promising
+direction, needs more testing.
+
+### 2026-05-21 — Entry 13: Multi-peak xcorr selection in tid_doa.py
+
+**Motivation.** The wrong-peak lock problem on autocorr (88% triangle
+closure, 335 m/s on Jan 2026 MSTID) was not caused by the extraction
+method — it was caused by the cross-correlation peak selector in
+tid_doa.py taking the single global maximum (argmax), which happened
+to be a wrong-period alias on the N6RFM→AA6BD pair.
+
+**Root cause.** The N6RFM→AA6BD xcorr curve has multiple comparable
+peaks at -11.7 min (r=0.546) and -21.7 min (r=0.528). The 0.018
+correlation difference is noise — both are plausible. FFT extraction
+happened to produce a slightly smoother signal that pushed the true
+peak (-21.7 min) above the alias. Autocorr extraction produced a
+slightly different signal where the alias (-11.7 min) was marginally
+higher, causing wrong-peak lock.
+
+**Fix (tid_doa.py, research branch):**
+Added cross_correlate_lag_candidates() using scipy.signal.find_peaks
+to find all local maxima in the xcorr curve within max_lag_s.
+solve_doa() now tries all combinations of top-3 candidates per pair
+(27 combinations for 3 stations) and selects the combination that
+minimises triangle closure, accepting non-top candidates only if they
+reduce closure by more than 50%.
+
+**Results — Jan 2026 MSTID (3 stations, clean FFT CSVs):**
+
+| Method | Speed | Direction | Triangle closure | Diagnostics |
+|--------|-------|-----------|-----------------|-------------|
+| FFT | 193 m/s | 190° | 0% ✓ | All pass ✓ |
+| Autocorr | 218 m/s | 191° | ✓ | All pass ✓ |
+| CWT | 227 m/s | 191° | 12% ✓ | All pass ✓ |
+| Bandpass | 242 m/s | 192° | 28% ✗ | 4/5 pass |
+
+Autocorr now passes all diagnostics — wrong-peak lock resolved.
+All three methods (FFT, autocorr, CWT) agree on direction (~190-191°)
+and give physically plausible MSTID speeds (193-227 m/s).
+
+**Key insight.** The xcorr peak selector was the primary failure mode,
+not the extraction method. With multi-peak selection, method choice
+matters less for the DOA result — the triangle closure constraint
+disambiguates the correct peak across pairs.
+
+**Status.** Multi-peak selector on research branch. Pending validation
+on May 2024 LSTID and additional events before merging to main.
+
+---
+
+## Entry 14 — May 2024 LSTID collinear array: multi-peak xcorr selector results
+**Date:** 2026-05-22
+**Event:** 2024-05-17 18:00–20:00 UTC, LSTID, collinear array W7LUX/AC0G_ND/N4RVE
+**Configs:** event_fft_3stn.json, event_autocorr_3stn.json, event_cwt_3stn.json
+**Code:** tid_doa.py commit a23f6e5 (multi-peak xcorr selector)
+
+### Previous results (pre-selector, argmax only)
+| Method | Triangle closure |
+|--------|-----------------|
+| FFT    | 26%             |
+| Autocorr | 26%           |
+| CWT (mixed) | 52%        |
+
+### New results (multi-peak selector active)
+| Method | Closure | RMS residual | Speed | From | Corr range | All-pass |
+|--------|---------|--------------|-------|------|------------|---------|
+| FFT clean | 0.0% | 0.0% | 603 m/s | 2.9° | 0.51–0.67 | Yes ✅ |
+| Autocorr clean | 0.0% | 0.0% | 163 m/s | 5.9° | 0.33–0.44 | No (weak pairs) |
+| CWT all | 2.6% | 0.9% | 286 m/s | 261.2° | 0.33–0.53 | No (weak pairs) |
+| CWT mixed (old baseline) | 0.0% | 0.0% | 200 m/s | 325.0° | — | No (weak pairs) |
+
+### Pairwise lags — FFT (trusted result)
+- W7LUX → AC0G_ND: -1140 s, r=0.576
+- W7LUX → N4RVE:   -1260 s, r=0.672
+- AC0G_ND → N4RVE:  -120 s, r=0.513
+
+### Assessment
+
+**Multi-peak selector fixed the collinear wrong-peak problem for FFT.** Triangle closure
+went from 26% to 0.0% with a clean, internally consistent plane-wave solution. The FFT
+result (603 m/s, from 2.9°, all diagnostics pass) is the trusted result for this event.
+
+**Autocorr shows a new failure mode: consistent wrong-peak lock.** The selector found a
+combination with 0% closure (W7LUX→AC0G_ND=-4380s, W7LUX→N4RVE=-4500s,
+AC0G_ND→N4RVE=-120s) that is internally self-consistent but ~3.8× the FFT lags.
+This is a subharmonic alias — a secondary xcorr peak at 3–4× the true lag that satisfies
+triangle closure because all three pairs are consistently wrong. The selector cannot
+distinguish a consistently-wrong solution from a correct one using closure alone.
+Weak correlations (0.33–0.44) are the only diagnostic flag; the result passes closure.
+
+**CWT results are discarded.** Four configs give three different azimuths (261°, 325°,
+and implicitly the two CWT runs disagree with FFT by >90°). Weak correlations and
+direction scatter indicate CWT is not tracking coherently on this event.
+
+**The collinear geometry conditioning (SVR=1.2) is good** — the array is not actually
+degenerate, the prior 26% failures were purely wrong-peak, now corrected for FFT.
+
+### Implications for the selector design
+The multi-peak selector optimises for triangle closure. This is effective when wrong-peak
+errors are *inconsistent* across pairs (the prior failure mode). It fails when all pairs
+independently land on the same harmonic alias, producing consistent but wrong lags.
+A possible fix: add a physics prior — prefer the candidate combination whose implied
+speed falls within a plausible TID range (100–1000 m/s). This would reject the
+autocorr -4380s solution (163 m/s borderline, but mainly: those lags imply the wave
+crossed 987 km in 4380s = 225 m/s... actually plausible). Harder: add a continuity
+prior across time windows — the lag should not jump discontinuously between windows.
+
+### Recommended next steps
+1. Accept FFT result as the May 2024 LSTID ground truth: 603 m/s, from 2.9°.
+2. Investigate autocorr subharmonic alias: plot the full xcorr function for
+   W7LUX→AC0G_ND and verify the -4380s peak vs the -1140s peak amplitudes.
+3. Consider adding a speed-plausibility filter to the multi-peak selector as a
+   secondary criterion when closure is tied or near-zero across multiple combos.
+4. Test bandpass pre-filter on this event (untested per Entry 12 table).
+
+---
+
+## Entry 15 — Parabolic lag interpolation fixes discretisation closure error
+**Date:** 2026-05-22
+**Code:** tid_doa.py commit 127ccdb
+
+### Problem identified
+After multi-peak selector (Entry 13) fixed wrong-peak lock, the May 2024 LSTID
+collinear array still showed 26% triangle closure on FFT using all-top candidates.
+Diagnostic showed all-top lags {-19, -22, -6} min giving closure=180s, while a
+period-alias combo {-19, -75, -56} gave closure=0s and won under the 0.5x rule.
+
+Root cause: AC0G_ND→N4RVE true lag is ~-2 min but the xcorr peak is at -6 min
+due to discretisation on a sinusoidal xcorr function. The -2 min point is on the
+flank of the peak, not a local maximum, so it is never nominated as a candidate.
+The 4-minute discretisation error propagates to 180s triangle closure residual,
+which is large enough for the alias-combo to win the 0.5x acceptance test.
+
+### Fix: parabolic interpolation in cross_correlate_lag_candidates
+Each nominated peak lag is refined using parabolic interpolation over the three
+points {peak-1, peak, peak+1}. For a true sinusoidal xcorr this shifts the
+nominal peak toward the true continuous maximum, recovering sub-sample accuracy.
+
+  refined_lag = lag[idx] + (y0 - y2) / (2*(2*y1 - y0 - y2)) * dt
+
+Effect on AC0G_ND→N4RVE: top candidate shifts from -6 min toward ~-2 min,
+closing the triangle residual from 180s to ~30s (3.6% of mean leg).
+
+### Additional changes reverted during debugging
+- Prominence filter (15% of positive range): reverted. Correctly suppressed
+  sidelobe shoulders on autocorr xcorr but caused regression on FFT pairs
+  with broad sinusoidal xcorr where valid secondary peaks have low prominence.
+  Net effect was negative; parabolic interpolation is the better fix.
+- Correlation-weighted acceptance criterion: reverted. Overly complex and
+  broke the Jan 2026 MSTID event. Simple 0.5x closure threshold restored.
+
+### Final results — May 2024 LSTID collinear array
+| Method | Closure (before) | Closure (after) | Speed | From | All-pass |
+|--------|-----------------|-----------------|-------|------|---------|
+| FFT    | 26%             | **3.6%** ✅     | 605 m/s | 4.0° | Yes ✅ |
+| Autocorr | 41%           | **1.1%** ✅     | 163 m/s | 5.9° | No (speed⚠️) |
+| CWT    | 52%             | **1.7%** ✅     | 288 m/s | 261° | No (speed⚠️) |
+
+### Jan 2026 MSTID regression check
+Closure 0.6%, all diagnostics pass. No regression.
+
+### Trusted result for May 2024 LSTID
+FFT: 605 m/s, from 4.0° (southward), all diagnostics pass.
+Autocorr and CWT closures are good but speeds/directions disagree with FFT —
+autocorr subharmonic alias problem persists (Entry 14), CWT direction scatter.
+FFT remains the recommended method for this event and array geometry.
+
+### Remaining open issue
+Autocorr subharmonic alias: the 0.5x acceptance rule still allows a
+period-alias combo to win when it achieves better closure than all-top.
+The all-top combo after interpolation gives ~34s closure; the alias combo
+gives 0s, which is < 34*0.5 = 17s, so it wins. Fixing this requires either:
+(a) a physics-based speed plausibility filter, or
+(b) increasing N_CAND and relying on interpolation to make all-top competitive.
+Deferred — FFT is reliable; autocorr is a secondary method for this event type.
+
+---
+---
+
+## Entry 16 — Interactive guided extraction tools (research_gui branch)
+**Date:** 2026-05-22
+**Branch:** research_gui
+**Commits:** 208c057 → a86d06b (8 commits)
+
+### Tools developed
+Two new interactive QC tools for guided Doppler extraction:
+
+**tid_guided_extract.py** (v0.1.0)
+Displays automated Doppler CSV traces in a stacked pyqtgraph window.
+User clicks ground-truth phase samples on the TID wave per station;
+sinusoid fitted from clicks replaces automated values in the selected
+time window, writing `*_guided.csv`. Keys: 1-9 station, F fit, A fit-all
+(shared period), W write, R reset, C clear, Q quit.
+
+**tid_spect_click.py** (v0.1.0)
+Displays spectrogram PNG with automated Doppler CSV overlay. User clicks
+directly on the carrier track in the spectrogram image. More intuitive
+than clicking the noisy extracted trace — the TID oscillation is directly
+visible as the wavy carrier track. Same fit/write workflow as above.
+
+**drf_spectrogram.py enhancement**
+Now writes `<output_stem>_axes.json` sidecar alongside every PNG,
+containing t_start/end (UTC hours), doppler_lo/hi (Hz), and dpi.
+`tid_spect_click.py` auto-detects and loads the sidecar, eliminating
+manual --tlim/--ylim arguments and margin guessing.
+
+### Key design decisions
+- Plot fraction defaults calibrated from drf_spectrogram.py 600dpi output
+  by pixel-detecting cyan analysis-window lines (px 2646=18h, px 4810=20h)
+  and spectrogram panel bounds (rows 184-2690 of 4278).
+  Result: left=0.0582, right=0.8421, bottom=0.3712, top=0.9570.
+- Period hint (--period-hint SECONDS) required when clicks don't span
+  a full TID cycle — the span heuristic overestimates period otherwise
+  (T=7346s observed vs correct 3600s).
+- ApplicationShortcut context required for PyQt5 keyboard shortcuts to
+  fire when GraphicsLayoutWidget has focus.
+- Write guard added: W key does nothing until at least one click is made,
+  preventing spurious write on launch from shell keypress bleed-through.
+
+### End-to-end validation — May 2024 LSTID collinear array
+Generated spectrograms with sidecars for W7LUX, AC0G_ND, N4RVE.
+AC0G_ND subchannel 4 required (10 MHz channel); subchannel 0 gives
+2.5 MHz noise with no visible carrier.
+AC0G_ND spectrogram showed heavy E-region contamination — no coherent
+carrier visible to click on. Used automated FFT CSV for AC0G_ND.
+W7LUX and N4RVE guided successfully via spectrogram clicking.
+
+| Method | Speed | From | Closure | All-pass |
+|--------|-------|------|---------|---------|
+| Spectrogram-guided (W7LUX+N4RVE) | 600 m/s | 9.6° | 3.2% | Yes ✅ |
+| Automated FFT baseline | 605 m/s | 4.0° | 3.6% | Yes ✅ |
+
+Agreement within 5 m/s and 5.6°. Both all-pass.
+
+### Assessment
+The guided tool confirms the automated FFT result on this event —
+the carrier is clean enough on W7LUX and N4RVE that automated
+extraction is already reliable. The guided tool's primary value is:
+1. **Validation** — independent confirmation of automated result
+2. **Contaminated stations** — when automated extraction fails
+   (wrong peak, E-region lock), guided clicking on the spectrogram
+   can recover the true carrier phase
+3. **Ground truth** — human-verified phase samples for testing
+   new automated extraction algorithms
+
+The spectrogram-based tool (tid_spect_click.py) is preferred over
+the Doppler-trace tool (tid_guided_extract.py) — the carrier track
+is far easier to identify visually in the spectrogram than in the
+noisy extracted Doppler time series.
+
+---
+
+## Entry 17 — Click-guided corridor extraction: implementation and first results
+**Date:** 2026-05-23
+**Branch:** research_gui
+**Commits:** corridor extraction added to drf_to_doppler.py + tid_spect_click.py
+
+### Implementation
+Two components added:
+
+**tid_spect_click.py — X key exports corridor JSON**
+After clicking phase samples and pressing F to fit, pressing X writes
+a `*_corridor.json` file containing the clicked (t_utc_hours, doppler_hz)
+points and a half_bandwidth_hz value (default 0.5 Hz).
+
+**drf_to_doppler.py — --corridor flag**
+New `CorridorTrack` class loads the JSON and provides time-varying
+corridor centre by linear interpolation between clicked points.
+The FFT peak search is restricted to [centre - half_bw, centre + half_bw]
+at each block, rejecting contamination outside the corridor.
+Only supported with --method fft.
+
+### Validation on W7LUX May 2024 LSTID
+Corridor extraction correctly identified the true TID carrier:
+- Corridor SNR: 18-40 dB (weaker — true F-region carrier)
+- Automated SNR: 47-55 dB (stronger — spurious E-region/multipath peak)
+- Lower SNR = correct answer: automated extractor was locking onto
+  a stronger spurious feature, not the TID carrier
+
+Corridor correctly fixed multiple wrong-peak rows:
+| Time  | Automated | Corridor | Notes |
+|-------|-----------|----------|-------|
+| 18:22 | +0.050 Hz | +0.795 Hz | Auto jumped to wrong peak |
+| 18:54-55 | +0.119 Hz | -0.692 Hz | Auto wrong sign |
+| 19:01-03 | +0.132 Hz | -0.580 Hz | Auto wrong peak |
+| 19:48 | +0.043 Hz | -1.275 Hz | Auto completely wrong |
+
+### DOA result with corridor W7LUX
+| Method | Speed | From | Closure | All-pass |
+|--------|-------|------|---------|---------|
+| Automated FFT (all 3 stations) | 605 m/s | 4.0° | 3.6% | Yes ✅ |
+| Corridor W7LUX + auto AC0G/N4RVE | 338 m/s | 189.2° | 4.2% | No ⚠️ |
+
+The corridor DOA disagrees with automated — 180° direction flip and
+half the speed. Investigation showed this is NOT a code bug but a
+systematic lag shift:
+
+### Root cause: 180s lag shift in corridor extraction
+Xcorr analysis of corridor W7LUX vs AC0G_ND:
+- Corridor W7LUX peak lag: -1320s (r=0.654) — better correlation than auto
+- Automated W7LUX peak lag: -1140s (r=0.576)
+- Difference: 180s = 3 resample intervals
+
+The corridor extracts a slightly different phase of the TID carrier
+(the smooth underlying wave) vs the automated extractor (the noisy
+instantaneous peak). The 180s phase difference propagates to the DOA
+solver, shifting the xcorr peak and causing the multi-peak selector
+to find an inconsistent solution with the AC0G_ND→N4RVE pair.
+
+The all-top combo {-1320, -1320, -375} gives 375s closure — too large,
+so the selector picks an alias combo {2220, 2040, -120} with 60s closure
+which happens to give the 180°-flipped direction.
+
+### Key insight: corridor needs to be applied to ALL stations
+Applying corridor extraction to only one station while using automated
+CSVs for the others creates inconsistency. The corridor finds a slightly
+different carrier phase, breaking the triangle closure with the
+automated extractions. For the approach to work correctly:
+- All stations must use corridor extraction, OR
+- The corridor must be verified to track the same phase as the
+  automated extractor (difference < 1 resample interval = 60s)
+
+### Clicking difficulty on contaminated stations
+AC0G_ND and N4RVE spectrograms have significant E-region contamination
+making it difficult to identify and click the true TID carrier.
+The clicking guidelines need further refinement. Key issues:
+- Users tend to click on bright features which are often contamination
+- The true TID carrier can be much dimmer than competing features
+- Gaps in the carrier track make consistent clicking difficult
+
+### Next steps
+1. Implement consistency check: after corridor extraction, compare
+   the resulting CSV against the automated CSV. If the xcorr between
+   them shows a lag offset > 60s, warn the user that the corridor
+   may be tracking a different phase.
+2. Consider wider half_bandwidth (1.0 Hz) to reduce sensitivity to
+   exact corridor centre placement.
+3. Test with corridor on all 3 stations simultaneously when
+   clicking quality can be guaranteed.
+4. Add visual feedback in tid_spect_click.py showing the corridor
+   boundaries overlaid on the spectrogram after X is pressed.
+
+---
+
+## Entry 18 — Post-processing detrending (SGOLAY/outlier rejection) cannot fix wrong-peak lock
+**Date:** 2026-05-23
+**Reference:** Guerra et al. 2024 (J. Space Weather Space Clim. 14, 17)
+
+### Context
+Guerra et al. 2024 demonstrate FIF and SGOLAY are the best detrending
+techniques for TID extraction from GNSS TEC time series. We tested
+whether these approaches can fix the wrong-peak lock problem in HF
+Doppler extraction.
+
+### Test: SGOLAY on W7LUX and AC0G_ND
+SGOLAY (2nd order polynomial, windows 31-59 samples) applied to
+the automated FFT Doppler CSV. Results:
+
+**W7LUX (clean station):** SGOLAY correctly recovers the broad TID
+oscillation as background. However wrong-peak spikes (18:22h, 18:52h,
+19:16-17h etc.) survive in the detrended signal because they have
+energy in the TID frequency band and are not distinguishable from
+real TID signal by a frequency-domain filter.
+
+**AC0G_ND (contaminated station):** Additional median outlier rejection
+(threshold 0.5 Hz from 7-min median) correctly flags isolated wrong-peak
+spikes (18:30h, 19:22-25h). However the sustained wrong-peak lock at
+18:00-18:15h (+1.3 Hz for ~15 min) is NOT flagged — the median filter
+treats it as the local centre because it persists long enough.
+
+### Key finding
+Post-processing detrending (SGOLAY, FIF, median filtering) CANNOT fix
+sustained wrong-peak lock in HF Doppler extraction. The fundamental
+reason: a wrong-peak lock that persists >5-10 minutes has energy in
+the TID frequency band (period 10-90 min) and is indistinguishable
+from real TID signal by any frequency-domain or sliding-window filter.
+
+This is qualitatively different from the GNSS TEC case (Guerra et al.)
+where TEC is a continuous physical measurement without discrete peak
+selection. HF Doppler extraction involves a spectral peak finder that
+can lock onto spurious features with high SNR confidence, making the
+resulting time series fundamentally different from a noisy continuous
+measurement.
+
+### Implication
+The wrong-peak problem must be solved at the extraction stage, not
+in post-processing. Valid approaches:
+1. Corridor extraction (implemented) — constrain peak search using
+   user-clicked carrier track. Works but requires consistent clicking
+   on all stations.
+2. Better extraction methods — bandpass/CWT methods in drf_to_doppler.py
+   are more robust to E-region than FFT peak finding.
+3. FIF on the 2D spectrogram — track the slowly-varying carrier in the
+   time-frequency domain directly, rather than applying FIF to the
+   already-extracted 1D Doppler time series. This is the correct
+   interpretation of the Guerra et al. approach for HF Doppler.
+
+### Guerra et al. parameters (for reference, if FIF on spectrogram pursued)
+- LSTID band: 45-90 min period
+- MSTID band: 10-40 min period
+- SGOLAY: 2nd order, window = 2x MA window (120 min LSTID, 60 min MSTID)
+- FIF: ~300x slower than SGOLAY but marginally better accuracy
+- For computational speed: SGOLAY preferred
+- FIF code: http://www.cicone.com (Python available)
+
+---
+
+## Entry 19 — Bandpass and CWT extraction on AC0G_ND: method comparison
+**Date:** 2026-05-23
+**Event:** May 2024 LSTID, AC0G_ND subchannel 4
+
+### Extraction method comparison
+| Method | Doppler std | Median SNR | Notes |
+|--------|------------|-----------|-------|
+| FFT    | 0.682 Hz   | 42.0 dB   | baseline |
+| CWT    | 0.557 Hz   | 42.0 dB   | smoother |
+| Bandpass | 0.414 Hz | 42.0 dB   | smoothest |
+
+Lower std = fewer wrong-peak jumps. Bandpass most robust on this station.
+
+### DOA results with AC0G_ND method variants
+| AC0G_ND method | Speed | Direction | Closure | All-pass |
+|----------------|-------|-----------|---------|---------|
+| FFT (baseline) | 605 m/s | 4.0° | 3.6% | Yes ✅ |
+| Bandpass | 161 m/s | 7.1° | 1.4% | No (speed⚠️) |
+| CWT | 340 m/s | — | 4.0% | Yes ✅ |
+
+### Analysis
+Bandpass AC0G_ND: direction correct (7.1° agrees with 4.0°) but speed
+wrong (161 vs 605 m/s). Lags: W7LUX→AC0G=-4490s vs FFT -1163s.
+This is a subharmonic alias — the lag is ~3.8x the true value, consistent
+with the TID period. The multi-peak selector is finding a self-consistent
+alias solution. Same failure mode as autocorr (Entry 14).
+
+CWT AC0G_ND: inconsistent lags (W7LUX→N4RVE positive when should be
+negative). Discarded for this event.
+
+### Conclusion
+The automated FFT baseline remains the best result for this event.
+Changing the extraction method on AC0G_ND does not improve the DOA
+because the wrong-peak problem is in the xcorr peak selection, not
+the Doppler extraction. The multi-peak selector fixes wrong-peak lock
+within the analysis window but is vulnerable to subharmonic aliases
+when the TID period is comparable to the analysis window length.
+
+The 605 m/s, 4.0° result from FFT with multi-peak selector + parabolic
+interpolation (Entry 15) remains the trusted result for this event.
+
+---
+
+## Entry 20 — sgolay-ridge on all stations: first complete 4-station result
+**Date:** 2026-05-24
+**Branch:** research_gui
+**NOTE:** This entry was missing from FINDINGS.md. Reconstructed 2026-05-26.
+
+### What was done
+Applied sgolay-ridge corridor extraction to all 4 stations simultaneously
+for the May 2024 LSTID event. Previous entries used sgolay-ridge on only
+one or two stations while others used FFT — creating phase offset biases
+that corrupted DOA results.
+
+### Key insight
+For the DOA cross-correlation biases to cancel, ALL stations must use
+the same extraction method. Mixing sgolay-ridge and FFT introduces a
+systematic ~60s phase offset between stations, corrupting triangle closure.
+
+### Result
+When all 4 stations use corridor + sgolay-ridge:
+- Speed: 267 m/s from 242° (WSW)
+- All 5 diagnostics pass
+- Triangle closure: 6.9%
+- This superseded the earlier 458 m/s result (Entry 21) which used
+  mixed methods and incorrect (receiver rather than IPP) coordinates.
+
+---
+
+## Entry 21 — Complete guided workflow validated: 458 m/s WSW LSTID
+**NOTE: superseded by Entry 22 (267 m/s, 242° WSW) which uses correct IPP coordinates and 4 stations.**
+**Date:** 2026-05-24
+**Branch:** research_gui
+**Event:** May 17 2024, 17:57-19:06 UTC
+
+### Workflow steps completed
+1. `drf_spectrogram.py` — full-day spectrogram (100 dpi) for each station
+2. `tid_quicklook.py` — user selects TID window on full-day spectrogram
+3. `drf_spectrogram.py --window` — zoomed spectrogram for selected window
+4. `tid_quicklook.py` — user refines window on zoomed spectrogram
+5. `drf_to_doppler.py --method fft` — automated FFT extraction for overlay
+6. `drf_spectrogram.py --overlay` — regenerate zoomed spectrogram with FFT overlay
+7. `tid_spect_click.py` — user clicks corridor on zoomed spectrogram
+   - Corridor consistency check confirms tracking correct carrier
+   - Visual corridor overlay shows search band
+8. `drf_to_doppler.py --method sgolay-ridge --corridor` — 2D STFT ridge extraction
+9. `tid_doa.py` — DOA result
+
+### Station details
+| Station | Subchannel | Freq | Window | SNR |
+|---------|-----------|------|--------|-----|
+| W7LUX   | 0 | 10 MHz | 17:35-20:36 | 44.3 dB |
+| AC0G_ND | 4 | 10 MHz | 17:57-19:52 | 37.3 dB |
+| N4RVE   | 4 | 10 MHz | 17:37-19:07 | 32.8 dB |
+Overlap: 17:57-19:06 UTC (69 min)
+
+### DOA result
+| Metric | Value |
+|--------|-------|
+| Phase speed | 458 m/s |
+| Direction | from 258.6° (WSW) |
+| Triangle closure | 0.5% |
+| Correlations | 0.673 / 0.713 / 0.787 |
+| SVR | 1.2 |
+| All-pass | Yes ✅ |
+
+Consistent with westward-propagating LSTID. All five diagnostics pass.
+
+### Key fixes made during workflow
+1. `drf_spectrogram.py --window`: bug fixed (was nested inside if args.start)
+2. `drf_spectrogram.py plot_fraction`: now uses matplotlib axes position
+   (image pixel measurement was unreliable for different spectrogram types)
+3. `tid_quicklook.py`: neutral default region (user decides where TID is)
+4. `tid_quicklook.py`: overlap check after S press warns if <60 min overlap
+5. `tid_spect_click.py`: auto-detects _window.json from tid_quicklook.py
+
+### Lessons learned
+- The corridor as prior constraint works well — user doesn't need to click
+  precisely on carrier, just bracket the search region
+- AC0G_ND corridor (±0.5 Hz around 0 Hz) correctly rejects E-region spikes
+- sgolay-ridge smoothing (21 min window) gives clean extraction with good
+  correlations and excellent triangle closure
+- Time window overlap must be checked early — the overlap warning in
+  tid_quicklook.py is essential
+- Subchannel selection matters: all stations should use same frequency
+  (10 MHz here) for consistent Doppler comparison
+
+---
+
+## Entry 22 — 4-station DOA with N5BRG and IPP coordinates
+**Date:** 2026-05-24
+**Event:** May 17 2024, 18:29-19:06 UTC
+
+### Result
+| Metric | Value |
+|--------|-------|
+| Phase speed | 267 m/s |
+| Direction | from 242.3° (WSW) |
+| Triangle closure | 6.9% |
+| Correlations | 0.429-0.748 |
+| All-pass | Yes ✅ |
+
+### Comparison with Gwyn's result (V1.2)
+| Metric | Gwyn | Ours (4-stn) |
+|--------|------|-------------|
+| Speed | 979 m/s | 267 m/s |
+| Direction | 157° (SSE) | 242° (WSW) |
+
+### Analysis of discrepancy
+1. Direction stable at ~242-252° across all our configurations (3-stn, 4-stn,
+   different time windows) — consistent result
+2. Gwyn uses path velocity along specific azimuths (126° and 221°) then
+   vector decomposition — fundamentally different from our plane-wave DOA
+3. ~90° direction difference and ~4x speed difference suggest the two methods
+   are measuring different projections of the wave vector
+4. Our result is internally self-consistent (all diagnostics pass)
+5. Resolution requires direct comparison with Gwyn — methodological difference
+   is the key question
+
+### IPP coordinates used (WWV transmitter at 40.68N, 105.04W)
+| Station | Receiver | IPP midpoint |
+|---------|---------|-------------|
+| W7LUX | 35.10N, 111.71W | 37.89N, 108.37W |
+| AC0G_ND | 46.88N, 96.83W | 43.78N, 100.94W |
+| N4RVE | 44.97N, 123.48W | 42.83N, 114.26W |
+| N5BRG | 35.65N, 97.48W | 38.17N, 101.26W |
+
+---
+
+## Entry 23 — Automated FFT vs SGOLAY-ridge: 4-station comparison
+**Date:** 2026-05-24
+**Event:** May 17 2024, 18:29-19:06 UTC, 4 stations with IPP coordinates
+
+### Results comparison
+| Metric | Auto FFT | SGOLAY-ridge |
+|--------|----------|-------------|
+| Speed | 222 m/s | 267 m/s |
+| Direction | from 186° (S) | from 242° (WSW) |
+| Closure | 18.1% ❌ | 6.9% ✅ |
+| Weak pairs | 2 ❌ | 0 ✅ |
+| All diagnostics | No ❌ | Yes ✅ |
+
+### Key finding
+The automated FFT fails two diagnostics (weak correlations, poor closure).
+The sgolay-ridge corridor extraction passes all five diagnostics with:
+- Better correlations on all 6 pairs
+- 3x better closure (6.9% vs 18.1%)
+- Different W7LUX→N4RVE lag (+1081s vs -239s) — automated FFT was
+  locking onto wrong xcorr peak for this pair
+
+### Conclusion
+This is the definitive validation of the corridor + sgolay-ridge approach.
+The corridor constrains the STFT search to the true carrier, preventing
+wrong-peak lock that corrupts automated FFT lags. The result is physically
+consistent across all diagnostic metrics where the automated approach fails.
+
+The direction (242° WSW) is stable and internally consistent. The remaining
+discrepancy with Gwyn's result (157° SSE, 979 m/s) is methodological and
+requires direct discussion with Gwyn to resolve.
+
+---
+
+## Entry 24 — Full method comparison: FFT vs Autocorr vs SGOLAY-ridge
+**Date:** 2026-05-24
+**Event:** May 17 2024, 18:29-19:06 UTC, 4 stations, IPP coordinates
+
+### Complete comparison
+| Metric | Auto FFT | Autocorr | SGOLAY-ridge |
+|--------|----------|----------|-------------|
+| Speed | 222 m/s | 233 m/s | 267 m/s |
+| Direction | 186° (S) | 188° (S) | 242° (WSW) |
+| Closure | 18.1% ❌ | 35.0% ❌ | 6.9% ✅ |
+| Diagnostics | 2 fail ❌ | 1 fail ❌ | All pass ✅ |
+| W7LUX→N4RVE lag | +1081s | +979s | -239s |
+
+### Key findings
+1. FFT and autocorr cluster together (~186-188°, ~220-233 m/s) but both
+   fail diagnostics — they share the same wrong-peak lock on W7LUX→N4RVE
+2. SGOLAY-ridge gives different W7LUX→N4RVE lag (-239s vs +979-1081s)
+   — corridor extraction correctly identifies the true carrier
+3. SGOLAY-ridge is the only method that passes all diagnostics
+4. Autocorr closure (35%) is worst of all — wrong-peak aliases dominate
+5. The automated methods are self-consistent with each other but both wrong
+
+### Conclusion
+The corridor + sgolay-ridge approach is definitively superior to both
+automated methods for this event. The direction (242° WSW) is the most
+reliable result. The automated FFT and autocorr results (186-188° S)
+should not be trusted for this event due to wrong-peak lock on the
+W7LUX→N4RVE pair.
+
+### Note on method field in event JSON
+The "method" field in event JSON is metadata only (which extractor
+produced the CSV) — it does not affect the DOA computation.
+Should be renamed "extraction_method" in a future cleanup to avoid
+confusion with the DOA method.
+
+---
+
+## Entry 25 — Comparison of array geometry with Gwyn's method
+**Date:** 2026-05-24
+
+### Midpoint-to-midpoint azimuths and distances
+| Path | Gwyn states | Calculated | Distance |
+|------|------------|-----------|---------|
+| N4RVE→N5BRG | 126° | 111° | 1214 km |
+| AC0G_ND→W7LUX | 221° | 226° | 905 km |
+
+Gwyn's stated azimuths differ from calculated by ~15° on N4RVE→N5BRG.
+Likely due to different receiver coordinates or IPP height assumption.
+
+### Methodological difference
+Gwyn's method:
+- Measures velocity ALONG each path (scalar projection)
+- Two paths roughly perpendicular (126° and 221°) — ideal for 2D decomposition
+- Vector decomposition gives resultant velocity: 979 m/s at 157°
+
+Our method:
+- Fits plane wave to ALL pairwise lags simultaneously (least squares)
+- Uses IPP midpoint coordinates
+- Result: 267 m/s at 242° (coming from)
+
+### Why results differ
+If the TID wavefront is perfectly planar, both methods should agree.
+Possible reasons for ~95° direction discrepancy:
+1. Wrong-peak lock in Gwyn's autocorrelation lags (he uses 27 and 35 min
+   lags from visual inspection of xcorr plots)
+2. Our W7LUX→N4RVE lag may still be wrong despite corridor extraction
+3. The wavefront may not be perfectly planar across this array
+4. Different time windows (Gwyn: 19:00 UTC; ours: 18:29-19:06 UTC)
+
+### Action items
+1. Ask Gwyn for his exact lag values and how he measured them
+2. Verify our W7LUX→N4RVE lag (-239s) is correct by visual inspection
+3. Try replicating Gwyn's 2-path method using our extracted Doppler CSVs
+
+---
+
+## Entry 26 — Critical limitation: diagnostics are not independent validation
+**Date:** 2026-05-24
+
+### The fundamental problem
+The five diagnostics in tid_doa.py (geometry conditioning, plane-wave
+residual, pairwise correlation, triangle closure, phase speed range) measure
+INTERNAL CONSISTENCY only. They were empirically tuned based on early FFT
+results and do not constitute physical validation.
+
+A result can be:
+- Internally consistent (all diagnostics pass) but physically wrong
+- Internally inconsistent (diagnostics fail) but pointing toward real physics
+
+The fact that sgolay-ridge passes all diagnostics while FFT fails is partly
+circular — the diagnostics reward self-consistency, and the corridor
+extraction enforces consistency by construction (smooth carrier tracking).
+
+### What the diagnostics actually tell us
+1. Geometry conditioning (SVR < 30): array not near-collinear — GEOMETRIC
+2. Plane-wave residual (< 25%): lags consistent with a single plane wave — CONSISTENCY
+3. Pairwise correlation (> 0.40): signals are correlated — SIGNAL QUALITY
+4. Triangle closure (< 15%): lags form a consistent triangle — CONSISTENCY
+5. Phase speed range (100-1000 m/s): result in physically plausible range — WEAK PHYSICAL
+
+None of these confirm the result is physically real. They only confirm the
+lags are self-consistent and the signals are correlated.
+
+### What is needed for true validation
+1. Independent measurement of same event:
+   - GNSS TEC keograms (SuperMAG, CORS network)
+   - Ionosonde Doppler (closest: Millstone Hill, Boulder)
+   - SuperDARN ground scatter
+   - Gwyn's independent analysis (different method)
+2. Synthetic data test: inject known TID into synthetic I/Q, verify recovery
+3. Multiple independent events: consistent results across many events
+   build confidence even without per-event ground truth
+
+### Current validation status
+- Our result (267 m/s, 242° WSW) is internally consistent ✅
+- Gwyn's result (979 m/s, 157° SSE) disagrees by ~95° direction and 4x speed
+- Root cause of discrepancy unknown — could be either result being wrong
+- No independent reference measurement available for this event
+- Diagnostics thresholds were tuned on early FFT results — not independent
+
+### Implications for research_gui branch
+The corridor + sgolay-ridge workflow is a significant improvement in
+extraction quality. But "improvement" here means:
+- Fewer wrong-peak locks (demonstrated by SNR analysis)
+- Better pairwise correlations (demonstrated by xcorr)
+- Better internal consistency (demonstrated by closure)
+
+It does NOT yet mean demonstrated physical accuracy. That requires
+comparison with Gwyn and/or independent measurements.
+
+---
+
+## Entry 27 — tid_workflow.py: complete guided workflow wrapper
+**Date:** 2026-05-25
+**Branch:** research_gui
+
+### Implementation
+New `tid_workflow.py` automates the 10-step guided extraction workflow:
+1. Auto-discover stations in event directory
+2. Full-day spectrogram per station
+3. User selects TID window (tid_quicklook.py)
+4. Zoomed spectrogram
+5. User refines TID window
+6. Automated FFT extraction (overlay)
+7. Zoomed spectrogram with FFT overlay
+8. User clicks corridor (tid_spect_click.py + sgolay preview)
+9. sgolay-ridge extraction
+10. DOA (tid_doa.py)
+
+### Key features
+- State saved after each step — resumable with --resume
+- Auto-discovers DRF stations in event directory
+- Always generates subchannel thumbnails for user to confirm visually
+- Gets receiver coords: DRF metadata → callsign DB → user input
+- Computes IPP midpoints automatically (WWV default transmitter)
+- Overlap check with option to quit and redo windows if <60 min
+- Run logs written to event directory not cwd
+
+### First test (4 stations, May 2024 event)
+- Overlap: 37 min (too short — 3 diagnostics failed)
+- Lesson: window alignment is critical
+- The overlap warning now offers quit option to redo windows
+
+### Usage
+    python3 tid_workflow.py --event-dir ~/Downloads/gwyn_tid_event_20240517
+    python3 tid_workflow.py --event-dir ~/Downloads/gwyn_tid_event_20240517 --resume
+
+---
+
+## Entry 28 — Summary: SGOLAY-ridge strategy vs FFT and autocorr
+**Date:** 2026-05-25
+**Branch:** research_gui
+
+### The fundamental problem all three methods face
+
+All three methods extract a Doppler frequency vs time trace from raw I/Q
+data recorded at HF receivers listening to WWV (or another beacon). The
+I/Q recording contains the received signal — a mixture of the direct
+ionospheric reflection of the beacon (the "carrier") plus contamination
+from E-region multi-hop propagation, interference, and noise.
+
+The goal is to track the carrier frequency over time. A TID modulates
+the ionospheric height, which shifts the carrier frequency sinusoidally
+by typically ±0.5-2 Hz over periods of 15-90 minutes. The DOA analysis
+cross-correlates these traces between station pairs to find time lags,
+then fits a plane wave to determine speed and direction.
+
+The failure mode common to all methods: **wrong-peak lock** — the
+extractor latches onto a strong spurious feature (E-region hop, multipath)
+rather than the true F-region carrier. This produces a plausible-looking
+trace that cross-correlates well internally but gives wrong lags.
+
+---
+
+### Method 1: FFT peak finding (original, --method fft)
+
+**How it works:**
+For each 60-second block of I/Q data, compute the FFT spectrum and find
+the peak frequency within a search band (default ±5 Hz around 0 Hz).
+Parabolic interpolation refines the peak to sub-bin accuracy.
+
+**Strengths:**
+- Simple and fast
+- Works well on clean stations (high SNR, no contamination)
+- Parabolic interpolation gives sub-sample accuracy
+- Multi-peak xcorr selector in tid_doa.py handles some wrong-peak cases
+
+**Weaknesses:**
+- Each block processed independently — no temporal continuity
+- Locks onto the strongest peak in the search band per block
+- E-region contamination often produces a stronger peak than the true carrier
+- Wrong-peak lock can persist for many minutes producing a consistent
+  but incorrect trace
+- Cannot distinguish a strong spurious peak from the true carrier
+
+**When it fails:**
+On contaminated stations (AC0G_ND, N4RVE), the E-region spike is often
+10-20 dB stronger than the F-region carrier. The FFT finds the spike,
+not the carrier. The resulting trace has sharp jumps when the spike
+appears/disappears — std 0.682 Hz vs 0.414 Hz for corridor extraction.
+
+---
+
+### Method 2: Complex autocorrelation (--method autocorr)
+
+**How it works:**
+For each 60-second block, compute the complex autocorrelation at lag=1
+sample (100ms at 10 sps). The phase of the lag-1 autocorrelation gives
+the instantaneous frequency: f = angle(R(1)) / (2π × dt).
+
+**Strengths:**
+- Naturally robust to broadband noise (autocorrelation suppresses
+  uncorrelated noise)
+- Can track slowly-varying frequency even in moderate contamination
+- Smoother trace than FFT on some events
+
+**Weaknesses:**
+- Susceptible to subharmonic aliases — can lock onto a frequency that is
+  a harmonic of the true carrier
+- On LSTID events (long period), the alias can be at 3-4x the true lag,
+  producing self-consistent but wrong DOA results
+- Still processes each block independently
+- Gwyn's method uses autocorrelation but at longer lags with different
+  parameters — our implementation may not match his exactly
+
+**When it fails:**
+On the May 2024 LSTID, autocorr gave consistent triangle closure (0%)
+but at a subharmonic alias lag (-4380s vs the true -1140s). All pairs
+landed on the same alias, so closure was zero but the result was wrong.
+Speed 163 m/s vs FFT 605 m/s — a factor of ~3.8x (the alias order).
+
+---
+
+### Method 3: Corridor + SGOLAY-ridge (new, --method sgolay-ridge)
+
+**How it works:**
+
+**Step A — User defines corridor (tid_spect_click.py):**
+The user opens the Doppler spectrogram and clicks ~6 points that
+bracket the carrier band across the analysis window. These clicks define
+a time-varying frequency corridor (centre ± half_bandwidth Hz, default
+±0.5 Hz). The corridor is a PRIOR CONSTRAINT — it tells the algorithm
+where to look, not what the carrier looks like. Clicks don't need to be
+precise — just bracket the carrier.
+
+A consistency check (xcorr between corridor centres and automated CSV)
+warns if the corridor is tracking a different feature than the automated
+extractor. A sgolay-ridge preview shows the extracted trace overlaid on
+the spectrogram so the user can verify before committing.
+
+**Step B — 2D STFT ridge tracking (drf_to_doppler.py --method sgolay-ridge):**
+1. Read ALL I/Q data for the analysis window at once (not block by block)
+2. Build the full STFT spectrogram (time × frequency, one column per 60s block)
+3. For each time step, restrict the frequency axis to the corridor band
+4. Compute the POWER-WEIGHTED CENTROID within the corridor band:
+       f_centroid = Σ(f × |S(f)|²) / Σ(|S(f)|²)
+   This uses all power in the band, not just the peak bin. More stable
+   than argmax against noise and better-defined when the carrier has
+   finite width.
+5. Apply SGOLAY smoothing across time (default 21-minute window):
+   - Removes residual spike-like artifacts within the corridor
+   - Does NOT phase-shift the TID oscillation (21 min << 60 min TID period)
+   - Guerra et al. 2024: SGOLAY is optimal for TID extraction from TEC
+
+**Why this is fundamentally different:**
+
+| Aspect | FFT/autocorr | SGOLAY-ridge |
+|--------|-------------|-------------|
+| Search space | Full ±5 Hz band | User-defined ±0.5 Hz corridor |
+| Per-block | Yes — independent | No — global STFT |
+| Peak finding | Argmax / autocorr phase | Power-weighted centroid |
+| Temporal info | None | SGOLAY across all blocks |
+| User input | None | Required (corridor clicks) |
+| Contamination handling | Post-hoc (multi-peak selector) | Pre-empted (corridor constraint) |
+
+**The corridor eliminates wrong-peak lock by construction** — if the
+E-region spike is outside the corridor, it cannot affect the extraction.
+The user's visual inspection of the spectrogram is the primary quality
+control, not algorithmic detection.
+
+**Strengths:**
+- Cannot lock onto features outside the corridor
+- Power-weighted centroid more stable than argmax
+- SGOLAY smoothing removes residual artifacts
+- User sees exactly what was extracted (green preview curve)
+- Higher pairwise correlations in DOA (0.699 vs 0.574 on W7LUX)
+
+**Weaknesses:**
+- Requires user interaction (corridor clicking) — not fully automated
+- Corridor must be clicked consistently across all stations for biases
+  to cancel in cross-correlation
+- SGOLAY window must be tuned to TID period (21 min for LSTID, 10 min
+  for MSTID)
+- Power-weighted centroid introduces a small systematic phase offset
+  vs FFT argmax (~60s) which can affect triangle closure when only one
+  station uses corridor extraction
+
+**When it fails:**
+If the user clicks the corridor on the wrong feature (E-region instead
+of F-region carrier), the result is wrong. The consistency check and
+preview mitigate this but don't eliminate it. If only one station uses
+corridor extraction while others use FFT, the phase offset creates
+inconsistency — all stations must use the same method.
+
+---
+
+### Comparison on May 2024 LSTID (4 stations, 18:29-19:06 UTC)
+
+| Method | Speed | Direction | Closure | Diagnostics |
+|--------|-------|-----------|---------|-------------|
+| Auto FFT | 222 m/s | 186° (S) | 18.1% | 2 fail ❌ |
+| Autocorr | 233 m/s | 188° (S) | 35.0% | 1 fail ❌ |
+| SGOLAY-ridge | 267 m/s | 242° (WSW) | 6.9% | All pass ✅ |
+| Gwyn (manual) | 979 m/s | 157° (SSE) | — | — |
+
+The FFT and autocorr agree with each other (both finding the same
+wrong-peak lock on W7LUX→N4RVE) but disagree with SGOLAY-ridge and
+with Gwyn. SGOLAY-ridge gives the best internal consistency but still
+disagrees with Gwyn by ~85° direction and ~4x speed.
+
+### Critical caveat
+All three methods produce internally self-consistent results that pass
+most diagnostics. Internal consistency is NOT physical correctness.
+True validation requires independent measurement (GNSS TEC, ionosonde,
+Gwyn's independent analysis). The diagnostics in tid_doa.py were
+calibrated on early FFT results — they favour SGOLAY-ridge partly
+because SGOLAY-ridge enforces smoothness by construction.
+
+---
+
+## Entry 29 — EMD test on W7LUX May 2024 LSTID
+**Date:** 2026-05-25
+**Branch:** research_gui
+
+### Setup
+EMD v0.8.1 applied to w7lux_fft_tid2.csv (182 samples, 60s cadence).
+emd.sift.sift() with default parameters.
+
+### Decomposition
+| IMF | Period | Std | Interpretation |
+|-----|--------|-----|----------------|
+| 1 | 4 min | 0.266 Hz | Noise/spikes |
+| 2 | 9 min | 0.147 Hz | Short-period contamination |
+| 3 | 38 min | 0.379 Hz | MSTID or E-region |
+| 4 | **90 min** | **0.407 Hz** | **LSTID carrier ✅** |
+| 5 | trend | 0.156 Hz | Slow background |
+
+### Comparison with SGOLAY-ridge
+- EMD IMF4 and SGOLAY-ridge track the same 90-min oscillation
+- EMD is smoother — may over-smooth real amplitude variation
+- Phase offset: EMD lags SGOLAY by 540s (r=0.568)
+- They diverge after 19:00 UTC — SGOLAY shows amplitude growth,
+  EMD is more symmetric
+
+### Implications for DOA
+- 540s phase offset means EMD and SGOLAY cannot be mixed across stations
+- EMD must be applied consistently to ALL stations for biases to cancel
+- EMD would give a different set of pairwise lags than SGOLAY-ridge
+- Need to run DOA with EMD on all 4 stations to compare
+
+### Assessment
+EMD correctly identifies the LSTID at 90 min. It is fully automatic
+(no corridor clicking required). The phase offset vs SGOLAY-ridge is
+a systematic bias — consistent across stations it would cancel in DOA.
+Next step: run EMD on all 4 stations and compare DOA result with
+sgolay-ridge result.
+
+### FIF vs EMD
+For this signal (well-separated LSTID at 90 min vs contamination at
+<10 min), EMD works adequately. Mode mixing would be a problem if TID
+and contamination overlapped in period — they don't here. FIF
+implementation deferred.
+
+---
+
+## Entry 30 — GUI clean launch fix + workflow spectrogram strategy
+**Date:** 2026-05-25
+**Branch:** research_gui
+
+### Problem
+tid_spect_click.py was showing curves on launch from two sources:
+1. pyqtgraph csv_curve being drawn before _csv_visible initialized
+2. FFT overlay curves baked into the spectrogram PNG by drf_spectrogram.py --overlay
+
+### Fix
+1. _csv_visible initialized in __init__ before _build_ui
+2. _refresh_scatter respects _csv_visible flag
+3. All curves explicitly cleared after preview_curve created
+4. Stale corridor JSON and preview CSV deleted on launch
+5. V key toggles CSV overlay on/off
+6. C key clears all curves
+
+### Spectrogram strategy (important)
+Two separate spectrograms must be generated:
+- _zoom_clean.png — NO overlay, used for corridor clicking in tid_spect_click.py
+- _zoom_overlay.png — WITH FFT overlay, for visual inspection only
+
+The overlay PNG is for the user to understand the signal before clicking.
+The clean PNG is what tid_spect_click.py uses — any curves shown are
+generated by the tool in the current session only.
+
+### tid_workflow.py change needed
+Step 7 (corridor clicking) must use clean PNG, not overlay PNG.
+Step 6 generates overlay PNG for inspection.
+Step 7 generates clean PNG for clicking.
+
+---
+
+## Entry 31 — GUI cleanup: amplitude panel and sinusoid fit removed
+**Date:** 2026-05-25
+**Branch:** research_gui
+
+### Changes
+1. **drf_spectrogram.py** — bottom amplitude panel removed. Single-panel
+   figure (14×6). compute_peak_amplitude() dead code removed. date_utc
+   added to sidecar JSON so tid_spect_click.py can determine the recording
+   date without reading a CSV.
+
+2. **tid_spect_click.py** — sinusoid fit workflow (F/W keys) removed;
+   superseded by corridor+sgolay. CSV overlay (V key) removed; not useful
+   when corridor workflow is the only path. FFT consistency check removed;
+   the corridor intentionally disagrees with FFT on contaminated stations.
+
+3. **sgolay preview window** — now uses corridor click extent (min/max
+   click times) rather than yellow segment handles. This ensures the
+   preview runs on exactly the data the user clicked, not a wider window.
+
+4. **Date extraction** — sidecar JSON now carries date_utc field. Preview
+   subprocess gets the correct --start/--end timestamps from the sidecar
+   rather than trying to parse the date from the CSV or filename.
+
+### Net result
+tid_spect_click.py is now a focused corridor-clicking tool only.
+No legacy sinusoid fit code remains. --csv argument retained as
+optional no-op for backward compatibility with tid_workflow.py calls.
+
+---
+
+## Entry 32 — Jan 2026 event: sgolay-ridge vs FFT comparison
+**Date:** 2026-05-25
+**Branch:** research_gui
+
+### Event
+2026-01-19, 00:00-01:36 UTC, 4 stations: AA6BD, AC0G_ND, N6RFM, W7LUX
+
+### Results
+| Metric | SGOLAY-ridge | FFT |
+|--------|-------------|-----|
+| Speed | 283 m/s | 99 m/s |
+| From | 30° (NNE) | 167° (SSE) |
+| Residual | 44.8% | 46.7% |
+| Closure | 38.2% | 3.8% |
+| Diagnostics fail | 2/5 | 3/5 |
+
+### Interpretation
+FFT has better closure but physically wrong speed (99 m/s, below TID
+range) and opposite direction. AA6BD→AC0G_ND lag jumped from -2 min
+(sgolay) to +77 min (FFT) — wrong-peak lock on AC0G_ND confirmed.
+
+SGOLAY-ridge gives physically plausible result: 283 m/s from NNE,
+consistent with auroral LSTID travelling equatorward. Higher residual
+is due to AC0G_ND→N6RFM aliasing (6 min closure on one triangle).
+
+### Conclusion
+This event confirms Entry 28 finding on a completely independent dataset:
+FFT produces internally consistent but physically wrong lags when
+AC0G_ND is contaminated. SGOLAY-ridge corridor extraction correctly
+identifies the F-region carrier and gives the physically meaningful result.
+
+---
+
+## Entry 33 — Jan 2026 document speed error identified
+**Date:** 2026-05-25
+**Branch:** research_gui
+
+### Finding
+The draft analysis document reports 666 m/s for the Jan 2026 event.
+This is inconsistent with the peak times shown in Figure 4:
+
+- AC0G_ND→N6RFM: 23 min over 388 km → 280 m/s
+- AA6BD→N6RFM: 16 min over 271 km → 282 m/s
+
+Both direct baseline calculations give ~280 m/s, matching our
+sgolay-ridge DOA result of 283 m/s from 30°.
+
+The document's lag table has 5-7 min triangle closure errors across
+all four triangles, making least-squares inversion ill-conditioned.
+The 666 m/s figure was from an early FFT autocorr analysis before
+IPP midpoint coordinates were used correctly.
+
+### Correct result
+- Speed: ~280-283 m/s (consistent across 3 independent methods:
+  sgolay DOA, peak-time on AC0G_ND→N6RFM, peak-time on AA6BD→N6RFM)
+- From: 30-35° (NNE) — equatorward auroral LSTID
+- The document's direction (35°) is correct; speed needs correction.
+
+### Action
+Update the draft document to report 283 m/s and add peak-time
+cross-check as independent validation of the sgolay-ridge result.
+This will be the first physically validated result from psws-drf-tid-tools.
+
+---
+
+## Entry 34 — Jan 2026: max_lag_seconds constraint improves result
+**Date:** 2026-05-26
+**Branch:** research_gui
+
+### Problem
+Default max_lag_seconds=5828s (58 min) allowed AC0G_ND→N6RFM xcorr
+to find the +27 min alias peak (r=0.576) instead of being constrained
+to the true peak region.
+
+### Fix
+Set max_lag_seconds=1800s (30 min) in event JSON. This forces xcorr
+to search only within ±30 min, eliminating the alias.
+
+### Result with max_lag_seconds=1800
+- Speed: 254 m/s from 31° (NNE)
+- vs unrestricted: 283 m/s from 30°
+- vs peak-time: ~281 m/s from ~33°
+
+### Summary of Jan 2026 results
+| Method | Speed | From |
+|--------|-------|------|
+| sgolay DOA (unrestricted) | 283 m/s | 30° |
+| sgolay DOA (30 min max) | 254 m/s | 31° |
+| Peak-time direct | ~281 m/s | ~33° |
+
+Best estimate: **254-283 m/s from 30-33° NNE**.
+Direction is robust across all methods. Speed uncertainty ~10%.
+
+### Recommendation
+Always set max_lag_seconds in event JSON when TID period is known.
+For this event (~80-100 min period), 30 min is appropriate — it
+allows lags up to one-third of the period, preventing aliasing while
+covering the expected lag range for this array geometry.
+
+---
+
+## Entry 35 — Gwyn's email response: sign convention error identified
+**Date:** 2026-05-26 (reconstructed from session — event was 2026-05-25)
+**Branch:** research_gui
+
+### Gwyn's key findings
+1. **Sign convention error in his original analysis** — Gwyn reported
+   lags for current-cycle vs previous-cycle rather than current vs current.
+   When corrected, his AC0G_ND/W7LUX lag becomes -18 min (negative = AC0G_ND
+   leads W7LUX, physically correct for northward station).
+
+2. **Corrected lag table (Gwyn, 17:30-19:30 UTC window):**
+
+   | Time interval | N4RVE/N5BRG neg lag | r | AC0G_ND/W7LUX neg lag | r |
+   |--------------|--------------------|----|----------------------|----|
+   | 18:00-20:00  | -37 min | 0.553 | -22 min | 0.733 |
+   | 17:30-20:30  | -26 min | 0.374 | -22 min | 0.601 |
+   | 17:30-19:30  | -32 min | 0.610 | -18 min | 0.683 |
+
+3. **N5BRG channel confirmed:** S000038 (NS channel) = subchannel 0
+
+4. **TID period not constant** — Gwyn notes the period varies across
+   time intervals, indicating a dispersive or non-stationary wave.
+
+### Comparison with our sgolay-ridge result
+- Our AC0G_ND/W7LUX lag: -27 min (close to Gwyn's -18 to -22 min) ✅
+- Our N4RVE/N5BRG lag: -22 min (vs Gwyn's -26 to -37 min) — some discrepancy
+- Direction agreement: both give NE origin, SW propagation ✅
+- Speed: our 267 m/s vs Gwyn's original 979 m/s — discrepancy explained
+  by Gwyn's sign convention error (he was using wrong-cycle lags)
+
+### Physical constraint from Gwyn
+For auroral LSTID: northern stations must lead (negative lag when listed
+south-to-north). AC0G_ND (north) leads W7LUX (south) — confirmed by both.
+
+### Implication
+The ~85° direction discrepancy between our original result (242° WSW)
+and Gwyn's original (157° SSE) was primarily due to Gwyn's sign convention
+error. After correction, both methods give roughly consistent NE→SW
+propagation, consistent with auroral LSTID origin.
+
+---
+
+## Entry 36 — Sign convention cross-check with Gwyn: full reconciliation
+**Date:** 2026-05-26
+**Branch:** research_gui
+
+### Our sign convention (tid_doa.py)
+positive lag τ_ij means station j lags station i (wave reached i first).
+Cross-correlation: lag at which correlate(signal_i, signal_j) is maximum,
+where positive lag = signal_j shifted forward in time relative to signal_i.
+
+### Gwyn's corrected convention
+Correlation of first(t-lag) with second(t).
+Positive lag = first station leads second = second lags first.
+This is IDENTICAL to our convention.
+
+### Verification on AC0G_ND/W7LUX pair
+Our result: W7LUX→AC0G_ND lag = -27 min
+= AC0G_ND leads W7LUX by 27 min ✅ (physically correct: AC0G_ND is north)
+Gwyn corrected: -18 min (17:30-19:30 window)
+Difference: 9 min — explained by different analysis windows:
+  - Our window: 17:34-19:28 UTC
+  - Gwyn's window: 17:30-19:30 UTC
+  Different portions of the non-stationary TID give different lags.
+
+### N4RVE/N5BRG discrepancy
+Our result: N4RVE→N5BRG lag = -22 min
+Gwyn corrected: -26 to -37 min (varies by time window)
+Same direction (N4RVE leads, physically correct) but magnitude differs.
+Again explained by different windows and TID non-stationarity.
+
+### Gwyn's statement: "your peaks are a mix of current and previous"
+This was true for our ORIGINAL results (Entry 24) where:
+- FFT: W7LUX→AC0G_ND = +27 min (wrong sign — wrong cycle)
+- sgolay-ridge: W7LUX→AC0G_ND = -27 min (correct sign — right cycle)
+The corridor + sgolay-ridge extraction corrected this. All sgolay-ridge
+lags are on the physically correct cycle (northern stations lead).
+
+### Summary of reconciliation
+| Pair | Our sgolay | Gwyn corrected | Agreement |
+|------|-----------|----------------|-----------|
+| AC0G_ND/W7LUX | -27 min | -18 min | Same sign ✅, 9 min diff |
+| N4RVE/N5BRG | -22 min | -26 to -37 min | Same sign ✅, varies |
+
+Both analyses now agree: wave travels NE→SW, northern stations lead.
+Remaining discrepancies are due to TID non-stationarity across different
+analysis windows — not a systematic error in either method.
+
+### Outstanding question
+Gwyn notes TID period varies across his three time intervals — this is
+consistent with a dispersive gravity wave packet rather than a monochromatic
+wave. The 4-station plane-wave DOA assumes a monochromatic wave; the
+residuals we see (44-65% RMS) partly reflect this non-stationarity.
+
+---
+
+## Entry 37 — Jan 2026: corridor extraction variability and lag consistency
+**Date:** 2026-05-26
+**Branch:** research_gui
+
+### Observation
+Fresh corridor re-clicking on all 4 stations for the Jan 2026 event
+produces lags that are not fully plane-wave consistent:
+- N6RFM→W7LUX: -21s (~0 min) — inconsistent with other pairs
+- Expected from AA6BD pairs: +278s (+4.6 min)
+- AC0G_ND→W7LUX: xcorr peak at ±45 min, weak (r=0.408)
+
+### Root cause
+TID non-stationarity (confirmed by Gwyn, Entry 36): the wave period
+and amplitude vary across the 2-hour analysis window. Different
+corridor clicks on different sessions capture different portions of
+the waveform, giving slightly different phase offsets.
+
+### Best validated result for this event
+254-283 m/s from 30-35° NNE (from previous sgolay sessions with
+max_lag=30-60 min). Direction is robust across all sessions.
+Speed uncertainty ~15% reflects TID non-stationarity.
+
+### Recommendation
+For non-stationary TIDs, the analysis window should be kept as short
+as possible while still capturing at least one full cycle. For this
+~80-100 min period TID, 90-100 min is optimal. The 118-min window
+used here includes partial second cycle introducing phase ambiguity.

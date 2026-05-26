@@ -176,6 +176,85 @@ def extract_autocorr(s_block, fs, search_band_hz=3.0):
     return doppler_hz, snr_db
 
 
+def extract_cwt(s_block, fs, search_band_hz=3.0, state=None):
+    """CWT multi-peak finder with FFT-seeded linear extrapolation."""
+    from scipy import signal as _sig
+    N_TRAIN = 10
+    MAX_STEP_HZ = 0.5
+    LEVEL_DB_THRESHOLD = 15.0
+
+    if state is None:
+        state = {'history': [], 'block_idx': 0}
+
+    n = len(s_block)
+    w = np.hanning(n)
+    spec_full = np.fft.fftshift(np.fft.fft(s_block * w))
+    freqs_full = np.fft.fftshift(np.fft.fftfreq(n, d=1.0/fs))
+    mask = np.abs(freqs_full) <= search_band_hz
+    spec = np.abs(spec_full[mask])
+    freqs = freqs_full[mask]
+    spec_db = 20.0 * np.log10(spec + 1e-12)
+    idx_max = int(np.argmax(spec_db))
+    snr_db = float(spec_db[idx_max] - 20.0*np.log10(np.median(spec)+1e-12))
+
+    # FFT peak with quadratic interpolation
+    def fft_freq():
+        if 0 < idx_max < len(spec)-1:
+            a,b,c = spec[idx_max-1],spec[idx_max],spec[idx_max+1]
+            d = a-2*b+c
+            if d != 0:
+                return float(freqs[idx_max]+0.5*(a-c)/d*(freqs[1]-freqs[0]))
+        return float(freqs[idx_max])
+
+    j = state['block_idx']
+    hist = state['history']
+
+    if j < N_TRAIN:
+        chosen = fft_freq()
+        hist.append((j, chosen))
+        state['block_idx'] += 1
+        return chosen, snr_db
+
+    # CWT peak finding with amplitude filter
+    try:
+        peaks = list(_sig.find_peaks_cwt(spec_db, widths=np.arange(2,4)))
+    except Exception:
+        peaks = [idx_max]
+    threshold = spec_db[idx_max] - LEVEL_DB_THRESHOLD
+    peaks = [p for p in peaks if spec_db[p] >= threshold] or [idx_max]
+
+    # Interpolate candidates
+    def interp(idx, r=2):
+        lo,hi = max(0,idx-r), min(len(spec_db)-1,idx+r)
+        ww = 10**(spec_db[lo:hi+1]/20.0)
+        return float(np.dot(freqs[lo:hi+1],ww)/(ww.sum()+1e-30))
+
+    candidates = [(interp(p), spec_db[p]) for p in peaks]
+    candidates.sort(key=lambda t: -t[1])
+
+    # Linear extrapolation
+    recent = hist[-N_TRAIN:]
+    t_v = np.array([h[0] for h in recent], float)
+    f_v = np.array([h[1] for h in recent], float)
+    tn = t_v - t_v[-1]
+    slope = float(np.polyfit(tn, f_v, 1)[0]) if tn.std()>0 else 0.0
+    predicted = float(np.clip(f_v[-1]+slope, -search_band_hz, search_band_hz))
+
+    best, best_d = None, MAX_STEP_HZ
+    for cf, cl in candidates:
+        d = abs(cf - predicted)
+        if d < best_d:
+            best_d = d
+            best = cf
+    chosen = best if best is not None else fft_freq()
+
+    hist.append((j, chosen))
+    if len(hist) > N_TRAIN*2:
+        hist.pop(0)
+    state['block_idx'] += 1
+    return float(chosen), float(snr_db)
+
+
 def extract_doppler_series(s, fs, block_s, method='fft'):
     """
     Extract Doppler time series from I/Q using block processing.
@@ -196,11 +275,16 @@ def extract_doppler_series(s, fs, block_s, method='fft'):
     n_blocks = len(s) // block_n
     doppler = np.zeros(n_blocks)
     snr = np.zeros(n_blocks)
-    extractor = extract_fft if method == 'fft' else extract_autocorr
-
-    for i in range(n_blocks):
-        blk = s[i * block_n:(i + 1) * block_n]
-        doppler[i], snr[i] = extractor(blk, fs)
+    if method == 'cwt':
+        state = {'history': [], 'block_idx': 0}
+        for i in range(n_blocks):
+            blk = s[i * block_n:(i + 1) * block_n]
+            doppler[i], snr[i] = extract_cwt(blk, fs, state=state)
+    else:
+        extractor = extract_fft if method == 'fft' else extract_autocorr
+        for i in range(n_blocks):
+            blk = s[i * block_n:(i + 1) * block_n]
+            doppler[i], snr[i] = extractor(blk, fs)
 
     return doppler, snr
 
@@ -257,7 +341,7 @@ def run_trial(tid_period_s, dt_s, block_s, duration_s, tid_amp_hz,
     results = {'epsilon': epsilon, 'snr_db': snr_db,
                'tid_period_s': tid_period_s, 'ground_truth_lag_s': ground_truth_lag_s}
 
-    for method in ('fft', 'autocorr'):
+    for method in ('fft', 'autocorr', 'cwt'):
         d1, _ = extract_doppler_series(s1, 1.0/dt_s, block_s, method)
         d2, _ = extract_doppler_series(s2, 1.0/dt_s, block_s, method)
         lag, r = xcorr_lag(d1, d2, block_s, max_lag_s=max_lag)
@@ -324,7 +408,7 @@ def summarise(df):
         one_sample = grp['tid_period_s'].iloc[0] / (grp['tid_period_s'].iloc[0] / 60)
         # "correct lock" = |error| < 1.5 blocks
         block_s = 60.0 if tid_type == 'LSTID' else 10.0
-        for method in ('fft', 'autocorr'):
+        for method in ('fft', 'autocorr', 'cwt'):
             err = grp[f'{method}_lag_err_s']
             rows.append({
                 'tid_type':    tid_type,
@@ -343,11 +427,11 @@ def summarise(df):
 
 # ── Plotting ─────────────────────────────────────────────────────────────────
 
-COLORS = {'fft': '#2196F3', 'autocorr': '#FF9800'}
-LABELS = {'fft': 'FFT', 'autocorr': 'Autocorr'}
-MARKERS = {'fft': 'o', 'autocorr': 's'}
+COLORS = {'fft': '#2196F3', 'autocorr': '#FF9800', 'cwt': '#00CC44'}
+LABELS = {'cwt': 'CWT', 'fft': 'FFT', 'autocorr': 'Autocorr'}
+MARKERS = {'fft': 'o', 'autocorr': 's', 'cwt': '^'}
 
-def plot_results(summary, out_prefix='/home/claude'):
+def plot_results(summary, out_prefix='.'):
     """Generate four-panel comparison figure."""
 
     for tid_type in ('MSTID', 'LSTID'):
@@ -394,7 +478,7 @@ def plot_results(summary, out_prefix='/home/claude'):
 
         # Panel 3: head-to-head RMS at SNR=40
         ax = axes[2]
-        for method in ('fft', 'autocorr'):
+        for method in ('fft', 'autocorr', 'cwt'):
             d = sub[(sub.method == method) & (sub.snr_db == 40)].sort_values('epsilon')
             ax.plot(d.epsilon, d.rms_s, marker=MARKERS[method], lw=2,
                     color=COLORS[method], label=LABELS[method])
@@ -407,7 +491,7 @@ def plot_results(summary, out_prefix='/home/claude'):
 
         # Panel 4: Correct lock rate
         ax = axes[3]
-        for method in ('fft', 'autocorr'):
+        for method in ('fft', 'autocorr', 'cwt'):
             d = sub[(sub.method == method) & (sub.snr_db == 40)].sort_values('epsilon')
             ax.plot(d.epsilon, d.correct_pct, marker=MARKERS[method], lw=2,
                     color=COLORS[method], label=LABELS[method])
@@ -422,7 +506,7 @@ def plot_results(summary, out_prefix='/home/claude'):
 
         # Panel 5: Mean cross-correlation r
         ax = axes[4]
-        for method in ('fft', 'autocorr'):
+        for method in ('fft', 'autocorr', 'cwt'):
             d = sub[(sub.method == method) & (sub.snr_db == 40)].sort_values('epsilon')
             ax.plot(d.epsilon, d.mean_r, marker=MARKERS[method], lw=2,
                     color=COLORS[method], label=LABELS[method])
@@ -439,7 +523,7 @@ def plot_results(summary, out_prefix='/home/claude'):
 
         # Panel 6: Bias
         ax = axes[5]
-        for method in ('fft', 'autocorr'):
+        for method in ('fft', 'autocorr', 'cwt'):
             d = sub[(sub.method == method) & (sub.snr_db == 40)].sort_values('epsilon')
             ax.plot(d.epsilon, d.bias_s, marker=MARKERS[method], lw=2,
                     color=COLORS[method], label=LABELS[method])
@@ -457,7 +541,7 @@ def plot_results(summary, out_prefix='/home/claude'):
         print(f'Saved {outpath}')
 
 
-def plot_example_signals(out_prefix='/home/claude'):
+def plot_example_signals(out_prefix='.'):
     """Show example synthetic Doppler traces at three contamination levels."""
     fig, axes = plt.subplots(3, 2, figsize=(14, 9), sharey='col')
     fig.suptitle('Example Synthetic Doppler Traces: FFT vs Autocorr\n'
@@ -555,18 +639,18 @@ if __name__ == '__main__':
     print()
 
     df = run_experiment(n_trials=50, verbose=True)
-    df.to_csv('/home/claude/synthetic_results_raw.csv', index=False)
+    df.to_csv('./synthetic_results_raw_cwt.csv', index=False)
     print(f"\nRaw results saved: {len(df)} trials")
 
     summary = summarise(df)
-    summary.to_csv('/home/claude/synthetic_results_summary.csv', index=False)
+    summary.to_csv('./synthetic_results_summary_cwt.csv', index=False)
     print(f"Summary saved: {len(summary)} condition rows")
 
     print("\nGenerating example signal figure...")
-    plot_example_signals('/home/claude')
+    plot_example_signals('.')
 
     print("Generating performance figure...")
-    plot_results(summary, '/home/claude')
+    plot_results(summary, '.')
 
     print("\nDone. Key results at SNR=40dB:")
     print()

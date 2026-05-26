@@ -8,6 +8,13 @@ Version: 1.1.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.3.0  Added --method bandpass: adaptive narrow bandpass pre-filter
+          centered on prior block's frequency, then FFT peak. Suppresses
+          E-region component before extraction rather than separating
+          peaks after. No new dependencies.
+  v1.2.0  Added --method cwt: CWT multi-peak finder with linear
+          extrapolation tracker. Separates F-region from E-region
+          by temporal continuity. No new dependencies.
   v1.1.0  Add complex-autocorrelation Doppler extractor (Gwyn Griffiths
           G3ZIL method) alongside the FFT tracker. Select with
           --method autocorr; default remains --method fft so existing
@@ -78,6 +85,58 @@ For each output sample of duration --decim-seconds (default 10 s):
      peak. This gives roughly 0.01 Hz precision on a 10-second block.
   6. Estimate SNR as 20*log10(peak / median magnitude) in dB. Median
      (rather than mean) is robust to spurious in-band tones.
+
+ALGORITHM — CWT MULTI-PEAK TRACKER (--method cwt)
+==========================================
+Uses scipy's Continuous Wavelet Transform peak finder to identify all
+spectral peaks in the search band each block, then uses linear
+extrapolation from the recent history to select the F-region carrier:
+
+  1. FFT spectrum (Hanning window) over the block.
+  2. CWT peak finding (Ricker wavelet, widths 2-4 bins) identifies N
+     candidate peaks — not just the loudest one.
+  3. Local amplitude search refines each CWT peak index to the true
+     local maximum.
+  4. Amplitude-weighted frequency interpolation gives sub-bin accuracy.
+  5. For the first N_TRAIN=10 blocks: take the loudest peak (same as
+     FFT method) to build the training history.
+  6. For subsequent blocks: extrapolate F-region carrier frequency one
+     step ahead using linear regression on the last N_TRAIN samples.
+     Whichever candidate peak is closest to the prediction is assigned
+     as the F-region carrier.
+  7. If a candidate below the level threshold (-80 dB) is selected,
+     fall back to the loudest peak.
+
+This approach handles E-region contamination by exploiting temporal
+continuity — the F-region TID carrier drifts slowly and smoothly,
+while E-region hops can appear/disappear abruptly. Inspired by
+Gwyn Griffiths' (G3ZIL) grape_fft_CWT_tracking_prophet.py but uses
+linear extrapolation instead of Facebook Prophet, giving comparable
+accuracy with no additional dependencies and ~100x faster execution.
+
+ALGORITHM — ADAPTIVE BANDPASS (--method bandpass)
+================================================
+Applies a narrow bandpass filter centered on the previous block's
+extracted frequency before running FFT peak detection. This suppresses
+the E-region component (which sits near a fixed frequency) before
+extraction, rather than trying to separate peaks afterwards.
+
+  1. Training phase (first N_TRAIN=5 blocks): FFT peak extraction to
+     build reliable frequency history. Short training because the
+     bandpass is less sensitive to initialization than CWT.
+  2. Tracking phase:
+     a. Predict center frequency from mean of last N_TRAIN extractions.
+        Clamp to search_band_hz to prevent runaway.
+     b. Apply FIR bandpass filter (scipy.signal.firwin, Hamming window,
+        numtaps=101) centered on prediction, width ±FILTER_HZ.
+     c. Run FFT peak detection on filtered signal.
+     d. If filtered peak is within FILTER_HZ of prediction, accept.
+        Otherwise fall back to unfiltered FFT.
+  3. Output: same CSV format as fft/autocorr.
+
+Filter bandwidth FILTER_HZ=0.6 Hz: wide enough to pass the TID Doppler
+excursion (typ. ±0.5 Hz over 2 hours) but narrow enough to suppress
+E-region when the two components are separated by ≥0.8 Hz.
 
 ALGORITHM — AUTOCORRELATION (--method autocorr)
 ================================================
@@ -244,7 +303,101 @@ def utc_to_drf_sample(dt, sr_num, sr_den):
     return int(round(epoch_seconds * sr_num / sr_den))
 
 
-def estimate_carrier_freq(iq_block, fs_hz, search_band_hz=5.0):
+
+def extract_sgolay_ridge(iq_full, fs_hz, corridor, decim_seconds,
+                         sgolay_window_min=21.0):
+    """
+    2D STFT ridge tracker with SGOLAY smoothing.
+    Reads all I/Q at once, builds full spectrogram, tracks carrier
+    within user-defined corridor using power-weighted centroid,
+    then applies SGOLAY smoothing across time.
+    """
+    from scipy.signal import savgol_filter as _savgol
+    block_size = int(round(decim_seconds * fs_hz))
+    n_blocks   = len(iq_full) // block_size
+    w          = np.hanning(block_size)
+    freqs      = np.fft.fftshift(np.fft.fftfreq(block_size, d=1.0 / fs_hz))
+    dopplers, snrs, t_offsets = [], [], []
+    for k in range(n_blocks):
+        seg   = iq_full[k * block_size:(k + 1) * block_size]
+        t_sec = k * decim_seconds
+        t_offsets.append(t_sec)
+        spec  = np.abs(np.fft.fftshift(np.fft.fft(seg * w)))
+        lo, hi = corridor._lo_hi_from_offset(t_sec)
+        mask  = (freqs >= lo) & (freqs <= hi)
+        if not mask.any():
+            dopplers.append(np.nan); snrs.append(0.0); continue
+        sub_spec  = spec[mask]
+        sub_freqs = freqs[mask]
+        power = sub_spec ** 2
+        total = power.sum()
+        if total < 1e-12:
+            dopplers.append(float(sub_freqs[np.argmax(sub_spec)]))
+            snrs.append(0.0); continue
+        centroid = float(np.sum(sub_freqs * power) / total)
+        peak_snr = 20 * np.log10(sub_spec.max() / (np.median(spec) + 1e-12))
+        dopplers.append(centroid)
+        snrs.append(float(peak_snr))
+    # SGOLAY smoothing across time
+    arr = np.array(dopplers, dtype=float)
+    valid = ~np.isnan(arr)
+    if valid.sum() > 4:
+        win_s = int(round(sgolay_window_min * 60 / decim_seconds))
+        if win_s >= valid.sum(): win_s = valid.sum() - 1
+        if win_s % 2 == 0: win_s -= 1
+        win_s = max(win_s, 5)
+        arr_filled = pd.Series(arr).interpolate().values
+        arr_smooth = _savgol(arr_filled, win_s, 2)
+        print(f"  2D STFT ridge: {n_blocks} blocks, "
+              f"SGOLAY w={win_s} ({win_s*decim_seconds/60:.0f} min)  "
+              f"std {arr_filled.std():.3f} -> {arr_smooth.std():.3f} Hz")
+        dopplers = list(arr_smooth)
+    return dopplers, snrs, t_offsets
+
+class CorridorTrack:
+    """
+    Time-varying frequency corridor loaded from a tid_spect_click.py
+    corridor JSON file.  Provides centre_hz(t_utc) by linear interpolation
+    between the user's clicked points.
+
+    Outside the clicked time range the corridor centre is clamped to the
+    nearest endpoint (flat extrapolation) so extraction still runs at the
+    edges of the window.
+    """
+
+    def __init__(self, json_path):
+        import json as _json
+        with open(json_path) as f:
+            d = _json.load(f)
+        self.half_bw = float(d["half_bandwidth_hz"])
+        pts = d["clicks"]
+        # Sort by time
+        pts = sorted(pts, key=lambda p: p["t_utc_hours"])
+        self._t = np.array([p["t_utc_hours"] for p in pts])
+        self._d = np.array([p["doppler_hz"]   for p in pts])
+        print(f"  Corridor: {len(pts)} points, "
+              f"t={self._t[0]:.2f}-{self._t[-1]:.2f} h, "
+              f"±{self.half_bw} Hz")
+
+    def centre_hz(self, t_utc):
+        """Return interpolated corridor centre at a pandas Timestamp."""
+        t_h = t_utc.hour + t_utc.minute / 60.0 + t_utc.second / 3600.0
+        return float(np.interp(t_h, self._t, self._d))
+
+    def search_lo_hi(self, t_utc):
+        """Return (lo, hi) Hz search limits for a given timestamp."""
+        c = self.centre_hz(t_utc)
+        return c - self.half_bw, c + self.half_bw
+
+    def _lo_hi_from_offset(self, t_sec_offset):
+        """Return (lo, hi) Hz from seconds offset within extraction window."""
+        t_h = self._t[0] + t_sec_offset / 3600.0
+        c = float(np.interp(t_h, self._t, self._d))
+        return c - self.half_bw, c + self.half_bw
+
+
+def estimate_carrier_freq(iq_block, fs_hz, search_band_hz=5.0,
+                          search_lo=None, search_hi=None):
     """FFT peak frequency of a complex I/Q block, restricted to +/- search_band.
 
     Returns
@@ -261,7 +414,10 @@ def estimate_carrier_freq(iq_block, fs_hz, search_band_hz=5.0):
     w = np.hanning(n)
     spec = np.fft.fftshift(np.fft.fft(iq_block * w))
     freqs = np.fft.fftshift(np.fft.fftfreq(n, d=1.0 / fs_hz))
-    mask = np.abs(freqs) <= search_band_hz
+    if search_lo is not None and search_hi is not None:
+        mask = (freqs >= search_lo) & (freqs <= search_hi)
+    else:
+        mask = np.abs(freqs) <= search_band_hz
     if not mask.any():
         return np.nan, 0.0
     sub = np.abs(spec[mask])
@@ -281,6 +437,305 @@ def estimate_carrier_freq(iq_block, fs_hz, search_band_hz=5.0):
         peak_freq = sub_freqs[idx]
     snr_db = 20 * np.log10(sub[idx] / (np.median(sub) + 1e-12))
     return float(peak_freq), float(snr_db)
+
+
+def estimate_carrier_freq_cwt(iq_block, fs_hz, search_band_hz=5.0,
+                              _state=None):
+    """CWT multi-peak finder with FFT-seeded linear-extrapolation tracker.
+
+    Uses FFT to seed the training history (avoids locking onto E-region
+    during contaminated training blocks), then switches to CWT peak
+    selection guided by linear extrapolation for subsequent blocks.
+
+    Training phase (first N_TRAIN blocks):
+        Use FFT result to build a reliable training history. FFT picks
+        the loudest peak which, even on contaminated stations, tends to
+        track the dominant carrier better than a naive CWT peak during
+        the first few blocks.
+
+    Tracking phase (after N_TRAIN blocks):
+        CWT finds all candidate peaks. Linear extrapolation from the
+        training history predicts the expected F-region frequency.
+        Whichever candidate is closest to the prediction (above noise
+        floor) is chosen. Prediction is clamped to search_band_hz to
+        prevent runaway extrapolation.
+
+    Parameters
+    ----------
+    iq_block : array-like of complex
+    fs_hz : float
+    search_band_hz : float
+    _state : dict or None
+        Mutable state dict. Must be the same dict on every call.
+
+    Returns
+    -------
+    doppler_hz : float
+    snr_db : float
+    """
+    from scipy import signal as _sig
+
+    N_TRAIN = 10          # blocks for FFT-seeded training
+    CWT_WIDTHS = (2, 4)   # Ricker wavelet width range (per G3ZIL)
+    LEVEL_FLOOR = -80.0   # dB noise floor
+    MAX_STEP_HZ = 0.5     # max allowed Doppler step between blocks (Hz).
+                          # TID Doppler drifts slowly (<0.05 Hz/min typical);
+                          # E-region hops jump 2-5 Hz abruptly. Any candidate
+                          # more than MAX_STEP_HZ from prediction is rejected
+                          # and we fall back to the FFT peak.
+
+    if _state is None:
+        _state = {'history': [], 'block_idx': 0}
+
+    x = np.asarray(iq_block, dtype=complex)
+    n = len(x)
+    if n < 16:
+        _state['block_idx'] += 1
+        return np.nan, 0.0
+
+    # FFT spectrum (used for both training seed and SNR)
+    w = np.hanning(n)
+    spec_full = np.fft.fftshift(np.fft.fft(x * w))
+    freqs_full = np.fft.fftshift(np.fft.fftfreq(n, d=1.0 / fs_hz))
+    mask = np.abs(freqs_full) <= search_band_hz
+    if not mask.any():
+        _state['block_idx'] += 1
+        return np.nan, 0.0
+
+    spec = np.abs(spec_full[mask])
+    freqs = freqs_full[mask]
+    spec_db = 20.0 * np.log10(spec + 1e-12)
+
+    # SNR from FFT peak vs median
+    idx_max = int(np.argmax(spec_db))
+    snr_db = float(spec_db[idx_max] - 20.0 * np.log10(
+        np.median(spec) + 1e-12))
+
+    # FFT peak with quadratic interpolation (same as --method fft)
+    def fft_peak_freq():
+        idx = idx_max
+        if 0 < idx < len(spec) - 1:
+            a, b, c = spec[idx-1], spec[idx], spec[idx+1]
+            denom = a - 2*b + c
+            if denom != 0:
+                df = freqs[1] - freqs[0]
+                return float(freqs[idx] + 0.5*(a-c)/denom * df)
+        return float(freqs[idx])
+
+    j = _state['block_idx']
+    hist = _state['history']
+
+    if j < N_TRAIN:
+        # Training phase: seed with FFT result for reliability
+        chosen_freq = fft_peak_freq()
+        hist.append((j, chosen_freq))
+        _state['block_idx'] += 1
+        return float(chosen_freq), float(snr_db)
+
+    # Tracking phase: CWT peak finding
+    try:
+        peak_indices = list(_sig.find_peaks_cwt(
+            spec_db, widths=np.arange(*CWT_WIDTHS)))
+    except Exception:
+        peak_indices = [idx_max]
+    if not peak_indices:
+        peak_indices = [idx_max]
+
+    # Filter: keep only peaks within 15 dB of the maximum
+    # Without this, noise produces 40-50 CWT peaks making selection random
+    peak_level_threshold = spec_db[idx_max] - 15.0
+    peak_indices = [pi for pi in peak_indices
+                    if spec_db[pi] >= peak_level_threshold]
+    if not peak_indices:
+        peak_indices = [idx_max]
+
+    # Local refinement ±1 bin
+    refined = []
+    for pi in peak_indices:
+        lo = max(0, pi - 1)
+        hi = min(len(spec_db) - 1, pi + 1)
+        refined.append(lo + int(np.argmax(spec_db[lo:hi+1])))
+    refined = list(dict.fromkeys(refined))
+
+    # Amplitude-weighted interpolation
+    def interp_freq(idx, radius=2):
+        lo = max(0, idx - radius)
+        hi = min(len(spec_db) - 1, idx + radius)
+        w2 = 10 ** (spec_db[lo:hi+1] / 20.0)
+        return float(np.dot(freqs[lo:hi+1], w2) / (w2.sum() + 1e-30))
+
+    candidates = [(interp_freq(ri), spec_db[ri]) for ri in refined]
+    candidates.sort(key=lambda t: -t[1])  # loudest first
+
+    # Linear extrapolation from recent history
+    recent = hist[-N_TRAIN:]
+    t_vals = np.array([h[0] for h in recent], dtype=float)
+    f_vals = np.array([h[1] for h in recent], dtype=float)
+    t_norm = t_vals - t_vals[-1]
+    if t_norm.std() > 0:
+        slope = float(np.polyfit(t_norm, f_vals, 1)[0])
+    else:
+        slope = 0.0
+    predicted = float(np.clip(f_vals[-1] + slope,
+                               -search_band_hz, search_band_hz))
+
+    # Select candidate closest to prediction, within MAX_STEP_HZ of prediction.
+    # Any candidate outside MAX_STEP_HZ is rejected — this prevents locking
+    # onto E-region hops which jump abruptly while TID drifts slowly.
+    # Fallback: FFT peak (same as --method fft for that block).
+    fft_freq = fft_peak_freq()
+    best_freq = None
+    best_dist = MAX_STEP_HZ  # must be WITHIN this distance to be accepted
+    for cfreq, clevel in candidates:
+        if clevel < LEVEL_FLOOR:
+            continue
+        d = abs(cfreq - predicted)
+        if d < best_dist:
+            best_dist = d
+            best_freq = cfreq
+    if best_freq is None:
+        # No CWT candidate within MAX_STEP_HZ — fall back to FFT
+        best_freq = fft_freq
+
+    # Update history
+    hist.append((j, best_freq))
+    if len(hist) > N_TRAIN * 2:
+        hist.pop(0)
+    _state['block_idx'] += 1
+
+    return float(best_freq), float(snr_db)
+
+
+def estimate_carrier_freq_bandpass(iq_block, fs_hz, search_band_hz=5.0,
+                                   _state=None):
+    """Adaptive narrow bandpass pre-filter + FFT peak detection.
+
+    Suppresses E-region component by filtering around the predicted
+    F-region carrier frequency before FFT peak extraction.
+
+    Parameters
+    ----------
+    iq_block : array-like of complex
+    fs_hz : float
+    search_band_hz : float
+    _state : dict or None
+        Mutable state dict. Must be same dict on every call.
+        Keys: 'history' (list of freqs), 'block_idx' (int)
+
+    Returns
+    -------
+    doppler_hz : float
+    snr_db : float
+    """
+    from scipy import signal as _sig
+
+    N_TRAIN   = 5      # short training — bandpass less sensitive to init
+    FILTER_HZ = 0.6    # half-bandwidth of bandpass filter (Hz)
+
+    if _state is None:
+        _state = {'history': [], 'block_idx': 0}
+
+    x = np.asarray(iq_block, dtype=complex)
+    n = len(x)
+
+    # Adaptive filter length: must be odd, at most n//3, minimum 11
+    NUMTAPS = min(101, (n // 3) | 1)   # odd via bitwise OR 1
+    NUMTAPS = max(NUMTAPS, 11)
+    if n < NUMTAPS + 4:
+        # Block too short for any useful filter — fall back to plain FFT
+        _state['block_idx'] += 1
+        w = np.hanning(n)
+        spec = np.abs(np.fft.fftshift(np.fft.fft(x * w)))
+        freqs = np.fft.fftshift(np.fft.fftfreq(n, d=1.0/fs_hz))
+        mask = np.abs(freqs) <= search_band_hz
+        sub = spec[mask]
+        idx = int(np.argmax(sub))
+        snr = float(20.0*np.log10(sub[idx]/(np.median(sub)+1e-12)))
+        return float(freqs[mask][idx]), snr
+
+    # Unfiltered spectrum for SNR (computed once, used throughout)
+    _w = np.hanning(n)
+    _spec_unfiltered = np.abs(np.fft.fftshift(np.fft.fft(x * _w)))
+    _freqs_all = np.fft.fftshift(np.fft.fftfreq(n, d=1.0/fs_hz))
+    _mask_all = np.abs(_freqs_all) <= search_band_hz
+    _sub_unfiltered = _spec_unfiltered[_mask_all]
+    _freqs_sb = _freqs_all[_mask_all]
+
+    def _snr_from_unfiltered(freq):
+        """SNR from unfiltered spectrum at given freq (peak/median)."""
+        return float(20.0 * np.log10(
+            _sub_unfiltered.max() / (np.median(_sub_unfiltered) + 1e-12)))
+
+    # FFT helper — freq from given signal, SNR always from unfiltered
+    def fft_peak(sig):
+        w = np.hanning(len(sig))
+        spec_full = np.fft.fftshift(np.fft.fft(sig * w))
+        freqs_full = np.fft.fftshift(np.fft.fftfreq(len(sig), d=1.0/fs_hz))
+        mask = np.abs(freqs_full) <= search_band_hz
+        spec = np.abs(spec_full[mask])
+        freqs = freqs_full[mask]
+        idx = int(np.argmax(spec))
+        snr = _snr_from_unfiltered(freqs[idx])  # always unfiltered SNR
+        # Quadratic interpolation
+        if 0 < idx < len(spec)-1:
+            a, b, c = spec[idx-1], spec[idx], spec[idx+1]
+            d = a - 2*b + c
+            if d != 0:
+                return float(freqs[idx]+0.5*(a-c)/d*(freqs[1]-freqs[0])), snr
+        return float(freqs[idx]), snr
+
+    j = _state['block_idx']
+    hist = _state['history']
+
+    if j < N_TRAIN:
+        # Training phase: plain FFT
+        freq, snr = fft_peak(x)
+        hist.append(freq)
+        _state['block_idx'] += 1
+        return freq, snr
+
+    # Prediction: mean of recent history, clamped to search band
+    predicted = float(np.clip(np.mean(hist[-N_TRAIN:]),
+                               -search_band_hz, search_band_hz))
+
+    # Design bandpass filter centered on prediction
+    lo = max(predicted - FILTER_HZ,  -fs_hz/2 + 0.01)
+    hi = min(predicted + FILTER_HZ,   fs_hz/2 - 0.01)
+
+    # Normalize to Nyquist (0-1 scale for firwin)
+    nyq = fs_hz / 2.0
+    lo_n = max(lo / nyq + 0.5, 0.01)   # shift: baseband is at 0.5 for complex
+    hi_n = min(hi / nyq + 0.5, 0.99)
+
+    try:
+        # For complex baseband: use lowpass equivalent in frequency-shifted domain
+        # Shift signal to center on prediction, lowpass filter, shift back
+        t = np.arange(n) / fs_hz
+        x_shifted = x * np.exp(-2j * np.pi * predicted * t)
+        h = _sig.firwin(NUMTAPS, FILTER_HZ / nyq,
+                        window='hamming', pass_zero=True)
+        x_filt_shifted = _sig.filtfilt(h, 1.0, x_shifted)
+        x_filtered = x_filt_shifted * np.exp(2j * np.pi * predicted * t)
+
+        freq_filt, snr_filt = fft_peak(x_filtered)
+
+        # Accept filtered result if within FILTER_HZ of prediction
+        if abs(freq_filt - predicted) <= FILTER_HZ * 1.5:
+            chosen_freq = freq_filt
+            chosen_snr = snr_filt
+        else:
+            # Filtered result wandered — fall back to unfiltered FFT
+            chosen_freq, chosen_snr = fft_peak(x)
+
+    except Exception:
+        chosen_freq, chosen_snr = fft_peak(x)
+
+    hist.append(chosen_freq)
+    if len(hist) > N_TRAIN * 3:
+        hist.pop(0)
+    _state['block_idx'] += 1
+
+    return float(chosen_freq), float(chosen_snr)
 
 
 def estimate_carrier_freq_autocorr(iq_block, fs_hz, search_band_hz=5.0):
@@ -411,7 +866,8 @@ def main():
                          "search window around 0 Hz, in Hz. The WWV carrier "
                          "should be within this range after baseband mixing. "
                          "Ignored for --method autocorr. Default: 5.0")
-    ap.add_argument("--method", choices=["fft", "autocorr"], default="fft",
+    ap.add_argument("--method", choices=["fft", "autocorr", "cwt", "bandpass",
+                                         "sgolay-ridge"], default="fft",
                     help="Doppler extraction method. 'fft': FFT peak-tracking "
                          "with quadratic interpolation (default, v1.0 "
                          "behaviour). 'autocorr': complex lag-1 "
@@ -420,6 +876,18 @@ def main():
                          "lag, no detrending). Run the clean-data validation "
                          "gate before using autocorr results in research "
                          "comparisons (see docstring). Default: fft")
+    ap.add_argument("--sgolay-window", type=float, default=21.0,
+                    metavar="MINUTES",
+                    help="SGOLAY smoothing window in minutes for "
+                         "--method sgolay-ridge (default 21 min).")
+    ap.add_argument("--corridor", default=None, metavar="JSON",
+                    help="Path to corridor JSON file written by "
+                         "tid_spect_click.py (press X in the GUI). "
+                         "When provided, the FFT peak search is restricted "
+                         "to a narrow band around the user-clicked carrier "
+                         "track at each time step, rejecting E-region "
+                         "contamination outside the corridor. "
+                         "Only supported with --method fft.")
     ap.add_argument("--smooth", type=float, default=None,
                     metavar="N",
                     help="apply Savitzky-Golay smoothing with N-second "
@@ -433,13 +901,21 @@ def main():
                          "(Doppler trace + SNR). Recommended for sanity-"
                          "checking before downstream analysis.")
     ap.add_argument("--version", action="version",
-                    version="%(prog)s 1.1.0")
+                    version="%(prog)s 1.3.0")
     args = ap.parse_args()
 
     t_start = parse_iso(args.start)
     t_end   = parse_iso(args.end)
     if t_end <= t_start:
         sys.exit("end must be after start")
+
+    corridor = None
+    if args.corridor:
+        if args.method not in ("fft", "sgolay-ridge"):
+            sys.exit("--corridor is only supported with --method fft or sgolay-ridge")
+        corridor = CorridorTrack(args.corridor)
+    if args.method == "sgolay-ridge" and not args.corridor:
+        sys.exit("--method sgolay-ridge requires --corridor")
 
     if not _HAVE_DRF:
         sys.exit("digital_rf not installed. Run: pip install digital_rf")
@@ -486,41 +962,97 @@ def main():
     print(f"Producing {n_blocks} samples at {args.decim_seconds}s cadence")
 
     # Select estimator function once, outside the loop
+    # CWT method is stateful (needs inter-block history) so handled separately
     if args.method == "autocorr":
         _estimate = estimate_carrier_freq_autocorr
+        _cwt_state = None
+        _bp_state = None
+    elif args.method == "cwt":
+        _estimate = None   # handled in loop
+        _cwt_state = {'history': [], 'block_idx': 0}
+        _bp_state = None
+    elif args.method == "bandpass":
+        _estimate = None   # handled in loop
+        _cwt_state = None
+        _bp_state = {'history': [], 'block_idx': 0}
     else:
         _estimate = estimate_carrier_freq
+        _cwt_state = None
+        _bp_state = None
 
     times = []
     dopplers = []
     snrs = []
 
+    # sgolay-ridge: read all I/Q at once, use 2D STFT ridge tracker
+    if args.method == 'sgolay-ridge':
+        print('  Reading all I/Q for 2D STFT ridge extraction...')
+        iq_chunks = []
+        for k in range(n_blocks):
+            seg_start_k = s_start + k * block_size
+            try:
+                iq_k = reader.read_vector(seg_start_k, block_size, args.channel)
+            except Exception as e:
+                print(f'  block {k}: read error {e}, using zeros')
+                iq_k = np.zeros(block_size, dtype=complex)
+            if iq_k.ndim == 2:
+                iq_k = iq_k[:, args.subchannel]
+            iq_chunks.append(iq_k)
+        iq_full = np.concatenate(iq_chunks)
+        print(f'  Loaded {len(iq_full):,} samples ({len(iq_full)/fs_hz/60:.1f} min)')
+        dopplers, snrs, t_offsets = extract_sgolay_ridge(
+            iq_full, fs_hz, corridor, args.decim_seconds, args.sgolay_window
+        )
+        times = [
+            pd.Timestamp(s_start * sr_den / sr_num + t, unit='s', tz='UTC')
+            for t in t_offsets
+        ]
+
+
     # Progress dots: print roughly 40 across the loop so long extractions
     # (e.g. 24-hour survey at 60s cadence ~= 1438 blocks) show signs of
     # life. For short extractions, dots-per-block ratio still works out
     # to something reasonable.
-    dot_interval = max(1, n_blocks // 40)
-    for k in range(n_blocks):
-        if k % dot_interval == 0:
-            sys.stdout.write(".")
-            sys.stdout.flush()
-        seg_start = s_start + k * block_size
-        try:
-            iq = reader.read_vector(seg_start, block_size, args.channel)
-        except Exception as e:
-            print(f"  block {k}: read error {e}, skipping")
-            continue
-
-        # Handle multi-subchannel DRF (shape: (N, n_subchannels))
-        if iq.ndim == 2:
-            iq = iq[:, args.subchannel]
-
-        f_hz, snr = _estimate(iq, fs_hz, args.search_band_hz)
-        ts = pd.Timestamp(seg_start * sr_den / sr_num, unit="s", tz="UTC")
-        times.append(ts)
-        dopplers.append(f_hz)
-        snrs.append(snr)
-
+    if args.method != 'sgolay-ridge':
+        dot_interval = max(1, n_blocks // 40)
+        for k in range(n_blocks):
+            if k % dot_interval == 0:
+                sys.stdout.write(".")
+                sys.stdout.flush()
+            seg_start = s_start + k * block_size
+            try:
+                iq = reader.read_vector(seg_start, block_size, args.channel)
+            except Exception as e:
+                print(f"  block {k}: read error {e}, skipping")
+                continue
+    
+            # Handle multi-subchannel DRF (shape: (N, n_subchannels))
+            if iq.ndim == 2:
+                iq = iq[:, args.subchannel]
+    
+            if _cwt_state is not None:
+                f_hz, snr = estimate_carrier_freq_cwt(
+                    iq, fs_hz, args.search_band_hz, _cwt_state)
+            elif _bp_state is not None:
+                f_hz, snr = estimate_carrier_freq_bandpass(
+                    iq, fs_hz, args.search_band_hz, _bp_state)
+            else:
+                if corridor is not None:
+                    ts_probe = pd.Timestamp(
+                        seg_start * sr_den / sr_num, unit="s", tz="UTC"
+                    )
+                    lo, hi = corridor.search_lo_hi(ts_probe)
+                    f_hz, snr = _estimate(
+                        iq, fs_hz, args.search_band_hz,
+                        search_lo=lo, search_hi=hi
+                    )
+                else:
+                    f_hz, snr = _estimate(iq, fs_hz, args.search_band_hz)
+            ts = pd.Timestamp(seg_start * sr_den / sr_num, unit="s", tz="UTC")
+            times.append(ts)
+            dopplers.append(f_hz)
+            snrs.append(snr)
+    
     df = pd.DataFrame({
         "timestamp_utc": times,
         "doppler_hz": dopplers,
@@ -535,7 +1067,7 @@ def main():
     else:
         df.to_csv(args.output, index=False)
 
-    if n_blocks > 0:
+    if args.method != "sgolay-ridge" and n_blocks > 0:
         sys.stdout.write("\n")
         sys.stdout.flush()
     print(f"Wrote {len(df)} rows to {args.output}")
