@@ -1910,3 +1910,39 @@ IPP midpoint coordinates were used correctly.
 Update the draft document to report 283 m/s and add peak-time
 cross-check as independent validation of the sgolay-ridge result.
 This will be the first physically validated result from psws-drf-tid-tools.
+
+---
+
+## Entry 34 — Jan 2026: max_lag_seconds constraint improves result
+**Date:** 2026-05-26
+**Branch:** research_gui
+
+### Problem
+Default max_lag_seconds=5828s (58 min) allowed AC0G_ND→N6RFM xcorr
+to find the +27 min alias peak (r=0.576) instead of being constrained
+to the true peak region.
+
+### Fix
+Set max_lag_seconds=1800s (30 min) in event JSON. This forces xcorr
+to search only within ±30 min, eliminating the alias.
+
+### Result with max_lag_seconds=1800
+- Speed: 254 m/s from 31° (NNE)
+- vs unrestricted: 283 m/s from 30°
+- vs peak-time: ~281 m/s from ~33°
+
+### Summary of Jan 2026 results
+| Method | Speed | From |
+|--------|-------|------|
+| sgolay DOA (unrestricted) | 283 m/s | 30° |
+| sgolay DOA (30 min max) | 254 m/s | 31° |
+| Peak-time direct | ~281 m/s | ~33° |
+
+Best estimate: **254-283 m/s from 30-33° NNE**.
+Direction is robust across all methods. Speed uncertainty ~10%.
+
+### Recommendation
+Always set max_lag_seconds in event JSON when TID period is known.
+For this event (~80-100 min period), 30 min is appropriate — it
+allows lags up to one-third of the period, preventing aliasing while
+covering the expected lag range for this array geometry.
