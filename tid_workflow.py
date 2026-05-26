@@ -408,9 +408,11 @@ def run_workflow(args):
         print("  2. fft           (automated)")
         print("  3. autocorr      (automated, Gwyn G3ZIL method)")
         print("  4. cwt           (automated, CWT multi-peak tracker)")
+        print("  5. cwt-prophet   (automated, CWT + Facebook Prophet predictor)")
         choice = input("Choose [1]: ").strip() or "1"
         method = {"1": "sgolay-ridge", "2": "fft",
-                  "3": "autocorr", "4": "cwt"}.get(choice, "sgolay-ridge")
+                  "3": "autocorr", "4": "cwt",
+                  "5": "cwt-prophet"}.get(choice, "sgolay-ridge")
         state["extraction_method"] = method
         save_state(state_file, state)
     else:
