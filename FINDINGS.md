@@ -1197,6 +1197,32 @@ interpolation (Entry 15) remains the trusted result for this event.
 
 ---
 
+## Entry 20 — sgolay-ridge on all stations: first complete 4-station result
+**Date:** 2026-05-24
+**Branch:** research_gui
+**NOTE:** This entry was missing from FINDINGS.md. Reconstructed 2026-05-26.
+
+### What was done
+Applied sgolay-ridge corridor extraction to all 4 stations simultaneously
+for the May 2024 LSTID event. Previous entries used sgolay-ridge on only
+one or two stations while others used FFT — creating phase offset biases
+that corrupted DOA results.
+
+### Key insight
+For the DOA cross-correlation biases to cancel, ALL stations must use
+the same extraction method. Mixing sgolay-ridge and FFT introduces a
+systematic ~60s phase offset between stations, corrupting triangle closure.
+
+### Result
+When all 4 stations use corridor + sgolay-ridge:
+- Speed: 267 m/s from 242° (WSW)
+- All 5 diagnostics pass
+- Triangle closure: 6.9%
+- This superseded the earlier 458 m/s result (Entry 21) which used
+  mixed methods and incorrect (receiver rather than IPP) coordinates.
+
+---
+
 ## Entry 21 — Complete guided workflow validated: 458 m/s WSW LSTID
 **NOTE: superseded by Entry 22 (267 m/s, 242° WSW) which uses correct IPP coordinates and 4 stations.**
 **Date:** 2026-05-24
@@ -1886,32 +1912,6 @@ Always set max_lag_seconds in event JSON when TID period is known.
 For this event (~80-100 min period), 30 min is appropriate — it
 allows lags up to one-third of the period, preventing aliasing while
 covering the expected lag range for this array geometry.
-
----
-
-## Entry 20 — sgolay-ridge on all stations: first complete 4-station result
-**Date:** 2026-05-24
-**Branch:** research_gui
-**NOTE:** This entry was missing from FINDINGS.md. Reconstructed 2026-05-26.
-
-### What was done
-Applied sgolay-ridge corridor extraction to all 4 stations simultaneously
-for the May 2024 LSTID event. Previous entries used sgolay-ridge on only
-one or two stations while others used FFT — creating phase offset biases
-that corrupted DOA results.
-
-### Key insight
-For the DOA cross-correlation biases to cancel, ALL stations must use
-the same extraction method. Mixing sgolay-ridge and FFT introduces a
-systematic ~60s phase offset between stations, corrupting triangle closure.
-
-### Result
-When all 4 stations use corridor + sgolay-ridge:
-- Speed: 267 m/s from 242° (WSW)
-- All 5 diagnostics pass
-- Triangle closure: 6.9%
-- This superseded the earlier 458 m/s result (Entry 21) which used
-  mixed methods and incorrect (receiver rather than IPP) coordinates.
 
 ---
 
