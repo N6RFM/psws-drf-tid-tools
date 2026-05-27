@@ -326,8 +326,8 @@ class SpectClickApp(QtWidgets.QMainWindow):
         # Phase click scatter
         self.scatter = pg.ScatterPlotItem(
             size=9,
-            brush=pg.mkBrush("#ff4444"),
-            pen=pg.mkPen(None),
+            brush=pg.mkBrush("#000000"),
+            pen=pg.mkPen(color="#ffffff", width=1),
         )
         self.plot.addItem(self.scatter)
 
@@ -789,6 +789,86 @@ class SpectClickApp(QtWidgets.QMainWindow):
         except Exception as _e:
             self._set_status(f"Prophet overlay failed: {_e}")
 
+
+    def _export_spline_csv(self):
+        """Export spline interpolated through anchor clicks as final CSV.
+        No CWT or DRF processing — the spline IS the extracted Doppler.
+        Requires at least 2 anchor clicks spanning the segment window.
+        """
+        if len(self.clicks_t) < 2:
+            self._set_status("Need at least 2 anchor clicks to export spline")
+            return
+        import numpy as _np_sp
+        import pandas as _pd_sp
+        from scipy.interpolate import PchipInterpolator as _Pchip_sp
+        import json as _json_sp, re as _re_sp
+
+        # Get date from sidecar
+        import os as _os_sp
+        date_str = None
+        _sidecar = str(self.img_path).replace(".png", "_axes.json")
+        if _os_sp.path.exists(_sidecar):
+            try:
+                _sc = _json_sp.load(open(_sidecar))
+                date_str = _sc.get("date_utc")
+            except Exception:
+                pass
+        if not date_str:
+            for _s in [str(self.img_path), str(self.drf_dir or "")]:
+                _m = _re_sp.search(r"(\d{4}-\d{2}-\d{2})", _s)
+                if _m:
+                    date_str = _m.group(1)
+                    break
+        if not date_str:
+            date_str = "2026-01-19"
+
+        # Sort anchors by time
+        pairs = sorted(zip(self.clicks_t, self.clicks_d))
+        t_arr = _np_sp.array([p[0] for p in pairs])
+        d_arr = _np_sp.array([p[1] for p in pairs])
+
+        # Clamp to segment window — hold first/last anchor value flat
+        if t_arr[0] > self.seg_t0:
+            t_arr = _np_sp.concatenate([[self.seg_t0], t_arr])
+            d_arr = _np_sp.concatenate([[d_arr[0]], d_arr])
+        if t_arr[-1] < self.seg_t1:
+            t_arr = _np_sp.concatenate([t_arr, [self.seg_t1]])
+            d_arr = _np_sp.concatenate([d_arr, [d_arr[-1]]])
+
+        # Build dense time grid at decim_seconds resolution
+        decim = 60.0  # seconds
+        t0_sec = self.seg_t0 * 3600
+        t1_sec = self.seg_t1 * 3600
+        t_seconds = _np_sp.arange(t0_sec, t1_sec + decim, decim)
+        t_hours = t_seconds / 3600.0
+
+        # Spline interpolation
+        spline = _Pchip_sp(t_arr, d_arr)
+        doppler = spline(t_hours)
+
+        # Build timestamps
+        base = _pd_sp.Timestamp(f"{date_str}T00:00:00+00:00")
+        timestamps = [base + _pd_sp.Timedelta(seconds=float(s)) for s in t_seconds]
+
+        df = _pd_sp.DataFrame({
+            "timestamp_utc": timestamps,
+            "doppler_hz": doppler,
+            "snr_db": [50.0] * len(doppler)  # placeholder SNR
+        })
+
+        out = Path(self.img_path).parent / (
+            Path(self.img_path).stem.replace("_tid_zoom_clean", "")
+            + "_spline_tid.csv")
+        df.to_csv(out, index=False)
+
+        # Also update preview curve
+        self.preview_curve.setData(list(t_hours), list(doppler))
+
+        n = len(self.clicks_t)
+        self._set_status(
+            f"Spline exported: {out.name}  ({n} anchors, {len(df)} rows)")
+        print(f"Spline CSV exported: {out}")
+
     def _export_prophet_csv(self):
         """Export the current prophet CSV as the final output."""
         if not self._prophet_csv or not Path(self._prophet_csv).exists():
@@ -846,7 +926,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
     # ------------------------------------------------------------------
 
     def _install_shortcuts(self):
-        for key, cb in [("X", self._export_prophet_csv),
+        for key, cb in [("X", self._export_spline_csv),
                         ("P", self._run_prophet_preview),
                         ("R", self._reset_clicks), ("C", self._clear_all),
                         ("Q", self.close)]:

@@ -1052,8 +1052,8 @@ def main():
                          "search window around 0 Hz, in Hz. The WWV carrier "
                          "should be within this range after baseband mixing. "
                          "Ignored for --method autocorr. Default: 5.0")
-    ap.add_argument("--method", choices=["fft", "autocorr", "cwt", "cwt-prophet", "bandpass",
-                                         "sgolay-ridge"], default="fft",
+    ap.add_argument("--method", choices=["fft", "autocorr", "cwt", "cwt-prophet", "spline",
+                                         "bandpass", "sgolay-ridge"], default="fft",
                     help="Doppler extraction method. 'fft': FFT peak-tracking "
                          "with quadratic interpolation (default, v1.0 "
                          "behaviour). 'autocorr': complex lag-1 "
