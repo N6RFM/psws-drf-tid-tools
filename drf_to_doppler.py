@@ -713,8 +713,6 @@ def estimate_carrier_freq_cwt_prophet(iq_block, fs_hz, search_band_hz=5.0,
     # Prophet prediction — use pre-fit forecast lookup if available
     recent = hist[-N_TRAIN:]  # for fallback
     _forecast_lookup = _state.get('prophet_forecast', {})
-    if _state.get('block_idx', -1) == 0:
-        print(f"  DEBUG block0: pre_seeded={_pre_seeded} forecast_len={len(_forecast_lookup)} j={j} j_in_fc={j in _forecast_lookup}")
     if _forecast_lookup and j in _forecast_lookup:
         predicted = float(np.clip(_forecast_lookup[j],
                                    -search_band_hz, search_band_hz))

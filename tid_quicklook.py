@@ -149,7 +149,7 @@ class QuicklookApp(QtWidgets.QMainWindow):
         out = self.img_path.parent / (self.img_path.stem + "_window.json")
         data = {
             "spectrogram_png": self.img_path.name,
-            "t_start_utc_hours": round(t0, 4),
+            "t_start_utc_hours": round(max(0.0, t0), 4),
             "t_end_utc_hours":   round(t1, 4),
             "_note": "TID window selected by tid_quicklook.py — "
                      "used by tid_spect_click.py to pre-set segment"
