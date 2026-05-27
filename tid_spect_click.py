@@ -595,7 +595,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self._update_status()
         n = len(self.clicks_t)
         self._set_status(
-            f"{n} anchor(s).  A=accept region  P=re-run Prophet  X=export  R=reset  Q=quit")
+            f"{n} anchor(s).  P=re-run Prophet  X=export  R=reset  Q=quit")
 
     def _refresh_scatter(self):
         if self.clicks_t:
@@ -790,7 +790,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
             ts = _dt.datetime.now().strftime("%H:%M:%S")
             self._set_status(
                 f"[{ts}] Pass {self._prophet_pass} — {n} anchor(s).  "
-                f"Click F-region carrier to add anchors  A=accept region  P=re-run Prophet  X=export  R=reset  Q=quit")
+                f"Click F-region carrier to add anchors  P=re-run Prophet  X=export  R=reset  Q=quit")
         except Exception as _e:
             self._set_status(f"Prophet overlay failed: {_e}")
 
@@ -836,7 +836,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self.scatter.update()
         self.preview_curve.setData([], [])
         self._set_status(
-            "Accepted ✓  Clicks cleared — click next problem region, A to accept again, X to export final")
+            "Accepted ✓  Clicks cleared — click next problem region, X to export final")
         print(f"  Accepted spline as new baseline: {tmp.name}")
 
     def _export_spline_csv(self, _accept_path=None):
@@ -1007,7 +1007,6 @@ class SpectClickApp(QtWidgets.QMainWindow):
 
     def _install_shortcuts(self):
         for key, cb in [("X", self._export_spline_csv),
-                        ("A", self._accept_spline),
                         ("P", self._run_prophet_preview),
                         ("R", self._reset_clicks), ("C", self._clear_all),
                         ("Q", self.close)]:
