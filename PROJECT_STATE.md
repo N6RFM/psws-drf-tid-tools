@@ -977,3 +977,26 @@ and FINDINGS entries 40-42 on research_gui branch.
 Priority: (1) test spline extraction on all 4 Jan 2026 stations,
 (2) run DOA with spline CSVs and compare with sgolay-ridge,
 (3) push tid_spect_click and drf_to_doppler improvements to main."
+
+---
+## 34. End of session — 2026-05-27 (very late)
+
+### Accomplished
+- All docs updated: COOKBOOK, METHODOLOGY, TROUBLESHOOTING, ASSESSING_RESULTS
+- research/, FINDINGS.md, PROJECT_STATE.md, SESSION_LOG.md, GUI_TUTORIAL.md removed from main
+- debug print removed from drf_to_doppler.py
+- tid_quicklook.py negative window clamped at source
+- All three branches synced: main, research_gui, gwyn-g3zil
+- v2.2.0 tagged and released
+
+### Current state
+main: v2.2.0 clean, all docs current
+research_gui/gwyn-g3zil: synced with main + research notes
+
+### Resume command
+cd ~/psws-tools-pr && git checkout research_gui
+"Continuing psws-drf-tid-tools. Read PROJECT_STATE.md sections 32-34
+and FINDINGS entries 42-43 on research_gui branch.
+Priority: (1) run May 2024 analysis with spline extraction,
+(2) compare spline vs sgolay vs automated on all stations,
+(3) send updated results to Gwyn: 239 m/s from 30 NNE Jan 2026."
