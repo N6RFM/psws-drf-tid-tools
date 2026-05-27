@@ -14,7 +14,8 @@ Automates the 10-step guided extraction workflow:
   Step 3:  User selects TID window (tid_quicklook.py)
   Step 4:  Zoomed spectrogram
   Step 5:  Optionally refine TID window (opt-in)
-  Step 6:  sgolay-ridge: corridor clicking  |  fft/autocorr/cwt: automated extraction
+  Step 6:  cwt-prophet/sgolay-ridge: interactive spline extraction (Pass 0 auto + click-to-correct)
+           fft/autocorr/cwt: fully automated extraction
   Step 7:  sgolay-ridge: sgolay extraction  |  fft: overlay spectrogram  |  autocorr/cwt: (none)
   Step 8:  DOA (tid_doa.py)
 
@@ -412,15 +413,15 @@ def run_workflow(args):
     # ── Method selection ─────────────────────────────────────────────────
     if "extraction_method" not in state:
         print("\nExtraction method:")
-        print("  1. sgolay-ridge  (corridor GUI — recommended)")
+        print("  1. cwt-prophet   (interactive spline — recommended)")
         print("  2. fft           (automated)")
         print("  3. autocorr      (automated, Gwyn G3ZIL method)")
         print("  4. cwt           (automated, CWT multi-peak tracker)")
-        print("  5. cwt-prophet   (automated, CWT + Facebook Prophet predictor)")
+        print("  5. sgolay-ridge  (interactive spline, legacy corridor method)")
         choice = input("Choose [1]: ").strip() or "1"
-        method = {"1": "sgolay-ridge", "2": "fft",
+        method = {"1": "cwt-prophet", "2": "fft",
                   "3": "autocorr", "4": "cwt",
-                  "5": "cwt-prophet"}.get(choice, "sgolay-ridge")
+                  "5": "sgolay-ridge"}.get(choice, "cwt-prophet")
         state["extraction_method"] = method
         save_state(state_file, state)
     else:
