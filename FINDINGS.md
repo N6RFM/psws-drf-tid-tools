@@ -2223,3 +2223,35 @@ No wrong-peak lock possible. Click count = quality metric.
 PCHIP can overshoot between distant anchor clusters. Mitigated by:
 - Using last accepted CSV as baseline outside anchor range
 - User placing anchors densely in problem regions
+
+---
+
+## Entry 43 — Jan 2026: best DOA result with spline extraction
+**Date:** 2026-05-27
+**Branch:** research_gui
+
+### Method
+cwt-prophet Pass 0 auto-run + spline extraction via tid_spect_click.py
+All 4 stations: N6RFM, AA6BD, W7LUX, AC0G_ND
+
+### Result
+- Phase speed: 239 m/s
+- Coming from: 30 deg (NNE)
+- Heading toward: 210 deg (SSW)
+- Only 1/5 diagnostics flagged ([2] residual 45%)
+- Triangle closure: 13% (just inside guideline)
+- All correlations >= 0.45 (no weak pairs)
+
+### Comparison with previous best
+| Run | Speed | From | Flags |
+|-----|-------|------|-------|
+| Spline (this run) | 239 m/s | 30 NNE | 1/5 |
+| sgolay-ridge run A | 257 m/s | 37 NNE | 3/5 |
+| sgolay-ridge run B | 218 m/s | 35 NNE | 3/5 |
+| Peak-time direct | ~281 m/s | ~33 NNE | N/A |
+
+### Key finding
+Spline extraction significantly improved AC0G_ND correlations
+(previously r=0.34-0.38, now r=0.45-0.48). The interactive
+spline correction allowed better tracking of the F-region carrier
+through the contaminated region, reducing wrong-peak lock.
