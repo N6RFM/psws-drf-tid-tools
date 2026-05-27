@@ -2,7 +2,7 @@
 
 Task-oriented recipes for everyday use of **psws-drf-tid-tools**.
 For a full narrative walkthrough of a complete analysis, see the
-[tutorial](TUTORIAL.md). For when something goes wrong, see the
+[workflow tutorial](../WORKFLOW_TUTORIAL.md). For when something goes wrong, see the
 [troubleshooting guide](TROUBLESHOOTING.md).
 
 Every script accepts `--help` and `--version`.
@@ -138,9 +138,8 @@ python3 drf_to_doppler.py ./ac0g_nd \
     --output ac0g_nd_autocorr.csv
 ```
 
-Default is `--method fft`. For LSTID events (long period, lag near
-30-50% of period) FFT is preferred — autocorr's smoothness can cause
-wrong-peak lock on ambiguous cross-correlation curves.
+Default is `--method fft`. For best results on contaminated stations,
+use the interactive spline extraction (see recipe below).
 
 ### How do I compare FFT and autocorr side by side?
 
@@ -158,6 +157,53 @@ The legend shows inter-method Pearson r and RMS diff. r > 0.95 and
 RMS < 0.10 Hz means both methods are equivalent — use FFT. See
 `docs/METHODOLOGY.md` Step 1b for the full decision guide.
 
+### How do I use the interactive spline extraction (recommended)?
+
+The interactive spline tool gives the most reliable results, especially
+for stations with E-region contamination. Launch via `tid_workflow.py`
+(recommended, method 1) or directly:
+
+```bash
+python3 tid_spect_click.py \
+    --spectrogram station_tid_zoom_clean.png \
+    --name STATION \
+    --drf-dir ./station \
+    --subchannel 0 \
+    --corridor-width 0.4 \
+    --seg-start 0 --seg-end 2
+```
+
+On open, cwt-prophet runs automatically (Pass 0). Key bindings:
+
+    Click   Add anchor on F-region carrier (slow oscillation near 0 Hz)
+    P       Re-run Prophet with anchors as constraints
+    X       Export spline CSV and set as baseline for further corrections
+    R       Reset clicks
+    Q       Quit
+
+The PCHIP spline through anchor clicks IS the extracted Doppler.
+No wrong-peak lock possible. Output: `station_spline_tid.csv`
+
+**Multi-region corrections:** after pressing X, click on another
+problem region and press X again. Each X sets the exported CSV as
+the new baseline.
+
+### How do I use anchor-guided cwt-prophet extraction?
+
+Pass an anchors JSON (written automatically by `tid_spect_click.py`)
+to constrain the CWT search around a user-defined spline:
+
+```bash
+python3 drf_to_doppler.py ./station \
+    --subchannel 0 \
+    --start 2026-01-19T00:00:00 --end 2026-01-19T02:00:00 \
+    --decim-seconds 60 --method cwt-prophet \
+    --anchors station_tid_zoom_clean_anchors.json \
+    --corridor-width 0.4 \
+    --output station_cwt_prophet_tid.csv
+```
+
+---
 ## Spectrograms
 
 ### How do I make an annotated spectrogram?

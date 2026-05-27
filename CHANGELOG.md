@@ -1,3 +1,48 @@
+## v2.2.0 — 2026-05-27
+
+### Interactive spline extraction (tid_spect_click.py)
+
+Major rewrite of the extraction GUI. The new workflow:
+
+1. **Pass 0 (automatic):** On open, cwt-prophet runs automatically and
+   shows a green trace overlay. No clicks needed for clean stations.
+2. **Click to correct:** Click on the F-region carrier at any excursion
+   (black dots with white border). Live PCHIP spline preview updates
+   after each click.
+3. **P** to re-run Prophet with current anchor clicks as constraints.
+4. **X** to export the final spline CSV and set it as baseline for
+   further corrections.
+5. **R** to reset all clicks. **Q** to quit.
+
+The spline through user anchor clicks IS the extracted Doppler — no
+wrong-peak lock possible. Click count is a quality metric: clean
+stations need 0 clicks.
+
+Key bindings are always shown in the status bar.
+
+### tid_workflow.py: cwt-prophet as default method
+
+- cwt-prophet is now method 1 (recommended) and opens the interactive
+  spline window automatically
+- sgolay-ridge also opens the interactive spline window
+- Negative segment start times are clamped to 00:00 UTC
+
+### Validated result
+
+Best result to date on the Jan 2026 LSTID event (4 stations, spline
+extraction): **239 m/s from 30° NNE**, only 1 of 5 diagnostics
+flagged, triangle closure 13%.
+
+### Documentation cleanup
+
+- Removed obsolete docs: `docs/TUTORIAL.md`, `docs/AUTOMATION.md`,
+  `docs/QUALITY_SUMMARY_WORKED_EXAMPLE.md`, `docs/pipeline_flow.*`
+- Removed research-only files from main: `FINDINGS.md`,
+  `PROJECT_STATE.md`, `SESSION_LOG.md`, `GUI_TUTORIAL.md`, `research/`
+- Updated cross-references in `docs/COOKBOOK.md`, `METHODOLOGY.md`,
+  `TROUBLESHOOTING.md`, `ASSESSING_RESULTS.md`
+- `WORKFLOW_TUTORIAL.md` and `MANUAL_TUTORIAL.md` updated for v2.2.0
+
 ## v2.0.1 — 2026-05-27
 
 ### New extraction method: cwt-prophet
