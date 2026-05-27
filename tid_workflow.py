@@ -562,7 +562,7 @@ def run_workflow(args):
                     "--drf-dir", drf_dir_s,
                     "--subchannel", str(sub),
                     "--corridor-width", "0.4",
-                    "--seg-start", str(t0_h),
+                    "--seg-start", str(max(0.0, t0_h)),
                     "--seg-end",   str(t1_h),
                 ])
                 if not spline_csv.exists():
