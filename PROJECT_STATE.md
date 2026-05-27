@@ -912,59 +912,32 @@ Priority: (1) send email to Gwyn with comparison plots,
 (3) fix tid_quicklook.py negative window clamping at source."
 
 ---
-## 30. End of session — 2026-05-26 (late)
-
-### Accomplished
-- cwt-prophet method added to drf_to_doppler.py
-- All-station all-method comparison plot generated
-- AA6BD corridor identification: bright arc IS F-region TID (not E-region)
-- Grid squares added to KNOWN_STATIONS, --grid passed to all spectrograms
-- All zoom PNGs regenerated with correct callsign/grid titles
-- FINDINGS entries 38-40 added
-
-### Final Jan 2026 DOA result
-- Speed: 223 m/s from 35° NNE (correct AA6BD corridor)
-- Direction robust 31-37° NNE across all runs ✅
-- AC0G_ND lag ambiguity remains — alias peaks stronger than physical
-- TID non-stationarity confirmed as root cause of high residuals
-
-### Key finding: cwt-prophet == fft
-Prophet gives no advantage over linear extrapolation on these events.
-Only sgolay-ridge reliably avoids wrong-peak lock on contaminated stations.
-
-### Resume command
-cd ~/psws-tools-pr && git checkout research_gui
-"Continuing psws-drf-tid-tools. Read PROJECT_STATE.md sections 28-30
-and FINDINGS entries 37-40 on research_gui branch.
-Priority: (1) send email to Gwyn with comparison plots,
-(2) update Jan 2026 analysis document with 223-283 m/s result,
-(3) fix tid_quicklook.py negative window clamping at source."
 
 ---
-## 30. End of session — 2026-05-26 (late)
+## 31. End of session — 2026-05-27
 
 ### Accomplished
-- cwt-prophet method added to drf_to_doppler.py
-- All-station all-method comparison plot generated
-- AA6BD corridor identification: bright arc IS F-region TID (not E-region)
-- Grid squares added to KNOWN_STATIONS, --grid passed to all spectrograms
-- All zoom PNGs regenerated with correct callsign/grid titles
-- FINDINGS entries 38-40 added
+- cwt-prophet method implemented and compared with all other methods
+- All-station all-method comparison plots generated (4 stations, 5 methods)
+- AA6BD carrier identified: bright arc IS F-region TID, not E-region
+- May 2024 event: cwt-prophet DOA gives 203 m/s from 50 NNE
+- Without AC0G_ND: 3-station array near-collinear, speed unphysical
+- Grid squares added to KNOWN_STATIONS, --grid passed to spectrograms
+- Comparative results report prepared for Gwyn
+- v2.0.1 released to main with cwt-prophet, W/E longitude, grid squares
+- Branches cleaned up: only main, research_gui, gwyn-g3zil remain
 
-### Final Jan 2026 DOA result
-- Speed: 223 m/s from 35° NNE (correct AA6BD corridor)
-- Direction robust 31-37° NNE across all runs ✅
-- AC0G_ND lag ambiguity remains — alias peaks stronger than physical
-- TID non-stationarity confirmed as root cause of high residuals
-
-### Key finding: cwt-prophet == fft
-Prophet gives no advantage over linear extrapolation on these events.
-Only sgolay-ridge reliably avoids wrong-peak lock on contaminated stations.
+### Key finding
+cwt-prophet == fft on all tested events. Prophet gives no advantage
+over linear extrapolation for smooth TID signals. sgolay-ridge remains
+the only method that reliably avoids wrong-peak lock on contaminated
+stations.
 
 ### Resume command
 cd ~/psws-tools-pr && git checkout research_gui
-"Continuing psws-drf-tid-tools. Read PROJECT_STATE.md sections 28-30
-and FINDINGS entries 37-40 on research_gui branch.
-Priority: (1) send email to Gwyn with comparison plots,
-(2) update Jan 2026 analysis document with 223-283 m/s result,
-(3) fix tid_quicklook.py negative window clamping at source."
+"Continuing psws-drf-tid-tools. Read PROJECT_STATE.md sections 29-31
+and FINDINGS entries 38-41 on research_gui branch.
+Priority: (1) send email to Gwyn with comparative results report
+and comparison plots attached, (2) update Jan 2026 analysis document
+with corrected 218-281 m/s result, (3) fix tid_quicklook.py negative
+window clamping at source."
