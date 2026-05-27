@@ -1,3 +1,37 @@
+## v2.0.1 — 2026-05-27
+
+### New extraction method: cwt-prophet
+
+`drf_to_doppler.py --method cwt-prophet` implements CWT peak-finding
+with Facebook Prophet time-series prediction instead of linear
+extrapolation, enabling direct comparison with Gwyn Griffiths' (G3ZIL)
+`grape_fft_CWT_tracking_prophet.py` approach.
+
+Comparison on the Jan 2026 event shows cwt-prophet gives identical
+results to fft on both clean and contaminated stations — Prophet's
+Bayesian prediction provides no advantage over linear extrapolation
+for smooth slowly-varying TID signals. Only sgolay-ridge reliably
+avoids wrong-peak lock on contaminated stations.
+
+Requires: `pip install prophet` (already available in most scientific
+Python environments).
+
+### tid_workflow.py: longitude display
+
+Coordinates are now displayed with W/E suffix rather than signed East:
+
+    Before: Coords from callsign DB (AC0G_ND): 46.8750N, -96.8333E
+    After:  Coords from callsign DB (AC0G_ND): 46.8750N, 96.8333W
+
+### tid_workflow.py: grid squares in spectrogram titles
+
+Grid squares added to KNOWN_STATIONS for all built-in stations.
+`--grid` is now passed to all `drf_spectrogram.py` calls, so
+spectrogram titles show the correct grid square:
+
+    Before: Doppler spectrogram - AA6BD (?) at 10.000 MHz
+    After:  Doppler spectrogram - AA6BD (EM75kb) at 10.000 MHz
+
 ## v2.0.0 — 2026-05-26
 
 ### Guided workflow (tid_workflow.py) — major new feature
