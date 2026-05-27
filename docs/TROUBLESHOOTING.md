@@ -249,7 +249,7 @@ The Grape v1.x metadata didn't include callsign/grid. Use:
 
 - **The script's `--help` output** is the first line of defense; each
   script's docstring is extensive.
-- **The full [tutorial](TUTORIAL.md)** walks through a complete event
+- **The full [workflow tutorial](../WORKFLOW_TUTORIAL.md)** walks through a complete event
   with explanations of each step's purpose.
 - **The [cookbook](COOKBOOK.md)** has task-oriented recipes.
 - **GitHub issues**: https://github.com/N6RFM/psws-drf-tid-tools/issues
