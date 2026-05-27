@@ -767,6 +767,9 @@ class SpectClickApp(QtWidgets.QMainWindow):
 
     def _load_prophet_overlay(self):
         """Load prophet CSV and draw overlay on spectrogram."""
+        if not self._prophet_csv or not Path(self._prophet_csv).exists():
+            self._set_status("Pass 0 complete — no output CSV found (check DRF path)")
+            return
         try:
             import pandas as _pd3
             df = _pd3.read_csv(self._prophet_csv,
