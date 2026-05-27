@@ -217,6 +217,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self._prophet_done  = False
         self._prophet_curve = None
         self._prophet_pass  = 0     # increments each re-run for color cycling
+        self._accepted_csv  = None  # path to last accepted baseline CSV
         self.period_hint = period_hint   # seconds
         self.transform   = transform     # AxisTransform or None
         self.cal_step    = 0 if transform is None else 4
@@ -277,8 +278,9 @@ class SpectClickApp(QtWidgets.QMainWindow):
 
         self.plot = self.glw.addPlot()
         self.plot.setMouseEnabled(x=False, y=False)
-        self.plot.setLabel("bottom", "Time (UTC hours)")
-        self.plot.setLabel("left", "Doppler shift", units="Hz")
+        # Hide pyqtgraph axes — the spectrogram PNG has its own baked-in axes
+        self.plot.hideAxis("bottom")
+        self.plot.hideAxis("left")
 
         # Spectrogram image
         self.img_item = pg.ImageItem()
@@ -593,7 +595,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self._update_status()
         n = len(self.clicks_t)
         self._set_status(
-            f"{n} anchor(s) placed. Press P to re-run Prophet, X to export.")
+            f"{n} anchor(s).  A=accept region  P=re-run Prophet  X=export  R=reset  Q=quit")
 
     def _refresh_scatter(self):
         if self.clicks_t:
@@ -785,18 +787,63 @@ class SpectClickApp(QtWidgets.QMainWindow):
             ts = _dt.datetime.now().strftime("%H:%M:%S")
             self._set_status(
                 f"[{ts}] Pass {self._prophet_pass} — {n} anchor(s).  "
-                f"Click excursions to correct, P to re-run, X to export, R to reset.")
+                f"Click carrier to add anchors  A=accept region  P=re-run Prophet  X=export  R=reset  Q=quit")
         except Exception as _e:
             self._set_status(f"Prophet overlay failed: {_e}")
 
 
-    def _export_spline_csv(self):
+    def _preview_spline(self):
+        """Show live spline preview through current anchor clicks."""
+        if len(self.clicks_t) < 2:
+            return
+        try:
+            import numpy as _np_pv
+            from scipy.interpolate import PchipInterpolator as _Pchip_pv
+            pairs = sorted(zip(self.clicks_t, self.clicks_d))
+            t_arr = _np_pv.array([p[0] for p in pairs])
+            d_arr = _np_pv.array([p[1] for p in pairs])
+            t_min_pv = t_arr[0]; t_max_pv = t_arr[-1]
+            spline = _Pchip_pv(t_arr, d_arr)
+            t_dense = _np_pv.linspace(self.seg_t0, self.seg_t1, 500)
+            d_dense = []
+            for _t in t_dense:
+                if t_min_pv <= _t <= t_max_pv:
+                    d_dense.append(float(spline(_t)))
+                else:
+                    d_dense.append(float(d_arr[0] if _t < t_min_pv else d_arr[-1]))
+            self.preview_curve.setData(list(t_dense), d_dense)
+        except Exception:
+            pass
+
+    def _accept_spline(self):
+        """Accept current spline as new baseline. Clears clicks for next region."""
+        if len(self.clicks_t) < 2:
+            self._set_status("Need at least 2 clicks to accept — click on the carrier first")
+            return
+        import tempfile as _tmp
+        tmp = _tmp.NamedTemporaryFile(suffix="_accepted.csv", delete=False)
+        tmp.close()
+        self._export_spline_csv(_accept_path=tmp.name)
+        self._accepted_csv = tmp.name
+        self.clicks_t = []
+        self.clicks_d = []
+        # Force full scatter redraw by hiding then showing
+        self.scatter.setData(x=[-999], y=[-999])
+        self.scatter.setData(x=[], y=[])
+        self.scatter.update()
+        self.preview_curve.setData([], [])
+        self._set_status(
+            "Accepted ✓  Clicks cleared — click next problem region, A to accept again, X to export final")
+        print(f"  Accepted spline as new baseline: {tmp.name}")
+
+    def _export_spline_csv(self, _accept_path=None):
         """Export spline interpolated through anchor clicks as final CSV.
         No CWT or DRF processing — the spline IS the extracted Doppler.
         Requires at least 2 anchor clicks spanning the segment window.
         """
         if len(self.clicks_t) < 2:
-            self._set_status("Need at least 2 anchor clicks to export spline")
+            if _accept_path is None:
+                self._set_status("Need at least 2 anchor clicks to export spline")
             return
         import numpy as _np_sp
         import pandas as _pd_sp
@@ -827,13 +874,20 @@ class SpectClickApp(QtWidgets.QMainWindow):
         t_arr = _np_sp.array([p[0] for p in pairs])
         d_arr = _np_sp.array([p[1] for p in pairs])
 
-        # Clamp to segment window — hold first/last anchor value flat
-        if t_arr[0] > self.seg_t0:
-            t_arr = _np_sp.concatenate([[self.seg_t0], t_arr])
-            d_arr = _np_sp.concatenate([[d_arr[0]], d_arr])
-        if t_arr[-1] < self.seg_t1:
-            t_arr = _np_sp.concatenate([t_arr, [self.seg_t1]])
-            d_arr = _np_sp.concatenate([d_arr, [d_arr[-1]]])
+        # Outside anchor range: blend with prophet preview (Pass 0 result)
+        # Use last accepted CSV as baseline, else prophet preview
+        _auto_path = self._accepted_csv or str(
+            Path(self.img_path).parent /
+            (Path(self.img_path).stem + "_prophet_preview.csv"))
+        auto_df = None
+        if _auto_path and Path(_auto_path).exists():
+            try:
+                auto_df = _pd_sp.read_csv(_auto_path, parse_dates=["timestamp_utc"])
+                auto_df["t_h"] = (auto_df["timestamp_utc"].dt.hour +
+                                  auto_df["timestamp_utc"].dt.minute/60.0 +
+                                  auto_df["timestamp_utc"].dt.second/3600.0)
+            except Exception:
+                auto_df = None
 
         # Build dense time grid at decim_seconds resolution
         decim = 60.0  # seconds
@@ -842,9 +896,25 @@ class SpectClickApp(QtWidgets.QMainWindow):
         t_seconds = _np_sp.arange(t0_sec, t1_sec + decim, decim)
         t_hours = t_seconds / 3600.0
 
-        # Spline interpolation
+        # Spline interpolation — only in anchor range
+        # Sort anchor arrays (already sorted but safety check)
+        sort_idx = _np_sp.argsort(t_arr)
+        t_arr = t_arr[sort_idx]; d_arr = d_arr[sort_idx]
         spline = _Pchip_sp(t_arr, d_arr)
-        doppler = spline(t_hours)
+        t_min = t_arr[0]; t_max = t_arr[-1]
+
+        # Build output: spline in anchor range, auto elsewhere
+        doppler = _np_sp.zeros(len(t_hours))
+        for i, th in enumerate(t_hours):
+            if t_min <= th <= t_max:
+                doppler[i] = float(spline(th))
+            elif auto_df is not None:
+                # Use nearest auto value outside anchor range
+                idx = _np_sp.argmin(_np_sp.abs(auto_df["t_h"].values - th))
+                doppler[i] = float(auto_df["doppler_hz"].iloc[idx])
+            else:
+                # No auto — clamp to nearest anchor
+                doppler[i] = float(d_arr[0] if th < t_min else d_arr[-1])
 
         # Build timestamps
         base = _pd_sp.Timestamp(f"{date_str}T00:00:00+00:00")
@@ -856,18 +926,25 @@ class SpectClickApp(QtWidgets.QMainWindow):
             "snr_db": [50.0] * len(doppler)  # placeholder SNR
         })
 
-        out = Path(self.img_path).parent / (
-            Path(self.img_path).stem.replace("_tid_zoom_clean", "")
-            + "_spline_tid.csv")
-        df.to_csv(out, index=False)
-
-        # Also update preview curve
-        self.preview_curve.setData(list(t_hours), list(doppler))
-
-        n = len(self.clicks_t)
-        self._set_status(
-            f"Spline exported: {out.name}  ({n} anchors, {len(df)} rows)")
-        print(f"Spline CSV exported: {out}")
+        if _accept_path:
+            df.to_csv(_accept_path, index=False)
+        else:
+            out = Path(self.img_path).parent / (
+                Path(self.img_path).stem.replace("_tid_zoom_clean", "")
+                + "_spline_tid.csv")
+            df.to_csv(out, index=False)
+            # Use exported file as new baseline for further editing
+            self._accepted_csv = str(out)
+            # Update preview curve with final trace
+            self.preview_curve.setData(list(t_hours), list(doppler))
+            # Clear all clicks
+            self.clicks_t = []
+            self.clicks_d = []
+            self._refresh_scatter()
+            n_anchors = len(pairs)
+            self._set_status(
+                f"Exported: {out.name}  ({n_anchors} anchors, {len(df)} rows) — Q to quit")
+            print(f"Spline CSV exported: {out}")
 
     def _export_prophet_csv(self):
         """Export the current prophet CSV as the final output."""
@@ -927,6 +1004,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
 
     def _install_shortcuts(self):
         for key, cb in [("X", self._export_spline_csv),
+                        ("A", self._accept_spline),
                         ("P", self._run_prophet_preview),
                         ("R", self._reset_clicks), ("C", self._clear_all),
                         ("Q", self.close)]:
