@@ -2173,3 +2173,53 @@ Analysis window: 17:30-19:30 UTC (Gwyn's window)
 
 Both consistent with auroral LSTID origin. May 2024 slightly more
 eastward — consistent with different storm/source geometry.
+
+---
+
+## Entry 42 — tid_spect_click: spline extraction and Prophet-guided modes
+**Date:** 2026-05-27
+**Branch:** research_gui
+
+### New tid_spect_click.py workflow
+
+**Pass 0 (automatic):** On open, cwt-prophet runs automatically with no
+user clicks. Result shown as green overlay on spectrogram.
+
+**Anchor clicks:** User clicks on carrier at problem regions. Live PCHIP
+spline preview updates after each click (≥2 clicks needed).
+
+**Key bindings:**
+- P: re-run Prophet with current anchor clicks as hard constraints
+- A: accept current spline region as baseline, clear clicks for next region
+- X: export final spline CSV, set as new baseline for further editing
+- R: reset all clicks
+- Q: quit
+
+**Anchor-guided extraction:** When --anchors JSON is passed to
+drf_to_doppler.py --method cwt-prophet, a PCHIP spline is fit through
+the anchor points. CWT peak selection is constrained to ±corridor_width
+of the spline prediction within the anchor range. Outside the anchor
+range, the full search_band_hz is used (falls back to FFT).
+
+**Spline export (X key):** Exports PCHIP spline through anchor clicks
+directly as *_spline_tid.csv — no CWT or DRF processing. In anchor
+range: spline. Outside anchor range: blends with last accepted baseline
+(or Prophet Pass 0 result).
+
+### Multi-region editing workflow
+1. Pass 0 auto-result shown
+2. Click on problem region → live spline preview
+3. A to accept → clicks clear, region frozen
+4. Click next problem region → spline preview
+5. X to export final
+
+### Key finding
+The spline-through-clicks approach is simpler and more reliable than
+CWT+corridor for contaminated stations. The user IS the tracker — they
+click on the carrier, the spline interpolates smoothly between clicks.
+No wrong-peak lock possible. Click count = quality metric.
+
+### Remaining limitation
+PCHIP can overshoot between distant anchor clusters. Mitigated by:
+- Using last accepted CSV as baseline outside anchor range
+- User placing anchors densely in problem regions

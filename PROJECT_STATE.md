@@ -941,3 +941,39 @@ Priority: (1) send email to Gwyn with comparative results report
 and comparison plots attached, (2) update Jan 2026 analysis document
 with corrected 218-281 m/s result, (3) fix tid_quicklook.py negative
 window clamping at source."
+
+---
+## 32. End of session — 2026-05-27 (evening)
+
+### Accomplished
+- tid_spect_click.py: complete spline extraction mode
+  - Pass 0: Prophet auto-run on open
+  - P: re-run Prophet with anchor constraints
+  - A: accept region, freeze, clear for next region
+  - X: export spline, set as baseline
+  - Live spline preview after each click
+  - Black anchor dots with white border
+  - Key bindings always visible in status bar
+  - Hide duplicate pyqtgraph axes
+- drf_to_doppler.py: anchor-guided cwt-prophet
+  - --anchors JSON seeds PCHIP spline corridor
+  - --corridor-width controls CWT search band around spline
+  - Spline replaces Prophet pre-fit (Prophet was giving wrong forecasts)
+  - Outside anchor range: falls back to FFT
+- FINDINGS Entry 42 added
+
+### Key finding
+Spline-through-clicks is more reliable than any automated method for
+contaminated stations. User clicks define the trace directly.
+
+### Code to push to main
+- drf_to_doppler.py: --anchors, --corridor-width, cwt-prophet improvements
+- tid_spect_click.py: full spline/Prophet GUI rewrite
+
+### Resume command
+cd ~/psws-tools-pr && git checkout research_gui
+"Continuing psws-drf-tid-tools. Read PROJECT_STATE.md sections 30-32
+and FINDINGS entries 40-42 on research_gui branch.
+Priority: (1) test spline extraction on all 4 Jan 2026 stations,
+(2) run DOA with spline CSVs and compare with sgolay-ridge,
+(3) push tid_spect_click and drf_to_doppler improvements to main."
