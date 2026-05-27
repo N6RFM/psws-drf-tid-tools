@@ -52,17 +52,18 @@ from pathlib import Path
 import numpy as np
 
 # ── Built-in callsign database ──────────────────────────────────────────────
+# (lat, lon, grid)
 KNOWN_STATIONS = {
-    "W7LUX":   (35.1042, -111.7083),
-    "AC0G_ND": (46.8750,  -96.8333),
-    "N4RVE":   (44.9700, -123.4800),
-    "N5BRG":   (35.6500,  -97.4800),
-    "N6RFM":   (32.9400,  -97.2100),
-    "AA6BD":   (35.0600,  -85.1300),
-    "K0LO":    (39.9500, -105.1500),
-    "W3HH":    (39.9500,  -75.1500),
-    "WA2HXB":  (41.0500,  -74.1300),
-    "KD9UKK":  (41.7000,  -86.2300),
+    "W7LUX":   (35.1042, -111.7083, "DM45dc"),
+    "AC0G_ND": (46.8750,  -96.8333, "EN16ov"),
+    "N4RVE":   (44.9700, -123.4800, "CN84xx"),
+    "N5BRG":   (35.6500,  -97.4800, "EM15xq"),
+    "N6RFM":   (32.9400,  -97.2100, "EM12jw"),
+    "AA6BD":   (35.0600,  -85.1300, "EM75kb"),
+    "K0LO":    (39.9500, -105.1500, "DM79xx"),
+    "W3HH":    (39.9500,  -75.1500, "FM29xx"),
+    "WA2HXB":  (41.0500,  -74.1300, "FN21xx"),
+    "KD9UKK":  (41.7000,  -86.2300, "EN61xx"),
 }
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -120,14 +121,14 @@ def get_station_coords(name, drf_dir):
     # 1. Try DRF metadata
     lat, lon = read_drf_metadata(drf_dir)
     if lat is not None:
-        print(f"    Coords from DRF metadata: {lat:.4f}N, {lon:.4f}E")
+        print(f"    Coords from DRF metadata: {lat:.4f}N, {abs(lon):.4f}{'W' if lon < 0 else 'E'}")
         return lat, lon
 
     # 2. Try callsign database
     key = name.upper().replace("-", "_")
-    for k, (la, lo) in KNOWN_STATIONS.items():
+    for k, (la, lo, gr) in KNOWN_STATIONS.items():
         if k in key or key in k:
-            print(f"    Coords from callsign DB ({k}): {la:.4f}N, {lo:.4f}E")
+            print(f"    Coords from callsign DB ({k}): {la:.4f}N, {abs(lo):.4f}{'W' if lo < 0 else 'E'}  {gr}")
             return la, lo
 
     # 3. User input
@@ -376,10 +377,16 @@ def run_workflow(args):
             rx_lat, rx_lon = get_station_coords(name, drf_dir_s)
 
             # Compute IPP midpoint
+            # Look up grid square
+            grid_sq = "?"
+            for k, (la, lo, gr) in KNOWN_STATIONS.items():
+                if k in name.upper() or name.upper() in k:
+                    grid_sq = gr
+                    break
             ipp_lat, ipp_lon = midpoint(
                 rx_lat, rx_lon, args.tx_lat, args.tx_lon
             )
-            print(f"    IPP midpoint: {ipp_lat:.4f}N, {ipp_lon:.4f}E")
+            print(f"    IPP midpoint: {ipp_lat:.4f}N, {abs(ipp_lon):.4f}{'W' if ipp_lon < 0 else 'E'}")
 
             stations.append({
                 "name": name,
@@ -389,6 +396,7 @@ def run_workflow(args):
                 "receiver_lon": rx_lon,
                 "ipp_lat": ipp_lat,
                 "ipp_lon": ipp_lon,
+                "grid": grid_sq,
                 "date_str": date_str,
             })
 
@@ -408,9 +416,11 @@ def run_workflow(args):
         print("  2. fft           (automated)")
         print("  3. autocorr      (automated, Gwyn G3ZIL method)")
         print("  4. cwt           (automated, CWT multi-peak tracker)")
+        print("  5. cwt-prophet   (automated, CWT + Facebook Prophet predictor)")
         choice = input("Choose [1]: ").strip() or "1"
         method = {"1": "sgolay-ridge", "2": "fft",
-                  "3": "autocorr", "4": "cwt"}.get(choice, "sgolay-ridge")
+                  "3": "autocorr", "4": "cwt",
+                  "5": "cwt-prophet"}.get(choice, "sgolay-ridge")
         state["extraction_method"] = method
         save_state(state_file, state)
     else:
@@ -449,6 +459,7 @@ def run_workflow(args):
                 "--start", "00:00", "--end", "24:00",
                 "--ylim=-5,5", "--dpi", "100",
                 "--callsign", name,
+                "--grid", stn.get("grid", "?"),
             ])
             if r.returncode != 0:
                 print(f"  ERROR: spectrogram failed for {name}")
@@ -502,6 +513,7 @@ def run_workflow(args):
                 "--window", str(window_json),
                 "--ylim=-5,5", "--dpi", "150",
                 "--callsign", name,
+                "--grid", stn.get("grid", "?"),
             ])
             if r.returncode != 0:
                 print(f"  ERROR: zoom spectrogram failed for {name}")
@@ -619,6 +631,7 @@ def run_workflow(args):
                     "--window", str(window_json),
                     "--ylim=-5,5", "--dpi", "150",
                     "--callsign", name,
+                    "--grid", stn.get("grid", "?"),
                     f"--overlay={fft_csv}:FFT",
                 ])
                 if r.returncode != 0:
@@ -688,6 +701,7 @@ def run_workflow(args):
             "--window", str(window_json),
             "--ylim=-5,5", "--dpi", "150",
             "--callsign", name,
+            "--grid", redo_stn.get("grid", "?"),
         ])
         state[f"{stn_key}_zoom"] = str(zoom_clean_png)
         save_state(state_file, state)
@@ -714,6 +728,7 @@ def run_workflow(args):
             "--window", str(zoom_window) if zoom_window.exists() else str(window_json),
             "--ylim=-5,5", "--dpi", "150",
             "--callsign", name,
+            "--grid", redo_stn.get("grid", "?"),
         ])
         state[f"{stn_key}_zoom"] = str(zoom_clean_png)
         save_state(state_file, state)
