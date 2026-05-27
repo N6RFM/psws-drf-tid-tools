@@ -9,14 +9,14 @@ License: MIT (do whatever you want, no warranty).
 OVERVIEW
 ========
 Displays a Doppler spectrogram PNG and lets the user click directly on
-the carrier track to mark phase samples for the TID of interest.
+the F-region carrier track — the slow sinusoidal oscillation near 0 Hz that represents the TID.
 A sinusoid is fitted to the clicks and the result is used to produce a
 corrected "guided" Doppler CSV, replacing the automated extraction in
 the selected time window.
 
 This is complementary to tid_guided_extract.py (which works on the
 extracted Doppler trace). Clicking on the spectrogram is more intuitive
-because the TID wave is directly visible as the carrier track.
+because the TID is directly visible as the slow F-region carrier oscillation.
 
 WORKFLOW
 ========
@@ -38,7 +38,7 @@ WORKFLOW
    After 4 calibration clicks the pixel→(time, Hz) transform is defined.
 
 3. Mark the analysis segment: drag the yellow region handles.
-4. Click 4-7 points along the carrier track (TID wave) in the segment.
+4. Click 2+ points along the F-region carrier (slow oscillation near 0 Hz; avoid fast E-region loops) in the segment.
 5. Press F to fit sinusoid, W to write guided CSV.
 6. Press R to reset clicks, C to clear all, Q to quit.
 
@@ -595,7 +595,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self._update_status()
         n = len(self.clicks_t)
         self._set_status(
-            f"{n} anchor(s).  A=accept region  P=re-run Prophet  X=export  R=reset  Q=quit")
+            f"{n} anchor(s).  P=re-run Prophet  X=export  R=reset  Q=quit")
 
     def _refresh_scatter(self):
         if self.clicks_t:
@@ -790,7 +790,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
             ts = _dt.datetime.now().strftime("%H:%M:%S")
             self._set_status(
                 f"[{ts}] Pass {self._prophet_pass} — {n} anchor(s).  "
-                f"Click carrier to add anchors  A=accept region  P=re-run Prophet  X=export  R=reset  Q=quit")
+                f"Click F-region carrier to add anchors  P=re-run Prophet  X=export  R=reset  Q=quit")
         except Exception as _e:
             self._set_status(f"Prophet overlay failed: {_e}")
 
@@ -821,7 +821,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
     def _accept_spline(self):
         """Accept current spline as new baseline. Clears clicks for next region."""
         if len(self.clicks_t) < 2:
-            self._set_status("Need at least 2 clicks to accept — click on the carrier first")
+            self._set_status("Need at least 2 clicks to accept — click on the F-region carrier first")
             return
         import tempfile as _tmp
         tmp = _tmp.NamedTemporaryFile(suffix="_accepted.csv", delete=False)
@@ -836,7 +836,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self.scatter.update()
         self.preview_curve.setData([], [])
         self._set_status(
-            "Accepted ✓  Clicks cleared — click next problem region, A to accept again, X to export final")
+            "Accepted ✓  Clicks cleared — click next problem region, X to export final")
         print(f"  Accepted spline as new baseline: {tmp.name}")
 
     def _export_spline_csv(self, _accept_path=None):
@@ -1007,7 +1007,6 @@ class SpectClickApp(QtWidgets.QMainWindow):
 
     def _install_shortcuts(self):
         for key, cb in [("X", self._export_spline_csv),
-                        ("A", self._accept_spline),
                         ("P", self._run_prophet_preview),
                         ("R", self._reset_clicks), ("C", self._clear_all),
                         ("Q", self.close)]:
