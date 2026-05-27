@@ -525,7 +525,7 @@ def estimate_carrier_freq_cwt(iq_block, fs_hz, search_band_hz=5.0,
     j = _state['block_idx']
     hist = _state['history']
 
-    if j < N_TRAIN:
+    if j < N_TRAIN and not _pre_seeded:
         # Training phase: seed with FFT result for reliability
         chosen_freq = fft_peak_freq()
         hist.append((j, chosen_freq))
@@ -608,7 +608,7 @@ def estimate_carrier_freq_cwt(iq_block, fs_hz, search_band_hz=5.0,
 
 
 def estimate_carrier_freq_cwt_prophet(iq_block, fs_hz, search_band_hz=5.0,
-                                      _state=None):
+                                      _state=None, corridor_width=0.4):
     """CWT multi-peak finder with Facebook Prophet time-series predictor.
 
     Identical to --method cwt except the linear extrapolation predictor
@@ -633,10 +633,13 @@ def estimate_carrier_freq_cwt_prophet(iq_block, fs_hz, search_band_hz=5.0,
     N_TRAIN = 10
     CWT_WIDTHS = (2, 4)
     LEVEL_FLOOR = -80.0
-    MAX_STEP_HZ = 0.5
+    MAX_STEP_HZ = corridor_width  # adaptive corridor from user or default
 
     if _state is None:
         _state = {'history': [], 'block_idx': 0}
+    # If anchors were pre-seeded, skip FFT training phase
+    # Use forecast lookup presence as the reliable indicator
+    _pre_seeded = bool(_state.get('prophet_forecast', {}))
 
     x = np.asarray(iq_block, dtype=complex)
     n = len(x)
@@ -672,7 +675,7 @@ def estimate_carrier_freq_cwt_prophet(iq_block, fs_hz, search_band_hz=5.0,
     j = _state['block_idx']
     hist = _state['history']
 
-    if j < N_TRAIN:
+    if j < N_TRAIN and not _pre_seeded:
         chosen_freq = fft_peak_freq()
         hist.append((j, chosen_freq))
         _state['block_idx'] += 1
@@ -707,11 +710,42 @@ def estimate_carrier_freq_cwt_prophet(iq_block, fs_hz, search_band_hz=5.0,
     candidates = [(interp_freq(ri), spec_db[ri]) for ri in refined]
     candidates.sort(key=lambda t: -t[1])
 
-    # Prophet prediction (replaces linear extrapolation)
-    recent = hist[-max(N_TRAIN, len(hist)):]
+    # Prophet prediction — use pre-fit forecast lookup if available
+    recent = hist[-N_TRAIN:]  # for fallback
+    _forecast_lookup = _state.get('prophet_forecast', {})
+    if _state.get('block_idx', -1) == 0:
+        print(f"  DEBUG block0: pre_seeded={_pre_seeded} forecast_len={len(_forecast_lookup)} j={j} j_in_fc={j in _forecast_lookup}")
+    if _forecast_lookup and j in _forecast_lookup:
+        predicted = float(np.clip(_forecast_lookup[j],
+                                   -search_band_hz, search_band_hz))
+        # Find CWT candidate closest to forecast
+        # Widen corridor outside anchor range (extrapolated region)
+        _anchor_bidx = [b for b,_ in _state.get("anchor_pts", [])]
+        _in_anchor_range = (_anchor_bidx and
+                            min(_anchor_bidx) <= j <= max(_anchor_bidx))
+        _effective_corridor = MAX_STEP_HZ if _in_anchor_range else search_band_hz
+        fft_freq = fft_peak_freq()
+        best_freq = None
+        best_dist = _effective_corridor
+        for cfreq, clevel in candidates:
+            if clevel < LEVEL_FLOOR:
+                continue
+            d = abs(cfreq - predicted)
+            if d < best_dist:
+                best_dist = d
+                best_freq = cfreq
+        if best_freq is None:
+            best_freq = fft_freq
+        hist.append((j, best_freq))
+        if len(hist) > N_TRAIN * 4:
+            hist.pop(0)
+        _state['block_idx'] += 1
+        return float(best_freq), float(snr_db)
+    # No forecast lookup — fit Prophet incrementally
+    fit_pts = hist[-max(N_TRAIN, len(hist)):]
     df_hist = _pd.DataFrame({
-        'ds': _pd.date_range('2000-01-01', periods=len(recent), freq='60s'),
-        'y': [h[1] for h in recent]
+        'ds': _pd.date_range('2000-01-01', periods=len(fit_pts), freq='60s'),
+        'y': [h[1] for h in fit_pts]
     })
     try:
         import logging as _logging
@@ -1040,6 +1074,19 @@ def main():
                          "track at each time step, rejecting E-region "
                          "contamination outside the corridor. "
                          "Only supported with --method fft.")
+    ap.add_argument("--corridor-width", type=float, default=0.4,
+                    metavar="HZ",
+                    help="Half-width in Hz of the adaptive corridor "
+                         "centred on the Prophet/Kalman prediction. "
+                         "CWT peaks outside this band are rejected. "
+                         "Only used with --method cwt-prophet. "
+                         "Default: 0.4 Hz.")
+    ap.add_argument("--anchors", default=None, metavar="JSON",
+                    help="Path to anchor JSON written by "
+                         "tid_spect_click.py containing user-clicked "
+                         "correction points. Prophet is seeded with "
+                         "these points before predicting the full trace. "
+                         "Only used with --method cwt-prophet.")
     ap.add_argument("--smooth", type=float, default=None,
                     metavar="N",
                     help="apply Savitzky-Golay smoothing with N-second "
@@ -1123,6 +1170,61 @@ def main():
         _estimate = None   # handled in loop
         _cwt_state = {'history': [], 'block_idx': 0}
         _bp_state = None
+    elif args.method == "cwt-prophet":
+        _estimate = None
+        _cwt_state = {
+            'history': [], 'block_idx': 0,
+            'corridor_width': getattr(args, 'corridor_width', 0.4),
+            'prophet_forecast': {},
+        }
+        _bp_state = None
+        if getattr(args, 'anchors', None):
+            import json as _aj
+            _anc = _aj.load(open(args.anchors))
+            _pts = _anc.get('anchors', [])
+            _t0_h = t_start.hour + t_start.minute/60.0 + t_start.second/3600.0
+            _anchor_pts = []
+            for _p in sorted(_pts, key=lambda x: x['t_utc_hours']):
+                _bidx = int((_p['t_utc_hours'] - _t0_h) * 3600.0 / args.decim_seconds)
+                _cwt_state['history'].append((_bidx, _p['doppler_hz']))
+                _anchor_pts.append((_bidx, _p['doppler_hz']))
+            _cwt_state['anchor_pts'] = _anchor_pts
+            _cwt_state['corridor_width'] = _anc.get('corridor_width_hz',
+                getattr(args, 'corridor_width', 0.4))
+            print(f"  Seeded Prophet with {len(_pts)} anchor(s) from {args.anchors}")
+            try:
+                from prophet import Prophet as _ProphetInit
+                import pandas as _pd_init
+                import logging as _log_init
+                _log_init.getLogger('prophet').setLevel(_log_init.WARNING)
+                _log_init.getLogger('cmdstanpy').setLevel(_log_init.WARNING)
+                _n_blocks = int((t_end - t_start).total_seconds() / args.decim_seconds) + 2
+                _df_anc = _pd_init.DataFrame({
+                    'ds': [_pd_init.Timestamp('2000-01-01') +
+                           _pd_init.Timedelta(seconds=b * args.decim_seconds)
+                           for b, _ in _anchor_pts],
+                    'y': [f for _, f in _anchor_pts]
+                })
+                _m_init = _ProphetInit(
+                    changepoint_prior_scale=0.3,
+                    seasonality_mode='additive',
+                    daily_seasonality=False,
+                    weekly_seasonality=False,
+                    yearly_seasonality=False,
+                )
+                import warnings as _warn
+                with _warn.catch_warnings():
+                    _warn.simplefilter("ignore")
+                    _m_init.fit(_df_anc)
+                _fut = _m_init.make_future_dataframe(
+                    periods=_n_blocks, freq=f'{int(args.decim_seconds)}s')
+                _fc = _m_init.predict(_fut)
+                _cwt_state['prophet_forecast'] = {
+                    int(i): float(v) for i, v in enumerate(_fc['yhat'].values)
+                }
+                print(f"  Prophet pre-fit complete: {_n_blocks} block forecast ready")
+            except Exception as _pe:
+                print(f"  Prophet pre-fit failed: {_pe}")
     elif args.method == "bandpass":
         _estimate = None   # handled in loop
         _cwt_state = None
@@ -1185,7 +1287,8 @@ def main():
             if _cwt_state is not None:
                 if args.method == 'cwt-prophet':
                     f_hz, snr = estimate_carrier_freq_cwt_prophet(
-                        iq, fs_hz, args.search_band_hz, _cwt_state)
+                        iq, fs_hz, args.search_band_hz, _cwt_state,
+                        corridor_width=_cwt_state.get('corridor_width', 0.4))
                 else:
                     f_hz, snr = estimate_carrier_freq_cwt(
                         iq, fs_hz, args.search_band_hz, _cwt_state)
