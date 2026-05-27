@@ -2150,3 +2150,26 @@ Direction: 33-35° NNE — robust across all methods ✅
 TID non-stationarity (period varies across event, confirmed by Gwyn).
 The plane-wave assumption breaks down for a dispersive wave packet.
 Residuals of 35% are expected and do not indicate wrong-peak lock.
+## Entry 41 — May 2024 event: cwt-prophet DOA result
+**Date:** 2026-05-27
+**Branch:** research_gui
+
+### Event
+2024-05-17, 17:34-19:28 UTC, 4 stations: AC0G_ND, N4RVE, N5BRG, W7LUX
+Analysis window: 17:30-19:30 UTC (Gwyn's window)
+
+### Result (cwt-prophet)
+- Speed: 203 m/s from 50° (NE)
+- Identical lags to previous sgolay-ridge run
+- AC0G_ND→N5BRG still weak (r=0.295)
+- Triangle closure: 14% (just within guideline)
+- 2/5 diagnostics flagged
+
+### Comparison with Jan 2026
+| Event | Speed | From | Method |
+|-------|-------|------|--------|
+| May 2024 | 203 m/s | 50° NE | cwt-prophet |
+| Jan 2026 | 223 m/s | 35° NNE | sgolay-ridge |
+
+Both consistent with auroral LSTID origin. May 2024 slightly more
+eastward — consistent with different storm/source geometry.
