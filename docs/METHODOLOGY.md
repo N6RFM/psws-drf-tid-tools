@@ -140,8 +140,7 @@ disagreement between the two methods, not fit to an external truth.
    - Prefer FFT IF the lag/period ratio is 0.3–0.5 (multiple
      comparable cross-correlation peaks; autocorr's smoothness
      causes wrong-peak lock in this regime).
-   See research/psws_autocorr_research_report.pdf for the
-   full synthetic and real-data evidence behind this guidance.
+   See FINDINGS.md (on research_gui branch) for validation evidence.
 
 5. Record which method was chosen and why in the run log.
 ```
