@@ -2,7 +2,7 @@
 
 Task-oriented recipes for everyday use of **psws-drf-tid-tools**.
 For a full narrative walkthrough of a complete analysis, see the
-[tutorial](TUTORIAL.md). For when something goes wrong, see the
+[workflow tutorial](../WORKFLOW_TUTORIAL.md). For when something goes wrong, see the
 [troubleshooting guide](TROUBLESHOOTING.md).
 
 Every script accepts `--help` and `--version`.

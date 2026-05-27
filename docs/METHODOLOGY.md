@@ -1,7 +1,7 @@
 # Methodology
 
 The mathematical and signal-processing details behind the toolkit. For
-practical "how to use it" guidance, see the [tutorial](TUTORIAL.md) and
+practical "how to use it" guidance, see the [workflow tutorial](../WORKFLOW_TUTORIAL.md) and
 [cookbook](COOKBOOK.md).
 
 ---
