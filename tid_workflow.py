@@ -543,54 +543,34 @@ def run_workflow(args):
             t0_h = zwj["t_start_utc_hours"]
             t1_h = zwj["t_end_utc_hours"]
         print(f"  Analysis window: {h_to_hhmm(t0_h)}–{h_to_hhmm(t1_h)} UTC")
-        if method == "sgolay-ridge":
-            # Step 6: Corridor clicking (zoom_clean_png already generated in Step 4)
-            state[f"{stn_key}_zoom_overlay"] = True
-            save_state(state_file, state)
-            # Step 6/7: User clicks corridor
-            if f"{stn_key}_corridor" not in state:
-                print(f"\n[Step 6] Click corridor for {name}...")
-                print(f"  → Open {zoom_png.name} for visual reference")
-                print(f"  → Click corridor on clean PNG: {zoom_clean_png.name}")
-                print("  → Click ~6 points bracketing the carrier")
-                print("  → Press X to export corridor + preview, Q to accept")
+        if method in ("sgolay-ridge", "cwt-prophet"):
+            # Step 6/7: Interactive spline extraction via tid_spect_click
+            # Pass 0: cwt-prophet auto-runs on open, user corrects with clicks
+            # A=accept region, P=re-run Prophet, X=export spline, R=reset
+            spline_csv = event_dir / f"{stn_key}_spline_tid.csv"
+            spline_key = f"{stn_key}_spline"
+            if spline_key not in state:
+                print(f"\n[Step 6] Interactive spline extraction for {name}...")
+                print(f"  → Pass 0 auto-runs on open (cwt-prophet)")
+                print(f"  → Click F-region carrier to correct excursions")
+                print(f"  → A=accept region  P=re-run  X=export  R=reset  Q=quit")
                 run([
                     "python3", tool("tid_spect_click.py"),
                     "--spectrogram", str(zoom_clean_png),
                     "--name", name,
                     "--drf-dir", drf_dir_s,
                     "--subchannel", str(sub),
-                    "--sgolay-window", str(args.sgolay_window),
+                    "--corridor-width", "0.4",
+                    "--seg-start", str(t0_h),
+                    "--seg-end",   str(t1_h),
                 ])
-                if not corridor_json.exists():
-                    print(f"  WARNING: No corridor saved for {name} — skipping")
+                if not spline_csv.exists():
+                    print(f"  WARNING: No spline CSV saved for {name} — skipping")
                     continue
-                state[f"{stn_key}_corridor"] = str(corridor_json)
-                save_state(state_file, state)
-
-            # Step 7: sgolay-ridge extraction
-            if f"{stn_key}_sgolay" not in state:
-                print(f"\n[Step 7] sgolay-ridge extraction for {name}...")
-                r = run([
-                    "python3", tool("drf_to_doppler.py"),
-                    drf_dir_s,
-                    "--subchannel", str(sub),
-                    "--start", h_to_iso(date_str, t0_h),
-                    "--end",   h_to_iso(date_str, t1_h),
-                    "--decim-seconds", "60",
-                    "--method", "sgolay-ridge",
-                    "--corridor", str(corridor_json),
-                    "--sgolay-window", str(args.sgolay_window),
-                    "--output", str(sgolay_csv),
-                ])
-                if r.returncode != 0:
-                    print(f"  ERROR: sgolay-ridge failed for {name}")
-                    continue
-                state[f"{stn_key}_sgolay"] = str(sgolay_csv)
+                state[spline_key] = str(spline_csv)
                 save_state(state_file, state)
             else:
-                print(f"  sgolay CSV: {sgolay_csv.name} (already done)")
-
+                print(f"  Spline CSV: {spline_csv.name} (already done)")
         else:  # method in (fft, autocorr, cwt)
             # Step 6: Automated extraction
             csv_key = f"{stn_key}_{method.replace('-', '_')}"
@@ -742,12 +722,14 @@ def run_workflow(args):
     completed = []
     for stn in stations:
         stn_key = stn["name"].lower()
+        spline_csv   = event_dir / f"{stn_key}_spline_tid.csv"
         sgolay_csv   = event_dir / f"{stn_key}_sgolay_tid.csv"
         fft_csv      = event_dir / f"{stn_key}_fft_tid.csv"
         autocorr_csv = event_dir / f"{stn_key}_autocorr_tid.csv"
         cwt_csv      = event_dir / f"{stn_key}_cwt_tid.csv"
-        # Priority: sgolay > current method > fft > autocorr > cwt
+        # Priority: spline > sgolay > current method > fft > autocorr > cwt
         candidates = [
+            (spline_csv,   "spline"),
             (sgolay_csv,   "sgolay-ridge"),
             (event_dir / f"{stn_key}_{method}_tid.csv", method),
             (fft_csv,      "fft"),
