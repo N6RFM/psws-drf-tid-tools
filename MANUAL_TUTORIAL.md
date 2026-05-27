@@ -173,7 +173,7 @@ Output: `n6rfm_sgolay_tid.csv` with columns `timestamp_utc`,
 
 ---
 
-### Option B: automated extraction (fft / autocorr / cwt)
+### Option B: automated extraction (fft / autocorr / cwt / cwt-prophet)
 
 No corridor clicking required.
 
@@ -187,7 +187,7 @@ python3 drf_to_doppler.py ./n6rfm \
     --output n6rfm_fft_tid.csv
 ```
 
-Replace `fft` with `autocorr` or `cwt` as needed.
+Replace `fft` with `autocorr`, `cwt`, or `cwt-prophet` as needed.
 
 **Which method to use:**
 
@@ -196,6 +196,7 @@ Replace `fft` with `autocorr` or `cwt` as needed.
 | fft | General purpose, default |
 | autocorr | Smooth carriers, G3ZIL validation |
 | cwt | Multi-peak ambiguous carriers |
+| cwt-prophet | CWT + Facebook Prophet predictor (G3ZIL comparison) |
 
 **Validate visually** by overlaying the extracted trace on the
 spectrogram:
