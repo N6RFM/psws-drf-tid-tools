@@ -110,7 +110,7 @@ shows a green trace overlay. Inspect it.
 
     Click   Add anchor point on carrier (black dot)
     P       Re-run Prophet with anchors as constraints
-    A       Accept current region, clear clicks for next region
+
     X       Export final spline CSV
     R       Reset all clicks
     Q       Quit
@@ -120,8 +120,8 @@ shows a green trace overlay. Inspect it.
 2. If good: press X to export immediately (0 clicks needed)
 3. If excursions: click on carrier at problem region (2+ clicks)
    -- live spline preview updates after each click
-4. Press A to accept and freeze that region
-5. Click next problem region -- A to accept
+4. Inspect spline preview -- add more clicks if needed
+5. Click next problem region
 6. Press X when all regions are correct
 
 Output: `n6rfm_spline_tid.csv`

@@ -134,7 +134,7 @@ key bindings below:
     Key bindings (shown in status bar at top):
       Click   Add anchor point on carrier (black dot with white border)
       P       Re-run Prophet with current anchors as constraints
-      A       Accept current region -- freeze it, clear clicks for next region
+  
       X       Export final spline CSV and move on
       R       Reset all clicks
       Q       Quit
@@ -143,8 +143,8 @@ key bindings below:
 1. Inspect Pass 0 automatic trace (green)
 2. Click 2+ points on the carrier in any problem region
    -- live spline preview updates immediately
-3. Press A to accept and freeze that region -- clicks clear
-4. Click next problem region -- A to accept
+3. Inspect the spline preview — add more clicks if needed
+4. Click next problem region
 5. When all regions are correct -- press X to export
 
 **Key points:**
@@ -211,10 +211,10 @@ Physical cross-checks (more reliable than diagnostics):
 
 **Pass 0 trace has large excursion at one point**
 Click 2-3 points on the carrier near the excursion. The live spline
-preview shows the correction. Press A to accept, then X.
+preview shows the correction. Press X to export.
 
 **Trace goes wrong outside the clicked region**
-Add anchor clicks at the start and end of the window, or press A
+Add anchor clicks at the start and end of the window, or press X
 to accept what you have and let the baseline handle the rest.
 
 **Lag hits --max-lag boundary**
