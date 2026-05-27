@@ -203,7 +203,8 @@ class SpectClickApp(QtWidgets.QMainWindow):
     def __init__(self, img_path, csv_path, name,
                  transform=None, period_hint=None,
                  seg_start=None, seg_end=None,
-                 drf_dir=None, subchannel=0, sgolay_window=21.0):
+                 drf_dir=None, subchannel=0, sgolay_window=21.0,
+                 corridor_width=0.4):
         super().__init__()
         self.name        = name
         self.img_path    = img_path
@@ -211,6 +212,11 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self.drf_dir     = drf_dir
         self.subchannel  = subchannel
         self.sgolay_window = sgolay_window
+        self.corridor_width = corridor_width
+        self._prophet_csv   = None
+        self._prophet_done  = False
+        self._prophet_curve = None
+        self._prophet_pass  = 0     # increments each re-run for color cycling
         self.period_hint = period_hint   # seconds
         self.transform   = transform     # AxisTransform or None
         self.cal_step    = 0 if transform is None else 4
@@ -221,6 +227,9 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self._build_ui(seg_start, seg_end)
         self._install_shortcuts()
         self._update_status()
+        # Auto-run Prophet on open (Pass 0 — no clicks needed)
+        if self.drf_dir:
+            QtCore.QTimer.singleShot(500, self._run_prophet_preview)
 
     # ------------------------------------------------------------------
     # Data loading
@@ -582,6 +591,9 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self.clicks_d.append(dop_hz)
         self._refresh_scatter()
         self._update_status()
+        n = len(self.clicks_t)
+        self._set_status(
+            f"{n} anchor(s) placed. Press P to re-run Prophet, X to export.")
 
     def _refresh_scatter(self):
         if self.clicks_t:
@@ -648,6 +660,149 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self._run_sgolay_preview(out)
 
 
+
+    def _run_prophet_preview(self):
+        """Run cwt-prophet extraction using current clicks as anchors.
+        Triggered automatically on open and after each user click.
+        """
+        if not self.drf_dir:
+            return
+        import subprocess as _sp, os as _os2, threading as _threading
+        import json as _json2, re as _re2
+
+        # Determine date string
+        date_str = None
+        _sidecar = str(self.img_path).replace(".png", "_axes.json")
+        if _os2.path.exists(_sidecar):
+            try:
+                _sc = _json2.load(open(_sidecar))
+                date_str = _sc.get("date_utc")
+            except Exception:
+                pass
+        if not date_str:
+            for _s in [str(self.img_path), str(self.drf_dir)]:
+                _m = _re2.search(r"(\d{4}-\d{2}-\d{2})", _s)
+                if _m:
+                    date_str = _m.group(1)
+                    break
+        if not date_str:
+            date_str = "2026-01-19"
+
+        def _h_to_iso(h):
+            hh = int(h); rem = (h-hh)*60; mm = int(rem); ss = int((rem-mm)*60)
+            return f"{date_str}T{hh:02d}:{mm:02d}:{ss:02d}"
+
+        t0_h = self.seg_t0
+        t1_h = self.seg_t1
+        out_csv = str(Path(self.img_path).parent /
+                      (Path(self.img_path).stem + "_prophet_preview.csv"))
+        self._prophet_csv = out_csv
+
+        # Write anchors JSON if user has clicked points
+        anchors_json = None
+        if self.clicks_t:
+            anchors = {
+                "station": self.name,
+                "corridor_width_hz": self.corridor_width,
+                "anchors": [
+                    {"t_utc_hours": t, "doppler_hz": d}
+                    for t, d in zip(self.clicks_t, self.clicks_d)
+                ]
+            }
+            anchors_path = str(Path(self.img_path).parent /
+                               (Path(self.img_path).stem + "_anchors.json"))
+            with open(anchors_path, "w") as _af:
+                _json2.dump(anchors, _af, indent=2)
+            anchors_json = anchors_path
+
+        cmd = [
+            "python3",
+            _os2.path.join(_os2.path.dirname(_os2.path.abspath(__file__)),
+                          "drf_to_doppler.py"),
+            self.drf_dir,
+            "--subchannel", str(self.subchannel),
+            "--start", _h_to_iso(t0_h),
+            "--end",   _h_to_iso(t1_h),
+            "--decim-seconds", "60",
+            "--method", "cwt-prophet",
+            "--corridor-width", str(self.corridor_width),
+            "--output", out_csv,
+        ]
+        if anchors_json:
+            cmd += ["--anchors", anchors_json]
+
+        self._prophet_pass += 1
+        # Clear old trace while Prophet runs
+        self.preview_curve.setData([], [])
+        n_clicks = len(self.clicks_t)
+        if n_clicks == 0:
+            self._set_status(
+                "Pass 0: running Prophet automatically... "
+                "Click excursions to add anchors, P to re-run, X to export, R to reset, Q to quit")
+        else:
+            self._set_status(
+                f"Re-running Prophet with {n_clicks} anchor(s)...")
+        self._prophet_done = False
+
+        def _run():
+            try:
+                _sp.run(cmd, stdout=_sp.PIPE, stderr=_sp.PIPE, timeout=180)
+            except Exception as _e:
+                print(f"  Prophet preview exception: {_e}")
+            finally:
+                self._prophet_done = True
+
+        _threading.Thread(target=_run, daemon=True).start()
+        self._start_prophet_poll()
+
+    def _start_prophet_poll(self):
+        """Poll for prophet preview completion and update overlay."""
+        import os as _os3
+        if self._prophet_done:
+            self._load_prophet_overlay()
+            return
+        QtCore.QTimer.singleShot(500, self._start_prophet_poll)
+
+    def _load_prophet_overlay(self):
+        """Load prophet CSV and draw overlay on spectrogram."""
+        try:
+            import pandas as _pd3
+            df = _pd3.read_csv(self._prophet_csv,
+                               parse_dates=["timestamp_utc"])
+            df["t_h"] = (df["timestamp_utc"].dt.hour +
+                         df["timestamp_utc"].dt.minute / 60 +
+                         df["timestamp_utc"].dt.second / 3600)
+            t_arr = df["t_h"].values
+            d_arr = df["doppler_hz"].values
+            # Alternate color each pass so user can see the update
+            import pyqtgraph as _pg2
+            colors = ["#00ff88", "#00ccff", "#ffff00", "#ff88ff"]
+            color = colors[self._prophet_pass % len(colors)]
+            self.preview_curve.setPen(_pg2.mkPen(color=color, width=2))
+            self.preview_curve.setData(t_arr, d_arr)
+            n = len(self.clicks_t)
+            import datetime as _dt
+            ts = _dt.datetime.now().strftime("%H:%M:%S")
+            self._set_status(
+                f"[{ts}] Pass {self._prophet_pass} — {n} anchor(s).  "
+                f"Click excursions to correct, P to re-run, X to export, R to reset.")
+        except Exception as _e:
+            self._set_status(f"Prophet overlay failed: {_e}")
+
+    def _export_prophet_csv(self):
+        """Export the current prophet CSV as the final output."""
+        if not self._prophet_csv or not Path(self._prophet_csv).exists():
+            self._set_status("No prophet trace yet — wait for Pass 0 to complete")
+            return
+        import shutil as _sh
+        stem = Path(self.img_path).stem
+        # Remove _prophet_preview suffix, replace with _prophet_tid
+        out = Path(self.img_path).parent / (
+            stem.replace("_tid_zoom_clean", "") + "_prophet_tid.csv")
+        _sh.copy(self._prophet_csv, out)
+        self._set_status(f"Exported: {out.name}  ({len(self.clicks_t)} anchors used)")
+        print(f"Prophet CSV exported: {out}")
+
     def _reset_clicks(self):
         self.clicks_t = []
         self.clicks_d = []
@@ -691,7 +846,8 @@ class SpectClickApp(QtWidgets.QMainWindow):
     # ------------------------------------------------------------------
 
     def _install_shortcuts(self):
-        for key, cb in [("X", self._write_corridor),
+        for key, cb in [("X", self._export_prophet_csv),
+                        ("P", self._run_prophet_preview),
                         ("R", self._reset_clicks), ("C", self._clear_all),
                         ("Q", self.close)]:
             sc = QtWidgets.QShortcut(QtGui.QKeySequence(key), self, cb)
@@ -736,6 +892,10 @@ def _parse_args():
                         "export and overlays result on spectrogram.")
     p.add_argument("--subchannel", type=int, default=0, metavar="N",
                    help="DRF subchannel index for sgolay-ridge preview (default 0)")
+    p.add_argument("--corridor-width", type=float, default=0.4, metavar="HZ",
+                   help="Half-width in Hz of the adaptive corridor centred on "
+                        "the Prophet prediction at each time step. CWT peaks "
+                        "outside this band are rejected. Default: 0.4 Hz.")
     p.add_argument("--sgolay-window", type=float, default=21.0, metavar="MINUTES",
                    help="SGOLAY smoothing window in minutes for preview (default 21)")
     return p.parse_args()
@@ -799,6 +959,7 @@ def main():
         drf_dir      = args.drf_dir,
         subchannel   = args.subchannel,
         sgolay_window = args.sgolay_window,
+        corridor_width = args.corridor_width,
     )
     win.show()
     sys.exit(app.exec_())
