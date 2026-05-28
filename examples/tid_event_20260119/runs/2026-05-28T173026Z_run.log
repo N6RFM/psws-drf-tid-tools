@@ -1,0 +1,69 @@
+=== psws-drf-tid-tools run log ===
+Timestamp:   2026-05-28T173026Z
+Tool:        tid_doa.py
+Working dir: /home/bob/Downloads/tid_event_20260119
+
+--- INPUTS (from config) ---
+Event start: 2026-01-19T00:01:02.511874701+00:00
+Event end:   2026-01-19T02:03:02.511874701+00:00
+Resample s:  60
+Use bandpass:False
+Stations (3):
+  AA6BD          file=/home/bob/Downloads/tid_event_20260119/aa6bd_spline_tid.csv  method=spline  lat=35.06 lon=-85.13
+  N6RFM          file=/home/bob/Downloads/tid_event_20260119/n6rfm_spline_tid.csv  method=spline  lat=32.94 lon=-97.21
+  W7LUX          file=/home/bob/Downloads/tid_event_20260119/w7lux_spline_tid.csv  method=spline  lat=35.1042 lon=-111.7083
+
+--- RESULT ---
+Phase speed:    340.9 m/s
+Heading toward: 205.3 deg
+Coming from:    25.3 deg
+
+--- PAIRWISE ---
+       AA6BD -> N6RFM      lag=+1253.1s corr=+0.696
+       AA6BD -> W7LUX      lag=+1481.2s corr=+0.816
+       N6RFM -> W7LUX      lag= +670.4s corr=+0.662
+
+--- DIAGNOSTICS ---
+=== RESULT DIAGNOSTICS ===
+(Guideline ranges, not pass/fail. You decide what is
+ acceptable for your event and array.)
+
+[1] Geometry conditioning
+    Singular-value ratio:  7.5
+    Typical good range:    < ~30  (higher = near-collinear midpoints,
+                           direction poorly constrained)
+
+[2] Plane-wave fit residual
+    RMS lag residual:      147 s  (13.0% of mean abs lag 1135 s)
+    Typical good range:    < ~25%  (higher = lags not consistent
+                           with a single coherent wave)
+
+[3] Pairwise correlation
+    3 pairs: min 0.662, mean 0.725, max 0.816
+    Guideline:             pairs < 0.40 are weak; target >0.7
+
+[4] Triangle closure
+    1 triple(s), worst: 442 s  (39.0% of mean leg)
+    Typical good range:    < ~15%  (higher = at least
+                           one pair lag is a wrong peak)
+    >> OUTSIDE typical range (triple AA6BD/N6RFM/W7LUX). One pair correlation
+       likely locked a wrong peak; check the pairwise
+       table; a window tighten or drop may help.
+       Suggested drop: N6RFM (lowest mean corr in worst triple)
+
+[5] Phase speed
+    Result:                341 m/s
+    Typical TID range:     100-1000 m/s (LSTID); 100-300 (MSTID)
+
+  >> 1 of 5 diagnostic(s) outside typical ranges.
+     This result merits scrutiny before use; see the
+     flagged items above.
+
+Reminder: these are internal consistency checks. They
+cannot confirm the result is physically real -- cross-
+checking against an independent method or a hand-analysed
+event remains the strongest validation.
+
+--- PROVENANCE ---
+git commit:  b9d02cf
+command:     /home/bob/psws-tools-pr/tid_doa.py /home/bob/Downloads/tid_event_20260119/tid_workflow_event.json
