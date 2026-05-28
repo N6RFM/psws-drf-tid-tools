@@ -378,7 +378,8 @@ class StationData:
     method: str = "fft"   # extraction method: "fft" or "autocorr"
 
 
-def load_station(cfg, t_start, t_end, target_dt_s, smooth_seconds=None):
+def load_station(cfg, t_start, t_end, target_dt_s, smooth_seconds=None,
+                 use_ipp=True):
     df = pd.read_csv(cfg["file"])
     cols = [c.lower() for c in df.columns]
     df.columns = cols
@@ -845,7 +846,9 @@ def run(config):
     min_speed_m_s = config.get("min_expected_speed_m_s", 100.0)
 
     smooth_s = config.get("smooth_seconds")
-    stations = [load_station(c, t0, t1, dt_s, smooth_seconds=smooth_s) for c in config["stations"]]
+    use_ipp = config.get("use_ipp", True)
+    stations = [load_station(c, t0, t1, dt_s, smooth_seconds=smooth_s,
+                             use_ipp=use_ipp) for c in config["stations"]]
     if len(stations) < 3:
         raise SystemExit("Need at least 3 stations for direction-of-arrival.")
 
