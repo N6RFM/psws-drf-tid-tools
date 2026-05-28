@@ -1,3 +1,34 @@
+## v2.2.1 — 2026-05-28
+
+### Bug fixes
+
+- **tid_workflow.py / tid_doa.py: double-midpointing fix (`use_ipp`)**
+  `tid_workflow.py` was writing pre-computed IPP midpoints as `lat/lon`
+  in the event JSON. `tid_doa.py` then re-applied `great_circle_midpoint`,
+  giving ~¼-baseline coordinates and ~¼ the true phase speed (e.g. 128 m/s
+  instead of ~510 m/s on the May 2024 event).
+
+  Fix: `tid_workflow.py` now writes actual receiver coordinates with
+  `"use_ipp": true`. `tid_doa.py` reads `use_ipp` (default `true`) and
+  computes IPP midpoints internally. Set `"use_ipp": false` in a config
+  to use coordinates as-is (e.g. manually pre-computed IPP coords).
+
+- **tid_workflow.py: zoom_window t_end taken from axes sidecar**
+  When Step 3 window drag saved `t_end` as the DRF recording end
+  (e.g. 23:41 UTC) rather than the event end, that value was passed
+  as `--seg-end` to `tid_spect_click.py` — wrong extraction range
+  and malformed window size.
+
+- **tid_workflow.py: apply-to-all writes `_fullday_window.json`**
+  When applying a window to all remaining stations, only state was
+  updated — the `_fullday_window.json` file was never written, causing
+  `FileNotFoundError` in `drf_spectrogram.py --window`.
+
+### New example
+- `examples/event_20240517.json` — 3-station config for 17 May 2024
+  LSTID event (W7LUX/N5BRG/N4RVE, 17:30–20:30 UTC). See FINDINGS
+  Entry 44 on research_gui for analysis notes.
+
 ## v2.2.0 — 2026-05-27
 
 ### Interactive spline extraction (tid_spect_click.py)
