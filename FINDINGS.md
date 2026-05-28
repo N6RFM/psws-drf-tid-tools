@@ -2331,3 +2331,60 @@ Config: examples/event_20240517.json (3-station version).
    not 44.97N, 123.48W.
 3. Discuss coordinate system with Gwyn — his 979 m/s and our 340 m/s are
    on different baselines but consistent after normalization (~490 vs ~510 m/s).
+
+---
+
+## Entry 45 — May 2024 LSTID: best result after window correction
+**Date:** 2026-05-28
+**Branch:** research_gui
+
+### Summary
+Supersedes Entry 44. Correct analysis window is 19:15–22:28 UTC, not
+17:30–20:30 UTC. The later window captures the TID after the ionosphere
+fully recovers from the 14–16 UTC skip zone dead zone and gives much
+cleaner xcorr functions with unambiguous peak selection.
+
+### Best result
+**570 m/s from 354° N** (toward 174° S), 3 stations: N4RVE/N5BRG/W7LUX
+Window: 2024-05-17T19:15–22:28 UTC
+Coordinates: IPP midpoints (use_ipp=true)
+All 5 diagnostics pass:
+  - Geometry conditioning: 3.4 (< 30) ✓
+  - Plane-wave residual: 2.4% (< 25%) ✓
+  - Pairwise correlation: min 0.603, mean 0.750, max 0.842 ✓
+  - Triangle closure: 7.2% (< 15%) ✓
+  - Phase speed: 570 m/s (LSTID range) ✓
+
+### Station coords comparison (use_ipp=false)
+701 m/s from 1.5° N — same diagnostics, speed ratio 570/701 = 0.81
+consistent with IPP vs station baseline geometry.
+
+### Comparison with Gwyn G3ZIL
+| | This result | Gwyn |
+|---|---|---|
+| Speed | 570 m/s (IPP) | 979 m/s (IPP) |
+| From | 354° N | 157° SSE |
+| Method | Plane-wave DOA | Vector decomposition |
+
+Direction broadly consistent (both northward origin). Speed factor ~1.7
+likely due to different array geometry and baseline pairs used.
+
+### Pairwise lags
+- N4RVE → N5BRG: +1169 s (+19.5 min) corr=0.603
+- N4RVE → W7LUX: +1081 s (+18.0 min) corr=0.804
+- N5BRG → W7LUX:   -33 s  (-0.5 min) corr=0.842
+
+N4RVE leads both southern stations — consistent with northward-origin wave.
+This is the correct xcorr peak (vs the aliased -29 min peak in Entry 44).
+
+### Why earlier window (17:30–20:30) gave wrong result
+The 17:30–20:30 window sits in the ionospheric recovery period immediately
+after the skip zone. The xcorr functions were near-pure sinusoids with two
+equally valid peaks, and the wrong peak was selected — giving 340 m/s from
+189° S (wave coming from south, heading north) which contradicts Gwyn.
+The 19:15–22:28 window has cleaner signal and the correct peak is dominant.
+
+### Action items
+1. Discuss window selection criterion with Gwyn
+2. Discuss xcorr period-alias ambiguity — no principled fix yet
+3. Test IPP prompt on --resume

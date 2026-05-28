@@ -1,3 +1,23 @@
+## v2.3.0 — 2026-05-28
+
+### New features
+
+- **tid_workflow.py: IPP vs station coords prompt**
+  Workflow now asks the user to choose the DOA coordinate system at
+  method selection time:
+  - Option 1 (default): IPP midpoints — great-circle midpoint between
+    station and WWV, the physically correct coord for Doppler TID analysis
+  - Option 2: station coordinates — raw receiver lat/lon, useful for
+    comparison or when IPP is pre-computed externally
+  Choice is saved to state and skipped on resume.
+
+### Bug fixes
+
+- **tid_workflow.py: remove stale A=accept from Step 6 console output**
+  The A key binding was removed from tid_spect_click.py in v2.2.0 but
+  the Step 6 instruction string was not updated. Now shows:
+  `P=re-run  X=export  R=reset  Q=quit`
+
 ## v2.2.1 — 2026-05-28
 
 ### Bug fixes
