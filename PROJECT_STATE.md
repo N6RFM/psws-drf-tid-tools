@@ -31,3 +31,29 @@ and FINDINGS entries 43-44 on research_gui branch.
 Priority: (1) add FINDINGS Entry 45 for May 2024 best result
 570 m/s from 354 N, (2) fix N4RVE KNOWN_STATIONS coords,
 (3) send updated results to Gwyn."
+
+---
+## 37. End of session — 2026-05-28 (very late)
+
+### Accomplished
+- IPP prompt verified on --resume: skipped correctly, result reproducible
+- max-lag tightening test: 20 min is tightest safe value for May 2024 event
+  (true lags +18-19 min; 20 min captures them, excludes aliased -40 min peaks)
+- Window selection documented: early window (17:30-20:30) gives wrong xcorr
+  peaks due to multipath fading dropouts during F-region recovery post skip zone;
+  late window (19:15-22:28) gives clean unambiguous peaks
+- FINDINGS Entries 46 added
+- max_lag_seconds updated to 1200 s (20 min) in event_20240517.json
+
+### Open issues
+1. Send Gwyn email — draft ready, use 570 m/s from 354° N
+2. xcorr period-alias: grid search peak selector in tid_doa.py
+3. Add --max-lag CLI flag to tid_doa.py (currently config-only)
+
+### Resume command
+"Continuing psws-drf-tid-tools. Read PROJECT_STATE.md sections 35-37
+and FINDINGS entries 44-46 on research_gui branch.
+Priority: (1) send updated results to Gwyn: May 2024 570 m/s from
+354 N, window 19:15-22:28 UTC, max-lag 20 min recommendation,
+(2) grid search peak selector in tid_doa.py,
+(3) --max-lag CLI flag for tid_doa.py."
