@@ -47,7 +47,8 @@ Priority: (1) add FINDINGS Entry 45 for May 2024 best result
 
 ### Open issues
 1. Send Gwyn email — draft ready, use 570 m/s from 354° N
-2. xcorr period-alias: grid search peak selector in tid_doa.py
+2. xcorr period-alias: grid search already implemented (tid_doa.py lines 468-530);
+   only fix is clean window + tight max-lag. No code change needed.
 3. Add --max-lag CLI flag to tid_doa.py (currently config-only)
 
 ### Resume command
