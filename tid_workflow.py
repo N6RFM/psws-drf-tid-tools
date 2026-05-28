@@ -496,6 +496,9 @@ def run_workflow(args):
                         rk = rs["name"].lower()
                         state[f"{rk}_window"] = wj
                         state[f"{rk}_zoom_window"] = wj
+                        rk_win_json = event_dir / f"{rk}_fullday_window.json"
+                        with open(rk_win_json, "w") as _f:
+                            json.dump(wj, _f, indent=2)
                     save_state(state_file, state)
                     print(f"  Applied to: {[s['name'] for s in remaining]}")
         else:
