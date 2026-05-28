@@ -12,12 +12,13 @@ navigation, radio communications, and satellite operations.
 
 ## IMPORTANT CAVEAT
 
-There a numerous ways to extract TID information from DRF data and/or spectrograms.  
+There a numerous ways to extract TID information from DRF data and/or spectrograms.
 
 The goals of this toolset are 1) allow citizen scientists a means to explore TIDs and
-2) obtain estimates of TID propagation speed and direction.  The extraction tolls available here serve as
+2) obtain estimates of TID propagation speed and direction.  The extraction tools available here serve as
 place holders until more refined and accurate TID extraction tools become available and integrated
-into this toolset.  In the meantime, several user selectable options for TID extraction are included.
+into this toolset.  In short, results obtained may not even be accurate. At this time, consider this work 
+experimental in nature. Several user selectable options for TID extraction are included.
 
 ## What this toolkit does
 
