@@ -979,13 +979,6 @@ def _cli():
                          "window to each station's Doppler series before "
                          "cross-correlation (default off; recommended for "
                          "stations flagged POOR by quality_summary.py)")
-    ap.add_argument("--max-lag", type=float, default=None,
-                    metavar="MIN",
-                    help="override max cross-correlation lag in minutes "
-                         "(default: auto-computed from baseline and "
-                         "min_expected_speed_m_s). Use ~20 min for "
-                         "LSTID events with ~60 min period to avoid "
-                         "alias peak lock.")
     ap.add_argument("--no-diagnostics", action="store_true",
                     help="suppress the RESULT DIAGNOSTICS block "
                          "(shown by default)")
@@ -1013,7 +1006,4 @@ if __name__ == "__main__":
     if _args.smooth is not None:
         cfg["smooth_seconds"] = _args.smooth
         print(f"Smoothing enabled: Savitzky-Golay window={_args.smooth:g}s, polynomial order 3")
-    if _args.max_lag is not None:
-        cfg["max_lag_seconds"] = _args.max_lag * 60.0
-        print(f"max_lag override: {_args.max_lag:g} min ({_args.max_lag*60:.0f} s)")
     run(cfg)
