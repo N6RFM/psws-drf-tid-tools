@@ -1,0 +1,4 @@
+# Research-only docs — never merge into main
+FINDINGS.md        merge=ours
+PROJECT_STATE.md   merge=ours
+CHANGELOG.md       merge=ours
