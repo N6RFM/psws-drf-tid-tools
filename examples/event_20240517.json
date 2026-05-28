@@ -32,5 +32,7 @@
       "lat": 48.5417,
       "lon": -123.1667
     }
-  ]
+  ],
+  "max_lag_seconds": 1200,
+  "_max_lag_note": "20 min \u2014 tightest safe value; true lags ~18-19 min, excludes aliased -40 min peaks"
 }
