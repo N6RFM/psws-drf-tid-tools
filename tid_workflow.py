@@ -428,6 +428,19 @@ def run_workflow(args):
         method = state["extraction_method"]
     print(f"  Extraction method: {method}")
 
+    # ── IPP midpoint selection ────────────────────────────────────────
+    if "use_ipp" not in state:
+        print("\nDOA coordinate system:")
+        print("  1. IPP midpoints  (recommended — use great-circle midpoint")
+        print("                     between station and WWV as the DOA coord)")
+        print("  2. Station coords (use raw receiver coordinates — for")
+        print("                     comparison or when IPP is pre-computed)")
+        ipp_choice = input("Choose [1]: ").strip() or "1"
+        state["use_ipp"] = (ipp_choice != "2")
+        save_state(state_file, state)
+    use_ipp = state["use_ipp"]
+    print(f"  DOA coords: {'IPP midpoints' if use_ipp else 'station coords'}")
+
     # ── Steps 2-9: Per-station workflow ───────────────────────────────────
     for stn in stations:
         name = stn["name"]
@@ -790,7 +803,7 @@ def run_workflow(args):
         "event_end_utc":   t_end.isoformat(),
         "resample_seconds": 60,
         "use_bandpass": False,
-        "use_ipp": True,
+        "use_ipp": use_ipp,
         "min_expected_speed_m_s": 100,
         "stations": completed,
     }
