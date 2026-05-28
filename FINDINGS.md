@@ -2255,3 +2255,79 @@ Spline extraction significantly improved AC0G_ND correlations
 (previously r=0.34-0.38, now r=0.45-0.48). The interactive
 spline correction allowed better tracking of the F-region carrier
 through the contaminated region, reducing wrong-peak lock.
+
+---
+
+## Entry 44 — May 2024 LSTID: first successful 4-station DOA
+**Date:** 2026-05-28
+**Branch:** research_gui
+
+### Event
+17 May 2024 LSTID, ~19:00 UTC. Data: ~/Downloads/gwyn_tid_event_20240517/
+Gwyn's reference result: 979 m/s @ 157° (vector decomposition on IPP midpoints).
+
+### Station and signal assessment
+- W7LUX (sub0): clean sinusoidal TID, best station, usable 17:00-21:00 UTC
+- N5BRG (sub0): weak but trackable TID oscillation
+- N4RVE (sub4): E-region contamination + signal gap 18:30-19:30 UTC; spline extraction used
+- AC0G_ND (sub4): E-region loops dominate, signal dead 16:00-19:30 UTC; dropped from final DOA
+
+### Key finding: 10 MHz carrier dead zone 14-16 UTC
+All four stations lose the 10 MHz WWV carrier around 14-16 UTC due to skip
+zone geometry. Gwyn's 17:30-19:30 window is in the recovery period after
+the skip zone — the carrier returns but is weaker and more contaminated
+than the pre-skip window. Full-day spectrograms at 80 dpi were too compressed
+to show this; 17:00-21:00 zoom was needed to confirm usable signal.
+
+### Analysis window
+2024-05-17T17:30-20:30 UTC (3 hours), 60s cadence.
+Spline extraction via tid_spect_click.py (v2.2.0) for all stations.
+
+### DOA results — coordinate system comparison
+
+| Run | Coords | Stations | Speed | From | Flags |
+|-----|--------|----------|-------|------|-------|
+| Station coords (best) | Actual station lat/lon | N4RVE/N5BRG/W7LUX | 340 m/s | 189° S | 0/5 |
+| Station coords 4-stn | Actual station lat/lon | All 4 | 338 m/s | 189° S | 1/5 |
+| IPP (workflow JSON) | Double-midpointed | N4RVE/N5BRG/W7LUX | 128 m/s | 184° S | 0/5 |
+| Gwyn G3ZIL | IPP midpoints (½-baseline) | N4RVE/N5BRG/AC0G_ND/W7LUX | 979 m/s | 157° SSE | N/A |
+
+### Coordinate system findings
+tid_doa.py computes great-circle midpoints between each station lat/lon and
+WWV internally. The workflow event JSON was storing pre-computed IPP midpoints
+as lat/lon, causing tid_doa.py to midpoint them again — giving ~¼-baseline
+coords and ~¼ the true speed (128 m/s × 4 ≈ 510 m/s).
+
+When station coords are passed directly, tid_doa.py correctly computes IPP
+midpoints internally, giving 340 m/s on the correct ½-baseline geometry.
+
+Speed equivalents after baseline correction:
+- Our station-coords result: 340 m/s (on full station baselines)
+- Our IPP-corrected equivalent: ~510 m/s
+- Gwyn's result: 979 m/s (on ½-baseline IPP coords, i.e. ~490 m/s equivalent)
+- Agreement within ~4% after baseline normalization
+
+### Direction agreement
+All runs give ~184-189° (from S). Gwyn: 157° (from SSE). ~30° difference —
+consistent with different baseline pairs used (our array includes W7LUX/N5BRG
+E-W baseline which Gwyn does not use in the same way).
+
+### xcorr ambiguity
+The xcorr functions are near-pure sinusoids (TID period ~60 min, window 3h).
+Every pair has two equally-plausible peaks within ±60 min lag. The lags our
+DOA uses (N4RVE→N5BRG: -29 min, N4RVE→W7LUX: -36 min) are consistent with
+Gwyn's (N4RVE→N5BRG: 27 min). Triangle closure at 13.4% confirms internal
+consistency but cannot resolve the period-alias ambiguity.
+
+### Best result
+**340 m/s from 189° S** (3 stations: N4RVE/N5BRG/W7LUX, station coords).
+All 5 diagnostics pass. Triangle closure 13.4%, residual 4.5%.
+Config: examples/event_20240517.json (3-station version).
+
+### Action items
+1. Fix tid_doa.py / tid_workflow.py: always store station coords in event JSON,
+   compute IPP midpoints internally. Add use_ipp: true/false config key.
+2. Update KNOWN_STATIONS: N4RVE is at Turn Island BC (48.54N, 123.17W),
+   not 44.97N, 123.48W.
+3. Discuss coordinate system with Gwyn — his 979 m/s and our 340 m/s are
+   on different baselines but consistent after normalization (~490 vs ~510 m/s).

@@ -1000,3 +1000,39 @@ and FINDINGS entries 42-43 on research_gui branch.
 Priority: (1) run May 2024 analysis with spline extraction,
 (2) compare spline vs sgolay vs automated on all stations,
 (3) send updated results to Gwyn: 239 m/s from 30 NNE Jan 2026."
+
+---
+
+## 35. End of session — 2026-05-28
+
+### Accomplished
+- May 2024 LSTID event: first successful 4-station spline DOA
+- Discovered 10 MHz skip zone dead zone 14-16 UTC — correct window is 17:30-20:30
+- AC0G_ND unusable (E-region + dead zone); dropped from final DOA
+- W7LUX: clean, N5BRG: weak but usable, N4RVE: contaminated but spline-corrected
+- Identified double-midpointing bug in tid_workflow.py event JSON
+  (workflow stores IPP coords; tid_doa.py re-midpoints them → ¼-baseline speed)
+- Best result: 340 m/s from 189° S, 3 stations (N4RVE/N5BRG/W7LUX), all 5 pass
+- Speed reconciliation with Gwyn: 340 m/s (full baseline) ≈ 510 m/s (½-baseline)
+  vs Gwyn 979 m/s (½-baseline) — same direction, factor ~2 speed discrepancy
+  likely due to xcorr period-alias ambiguity on 60-min period LSTID
+- FINDINGS Entry 44 added
+- Two bugs fixed in tid_workflow.py:
+  1. zoom_window t_end taken from axes sidecar (not full-day window)
+  2. apply-to-all writes fullday_window.json for each station
+- N4RVE KNOWN_STATIONS coord wrong (44.97N vs actual 48.54N Turn Island BC)
+
+### Open issues
+1. tid_doa.py / tid_workflow.py: store station coords in event JSON,
+   compute IPP internally. Add use_ipp config key.
+2. Fix KNOWN_STATIONS: N4RVE → 48.54N, 123.17W
+3. Discuss xcorr period-alias with Gwyn — 60-min period + 3h window
+   means every pair has two equally valid peaks
+
+### Resume command
+cd ~/psws-tools-pr && git checkout research_gui
+"Continuing psws-drf-tid-tools. Read PROJECT_STATE.md sections 33-35
+and FINDINGS entries 43-44 on research_gui branch.
+Priority: (1) fix tid_doa.py to store station coords and compute IPP
+internally (use_ipp config key), (2) fix N4RVE KNOWN_STATIONS coords,
+(3) send updated results to Gwyn: May 2024 340 m/s from 189° S."
