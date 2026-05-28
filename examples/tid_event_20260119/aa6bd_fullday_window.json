@@ -1,0 +1,6 @@
+{
+  "spectrogram_png": "aa6bd_fullday.png",
+  "t_start_utc_hours": 0.0,
+  "t_end_utc_hours": 2.2583,
+  "_note": "TID window selected by tid_quicklook.py \u2014 used by tid_spect_click.py to pre-set segment"
+}
