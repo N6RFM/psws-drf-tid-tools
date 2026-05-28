@@ -213,6 +213,9 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self.subchannel  = subchannel
         self.sgolay_window = sgolay_window
         self.corridor_width = corridor_width
+        self._wave_mode = False
+        self._wave_clicks_t = []
+        self._wave_clicks_d = []
         self._prophet_csv   = None
         self._prophet_done  = False
         self._prophet_curve = None
@@ -583,6 +586,11 @@ class SpectClickApp(QtWidgets.QMainWindow):
 
     def _handle_phase_click(self, vx, vy):
         """Store a phase sample click in physical coordinates."""
+        # Wave-fit mode intercepts clicks
+        if getattr(self, "_wave_mode", False):
+            if self.transform and self.transform.ready:
+                self._wave_fit_click(vx, vy)
+            return
         if self.transform and self.transform.ready:
             # vx, vy are already in physical coords after image transform
             t_hours, dop_hz = vx, vy
@@ -996,10 +1004,186 @@ class SpectClickApp(QtWidgets.QMainWindow):
             seg = f"  seg: {self.seg_t0:.2f}–{self.seg_t1:.2f} h"
             msg = (
                 f"[{self.name}] {n} click(s){seg}   "
-                "[X] export corridor  "
+                "[X] export  [W] wave-fit  "
                 "[R] reset  [C] clear  [Q] quit"
             )
         self.status_label.setText(msg)
+
+
+    # ------------------------------------------------------------------
+    # Wave-fit reconstruction  (W key)
+    # ------------------------------------------------------------------
+    # User marks ≥ half a cycle on the spline by clicking two points.
+    # The tool fits period T, amplitude A, phase φ from that segment,
+    # then reconstructs the full window by mirroring/tiling the fitted
+    # waveform. Each station uses its own T/A/φ — no shared period
+    # assumption. Exports {stn}_wave_tid.csv alongside the spline CSV.
+    # ------------------------------------------------------------------
+
+    def _wave_fit_start(self):
+        """Enter wave-fit mode: next 2 clicks mark the half-cycle."""
+        if self.cal_step < 4:
+            self._set_status("Calibrate first before using wave-fit")
+            return
+        self._wave_clicks_t = []
+        self._wave_clicks_d = []
+        self._wave_mode = True
+        self._set_status(
+            f"[{self.name}] WAVE-FIT: click start then end of ≥ half-cycle  "
+            "[Q] cancel")
+
+    def _wave_fit_click(self, t_h, d_hz):
+        """Receive a click in wave-fit mode."""
+        self._wave_clicks_t.append(t_h)
+        self._wave_clicks_d.append(d_hz)
+        n = len(self._wave_clicks_t)
+        if n == 1:
+            self._set_status(
+                f"[{self.name}] WAVE-FIT: 1st point set ({t_h:.3f}h, {d_hz:.3f}Hz) "
+                "— click end of half-cycle")
+            return
+        # 2 points set — fit and reconstruct
+        self._wave_mode = False
+        self._do_wave_fit()
+
+    def _do_wave_fit(self):
+        """Fit waveform to marked half-cycle and reconstruct full window."""
+        import numpy as _npw
+        import pandas as _pdw
+        from scipy.interpolate import PchipInterpolator as _Pchipw
+        from scipy.optimize import curve_fit as _curve_fit
+        import json as _jsonw, re as _rew, os as _osw
+
+        t0_mark = min(self._wave_clicks_t)
+        t1_mark = max(self._wave_clicks_t)
+        span_h  = t1_mark - t0_mark        # marked span in hours
+        span_s  = span_h * 3600.0          # in seconds
+
+        # Load spline CSV as the signal source
+        spline_csv = None
+        stem = pathlib.Path(self.img_path).stem
+        parent = pathlib.Path(self.img_path).parent
+        for candidate in [
+            parent / (stem.replace("_tid_zoom_clean", "") + "_spline_tid.csv"),
+            parent / (stem + "_spline_tid.csv"),
+        ]:
+            if candidate.exists():
+                spline_csv = candidate
+                break
+
+        if spline_csv is None:
+            self._set_status("WAVE-FIT: no spline CSV found — export spline first (X)")
+            return
+
+        try:
+            df = _pdw.read_csv(spline_csv, parse_dates=["timestamp_utc"])
+            df["t_h"] = (df["timestamp_utc"].dt.hour +
+                         df["timestamp_utc"].dt.minute / 60.0 +
+                         df["timestamp_utc"].dt.second / 3600.0)
+            df = df.sort_values("t_h")
+        except Exception as _e:
+            self._set_status(f"WAVE-FIT: could not load spline CSV: {_e}")
+            return
+
+        # Extract signal segment within marked window
+        mask = (df["t_h"] >= t0_mark) & (df["t_h"] <= t1_mark)
+        seg = df[mask].copy()
+        if len(seg) < 4:
+            self._set_status("WAVE-FIT: marked segment too short — mark more of the wave")
+            return
+
+        t_seg = seg["t_h"].values
+        d_seg = seg["doppler_hz"].values
+        d_seg -= d_seg.mean()
+
+        # Estimate period: span is >= half cycle, so T <= 2 * span
+        # Use autocorrelation of full signal to refine
+        t_full = df["t_h"].values
+        d_full = df["doppler_hz"].values - df["doppler_hz"].mean()
+        dt_h = _npw.median(_npw.diff(t_full))
+        dt_s = dt_h * 3600.0
+
+        # Period estimate from marked span — user marked >= half cycle
+        # so period is between span and 2*span
+        T_guess_s = span_s * 1.8  # assume ~0.55 of full cycle marked
+
+        # Refine with autocorrelation
+        from scipy.signal import correlate as _corr
+        xc = _corr(d_full, d_full, mode='full')
+        xc = xc[len(xc)//2:]
+        lags_s = _npw.arange(len(xc)) * dt_s
+        # Look for first peak after T_guess_s * 0.4
+        min_lag = int(T_guess_s * 0.4 / dt_s)
+        max_lag = int(T_guess_s * 2.0 / dt_s)
+        min_lag = max(1, min(min_lag, len(xc)-2))
+        max_lag = max(min_lag+2, min(max_lag, len(xc)-1))
+        sub = xc[min_lag:max_lag]
+        if len(sub) > 0:
+            peak_idx = _npw.argmax(sub) + min_lag
+            T_s = lags_s[peak_idx]
+        else:
+            T_s = T_guess_s
+        T_h = T_s / 3600.0
+
+        # Fit A*sin(2π/T * t + φ) to the marked segment
+        def _sine(t, A, phi):
+            return A * _npw.sin(2 * _npw.pi / T_h * t + phi)
+
+        A_guess = (d_seg.max() - d_seg.min()) / 2.0
+        try:
+            popt, _ = _curve_fit(_sine, t_seg, d_seg,
+                                  p0=[A_guess, 0.0],
+                                  maxfev=2000)
+            A_fit, phi_fit = popt
+        except Exception:
+            A_fit  = A_guess
+            phi_fit = 0.0
+
+        # Reconstruct full window
+        t_out = df["t_h"].values
+        d_wave = A_fit * _npw.sin(2 * _npw.pi / T_h * t_out + phi_fit)
+
+        # Get date string
+        date_str = None
+        sidecar = str(self.img_path).replace(".png", "_axes.json")
+        if _osw.path.exists(sidecar):
+            try:
+                sc = _jsonw.load(open(sidecar))
+                date_str = sc.get("date_utc")
+            except Exception:
+                pass
+        if not date_str:
+            for _s in [str(self.img_path), str(self.drf_dir or "")]:
+                _m = _rew.search(r"(\d{4}-\d{2}-\d{2})", _s)
+                if _m:
+                    date_str = _m.group(1)
+                    break
+        if not date_str:
+            date_str = "2026-01-01"
+
+        # Build timestamps
+        import datetime as _dt
+        base = _dt.datetime.strptime(date_str, "%Y-%m-%d").replace(
+            tzinfo=_dt.timezone.utc)
+        timestamps = [base + _dt.timedelta(hours=float(h)) for h in t_out]
+
+        out_df = _pdw.DataFrame({
+            "timestamp_utc": timestamps,
+            "doppler_hz":    d_wave,
+            "snr_db":        50.0,
+        })
+
+        # Save
+        out_stem = stem.replace("_tid_zoom_clean", "")
+        out_path = parent / f"{out_stem}_wave_tid.csv"
+        out_df.to_csv(out_path, index=False)
+
+        self._set_status(
+            f"WAVE-FIT done: T={T_s/60:.1f} min, A={abs(A_fit):.3f} Hz → "
+            f"{out_path.name}  [X]=export spline  [W]=redo wave-fit")
+        print(f"  Wave-fit: T={T_s/60:.1f} min, A={abs(A_fit):.3f} Hz, "
+              f"phi={phi_fit:.3f} rad")
+        print(f"  Saved: {out_path}")
 
     # ------------------------------------------------------------------
     # Shortcuts
@@ -1008,6 +1192,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
     def _install_shortcuts(self):
         for key, cb in [("X", self._export_spline_csv),
                         ("P", self._run_prophet_preview),
+                        ("W", self._wave_fit_start),
                         ("R", self._reset_clicks), ("C", self._clear_all),
                         ("Q", self.close)]:
             sc = QtWidgets.QShortcut(QtGui.QKeySequence(key), self, cb)
