@@ -133,16 +133,19 @@ python3 drf_spectrogram.py ./n6rfm --subchannel 0 \
     --window n6rfm_fullday_window.json \
     --ylim=-5,5 --dpi 150 --callsign N6RFM
 
-# 5. Click corridor and extract (sgolay-ridge)
+# 5. Interactive spline extraction (cwt-prophet -- recommended)
+#    Pass 0 auto-runs on open. Click F-region carrier to correct
+#    excursions. P=re-run  X=export  R=reset  Q=quit
 python3 tid_spect_click.py --spectrogram n6rfm_zoom.png \
     --name N6RFM --drf-dir ./n6rfm --subchannel 0
+
+# 5b. Alternative: automated extraction (clean stations only)
 python3 drf_to_doppler.py ./n6rfm --subchannel 0 \
     --start 2026-01-19T00:00:00 --end 2026-01-19T02:00:00 \
-    --decim-seconds 60 --method sgolay-ridge \
-    --corridor n6rfm_zoom_corridor.json --output n6rfm_sgolay_tid.csv
+    --decim-seconds 60 --method fft --output n6rfm_fft_tid.csv
 
-# 6. Run DOA
-python3 tid_doa.py event.json
+# 6. Run DOA (use --max-lag ~20 min for LSTID with ~60 min period)
+python3 tid_doa.py event.json --max-lag 20
 ```
 
 See **[`MANUAL_TUTORIAL.md`](MANUAL_TUTORIAL.md)** for the complete
@@ -153,22 +156,30 @@ coordinate calculation, and result interpretation.
 
 ## Doppler Extraction Methods
 
-`drf_to_doppler.py` supports four extraction methods via `--method`:
+`tid_spect_click.py` is the primary interactive extraction tool.
+`drf_to_doppler.py` provides automated extraction via `--method`:
 
-- `sgolay-ridge` **(recommended)**: 2D STFT ridge tracker with a
-  user-defined corridor. Correctly identifies the F-region carrier
-  even when E-region contamination is present. Requires corridor
-  clicking via `tid_spect_click.py`.
-- `fft` (default): FFT-based carrier tracker. Robust and fully
-  automated. Good for clean stations.
+- `cwt-prophet` **(recommended)**: interactive spline extraction via
+  `tid_spect_click.py`. Pass 0 auto-runs CWT+Prophet to seed the
+  spline; click the F-region carrier to correct excursions. Handles
+  E-region contamination and wrong-peak lock. Use for any event where
+  contamination is present or automated methods give inconsistent lags.
+- `sgolay-ridge`: interactive corridor-based extraction (legacy).
+  Precursor to cwt-prophet; still available but superseded.
+- `fft`: FFT-based carrier tracker. Fully automated. Good for clean
+  stations with no E-region contamination.
 - `autocorr`: Lag-1 complex autocorrelation instantaneous-frequency
-  estimator (G3ZIL method). 2-3x smoother output.
+  estimator (G3ZIL method). 2-3x smoother output than fft.
 - `cwt`: CWT multi-peak tracker with linear extrapolation.
 
-**Key finding from validation:** on the Jan 2026 event, `sgolay-ridge`
-gave the physically correct result (262 m/s from 37° NNE) while `fft`
-locked on the wrong xcorr peak for AC0G/ND (99 m/s from 167°, opposite
-direction). When E-region contamination is present, use `sgolay-ridge`.
+**Key finding from validation:** on the Jan 2026 event, spline
+extraction (cwt-prophet) gave 239 m/s from 30 NNE (0/5 flags) while
+automated methods gave 218-281 m/s with 3/5 flags. When E-region
+contamination is present, use `cwt-prophet` via `tid_spect_click.py`.
+
+**xcorr aliasing note:** for LSTID events with ~60 min period, set
+`--max-lag 20` (minutes) to prevent alias peak lock. See
+`ASSESSING_RESULTS.md` for details.
 
 See `MANUAL_TUTORIAL.md` for the full extraction method comparison.
 
