@@ -743,8 +743,8 @@ def run_workflow(args):
                     "name": stn["name"],
                     "file": str(csv),
                     "method": meth,
-                    "lat": stn["ipp_lat"],
-                    "lon": stn["ipp_lon"],
+                    "lat": stn["receiver_lat"],
+                    "lon": stn["receiver_lon"],
                 })
                 break
 
@@ -787,6 +787,7 @@ def run_workflow(args):
         "event_end_utc":   t_end.isoformat(),
         "resample_seconds": 60,
         "use_bandpass": False,
+        "use_ipp": True,
         "min_expected_speed_m_s": 100,
         "stations": completed,
     }
