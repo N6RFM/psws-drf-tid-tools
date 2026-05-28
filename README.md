@@ -51,6 +51,19 @@ pip install -r requirements.txt
 pip install -r requirements-optional.txt   # for nicer maps
 ```
 
+### If you contribute or work across branches
+
+After cloning, run:
+
+```bash
+git config merge.ours.driver true
+```
+
+This configures the `merge=ours` driver used in `.gitattributes` to keep
+research-only docs (`FINDINGS.md`, `PROJECT_STATE.md`, `CHANGELOG.md`)
+off the `main` branch when merging. Without it, those files may
+unexpectedly appear in `main` after a merge.
+
 ### Recommended: use a virtual environment
 
 The toolkit's dependencies (particularly `digital_rf`, `cartopy`, and
