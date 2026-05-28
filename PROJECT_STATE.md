@@ -58,3 +58,26 @@ Priority: (1) send updated results to Gwyn: May 2024 570 m/s from
 354 N, window 19:15-22:28 UTC, max-lag 20 min recommendation,
 (2) grid search peak selector in tid_doa.py,
 (3) --max-lag CLI flag for tid_doa.py."
+
+---
+## 38. End of session — 2026-05-28 (very late, continued)
+
+### Accomplished
+- Synthetic cycle tiling prototype — tested on May 2024 and Jan 2026
+- May 2024: W7LUX/N5BRG synthetics work well (xcorr 0.880)
+  N4RVE unreliable (asymmetric period, contamination)
+  Jan 2026: <1 cycle visible — tiling not applicable
+- FINDINGS Entry 47 added
+- Minimum cycle requirement established: 1.5-2 full cycles needed
+
+### Open issues
+1. Send Gwyn email
+2. Implement T=tile key in tid_spect_click.py (optional, future)
+3. xcorr period-alias discussion with Gwyn
+
+### Resume command
+"Continuing psws-drf-tid-tools. Read PROJECT_STATE.md sections 36-38
+and FINDINGS entries 45-47 on research_gui branch.
+Priority: (1) send updated results to Gwyn: May 2024 570 m/s from
+354 N, window 19:15-22:28 UTC, (2) implement T=tile in
+tid_spect_click.py, (3) xcorr period-alias discussion with Gwyn."
