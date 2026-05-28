@@ -2388,3 +2388,46 @@ The 19:15–22:28 window has cleaner signal and the correct peak is dominant.
 1. Discuss window selection criterion with Gwyn
 2. Discuss xcorr period-alias ambiguity — no principled fix yet
 3. Test IPP prompt on --resume
+
+---
+
+## Entry 46 — May 2024: window selection criterion and max-lag tightening
+**Date:** 2026-05-28
+**Branch:** research_gui
+
+### Window selection: why 19:15–22:28 UTC works and 17:30–20:30 does not
+
+The 10 MHz WWV carrier undergoes a skip zone dead zone on all four stations
+around 14–16 UTC. After ~16 UTC the carrier recovers, but the recovery is
+gradual — multipath fading dropouts persist through 17:00–19:00 UTC as the
+F-region stabilises.
+
+W7LUX spectrogram comparison (±2 Hz zoom):
+- Early window (17:00–20:30): weak carrier, ±0.6 Hz TID amplitude, frequent
+  fading dropouts at ~17:30, 18:00, 18:30, 19:10 UTC. Dropouts are not
+  coherent across stations (different WWV geometry per station), creating
+  artificial xcorr structure at wrong lags.
+- Late window (19:00–22:30): strong carrier, ±1.0 Hz TID amplitude, three
+  complete clean cycles, no fading dropouts. F-region fully stabilised.
+
+The early window xcorr aliasing caused the wrong peak to be selected on the
+N4RVE pairs (-29 min instead of +19 min), giving 340 m/s from 189° S.
+The late window gives unambiguous +19 min peaks and 570 m/s from 354° N.
+
+**Window selection rule for post-skip-zone events:**
+Allow at least 2–3 hours after carrier recovery before starting the analysis
+window. For this event: carrier recovers ~16 UTC, usable window starts ~19 UTC.
+
+### max-lag tightening test
+
+Tested max_lag_seconds at 40, 25, 20, and 15 min on the late window:
+- 40, 25, 20 min: identical result — 570 m/s from 354° N, all 5 pass
+- 15 min: lags clamp to ceiling (+900 s), speed 695 m/s, direction 355° N
+
+True lags are +1169 s (+19.5 min) and +1081 s (+18.0 min). Setting
+max-lag to 20 min (1200 s) is the tightest safe value for this event —
+it captures the true peaks and excludes the aliased ~-40 min peaks.
+
+**Recommendation:** for known LSTID events with ~60 min period, use
+max-lag 20–25 min. This prevents alias peak selection without clamping
+the true lags. Add to event JSON: `"max_lag_seconds": 1200`
