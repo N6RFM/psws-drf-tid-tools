@@ -563,14 +563,14 @@ def run_workflow(args):
         if method in ("sgolay-ridge", "cwt-prophet"):
             # Step 6/7: Interactive spline extraction via tid_spect_click
             # Pass 0: cwt-prophet auto-runs on open, user corrects with clicks
-            # A=accept region, P=re-run Prophet, X=export spline, R=reset
+            # P=re-run Prophet, X=export spline, R=reset, Q=quit
             spline_csv = event_dir / f"{stn_key}_spline_tid.csv"
             spline_key = f"{stn_key}_spline"
             if spline_key not in state:
                 print(f"\n[Step 6] Interactive spline extraction for {name}...")
                 print(f"  → Pass 0 auto-runs on open (cwt-prophet)")
                 print(f"  → Click F-region carrier to correct excursions")
-                print(f"  → A=accept region  P=re-run  X=export  R=reset  Q=quit")
+                print(f"  → P=re-run  X=export  R=reset  Q=quit")
                 run([
                     "python3", tool("tid_spect_click.py"),
                     "--spectrogram", str(zoom_clean_png),
