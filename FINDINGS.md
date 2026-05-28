@@ -2431,3 +2431,72 @@ it captures the true peaks and excludes the aliased ~-40 min peaks.
 **Recommendation:** for known LSTID events with ~60 min period, use
 max-lag 20–25 min. This prevents alias peak selection without clamping
 the true lags. Add to event JSON: `"max_lag_seconds": 1200`
+
+---
+
+## Entry 47 — Synthetic cycle tiling: prototype and assessment
+**Date:** 2026-05-28
+**Branch:** research_gui
+
+### Concept
+User marks one clean cycle on the spline for each station. That cycle
+is used as a template and tiled (repeated) across the full TID window,
+producing a clean synthetic trace. Cross-correlating synthetic traces
+across stations gives sharper xcorr peaks with less alias ambiguity
+than cross-correlating the raw noisy spline.
+
+### Implementation tested
+Prototype script: crossfade tiling with per-station template windows.
+Template extracted by marking t_start/t_end of first clean cycle.
+Crossfade (8-sample fade in/out) at tile join points to avoid
+discontinuities. Synthetic CSVs saved as {stn}_synth_tid.csv.
+
+### Results on May 2024 event (W7LUX, N5BRG, N4RVE)
+
+**W7LUX and N5BRG:** tiling works well. Both have ~2.5 clean cycles
+in the 19:15-22:28 window. N5BRG↔W7LUX synthetic xcorr: corr=0.880
+(vs 0.842 for spline). Slight improvement.
+
+**N4RVE:** tiling unreliable. Signal is asymmetric (fast trough, long
+positive plateau) and contaminated in first 20 min. Period estimate
+is ~120 min vs ~75 min for the other stations — incoherent with the
+other synthetics. N4RVE pairs gave corr=0.155-0.203 on synthetic vs
+0.603-0.804 on spline.
+
+**W7LUX↔N5BRG along-baseline:** lag ≈ 0 min, corr=0.278. Expected —
+the wave is northward and the baseline is nearly east-west (94°), so
+both stations see the wave at nearly the same time. Cannot constrain
+DOA with these two stations alone.
+
+**3-station synthetic DOA:** 476 m/s from 215° (wrong direction) due
+to N4RVE synthetic being incoherent with others. 3/5 diagnostics
+flagged.
+
+### Results on Jan 2026 event
+Not applicable — all 4 stations show less than one full cycle in the
+2-hour window (TID period > 2 hours). Tiling would require
+extrapolation, not repetition. Spline DOA remains the correct approach
+for this event.
+
+### Key finding: minimum cycle requirement
+The tiling approach requires at least **1.5–2 full cycles** visible
+in the analysis window. If fewer than 1.5 cycles are visible the
+template cannot be reliably tiled and the synthetic will be fiction.
+
+For May 2024 (period ~75 min, window 3 hours): 2.4 cycles — workable.
+For Jan 2026 (period >120 min, window 2 hours): <1 cycle — not applicable.
+
+### Recommendation
+Implement as optional post-processing step in tid_spect_click.py:
+- After spline acceptance, offer "T=tile cycle" option
+- User marks one full cycle (start and end)
+- Tool warns if fewer than 1.5 cycles remain in window
+- Saves {stn}_synth_tid.csv alongside spline CSV
+- DOA can then be run on synthetic CSVs for comparison
+
+### Prototype script location
+Inline script — not yet committed to repo. See session log 2026-05-28.
+Template windows used for May 2024:
+  W7LUX: 19:15-20:30 UTC (75 min)
+  N5BRG: 19:20-20:35 UTC (75 min)
+  N4RVE: 19:15-21:15 UTC (120 min, unreliable)
