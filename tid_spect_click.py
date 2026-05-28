@@ -603,7 +603,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self._update_status()
         n = len(self.clicks_t)
         self._set_status(
-            f"{n} anchor(s).  P=re-run Prophet  X=export  R=reset  Q=quit")
+            f"{n} anchor(s).  P=re-run Prophet  X=export  W=wave-fit  R=reset  Q=quit")
 
     def _refresh_scatter(self):
         if self.clicks_t:
@@ -798,7 +798,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
             ts = _dt.datetime.now().strftime("%H:%M:%S")
             self._set_status(
                 f"[{ts}] Pass {self._prophet_pass} — {n} anchor(s).  "
-                f"Click F-region carrier to add anchors  P=re-run Prophet  X=export  R=reset  Q=quit")
+                f"Click F-region carrier to add anchors  P=re-run Prophet  X=export  W=wave-fit  R=reset  Q=quit")
         except Exception as _e:
             self._set_status(f"Prophet overlay failed: {_e}")
 
@@ -954,7 +954,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
             self._refresh_scatter()
             n_anchors = len(pairs)
             self._set_status(
-                f"Exported: {out.name}  ({n_anchors} anchors, {len(df)} rows) — Q to quit")
+                f"Exported: {out.name}  ({n_anchors} anchors, {len(df)} rows) — W=wave-fit  Q to quit")
             print(f"Spline CSV exported: {out}")
 
     def _export_prophet_csv(self):
