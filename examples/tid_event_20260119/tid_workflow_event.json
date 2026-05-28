@@ -1,0 +1,32 @@
+{
+  "event_start_utc": "2026-01-19T00:01:02.511874701+00:00",
+  "event_end_utc": "2026-01-19T02:03:02.511874701+00:00",
+  "resample_seconds": 60,
+  "use_bandpass": false,
+  "use_ipp": true,
+  "min_expected_speed_m_s": 100,
+  "stations": [
+    {
+      "name": "AA6BD",
+      "file": "/home/bob/Downloads/tid_event_20260119/aa6bd_spline_tid.csv",
+      "method": "spline",
+      "lat": 35.06,
+      "lon": -85.13
+    },
+    {
+      "name": "N6RFM",
+      "file": "/home/bob/Downloads/tid_event_20260119/n6rfm_spline_tid.csv",
+      "method": "spline",
+      "lat": 32.94,
+      "lon": -97.21
+    },
+    {
+      "name": "W7LUX",
+      "file": "/home/bob/Downloads/tid_event_20260119/w7lux_spline_tid.csv",
+      "method": "spline",
+      "lat": 35.1042,
+      "lon": -111.7083
+    }
+  ],
+  "max_lag_seconds": 2400.0
+}

@@ -1,0 +1,112 @@
+{
+  "stations": [
+    {
+      "name": "AA6BD",
+      "drf_dir": "/home/bob/Downloads/tid_event_20260119/aa6bd",
+      "subchannel": 0,
+      "receiver_lat": 35.06,
+      "receiver_lon": -85.13,
+      "ipp_lat": 37.870000000000005,
+      "ipp_lon": -95.08500000000001,
+      "grid": "EM75kb",
+      "date_str": "2026-01-19"
+    },
+    {
+      "name": "AC0G_ND",
+      "drf_dir": "/home/bob/Downloads/tid_event_20260119/ac0g_nd",
+      "subchannel": 4,
+      "receiver_lat": 46.875,
+      "receiver_lon": -96.8333,
+      "ipp_lat": 43.7775,
+      "ipp_lon": -100.93665,
+      "grid": "EN16ov",
+      "date_str": "2026-01-19"
+    },
+    {
+      "name": "N6RFM",
+      "drf_dir": "/home/bob/Downloads/tid_event_20260119/n6rfm",
+      "subchannel": 0,
+      "receiver_lat": 32.94,
+      "receiver_lon": -97.21,
+      "ipp_lat": 36.81,
+      "ipp_lon": -101.125,
+      "grid": "EM12jw",
+      "date_str": "2026-01-19"
+    },
+    {
+      "name": "W7LUX",
+      "drf_dir": "/home/bob/Downloads/tid_event_20260119/w7lux",
+      "subchannel": 0,
+      "receiver_lat": 35.1042,
+      "receiver_lon": -111.7083,
+      "ipp_lat": 37.8921,
+      "ipp_lon": -108.37415,
+      "grid": "DM45dc",
+      "date_str": "2026-01-19"
+    }
+  ],
+  "date_str": "2026-01-19",
+  "extraction_method": "cwt-prophet",
+  "use_ipp": true,
+  "aa6bd_fullday": "/home/bob/Downloads/tid_event_20260119/aa6bd_fullday.png",
+  "aa6bd_window": {
+    "spectrogram_png": "aa6bd_fullday.png",
+    "t_start_utc_hours": 0.0,
+    "t_end_utc_hours": 2.2583,
+    "_note": "TID window selected by tid_quicklook.py \u2014 used by tid_spect_click.py to pre-set segment"
+  },
+  "aa6bd_zoom_window": {
+    "spectrogram_png": "aa6bd_fullday.png",
+    "t_start_utc_hours": 0.0,
+    "t_end_utc_hours": 2.2583,
+    "_note": "TID window selected by tid_quicklook.py \u2014 used by tid_spect_click.py to pre-set segment"
+  },
+  "ac0g_nd_window": {
+    "spectrogram_png": "aa6bd_fullday.png",
+    "t_start_utc_hours": 0.0,
+    "t_end_utc_hours": 2.2583,
+    "_note": "TID window selected by tid_quicklook.py \u2014 used by tid_spect_click.py to pre-set segment"
+  },
+  "ac0g_nd_zoom_window": {
+    "spectrogram_png": "aa6bd_fullday.png",
+    "t_start_utc_hours": 0.0,
+    "t_end_utc_hours": 2.2583,
+    "_note": "TID window selected by tid_quicklook.py \u2014 used by tid_spect_click.py to pre-set segment"
+  },
+  "n6rfm_window": {
+    "spectrogram_png": "aa6bd_fullday.png",
+    "t_start_utc_hours": 0.0,
+    "t_end_utc_hours": 2.2583,
+    "_note": "TID window selected by tid_quicklook.py \u2014 used by tid_spect_click.py to pre-set segment"
+  },
+  "n6rfm_zoom_window": {
+    "spectrogram_png": "aa6bd_fullday.png",
+    "t_start_utc_hours": 0.0,
+    "t_end_utc_hours": 2.2583,
+    "_note": "TID window selected by tid_quicklook.py \u2014 used by tid_spect_click.py to pre-set segment"
+  },
+  "w7lux_window": {
+    "spectrogram_png": "aa6bd_fullday.png",
+    "t_start_utc_hours": 0.0,
+    "t_end_utc_hours": 2.2583,
+    "_note": "TID window selected by tid_quicklook.py \u2014 used by tid_spect_click.py to pre-set segment"
+  },
+  "w7lux_zoom_window": {
+    "spectrogram_png": "aa6bd_fullday.png",
+    "t_start_utc_hours": 0.0,
+    "t_end_utc_hours": 2.2583,
+    "_note": "TID window selected by tid_quicklook.py \u2014 used by tid_spect_click.py to pre-set segment"
+  },
+  "aa6bd_zoom": "/home/bob/Downloads/tid_event_20260119/aa6bd_tid_zoom_clean.png",
+  "aa6bd_spline": "/home/bob/Downloads/tid_event_20260119/aa6bd_spline_tid.csv",
+  "ac0g_nd_fullday": "/home/bob/Downloads/tid_event_20260119/ac0g_nd_fullday.png",
+  "ac0g_nd_zoom": "/home/bob/Downloads/tid_event_20260119/ac0g_nd_tid_zoom_clean.png",
+  "ac0g_nd_spline": "/home/bob/Downloads/tid_event_20260119/ac0g_nd_spline_tid.csv",
+  "n6rfm_fullday": "/home/bob/Downloads/tid_event_20260119/n6rfm_fullday.png",
+  "n6rfm_zoom": "/home/bob/Downloads/tid_event_20260119/n6rfm_tid_zoom_clean.png",
+  "n6rfm_spline": "/home/bob/Downloads/tid_event_20260119/n6rfm_spline_tid.csv",
+  "w7lux_fullday": "/home/bob/Downloads/tid_event_20260119/w7lux_fullday.png",
+  "w7lux_zoom": "/home/bob/Downloads/tid_event_20260119/w7lux_tid_zoom_clean.png",
+  "w7lux_spline": "/home/bob/Downloads/tid_event_20260119/w7lux_spline_tid.csv",
+  "doa_done": true
+}
