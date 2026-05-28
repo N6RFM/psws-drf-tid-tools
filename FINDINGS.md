@@ -1,14 +1,16 @@
-# Research: Doppler extraction — FFT vs complex autocorrelation
+# Research findings — psws-drf-tid-tools
 
-**Status:** ACTIVE — research_gui branch. Complete guided workflow
-validated 2026-05-24. Key open question: reconcile 267 m/s WSW result
-with Gwyn's 979 m/s SSE (Entry 26). Entries 1-15 on research branch;
-Entries 16-26 on research_gui branch.
+**Branch:** research_gui (and gwyn-g3zil for collaboration).
+**Status:** ACTIVE — 47 entries as of 2026-05-28.
 
-**This branch does not merge to `main` until further notice.** Its
-deliverable is knowledge: a documented finding, and *possibly* a
-verified change if — and only if — the investigation earns one
-through the gate below.
+Code changes validated here are PR'd to `main` as they are confirmed.
+Research docs (this file, PROJECT_STATE.md, CHANGELOG.md) remain on
+research_gui and gwyn-g3zil only — never merged to main.
+
+Key results:
+- Jan 2026 LSTID: 239 m/s from 30° NNE (spline extraction, 1/5 flags)
+- May 2024 LSTID: 570 m/s from 354° N (IPP coords, all 5 pass)
+- Entries 1-15: research branch; 16-47: research_gui branch.
 
 ---
 
