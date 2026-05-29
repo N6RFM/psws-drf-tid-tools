@@ -1201,7 +1201,8 @@ class SpectClickApp(QtWidgets.QMainWindow):
 
         # Reconstruct full window
         t_out = df["t_h"].values
-        d_wave = A_fit * _npw.sin(2 * _npw.pi / T_h * (t_out - t_centre) + phi_fit)
+        d_mean = float(_npw.mean(df["doppler_hz"].values))
+        d_wave = A_fit * _npw.sin(2 * _npw.pi / T_h * (t_out - t_centre) + phi_fit) + d_mean
 
         # Get date string
         date_str = None
@@ -1242,7 +1243,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self._set_status(
             f"[{self.name}] WAVE-FIT: T={T_s/60:.1f} min  A={abs(A_fit):.3f} Hz  "
             f"phi={phi_fit:.2f} rad  → {out_path.name}   "
-            f"[W]=redo  [X]=export spline  [Q]=quit")
+            f"[W]=redo  [Q]=quit")
         print(f"  Wave-fit: T={T_s/60:.1f} min, A={abs(A_fit):.3f} Hz, "
               f"phi={phi_fit:.3f} rad")
         print(f"  Saved: {out_path}")
