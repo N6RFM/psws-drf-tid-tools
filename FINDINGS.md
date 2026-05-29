@@ -2502,3 +2502,66 @@ Template windows used for May 2024:
   W7LUX: 19:15-20:30 UTC (75 min)
   N5BRG: 19:20-20:35 UTC (75 min)
   N4RVE: 19:15-21:15 UTC (120 min, unreliable)
+
+---
+
+## Entry 48 — Jan 2026: wave-fit reconstruction prototype and DOA comparison
+**Date:** 2026-05-29
+**Branch:** research_gui
+
+### Wave-fit feature (tid_spect_click.py v2.3.17+)
+New W key workflow in tid_spect_click.py:
+- Press W to enter wave-fit mode
+- Click multiple points along the visible TID cycle (brown diamond markers)
+- Press F to trigger fit — dialog asks what fraction of cycle was marked
+- Fits A*sin(2π/T*(t-t_centre) + φ) + offset to click points only
+- Exports {stn}_wave_tid.csv for use in tid_doa.py
+
+Key design decisions:
+- Fit uses ONLY user click points, not spline CSV data
+- DC offset is a free parameter (3-param fit: A, phi, offset)
+- Time axis centred on marked segment to keep phi well-conditioned
+- Each station independently estimates T, A, phi — no shared period assumption
+
+### Jan 2026 DOA comparison: spline vs wave-fit
+
+| Run | Speed | From | Flags | Notes |
+|-----|-------|------|-------|-------|
+| Spline 3-stn (prev session, tight window) | 341 m/s | 25° NNE | 1/5 | best result |
+| Spline 3-stn (fresh reanalysis) | 782 m/s | — | 1/5 | wider window, N6RFM→W7LUX weak |
+| Wave 3-stn | 66 m/s | — | 2/5 | incoherent periods |
+
+### Wave-fit periods per station
+| Station | T (min) | A (Hz) | Quality |
+|---------|---------|--------|---------|
+| N6RFM | 73.5 | 0.725 | Good |
+| AA6BD | 47.1 | 1.437 | Uncertain |
+| W7LUX | 57.3 | 1.265 | Uncertain |
+| AC0G_ND | 24.5 | 0.340 | Wrong (E-region) |
+
+### Key finding: wave-fit limitations on Jan 2026 dataset
+The Jan 2026 signals show less than one full TID cycle in the 2-hour
+window. Period estimates from the wave-fit vary 47–74 min across stations.
+When xcorr is computed between stations with different periods, the peaks
+are incoherent and the DOA fails (66 m/s, physically implausible).
+
+**Wave-fit works best when:**
+1. At least 1.5–2 full cycles are visible in the window
+2. Periods are similar across stations (TID is not strongly dispersive)
+3. Signal is clean enough to identify clear cycle boundaries
+
+**Wave-fit does NOT improve results when:**
+- Less than one cycle visible (Jan 2026 case)
+- Strong E-region contamination corrupts cycle shape (AC0G_ND)
+- Periods differ significantly between stations
+
+### Window sensitivity on Jan 2026
+Fresh reanalysis with wider window gave 782 m/s vs 341 m/s from previous
+session with tighter window. The TID signal for this event is sensitive
+to window choice — the 00:00–01:15 UTC window (previous best) captures
+the clearest portion of the signal.
+
+### Recommendation
+For Jan 2026 event, use spline DOA with 00:00–01:15 UTC window.
+Wave-fit is not applicable. For May 2024 event (2.5 cycles visible),
+wave-fit is worth revisiting with the corrected implementation.
