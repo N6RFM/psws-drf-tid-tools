@@ -81,3 +81,38 @@ and FINDINGS entries 45-47 on research_gui branch.
 Priority: (1) send updated results to Gwyn: May 2024 570 m/s from
 354 N, window 19:15-22:28 UTC, (2) implement T=tile in
 tid_spect_click.py, (3) xcorr period-alias discussion with Gwyn."
+
+---
+## 39. End of session — 2026-05-29
+
+### Accomplished
+- Wave-fit reconstruction implemented in tid_spect_click.py (W key + F key)
+  - Multi-point click mode — user clicks along visible cycle
+  - F key triggers fit: A*sin(2π/T*(t-t_centre) + φ) + offset
+  - Period dialog asks user what fraction of cycle was marked
+  - Fit uses ONLY user click points (not spline data)
+  - DC offset as free parameter — overlay aligns with clicked points
+  - Brown diamond markers show click positions
+  - Blue overlay shows wave-fit result on spectrogram
+- --wave-only flag: skips Prophet Pass 0, opens directly in wave-fit mode
+- Spline CSV no longer required for wave-fit (time grid from seg bounds)
+- Console caveat printed when --wave-only: suggests spline if periods differ
+- Wave-fit limitations documented (FINDINGS Entry 48):
+  - Requires 1.5–2 full cycles visible
+  - Periods must be similar across stations for coherent xcorr
+  - Jan 2026 dataset: <1 cycle visible, wave-fit not applicable
+  - May 2024 dataset: 2.5 cycles, wave-fit worth retesting
+- Versions v2.3.5 through v2.3.19 shipped
+
+### Open issues
+1. Send Gwyn email
+2. Re-run May 2024 with wave-fit (2.5 cycles visible — good testbed)
+3. Document wave-fit workflow in WORKFLOW_TUTORIAL.md and MANUAL_TUTORIAL.md
+4. Review all docs for accuracy
+
+### Resume command
+"Continuing psws-drf-tid-tools. Read PROJECT_STATE.md sections 37-39
+and FINDINGS entries 46-48 on research_gui branch.
+Priority: (1) review all docs for accuracy, (2) re-run May 2024
+with --wave-only and compare DOA to spline result,
+(3) send updated results to Gwyn."
