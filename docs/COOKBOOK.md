@@ -514,13 +514,20 @@ Default is 400 km.
 
 ### Where do I keep the example configs?
 
-The repo includes `examples/event_20260119.json`. Copy and adapt:
+The repo includes example configs and event data. Copy and adapt:
 
 ```bash
+# Jan 2026 LSTID (4-station)
 cp examples/event_20260119.json my_event.json
+
+# May 2024 LSTID (3-station)
+cp examples/event_20240517.json my_event.json
+
 # Edit the dates, stations, coordinates...
 python3 tid_doa.py my_event.json
 ```
+
+See `examples/README.md` for event descriptions and data access instructions.
 
 ### What does the cache file `.psws_station_cache.json` do?
 
@@ -531,8 +538,9 @@ weekly automatically; force a refresh by deleting the file.
 ### What about generated files? Should I commit them?
 
 No. The `.gitignore` excludes `*.csv`, `*.png` (except in `docs/`),
-`*.pdf` (except in `docs/`), `*.h5`, and `OBS*` directories. Only
-source code and example configs should be committed.
+`*.pdf` (except in `docs/` and `examples/`), `*.h5`, and `OBS*`
+directories. Only source code, example configs, and example data
+should be committed.
 
 ---
 
