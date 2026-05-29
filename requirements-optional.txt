@@ -4,3 +4,11 @@
 # Better-looking maps with state/country outlines (tid_map.py).
 # Without cartopy, tid_map.py falls back to a plain lat/lon plot.
 cartopy>=0.21
+
+# Required for cwt-prophet extraction method — the recommended extraction
+# method used by tid_spect_click.py (Pass 0 auto-run) and drf_to_doppler.py
+# --method cwt-prophet. Without prophet, cwt-prophet falls back to cwt-only.
+# Note: prophet has its own dependencies (pystan, cmdstanpy) that may
+# require separate installation steps on some platforms.
+# See: https://facebook.github.io/prophet/docs/installation.html
+prophet>=1.1
