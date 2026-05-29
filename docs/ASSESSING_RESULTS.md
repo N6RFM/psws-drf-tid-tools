@@ -381,13 +381,12 @@ independent corroboration available.
 ### 6.1 A result that should be trusted
 
 In the 19 January 2026 reference event (see the case study), a
-four-station array yielded a phase speed of order 600–670 m/s and a
-heading consistent with equatorward propagation from an
-auroral-zone source during the early phase of a geomagnetic
-disturbance. The diagnostics showed: well-conditioned geometry, a
-small plane-wave residual, pairwise correlations in a coherent
-range, triangle closures within a few percent, and a speed squarely
-within the LSTID regime. Independently, the inferred propagation
+four-station array yielded a phase speed of 239 m/s from 30° NNE, consistent with equatorward
+propagation from an auroral-zone source during the early phase of a
+geomagnetic disturbance. The diagnostics showed: well-conditioned
+geometry, a small plane-wave residual, pairwise correlations in a
+coherent range, triangle closures within a few percent, and a speed
+squarely within the LSTID regime. Independently, the inferred propagation
 direction agreed with the visible succession of peak times across
 the stations (a check requiring no inversion at all), and the
 classification was physically consistent with the geomagnetic

@@ -12,13 +12,12 @@ navigation, radio communications, and satellite operations.
 
 ## IMPORTANT CAVEAT
 
-There a numerous ways to extract TID information from DRF data and/or spectrograms.
+There a numerous ways to extract TID information from DRF data and/or spectrograms.  
 
 The goals of this toolset are 1) allow citizen scientists a means to explore TIDs and
-2) obtain estimates of TID propagation speed and direction.  The extraction tools available here serve as
+2) obtain estimates of TID propagation speed and direction.  The extraction tolls available here serve as
 place holders until more refined and accurate TID extraction tools become available and integrated
-into this toolset.  In short, results obtained may not even be accurate. At this time, consider this work 
-experimental in nature. Several user selectable options for TID extraction are included.
+into this toolset.  In the meantime, several user selectable options for TID extraction are included.
 
 ## What this toolkit does
 
@@ -51,19 +50,6 @@ cd psws-drf-tid-tools
 pip install -r requirements.txt
 pip install -r requirements-optional.txt   # for nicer maps
 ```
-
-### If you contribute or work across branches
-
-After cloning, run:
-
-```bash
-git config merge.ours.driver true
-```
-
-This configures the `merge=ours` driver used in `.gitattributes` to keep
-research-only docs (`FINDINGS.md`, `PROJECT_STATE.md`, `CHANGELOG.md`)
-off the `main` branch when merging. Without it, those files may
-unexpectedly appear in `main` after a merge.
 
 ### Recommended: use a virtual environment
 
@@ -134,11 +120,15 @@ python3 drf_spectrogram.py ./n6rfm --subchannel 0 \
     --window n6rfm_fullday_window.json \
     --ylim=-5,5 --dpi 150 --callsign N6RFM
 
-# 5. Interactive spline extraction (cwt-prophet -- recommended)
+# 5. Interactive spline extraction (cwt-prophet — recommended)
 #    Pass 0 auto-runs on open. Click F-region carrier to correct
-#    excursions. P=re-run  X=export  R=reset  Q=quit
+#    excursions. P=re-run  X=export  W=wave-fit  F=fit  R=reset  Q=quit
 python3 tid_spect_click.py --spectrogram n6rfm_zoom.png \
     --name N6RFM --drf-dir ./n6rfm --subchannel 0
+
+# 5c. Wave-fit only (skip Prophet, fit sine to clicked points)
+python3 tid_spect_click.py --spectrogram n6rfm_zoom.png \
+    --name N6RFM --seg-start 0.0 --seg-end 2.0 --wave-only
 
 # 5b. Alternative: automated extraction (clean stations only)
 python3 drf_to_doppler.py ./n6rfm --subchannel 0 \
@@ -174,8 +164,8 @@ coordinate calculation, and result interpretation.
 - `cwt`: CWT multi-peak tracker with linear extrapolation.
 
 **Key finding from validation:** on the Jan 2026 event, spline
-extraction (cwt-prophet) gave 239 m/s from 30 NNE (0/5 flags) while
-automated methods gave 218-281 m/s with 3/5 flags. When E-region
+extraction (cwt-prophet) gave 239 m/s from 30° NNE (0/5 flags) while
+automated methods gave 218–281 m/s with 3/5 flags. When E-region
 contamination is present, use `cwt-prophet` via `tid_spect_click.py`.
 
 **xcorr aliasing note:** for LSTID events with ~60 min period, set
@@ -213,7 +203,7 @@ psws-drf-tid-tools/
 │
 ├── tid_workflow.py             guided 8-step workflow (NEW in v2.0)
 ├── tid_quicklook.py            interactive TID window selector
-├── tid_spect_click.py          corridor clicking GUI for sgolay-ridge
+├── tid_spect_click.py          interactive spline extraction (cwt-prophet + wave-fit)
 ├── drf_spectrogram.py          spectrograms + --overlay for validation
 ├── drf_to_doppler.py           Doppler extraction (fft/autocorr/cwt/sgolay-ridge)
 ├── drf_inspect.py              verify DRF metadata + subchannel
