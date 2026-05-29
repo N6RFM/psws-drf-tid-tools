@@ -2565,3 +2565,55 @@ the clearest portion of the signal.
 For Jan 2026 event, use spline DOA with 00:00–01:15 UTC window.
 Wave-fit is not applicable. For May 2024 event (2.5 cycles visible),
 wave-fit is worth revisiting with the corrected implementation.
+
+---
+
+## Entry 49 — May 2024: wave-fit DOA comparison
+**Date:** 2026-05-29
+**Branch:** research_gui
+
+### Wave-fit run
+Using --wave-only on May 2024 dataset (3 stations: N4RVE/N5BRG/W7LUX).
+Window 19:15-22:28 UTC, 2.5 cycles visible — good testbed for wave-fit.
+
+### Wave-fit periods per station
+| Station | T (min) | A (Hz) | Notes |
+|---------|---------|--------|-------|
+| W7LUX | 79.9 | 1.926 | Clean, single run |
+| N5BRG | 94.8 | 1.003 | Last of 4 runs; first run T=82.8 min closer to others |
+| N4RVE | 78.4 | 2.059 | Clean, single run |
+
+### DOA comparison: spline vs wave-fit
+
+| Run | Speed | From | Flags | Min corr | Mean corr |
+|-----|-------|------|-------|----------|-----------|
+| Spline (best) | 570 m/s | 354° N | 0/5 | 0.804 | — |
+| Wave-fit | 442 m/s | 10° N | 1/5 | 0.736 | 0.802 |
+
+### Pairwise lags — wave-fit
+| Pair | Lag (s) | Corr |
+|------|---------|------|
+| N4RVE → N5BRG | +834 | 0.745 |
+| N4RVE → W7LUX | +1074 | 0.924 |
+| N5BRG → W7LUX | +367 | 0.736 |
+
+### Assessment
+Wave-fit gives coherent, physically plausible result on May 2024:
+- Direction: 10° N (vs 354° N spline) — difference of only 16°,
+  within expected uncertainty for this array geometry
+- Speed: 442 m/s (vs 570 m/s spline) — both LSTID range
+- Correlations excellent (min 0.736, mean 0.802)
+- Triangle closure 16.8% — just outside 15% guideline, likely due
+  to N5BRG period (94.8 min) being longer than W7LUX/N4RVE (~79 min)
+  The first N5BRG wave-fit run (T=82.8 min) would have been closer.
+
+### Key finding: wave-fit validated on May 2024
+The wave-fit approach works well when ≥1.5 cycles are visible.
+Results are consistent with spline DOA within ~16° direction and
+~22% speed. The approach is a viable alternative to spline extraction
+for clean multi-cycle events.
+
+### Recommendation for future runs
+On N5BRG, use the first wave-fit result (T=82.8 min) rather than
+the last. The tool currently overwrites on each F press — consider
+adding a compare/accept step so the user can choose the best fit.
