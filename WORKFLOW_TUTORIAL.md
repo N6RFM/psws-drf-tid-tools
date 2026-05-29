@@ -173,6 +173,22 @@ problem region to add anchor points (black dots), then:
       R       Reset all clicks
       Q       Quit
 
+**What to click for Option A (spline):**
+
+The spectrogram shows frequency on the vertical axis and time on
+the horizontal axis. The WWV carrier appears as a **bright ridge**
+near 0 Hz that slowly drifts up and down as the TID passes —
+this is the F-region carrier you want to track.
+
+- Click **on the bright ridge** at the carrier's current position
+- Click where the Pass 0 green trace has gone wrong (excursions,
+  flat sections, jumps to the wrong ridge)
+- Place clicks at the **start and end** of the problem region,
+  plus 2–3 points inside it
+- Do NOT click on the E-region flat band near 0 Hz (if present)
+- The black dot markers show your click positions
+- The live spline preview (red/orange curve) updates immediately
+
 **Multi-region editing workflow:**
 1. Inspect Pass 0 automatic trace (green)
 2. Click 2+ points on the carrier in any problem region —
@@ -203,6 +219,29 @@ in wave-fit mode (skips Prophet entirely):
 python3 tid_spect_click.py --spectrogram zoom.png --name N6RFM \\
     --seg-start 0.0 --seg-end 2.0 --wave-only
 ```
+
+**What to click for Option B (wave-fit):**
+
+The TID appears as a **slow sinusoidal oscillation** of the bright
+carrier ridge — drifting above 0 Hz (peak) then below 0 Hz (trough)
+with a period of 20–90 minutes. You are clicking on the **centre
+of that bright ridge** to trace out its shape.
+
+- Click the **peak** (highest point of the ridge)
+- Click the **trough** (lowest point of the ridge)
+- Click **zero crossings** (where the ridge crosses 0 Hz)
+- Add intermediate points along the slope for better fit
+- 5–8 points spread across the cycle gives a reliable fit
+- Brown diamond markers show your click positions
+- Do NOT click random points — each click directly defines
+  the wave's amplitude and phase at that time
+
+**Cycle fraction dialog (after pressing F):**
+- Enter **1** if you clicked from trough to peak (half cycle)
+- Enter **2** if you clicked from peak to peak or trough to trough
+  (full cycle)
+- Enter a custom value if you marked a different fraction
+  (e.g. **1.33** for ¾ cycle)
 
 **Workflow:**
 1. Click multiple points along the visible TID cycle
