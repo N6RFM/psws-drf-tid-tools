@@ -214,6 +214,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self.sgolay_window = sgolay_window
         self.corridor_width = corridor_width
         self._wave_mode = False
+        self._wave_done = False
         self._wave_clicks_t = []
         self._wave_clicks_d = []
         self._prophet_csv   = None
@@ -590,6 +591,11 @@ class SpectClickApp(QtWidgets.QMainWindow):
         if getattr(self, "_wave_mode", False):
             if self.transform and self.transform.ready:
                 self._wave_fit_click(vx, vy)
+            return
+        # Ignore clicks while wave-fit result is displayed
+        if getattr(self, "_wave_done", False):
+            self._set_status(
+                "Wave-fit done — press W to redo, X to export spline, Q to quit")
             return
         if self.transform and self.transform.ready:
             # vx, vy are already in physical coords after image transform
@@ -1028,6 +1034,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self._wave_clicks_t = []
         self._wave_clicks_d = []
         self._wave_mode = True
+        self._wave_done = False
         self._set_status(
             f"[{self.name}] WAVE-FIT: click start then end of ≥ half-cycle  "
             "[Q] cancel")
@@ -1179,12 +1186,20 @@ class SpectClickApp(QtWidgets.QMainWindow):
         out_path = parent / f"{out_stem}_wave_tid.csv"
         out_df.to_csv(out_path, index=False)
 
+        self._wave_done = True
         self._set_status(
-            f"WAVE-FIT done: T={T_s/60:.1f} min, A={abs(A_fit):.3f} Hz → "
-            f"{out_path.name}  [X]=export spline  [W]=redo wave-fit")
+            f"[{self.name}] WAVE-FIT: T={T_s/60:.1f} min  A={abs(A_fit):.3f} Hz  "
+            f"phi={phi_fit:.2f} rad  → {out_path.name}   "
+            f"[W]=redo  [X]=export spline  [Q]=quit")
         print(f"  Wave-fit: T={T_s/60:.1f} min, A={abs(A_fit):.3f} Hz, "
               f"phi={phi_fit:.3f} rad")
         print(f"  Saved: {out_path}")
+        # Draw wave-fit overlay on spectrogram
+        try:
+            self.preview_curve.setData(t_out, d_wave)
+            self.preview_curve.setPen({"color": "#00BFFF", "width": 2})
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # Shortcuts
