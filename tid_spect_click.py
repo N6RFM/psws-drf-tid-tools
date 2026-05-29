@@ -1061,7 +1061,8 @@ class SpectClickApp(QtWidgets.QMainWindow):
 
         # Load spline CSV as the signal source
         spline_csv = None
-        stem = pathlib.Path(self.img_path).stem
+        import pathlib as _pl_wf
+        stem = _pl_wf.Path(self.img_path).stem
         parent = pathlib.Path(self.img_path).parent
         for candidate in [
             parent / (stem.replace("_tid_zoom_clean", "") + "_spline_tid.csv"),
