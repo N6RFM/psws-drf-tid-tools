@@ -1342,6 +1342,10 @@ def main():
         sgolay_window = args.sgolay_window,
         corridor_width = args.corridor_width,
     )
+    if getattr(args, "wave_only", False):
+        win._wave_only = True
+        from PyQt5 import QtCore as _QtC
+        _QtC.QTimer.singleShot(600, win._wave_fit_start)
     win.show()
     sys.exit(app.exec_())
 
