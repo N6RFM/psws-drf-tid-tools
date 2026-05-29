@@ -336,6 +336,14 @@ class SpectClickApp(QtWidgets.QMainWindow):
             pen=pg.mkPen(color="#ffffff", width=1),
         )
         self.plot.addItem(self.scatter)
+        # Brown diamond markers for wave-fit click points
+        self.wave_scatter = pg.ScatterPlotItem(
+            size=14,
+            symbol="d",
+            brush=pg.mkBrush(139, 69, 19, 220),
+            pen=pg.mkPen(color="#ffffff", width=1.5),
+        )
+        self.plot.addItem(self.wave_scatter)
 
         # Calibration click scatter (cyan crosses)
         self.cal_scatter = pg.ScatterPlotItem(
@@ -1026,6 +1034,18 @@ class SpectClickApp(QtWidgets.QMainWindow):
     # assumption. Exports {stn}_wave_tid.csv alongside the spline CSV.
     # ------------------------------------------------------------------
 
+    def _refresh_wave_scatter(self):
+        """Update brown diamond markers for wave-fit click points."""
+        try:
+            if self._wave_clicks_t:
+                pts = [{"pos": [t, d]}
+                       for t, d in zip(self._wave_clicks_t, self._wave_clicks_d)]
+                self.wave_scatter.setData(pts)
+            else:
+                self.wave_scatter.setData([])
+        except Exception:
+            pass
+
     def _wave_fit_start(self):
         """Enter wave-fit mode: next 2 clicks mark the half-cycle."""
         if self.cal_step < 4:
@@ -1035,6 +1055,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self._wave_clicks_d = []
         self._wave_mode = True
         self._wave_done = False
+        self._refresh_wave_scatter()
         self._set_status(
             f"[{self.name}] WAVE-FIT: click start then end of ≥ half-cycle  "
             "[Q] cancel")
@@ -1044,6 +1065,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self._wave_clicks_t.append(t_h)
         self._wave_clicks_d.append(d_hz)
         n = len(self._wave_clicks_t)
+        self._refresh_wave_scatter()
         if n == 1:
             self._set_status(
                 f"[{self.name}] WAVE-FIT: 1st point set ({t_h:.3f}h, {d_hz:.3f}Hz) "
