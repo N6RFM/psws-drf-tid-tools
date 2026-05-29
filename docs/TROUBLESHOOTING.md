@@ -128,6 +128,52 @@ is wrong. Look at the two stations' Doppler PNGs and compare visually:
   bad, or the wave hasn't arrived there yet (try a later window).
 - If both look noisy → SNR is too low; try a different time window.
 
+### `tid_spect_click.py` — Pass 0 trace is blank or crashes
+
+**Cause 1**: `--drf-dir` not specified or wrong path. Pass 0 needs the
+DRF directory to run cwt-prophet. Check the path exists:
+
+```bash
+ls ./station_dir/ch0/
+```
+
+**Cause 2**: `prophet` package not installed. Pass 0 silently skips if
+`prophet` is unavailable. Install it:
+
+```bash
+pip install prophet
+```
+
+**Cause 3**: Analysis window is outside the DRF recording bounds.
+Check `--seg-start` and `--seg-end` match the spectrogram time axis.
+
+### `tid_spect_click.py` — wave-fit blue overlay doesn't match the carrier
+
+**Cause 1**: Too few click points. With only 2-3 points the 3-parameter
+fit (A, φ, offset) is under-constrained. Add 5+ points spread across
+the visible cycle.
+
+**Cause 2**: Wrong cycle fraction in the dialog. If you marked a full
+cycle but entered 1 (half cycle), the period will be doubled. Re-press
+W to redo and enter the correct fraction.
+
+**Cause 3**: Periods differ too much between stations. Wave-fit DOA
+requires similar periods across stations. If T differs by >~20%
+between stations, use spline extraction instead.
+
+**Cause 4**: Signal has a strong DC offset or trend. The wave-fit
+includes a DC offset parameter, but a strong linear trend across
+the window can still bias the fit. Try a shorter window centred
+on the clearest cycle.
+
+### `tid_spect_click.py` — X key has no effect
+
+The tool requires at least 2 anchor clicks before X exports. If Pass 0
+gave a good trace and you want to export it without clicking, the Pass 0
+result is exported automatically when you press X with 0 clicks — but
+only if Pass 0 completed successfully. If X still does nothing, check
+the status bar at the top for an error message.
+
 ---
 
 ## "The DOA result looks wrong"
@@ -154,10 +200,11 @@ Look at the lag table `tid_doa.py` prints. For each pair:
 ### Step 2: Does the triangle closure check pass?
 
 Pick any three stations A, B, C. The lag sum `lag(A→B) + lag(B→C)`
-should approximately equal `lag(A→C)`. The script doesn't print
-this explicitly, but you can compute it from the lag table. If the
-sums disagree by more than ~5-10 minutes for any triangle, the
-wave is non-planar or one station's lag is wrong.
+should approximately equal `lag(A→C)`. `tid_doa.py` prints the
+triangle closure for each triple in diagnostic [4]. If the
+closure exceeds ~15% of the mean leg, one pair's lag has likely
+locked a wrong peak. The diagnostic names the suggested station
+to drop.
 
 ### Step 3: Is `use_bandpass: true` doing the wrong thing?
 
