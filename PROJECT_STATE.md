@@ -116,3 +116,21 @@ and FINDINGS entries 46-48 on research_gui branch.
 Priority: (1) review all docs for accuracy, (2) re-run May 2024
 with --wave-only and compare DOA to spline result,
 (3) send updated results to Gwyn."
+
+---
+## 40. May 2024 wave-fit DOA — 2026-05-29
+
+### Results
+- Wave-fit DOA: 442 m/s from 10° N (1/5 flags, min corr 0.736)
+- Spline DOA (best): 570 m/s from 354° N (0/5 flags)
+- Direction agreement: 16° difference — within array uncertainty
+- Wave-fit validated: works well on 2.5-cycle dataset
+
+### Periods
+W7LUX: 79.9 min, N5BRG: 94.8 min (last run; 82.8 min first run better),
+N4RVE: 78.4 min
+
+### Open issues
+1. Send Gwyn email
+2. Consider adding compare/accept step to wave-fit so user can
+   choose best fit from multiple F presses
