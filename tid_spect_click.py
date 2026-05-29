@@ -867,8 +867,8 @@ class SpectClickApp(QtWidgets.QMainWindow):
         """
         if getattr(self, "_wave_mode", False):
             self._set_status(
-                f"[{self.name}] WAVE-FIT in progress — click 2nd point first, "
-                "then X will be available")
+                f"[{self.name}] WAVE-FIT in progress — "
+                "press F to fit or W to cancel first")
             return
         """Export spline interpolated through anchor clicks as final CSV.
         No CWT or DRF processing — the spline IS the extracted Doppler.
@@ -1065,21 +1065,27 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self._wave_done = False
         self._refresh_wave_scatter()
         self._set_status(
-            f"[{self.name}] WAVE-FIT: click start then end of ≥ half-cycle  "
-            "[Q] cancel")
+            f"[{self.name}] WAVE-FIT: click points along the wave  "
+            "[F]=fit  [W]=cancel")
 
     def _wave_fit_click(self, t_h, d_hz):
-        """Receive a click in wave-fit mode."""
+        """Accumulate wave-fit click points. F key triggers the fit."""
         self._wave_clicks_t.append(t_h)
         self._wave_clicks_d.append(d_hz)
         n = len(self._wave_clicks_t)
         self._refresh_wave_scatter()
-        if n == 1:
-            self._set_status(
-                f"[{self.name}] WAVE-FIT: 1st point set ({t_h:.3f}h, {d_hz:.3f}Hz) "
-                "— click end of half-cycle")
+        self._set_status(
+            f"[{self.name}] WAVE-FIT: {n} point(s) — keep clicking or "
+            "[F]=fit now  [W]=cancel")
+
+    def _wave_fit_execute(self):
+        """F key: trigger wave-fit from accumulated clicks."""
+        if not getattr(self, "_wave_mode", False):
             return
-        # 2 points set — fit and reconstruct
+        if len(self._wave_clicks_t) < 2:
+            self._set_status(
+                f"[{self.name}] WAVE-FIT: need at least 2 points — keep clicking")
+            return
         self._wave_mode = False
         self._do_wave_fit()
 
@@ -1095,6 +1101,9 @@ class SpectClickApp(QtWidgets.QMainWindow):
         t1_mark = max(self._wave_clicks_t)
         span_h  = t1_mark - t0_mark        # marked span in hours
         span_s  = span_h * 3600.0          # in seconds
+        # Click points used to constrain phase
+        click_t = _npw.array(self._wave_clicks_t)
+        click_d = _npw.array(self._wave_clicks_d)
 
         # Load spline CSV as the signal source
         spline_csv = None
@@ -1169,10 +1178,20 @@ class SpectClickApp(QtWidgets.QMainWindow):
             return A * _npw.sin(2 * _npw.pi / T_h * t + phi)
 
         A_guess = (d_seg.max() - d_seg.min()) / 2.0
+        # Fit using both segment signal and click points as constraints
+        # Weight click points heavily so curve passes through them
+        t_fit = _npw.concatenate([t_seg, click_t])
+        d_fit = _npw.concatenate([d_seg,
+                                   click_d - _npw.mean(click_d)])
+        # Repeat click points to increase their weight
+        n_repeats = max(1, len(t_seg) // max(1, len(click_t)))
+        t_fit = _npw.concatenate([t_seg] + [click_t]*n_repeats)
+        d_fit = _npw.concatenate([d_seg - _npw.mean(d_seg)] +
+                                   [click_d - _npw.mean(click_d)]*n_repeats)
         try:
-            popt, _ = _curve_fit(_sine, t_seg, d_seg,
+            popt, _ = _curve_fit(_sine, t_fit, d_fit,
                                   p0=[A_guess, 0.0],
-                                  maxfev=2000)
+                                  maxfev=4000)
             A_fit, phi_fit = popt
         except Exception:
             A_fit  = A_guess
@@ -1239,6 +1258,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         for key, cb in [("X", self._export_spline_csv),
                         ("P", self._run_prophet_preview),
                         ("W", self._wave_fit_start),
+                        ("F", self._wave_fit_execute),
                         ("R", self._reset_clicks), ("C", self._clear_all),
                         ("Q", self.close)]:
             sc = QtWidgets.QShortcut(QtGui.QKeySequence(key), self, cb)
