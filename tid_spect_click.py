@@ -1063,7 +1063,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         spline_csv = None
         import pathlib as _pl_wf
         stem = _pl_wf.Path(self.img_path).stem
-        parent = pathlib.Path(self.img_path).parent
+        parent = _pl_wf.Path(self.img_path).parent
         for candidate in [
             parent / (stem.replace("_tid_zoom_clean", "") + "_spline_tid.csv"),
             parent / (stem + "_spline_tid.csv"),
@@ -1189,7 +1189,6 @@ class SpectClickApp(QtWidgets.QMainWindow):
     # ------------------------------------------------------------------
     # Shortcuts
     # ------------------------------------------------------------------
-
     def _install_shortcuts(self):
         for key, cb in [("X", self._export_spline_csv),
                         ("P", self._run_prophet_preview),
