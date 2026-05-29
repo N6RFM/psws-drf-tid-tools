@@ -1181,12 +1181,9 @@ class SpectClickApp(QtWidgets.QMainWindow):
 
         A_guess  = (d_seg.max() - d_seg.min()) / 2.0
         off_guess = float(_npw.mean(d_seg))
-        # Fit using raw signal + click points (click points weighted heavily)
-        n_repeats = max(1, len(t_seg) // max(1, len(click_t)))
-        t_fit = _npw.concatenate([t_seg] + [click_t] * n_repeats)
-        d_fit = _npw.concatenate([d_seg]  + [click_d] * n_repeats)
+        # Fit ONLY to user click points — they define the wave exactly
         try:
-            popt, _ = _curve_fit(_sine, t_fit, d_fit,
+            popt, _ = _curve_fit(_sine, click_t, click_d,
                                   p0=[A_guess, 0.0, off_guess],
                                   maxfev=4000)
             A_fit, phi_fit, off_fit = popt
