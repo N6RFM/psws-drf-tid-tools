@@ -863,6 +863,14 @@ class SpectClickApp(QtWidgets.QMainWindow):
 
     def _export_spline_csv(self, _accept_path=None):
         """Export spline interpolated through anchor clicks as final CSV.
+        Blocked during wave-fit mode to prevent accidental interruption.
+        """
+        if getattr(self, "_wave_mode", False):
+            self._set_status(
+                f"[{self.name}] WAVE-FIT in progress — click 2nd point first, "
+                "then X will be available")
+            return
+        """Export spline interpolated through anchor clicks as final CSV.
         No CWT or DRF processing — the spline IS the extracted Doppler.
         Requires at least 2 anchor clicks spanning the segment window.
         """
