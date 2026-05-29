@@ -1155,11 +1155,19 @@ class SpectClickApp(QtWidgets.QMainWindow):
 
         A_guess   = (click_d.max() - click_d.min()) / 2.0
         off_guess = float(_npw.mean(click_d))
+        # Warn if too few points for reliable 3-parameter fit
+        import warnings as _warnings
+        if len(click_t) < 4:
+            print(f"  NOTE: only {len(click_t)} click point(s) — "
+                  "3-parameter fit may be unreliable. "
+                  "Add more points for better accuracy.")
         # Fit ONLY to user click points — they define the wave exactly
         try:
-            popt, _ = _curve_fit(_sine, click_t, click_d,
-                                  p0=[A_guess, 0.0, off_guess],
-                                  maxfev=4000)
+            with _warnings.catch_warnings():
+                _warnings.simplefilter("ignore")
+                popt, _ = _curve_fit(_sine, click_t, click_d,
+                                      p0=[A_guess, 0.0, off_guess],
+                                      maxfev=4000)
             A_fit, phi_fit, off_fit = popt
         except Exception:
             A_fit   = A_guess
