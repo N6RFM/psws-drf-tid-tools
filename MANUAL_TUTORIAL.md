@@ -234,7 +234,8 @@ python3 tid_spect_click.py \\
    (brown diamond markers appear at each click)
 3. Press **F** — dialog asks what fraction of the cycle you marked
    (1=half cycle, 2=full cycle, or custom multiplier)
-4. Blue overlay shows the fitted wave — press Q to save
+4. Blue overlay shows the fitted wave — press **A** to accept,
+   **W** to redo, or **Q** to quit without saving
 
 Output: `n6rfm_wave_tid.csv`
 

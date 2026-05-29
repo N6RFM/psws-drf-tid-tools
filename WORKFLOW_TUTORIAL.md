@@ -248,8 +248,8 @@ of that bright ridge** to trace out its shape.
    (brown diamond markers appear at each click)
 2. Press **F** to fit — a dialog asks what fraction of the cycle
    you marked (1=half cycle, 2=full cycle, or custom multiplier)
-3. Blue overlay shows the fitted sine wave — press **W** to redo
-   or **Q** to save and quit
+3. Blue overlay shows the fitted sine wave — press **A** to accept,
+   **W** to redo with new points, or **Q** to quit without saving
 
 Output: `<station>_wave_tid.csv`
 

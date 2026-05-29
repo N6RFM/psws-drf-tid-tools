@@ -223,8 +223,9 @@ On open, the tool goes straight to wave-fit mode. Key bindings:
     Click   Mark a point on the TID cycle (brown diamond marker)
     F       Fit sine wave to clicked points
             (dialog asks: 1=half cycle, 2=full cycle, custom multiplier)
-    W       Redo wave-fit (clear markers and start again)
-    Q       Save and quit
+    A       Accept candidate fit — writes final {stn}_wave_tid.csv
+    W       Redo wave-fit (discards candidate, clear markers)
+    Q       Quit without saving
 
 Output: `station_wave_tid.csv`
 
