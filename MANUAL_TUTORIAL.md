@@ -31,6 +31,30 @@ tid_event_20260119/
 
 ---
 
+## Step 0 -- Find companion stations
+
+If you only have DRF data from your own station, run this first to discover
+which other HamSCI PSWS stations recorded the same event:
+
+```bash
+python3 find_event_stations.py \
+    --date 2026-01-19 \
+    --my-lat 32.94 --my-lon -97.21 \
+    --my-call N6RFM \
+    --frequency 10.000
+```
+
+This queries the PSWS portal and returns a ranked list of candidate stations
+scored by baseline geometry, path length, and SNR. Choose 3-5 stations from
+different azimuth quadrants for best DOA geometry.
+
+Download DRF data for the selected stations from:
+https://pswsnetwork.eng.ua.edu/
+
+Then proceed with Step 1 below.
+
+---
+
 ## Step 1 -- Inspect the DRF recording
 
 Verify what subchannels are available and which contains WWV 10 MHz.
@@ -110,8 +134,8 @@ shows a green trace overlay. Inspect it.
 
     Click   Add anchor point on carrier (black dot)
     P       Re-run Prophet with anchors as constraints
-
     X       Export final spline CSV
+    W       Enter wave-fit mode (click cycle points, F to fit)
     R       Reset all clicks
     Q       Quit
 
@@ -192,6 +216,31 @@ python3 drf_spectrogram.py ./n6rfm \
 cwt-prophet give wrong lags on AC0G/ND due to E-region contamination.
 The spline extraction (Option A) correctly avoids this.
 
+### Option C: wave-fit extraction (--wave-only)
+
+Use when the TID shows at least 1.5 clear cycles in the window
+and you want to fit a sine wave directly to the carrier:
+
+```bash
+python3 tid_spect_click.py \\
+    --spectrogram n6rfm_zoom.png \\
+    --name N6RFM \\
+    --seg-start 0.0 --seg-end 2.0 \\
+    --wave-only
+```
+
+1. Tool opens directly in wave-fit mode (no Prophet run)
+2. Click multiple points along the visible TID cycle
+   (brown diamond markers appear at each click)
+3. Press **F** — dialog asks what fraction of the cycle you marked
+   (1=half cycle, 2=full cycle, or custom multiplier)
+4. Blue overlay shows the fitted wave — press Q to save
+
+Output: `n6rfm_wave_tid.csv`
+
+**Note:** wave-fit DOA requires similar periods across stations.
+If periods differ significantly, use spline extraction instead.
+
 ---
 
 ## Step 6 -- Repeat for all stations
@@ -212,33 +261,33 @@ Create `event.json`:
 ```json
 {
     "event_start_utc": "2026-01-19T00:00:00Z",
-    "event_end_utc":   "2026-01-19T02:00:00Z",
+    "event_end_utc":   "2026-01-19T01:15:00Z",
     "resample_seconds": 60,
     "use_bandpass": false,
+    "use_ipp": true,
     "min_expected_speed_m_s": 100,
     "max_lag_seconds": 1800,
     "stations": [
         {"name": "N6RFM",   "file": "n6rfm_spline_tid.csv",
-         "method": "spline", "lat": 36.81, "lon": -101.13},
+         "method": "spline", "lat": 32.94, "lon": -97.21},
         {"name": "AA6BD",   "file": "aa6bd_spline_tid.csv",
-         "method": "spline", "lat": 37.87, "lon": -95.09},
+         "method": "spline", "lat": 35.06, "lon": -85.13},
         {"name": "W7LUX",   "file": "w7lux_spline_tid.csv",
-         "method": "spline", "lat": 37.89, "lon": -108.37},
+         "method": "spline", "lat": 35.10, "lon": -111.71},
         {"name": "AC0G_ND", "file": "ac0g_nd_spline_tid.csv",
-         "method": "spline", "lat": 43.78, "lon": -100.94}
+         "method": "spline", "lat": 46.88, "lon": -96.83}
     ]
 }
 ```
 
-**Use IPP midpoint coordinates** (halfway between WWV and receiver):
+**`use_ipp: true`** tells tid_doa.py to compute the great-circle
+midpoint between each station and WWV internally. Pass actual
+receiver coordinates (not pre-computed IPP midpoints).
 
-```
-IPP lat = (40.68 + receiver_lat) / 2
-IPP lon = (-105.04 + receiver_lon) / 2
-```
+**`max_lag_seconds`:** set to ~1/3 of expected TID period to prevent
+period aliasing. Override on the command line with `--max-lag MIN`.
 
-**max_lag_seconds:** set to ~1/3 of expected TID period to prevent
-period aliasing. For Jan 2026 (~90 min period): 1800 s (30 min).
+
 
 ---
 
@@ -298,10 +347,10 @@ python3 tid_map.py --config event.json --output map.png \
 
 | Method | Speed | From | Notes |
 |--------|-------|------|-------|
-| spline (8-10 anchors) | 218-257 m/s | 35-37 NNE | Best result |
-| sgolay-ridge | 218-257 m/s | 35-37 NNE | Comparable to spline |
-| fft | 99 m/s | 167 deg | Wrong -- AC0G/ND wrong-peak lock |
-| cwt-prophet | 99 m/s | 167 deg | Identical to fft |
+| spline/cwt-prophet | 239 m/s | 30° NNE | Best result (0/5 flags) |
+| sgolay-ridge | 218-257 m/s | 35-37° NNE | Comparable |
+| fft | ~281 m/s | ~33° NNE | Automated, 3/5 flags |
+| autocorr | similar to fft | — | G3ZIL validation method |
 | Peak-time direct | ~281 m/s | ~33 deg | Independent cross-check |
 
 The spline approach gives the physically correct result by letting the
@@ -315,10 +364,12 @@ selection entirely.
 | Metric | Value |
 |--------|-------|
 | Stations | N6RFM, AA6BD, W7LUX, AC0G/ND |
-| Phase speed | 218-283 m/s |
-| Coming from | 30-37 deg (NNE) |
-| Heading toward | ~215 deg (SSW) |
+| Phase speed | 239 m/s (spline, best result) |
+| Coming from | 30° NNE |
+| Heading toward | ~210° SSW |
 | Classification | LSTID, auroral origin |
+| Window | 2026-01-19T00:00–01:15 UTC |
+| Flags | 1/5 |
 
 ---
 
