@@ -1176,33 +1176,28 @@ class SpectClickApp(QtWidgets.QMainWindow):
         # Fit A*sin(2π/T * t + φ) to the marked segment
         # Centre time on segment midpoint to make phi well-conditioned
         t_centre = (t0_mark + t1_mark) / 2.0
-        def _sine(t, A, phi):
-            return A * _npw.sin(2 * _npw.pi / T_h * (t - t_centre) + phi)
+        def _sine(t, A, phi, offset):
+            return A * _npw.sin(2 * _npw.pi / T_h * (t - t_centre) + phi) + offset
 
-        A_guess = (d_seg.max() - d_seg.min()) / 2.0
-        # Fit using both segment signal and click points as constraints
-        # Weight click points heavily so curve passes through them
-        t_fit = _npw.concatenate([t_seg, click_t])
-        d_fit = _npw.concatenate([d_seg,
-                                   click_d - _npw.mean(click_d)])
-        # Repeat click points to increase their weight
+        A_guess  = (d_seg.max() - d_seg.min()) / 2.0
+        off_guess = float(_npw.mean(d_seg))
+        # Fit using raw signal + click points (click points weighted heavily)
         n_repeats = max(1, len(t_seg) // max(1, len(click_t)))
-        t_fit = _npw.concatenate([t_seg] + [click_t]*n_repeats)
-        d_fit = _npw.concatenate([d_seg - _npw.mean(d_seg)] +
-                                   [click_d - _npw.mean(click_d)]*n_repeats)
+        t_fit = _npw.concatenate([t_seg] + [click_t] * n_repeats)
+        d_fit = _npw.concatenate([d_seg]  + [click_d] * n_repeats)
         try:
             popt, _ = _curve_fit(_sine, t_fit, d_fit,
-                                  p0=[A_guess, 0.0],
+                                  p0=[A_guess, 0.0, off_guess],
                                   maxfev=4000)
-            A_fit, phi_fit = popt
+            A_fit, phi_fit, off_fit = popt
         except Exception:
-            A_fit  = A_guess
+            A_fit   = A_guess
             phi_fit = 0.0
+            off_fit = off_guess
 
         # Reconstruct full window
         t_out = df["t_h"].values
-        d_mean = float(_npw.mean(df["doppler_hz"].values))
-        d_wave = A_fit * _npw.sin(2 * _npw.pi / T_h * (t_out - t_centre) + phi_fit) + d_mean
+        d_wave = A_fit * _npw.sin(2 * _npw.pi / T_h * (t_out - t_centre) + phi_fit) + off_fit
 
         # Get date string
         date_str = None
