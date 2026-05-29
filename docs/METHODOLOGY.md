@@ -48,7 +48,20 @@ and `θ`) from observed pairwise lags.
 The raw DRF I/Q stream is complex baseband, sampled at 10 Hz. The WWV
 carrier sits within ±5 Hz of zero after baseband mixing.
 
-For each output sample of duration `T = decim_seconds`:
+Four extraction methods are available, in order of recommended preference:
+
+| Method | How | Best for |
+|--------|-----|----------|
+| **cwt-prophet** (spline) | Interactive: user corrects CWT+Prophet auto-trace | All events, especially E-region contamination |
+| **wave-fit** | Interactive: user clicks cycle points, sine fit | Clean signals with ≥1.5 cycles visible |
+| **autocorr** | Automated: lag-1 complex autocorrelation | Clean signals, G3ZIL validation |
+| **fft** | Automated: bin-peak tracker | Clean signals, fast survey |
+
+The FFT bin-peak method is described below. The cwt-prophet/spline and
+wave-fit methods bypass the automated bin-peak tracker entirely —
+the user defines the Doppler trace directly from the spectrogram.
+
+For each output sample of duration `T = decim_seconds` (FFT method):
 
 1. Read `N = 10 × T` complex I/Q samples.
 2. Apply a Hanning window: `x_w[k] = x[k] · 0.5(1 - cos(2πk/N))`.
@@ -125,24 +138,30 @@ disagreement between the two methods, not fit to an external truth.
    Is there a visible sinusoidal TID carrier (slow, wavy, bright ridge)?
    No → data quality issue; do not proceed to cross-correlation.
 
-2. Check r and RMS diff:
-   r > 0.95 and RMS < 0.10 Hz → both methods agree; use FFT (default).
-   Otherwise → go to step 3.
+2. How many TID cycles are visible in the window?
+   ≥1.5 cycles and signal is clean → consider wave-fit (Step 1c).
+   <1.5 cycles or contaminated → use cwt-prophet spline (Step 1d).
 
-3. Look at the overlay traces on the spectrogram.
+3. Check r and RMS diff between FFT and autocorr:
+   r > 0.95 and RMS < 0.10 Hz → both methods agree; use FFT (default).
+   Otherwise → go to step 4.
+
+4. Look at the overlay traces on the spectrogram.
    Which trace visually follows the bright carrier ridge?
    That method is tracking the F-region TID signal.
    The other may be pulled toward the E-region component near 0 Hz.
 
-4. If autocorr tracks the TID better than FFT:
+5. If autocorr tracks the TID better than FFT:
    - Use autocorr IF the expected lag/period ratio is < 0.3
      (unambiguous cross-correlation peak).
    - Prefer FFT IF the lag/period ratio is 0.3–0.5 (multiple
      comparable cross-correlation peaks; autocorr's smoothness
      causes wrong-peak lock in this regime).
-   See FINDINGS.md (on research_gui branch) for validation evidence.
 
-5. Record which method was chosen and why in the run log.
+6. If automated methods still give contaminated traces:
+   Use cwt-prophet interactive spline extraction (Step 1d).
+
+7. Record which method was chosen and why in the run log.
 ```
 
 ### Example
@@ -170,6 +189,48 @@ The r difference from W7LUX (0.934 vs 0.924) is small - the
 spectrogram visual is the tiebreaker. Both methods diverge most
 during peak contamination periods. Apply the decision workflow:
 lag/period ratio for this LSTID is ~0.38 - prefer FFT.*
+
+## Step 1c: Wave-fit extraction
+
+When ≥1.5 full TID cycles are clearly visible in the spectrogram
+window, the user can fit a sine wave directly to the carrier by
+clicking points along the visible cycle:
+
+```
+A(t) = A · sin(2π/T · (t − t_centre) + φ) + C
+```
+
+where A, T, φ, and C (DC offset) are all free parameters fitted
+to the user's clicked points only. The period T is constrained by
+asking the user what fraction of the cycle they marked (half,
+full, or custom multiplier). The fitted wave is tiled across the
+full analysis window and exported as `{stn}_wave_tid.csv`.
+
+**Key property:** each station independently estimates T, A, φ,
+and C — no shared period assumption across stations. This handles
+dispersive TIDs where the apparent period varies spatially.
+
+**Limitation:** wave-fit DOA requires pairwise xcorr between
+stations. If periods differ significantly between stations (>~20%),
+the xcorr between wave-fit CSVs will be incoherent. In that case,
+use spline extraction instead.
+
+---
+
+## Step 1d: Interactive spline extraction (cwt-prophet)
+
+For contaminated stations or when automated methods give inconsistent
+lags, the interactive spline tool gives the most reliable results.
+Pass 0 auto-runs CWT+Prophet to seed the spline; the user corrects
+excursions by clicking anchor points on the F-region carrier.
+
+The PCHIP spline through anchor clicks IS the extracted Doppler —
+no bin-peak tracker, no wrong-peak lock possible. Output:
+`{stn}_spline_tid.csv`.
+
+See `WORKFLOW_TUTORIAL.md` Step 6 (Option A) for the full workflow.
+
+---
 
 ## Step 2: Cross-correlation
 
