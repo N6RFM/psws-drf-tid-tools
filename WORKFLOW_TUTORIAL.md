@@ -13,6 +13,30 @@ step so you can resume if interrupted, and runs the DOA automatically.
 
 ---
 
+## Finding companion stations
+
+If you only have DRF data from your own station, use `find_event_stations.py`
+to discover which other HamSCI PSWS stations recorded the same event window:
+
+```bash
+python3 find_event_stations.py \
+    --date 2026-01-19 \
+    --my-lat 32.94 --my-lon -97.21 \
+    --my-call N6RFM \
+    --frequency 10.000
+```
+
+The tool queries the PSWS network portal, scores candidates by geometry
+(baseline azimuth spread, path length, SNR) and returns a ranked shortlist.
+
+**Tips:**
+- Pick 3-5 stations from different azimuth quadrants for best DOA geometry
+- For LSTID studies, add `--min-path-km 900` to exclude nearby stations
+- Download DRF data for the top candidates from https://pswsnetwork.eng.ua.edu/
+- Verify SNR and continuity for your event window before committing
+
+---
+
 ## Quick start
 
 ```bash
@@ -53,26 +77,30 @@ is suggested automatically.
         subchannel 0: 18.0 dB
       Enter subchannel [0]:         <- press Enter to accept
 
-After all stations are confirmed, choose the extraction method:
+After all stations are confirmed, choose the extraction method
+and DOA coordinate system:
 
     Extraction method:
-      1. sgolay-ridge    (corridor GUI -- recommended)
-      2. fft             (automated)
-      3. autocorr        (automated, Gwyn G3ZIL method)
-      4. cwt             (automated, CWT multi-peak tracker)
-      5. cwt-prophet     (automated, CWT + Facebook Prophet predictor)
+      1. cwt-prophet   (interactive spline -- recommended)
+      2. fft           (automated)
+      3. autocorr      (automated, Gwyn G3ZIL method)
+      4. cwt           (automated, CWT multi-peak tracker)
+      5. sgolay-ridge  (interactive spline, legacy corridor method)
     Choose [1]:
 
-**Recommended method: sgolay-ridge** (option 1) -- uses the interactive
-spline extraction tool described in Step 6.
+Also prompted: DOA coordinate system (IPP midpoints recommended).
+
+**Recommended method: cwt-prophet** (option 1) -- interactive spline
+extraction via tid_spect_click.py. Pass 0 auto-runs CWT+Prophet;
+click the F-region carrier to correct excursions.
 
 | Method | Best for | Requires GUI |
 |--------|----------|-------------|
-| sgolay-ridge | All stations, best accuracy | Yes |
+| cwt-prophet | All stations, best accuracy | Yes |
 | fft | Quick automated first look | No |
 | autocorr | Smooth carriers, G3ZIL validation | No |
 | cwt | Multi-peak ambiguous carriers | No |
-| cwt-prophet | CWT + Prophet prediction (G3ZIL comparison) | No |
+| sgolay-ridge | Legacy corridor method | Yes |
 
 ---
 
@@ -132,10 +160,10 @@ problem region to add anchor points (black dots), then use the
 key bindings below:
 
     Key bindings (shown in status bar at top):
-      Click   Add anchor point on carrier (black dot with white border)
+      Click   Add anchor point on carrier (black dot)
       P       Re-run Prophet with current anchors as constraints
-  
       X       Export final spline CSV and move on
+      W       Enter wave-fit mode (see below)
       R       Reset all clicks
       Q       Quit
 
@@ -151,8 +179,33 @@ key bindings below:
 - Clicks define the carrier position directly
 - The PCHIP spline interpolates smoothly between clicks
 - Outside the clicked range, the last accepted trace is used as baseline
-- Each A freezes the current region; X exports the final output
 - Minimum clicks needed = quality metric: clean stations may need 0
+
+**Wave-fit mode (W key):** An alternative to spline extraction.
+Use when the TID shows clear cycles and you want to fit a sine wave
+directly to the carrier:
+
+1. Press **W** to enter wave-fit mode
+2. Click multiple points along the visible TID cycle
+   (brown diamond markers appear at each click)
+3. Press **F** to fit — a dialog asks what fraction of the cycle
+   you marked (1=half cycle, 2=full cycle, or custom multiplier)
+4. Blue overlay shows the fitted sine wave
+5. Press **Q** to save and quit
+
+Output: `<station>_wave_tid.csv`
+
+**When to use wave-fit vs spline:**
+- Wave-fit works best when ≥1.5 full cycles are visible
+- If TID period differs significantly between stations,
+  consider using spline extraction instead
+- For <1 full cycle visible, use spline extraction only
+
+**Wave-only mode** (skip Prophet entirely):
+```bash
+python3 tid_spect_click.py --spectrogram zoom.png --name N6RFM \\
+    --seg-start 0.0 --seg-end 2.0 --wave-only
+```
 
 ---
 
@@ -259,8 +312,10 @@ For the 19 January 2026 event (00:00-01:36 UTC, 4 stations):
 
 | Metric | Value |
 |--------|-------|
-| Phase speed | 218-283 m/s |
-| Coming from | 30-37 deg (NNE) |
-| Heading toward | ~215 deg (SSW) |
+| Phase speed | 239 m/s (spline, best result) |
+| Coming from | 30° NNE |
+| Heading toward | ~210° SSW |
 | Classification | LSTID, auroral origin |
-| Validation | Peak-time cross-check confirms NNE->SSW propagation |
+| Window | 2026-01-19T00:00–01:15 UTC |
+| Stations | N6RFM, AA6BD, W7LUX, AC0G_ND |
+| Flags | 1/5 |
