@@ -103,7 +103,7 @@ The guided workflow handles all 8 steps interactively:
 3. TID window selection (interactive)
 4. Zoomed spectrogram generation
 5. Optional window refinement
-6. Doppler extraction (interactive spline via cwt-prophet, or automated)
+6. Doppler extraction (interactive spline via cwt-prophet, wave-fit, or automated)
 7. Extraction output and visual validation
 8. Direction-of-arrival inversion with interactive drop-station loop
 
@@ -185,11 +185,6 @@ coordinate calculation, and result interpretation.
   Works best when ≥1.5 full cycles are visible. Each station
   independently estimates its own period — handles dispersive TIDs.
   Exports `{stn}_wave_tid.csv` for use with `tid_doa.py`.
-
-**Key finding from validation:** on the Jan 2026 event, spline
-extraction (cwt-prophet) gave 239 m/s from 30° NNE (0/5 flags) while
-automated methods gave 218–281 m/s with 3/5 flags. When E-region
-contamination is present, use `cwt-prophet` via `tid_spect_click.py`.
 
 **xcorr aliasing note:** for LSTID events with ~60 min period, set
 `--max-lag 20` (minutes) to prevent alias peak lock. See
