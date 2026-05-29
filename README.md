@@ -12,12 +12,14 @@ navigation, radio communications, and satellite operations.
 
 ## IMPORTANT CAVEAT
 
-There a numerous ways to extract TID information from DRF data and/or spectrograms.  
+There are numerous ways to extract TID information from DRF data and/or spectrograms.
 
 The goals of this toolset are 1) allow citizen scientists a means to explore TIDs and
-2) obtain estimates of TID propagation speed and direction.  The extraction tolls available here serve as
-place holders until more refined and accurate TID extraction tools become available and integrated
-into this toolset.  In the meantime, several user selectable options for TID extraction are included.
+2) obtain estimates of TID propagation speed and direction. The extraction tools available
+here serve as place holders until more refined and accurate TID extraction tools become
+available and integrated into this toolset. In short, results obtained may not be accurate.
+At this time, consider this work experimental in nature. Several user selectable options
+for TID extraction are included.
 
 ## What this toolkit does
 
@@ -28,9 +30,9 @@ lets you:
 
 - find which other stations were on the air during your event of interest
 - inspect a DRF recording and identify the correct subchannel for 10 MHz
-- extract Doppler-vs-time CSVs from raw I/Q using four methods:
-  sgolay-ridge (corridor GUI, recommended), FFT, autocorr (G3ZIL method),
-  or CWT
+- extract Doppler-vs-time CSVs from raw I/Q using multiple methods:
+  interactive spline (cwt-prophet, recommended), FFT, autocorr (G3ZIL method),
+  CWT, or wave-fit (sine reconstruction from user-clicked cycle points)
 - render annotated Doppler spectrograms with optional overlay of
   extracted Doppler traces for visual method validation
 - run the complete pipeline in one guided interactive session
@@ -71,6 +73,20 @@ When done: `deactivate`. To resume: `source .venv/bin/activate`.
 
 ## Analysis Workflow
 
+### Step 0: find companion stations
+
+If you only have data from your own station, discover which other
+HamSCI PSWS stations recorded the same event:
+
+```bash
+python3 find_event_stations.py \
+    --date 2026-01-19 \
+    --my-lat 32.94 --my-lon -97.21 \
+    --my-call N6RFM
+```
+
+Download DRF data for the top candidates from https://pswsnetwork.eng.ua.edu/
+
 ### Recommended: guided workflow (new in v2.0)
 
 ```bash
@@ -87,7 +103,7 @@ The guided workflow handles all 8 steps interactively:
 3. TID window selection (interactive)
 4. Zoomed spectrogram generation
 5. Optional window refinement
-6. Doppler extraction (corridor clicking for sgolay-ridge, or automated)
+6. Doppler extraction (interactive spline via cwt-prophet, or automated)
 7. Extraction output and visual validation
 8. Direction-of-arrival inversion with interactive drop-station loop
 
@@ -120,17 +136,18 @@ python3 drf_spectrogram.py ./n6rfm --subchannel 0 \
     --window n6rfm_fullday_window.json \
     --ylim=-5,5 --dpi 150 --callsign N6RFM
 
-# 5. Interactive spline extraction (cwt-prophet — recommended)
-#    Pass 0 auto-runs on open. Click F-region carrier to correct
-#    excursions. P=re-run  X=export  W=wave-fit  F=fit  R=reset  Q=quit
+# 5a. Interactive spline extraction (cwt-prophet — recommended)
+#     Pass 0 auto-runs on open. Click F-region carrier to correct
+#     excursions. P=re-run  X=export  W=wave-fit  F=fit  R=reset  Q=quit
 python3 tid_spect_click.py --spectrogram n6rfm_zoom.png \
     --name N6RFM --drf-dir ./n6rfm --subchannel 0
 
-# 5c. Wave-fit only (skip Prophet, fit sine to clicked points)
+# 5b. Wave-fit only (skip Prophet, fit sine to clicked cycle points)
+#     Best when >=1.5 cycles visible in window
 python3 tid_spect_click.py --spectrogram n6rfm_zoom.png \
     --name N6RFM --seg-start 0.0 --seg-end 2.0 --wave-only
 
-# 5b. Alternative: automated extraction (clean stations only)
+# 5c. Automated extraction (clean stations, no GUI needed)
 python3 drf_to_doppler.py ./n6rfm --subchannel 0 \
     --start 2026-01-19T00:00:00 --end 2026-01-19T02:00:00 \
     --decim-seconds 60 --method fft --output n6rfm_fft_tid.csv
@@ -162,6 +179,12 @@ coordinate calculation, and result interpretation.
 - `autocorr`: Lag-1 complex autocorrelation instantaneous-frequency
   estimator (G3ZIL method). 2-3x smoother output than fft.
 - `cwt`: CWT multi-peak tracker with linear extrapolation.
+- **wave-fit** (`--wave-only`): user clicks multiple points along the
+  visible TID cycle; tool fits A·sin(2π/T·t + φ) + offset to those
+  points and reconstructs the full window. No Prophet run needed.
+  Works best when ≥1.5 full cycles are visible. Each station
+  independently estimates its own period — handles dispersive TIDs.
+  Exports `{stn}_wave_tid.csv` for use with `tid_doa.py`.
 
 **Key finding from validation:** on the Jan 2026 event, spline
 extraction (cwt-prophet) gave 239 m/s from 30° NNE (0/5 flags) while
@@ -212,8 +235,18 @@ psws-drf-tid-tools/
 ├── tid_stack_plot.py           stacked Doppler comparison
 ├── tid_map.py                  array geometry map
 │
+├── docs/
+│   ├── ASSESSING_RESULTS.md    technical basis for DOA estimates
+│   ├── COOKBOOK.md             task-oriented recipes
+│   ├── METHODOLOGY.md          signal processing details
+│   └── TROUBLESHOOTING.md      failure modes and fixes
+│
 └── examples/
-    └── event_20260119.json     reference 4-station DOA config
+    ├── README.md               event descriptions and data access
+    ├── event_20260119.json     Jan 2026 4-station DOA config
+    ├── event_20240517.json     May 2024 3-station DOA config
+    ├── event_20260119_doa_report.pdf  full DOA analysis report
+    └── tid_event_20260119/     extracted CSVs, spectrograms, run logs
 ```
 
 Every script accepts `--help` and `--version`.
@@ -249,7 +282,7 @@ automatically (look for "Cite this repository" in the sidebar), or:
 > Mattaliano, R. (N6RFM) and Griffiths, G. (G3ZIL). 2026.
 > *psws-drf-tid-tools: a Python pipeline for analyzing Traveling
 > Ionospheric Disturbances from HamSCI Grape Digital RF I/Q recordings.*
-> Version 2.0.0. https://github.com/N6RFM/psws-drf-tid-tools
+> Version 2.3.x. https://github.com/N6RFM/psws-drf-tid-tools
 
 ---
 
