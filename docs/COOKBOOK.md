@@ -177,7 +177,8 @@ On open, cwt-prophet runs automatically (Pass 0). Key bindings:
 
     Click   Add anchor on F-region carrier (slow oscillation near 0 Hz)
     P       Re-run Prophet with anchors as constraints
-    X       Export spline CSV and set as baseline for further corrections
+    X       Export spline CSV
+    W       Enter wave-fit mode (click cycle points, F to fit)
     R       Reset clicks
     Q       Quit
 
@@ -202,6 +203,34 @@ python3 drf_to_doppler.py ./station \
     --corridor-width 0.4 \
     --output station_cwt_prophet_tid.csv
 ```
+
+
+### How do I use wave-fit extraction (--wave-only)?
+
+Use when the TID shows at least 1.5 clear cycles in the window and you
+want to fit a sine wave directly to the carrier. No Prophet run needed:
+
+```bash
+python3 tid_spect_click.py \
+    --spectrogram station_tid_zoom_clean.png \
+    --name STATION \
+    --seg-start 0.0 --seg-end 2.0 \
+    --wave-only
+```
+
+On open, the tool goes straight to wave-fit mode. Key bindings:
+
+    Click   Mark a point on the TID cycle (brown diamond marker)
+    F       Fit sine wave to clicked points
+            (dialog asks: 1=half cycle, 2=full cycle, custom multiplier)
+    W       Redo wave-fit (clear markers and start again)
+    Q       Save and quit
+
+Output: `station_wave_tid.csv`
+
+**Note:** wave-fit DOA works best when TID period is similar across
+all stations. If periods differ significantly, consider using spline
+extraction instead.
 
 ---
 ## Spectrograms
