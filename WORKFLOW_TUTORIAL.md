@@ -144,75 +144,105 @@ reveals the window needs adjustment.
 
 ---
 
-### Step 6 -- Extraction (sgolay-ridge / spline mode)
+### Step 6 -- Extraction
+
+Three extraction options are available. Choose based on signal quality
+and how many TID cycles are visible in the window.
+
+---
+
+#### Option A: Spline extraction (cwt-prophet) — recommended
 
 A `tid_spect_click` window opens showing the zoomed spectrogram.
 
-**Pass 0 (automatic):** The tool immediately runs cwt-prophet
-automatically and shows the result as a green overlay. No clicks
-needed -- inspect the trace first.
+**Pass 0 (automatic):** The tool immediately runs cwt-prophet and
+shows the result as a green overlay. No clicks needed — inspect
+the trace first.
 
-**If the Pass 0 trace looks good:** press X to export and move
+**If the Pass 0 trace looks good:** press **X** to export and move
 to the next station.
 
 **If the trace has excursions:** click on the carrier at the
-problem region to add anchor points (black dots), then use the
-key bindings below:
+problem region to add anchor points (black dots), then:
 
     Key bindings (shown in status bar at top):
       Click   Add anchor point on carrier (black dot)
       P       Re-run Prophet with current anchors as constraints
-      X       Export final spline CSV and move on
-      W       Enter wave-fit mode (see below)
+      X       Export final spline CSV
+      W       Switch to wave-fit mode (Option B)
       R       Reset all clicks
       Q       Quit
 
 **Multi-region editing workflow:**
 1. Inspect Pass 0 automatic trace (green)
-2. Click 2+ points on the carrier in any problem region
-   -- live spline preview updates immediately
+2. Click 2+ points on the carrier in any problem region —
+   live spline preview updates immediately
 3. Inspect the spline preview — add more clicks if needed
 4. Click next problem region
-5. When all regions are correct -- press X to export
+5. When all regions are correct — press **X** to export
 
 **Key points:**
 - Clicks define the carrier position directly
 - The PCHIP spline interpolates smoothly between clicks
 - Outside the clicked range, the last accepted trace is used as baseline
 - Minimum clicks needed = quality metric: clean stations may need 0
+- Output: `<station>_spline_tid.csv`
 
-**Wave-fit mode (W key):** An alternative to spline extraction.
-Use when the TID shows clear cycles and you want to fit a sine wave
-directly to the carrier:
+---
 
-1. Press **W** to enter wave-fit mode
-2. Click multiple points along the visible TID cycle
-   (brown diamond markers appear at each click)
-3. Press **F** to fit — a dialog asks what fraction of the cycle
-   you marked (1=half cycle, 2=full cycle, or custom multiplier)
-4. Blue overlay shows the fitted sine wave
-5. Press **Q** to save and quit
+#### Option B: Wave-fit reconstruction (W key)
 
-Output: `<station>_wave_tid.csv`
+Use when the TID shows ≥1.5 clear cycles in the window and you want
+to fit a sine wave directly to the carrier. Each station independently
+estimates its own period — handles dispersive TIDs.
 
-**When to use wave-fit vs spline:**
-- Wave-fit works best when ≥1.5 full cycles are visible
-- If TID period differs significantly between stations,
-  consider using spline extraction instead
-- For <1 full cycle visible, use spline extraction only
+From within spline mode, press **W** to switch. Or open directly
+in wave-fit mode (skips Prophet entirely):
 
-**Wave-only mode** (skip Prophet entirely):
 ```bash
 python3 tid_spect_click.py --spectrogram zoom.png --name N6RFM \\
     --seg-start 0.0 --seg-end 2.0 --wave-only
 ```
 
+**Workflow:**
+1. Click multiple points along the visible TID cycle
+   (brown diamond markers appear at each click)
+2. Press **F** to fit — a dialog asks what fraction of the cycle
+   you marked (1=half cycle, 2=full cycle, or custom multiplier)
+3. Blue overlay shows the fitted sine wave — press **W** to redo
+   or **Q** to save and quit
+
+Output: `<station>_wave_tid.csv`
+
+**When to use wave-fit vs spline:**
+- Wave-fit: ≥1.5 full cycles visible, coherent signal
+- Spline: <1.5 cycles, E-region contamination, or noisy signal
+- If TID period differs significantly between stations,
+  consider spline extraction instead
+
+---
+
+#### Option C: Automated extraction (no GUI)
+
+For clean stations with no E-region contamination. Runs without
+opening a window — useful for batch processing:
+
+```bash
+python3 drf_to_doppler.py ./n6rfm --subchannel 0 \\
+    --start 2026-01-19T00:00:00 --end 2026-01-19T02:00:00 \\
+    --decim-seconds 60 --method fft --output n6rfm_fft_tid.csv
+```
+
+Methods: `fft`, `autocorr` (G3ZIL method), `cwt`, `cwt-prophet`.
+Not recommended when E-region contamination is present.
+
 ---
 
 ### Step 7 -- Extraction output
 
-sgolay-ridge: writes `<station>_spline_tid.csv`
-fft/autocorr/cwt/cwt-prophet: writes `<station>_<method>_tid.csv`
+spline/cwt-prophet (Option A): writes `<station>_spline_tid.csv`
+wave-fit (Option B): writes `<station>_wave_tid.csv`
+automated fft/autocorr/cwt (Option C): writes `<station>_<method>_tid.csv`
 
 An overlay spectrogram is generated for visual validation.
 
