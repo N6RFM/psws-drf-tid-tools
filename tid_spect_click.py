@@ -215,6 +215,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self.corridor_width = corridor_width
         self._wave_mode = False
         self._wave_done = False
+        self._wave_only = False
         self._wave_clicks_t = []
         self._wave_clicks_d = []
         self._prophet_csv   = None
@@ -234,7 +235,8 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self._update_status()
         # Auto-run Prophet on open (Pass 0 — no clicks needed)
         if self.drf_dir:
-            QtCore.QTimer.singleShot(500, self._run_prophet_preview)
+            if not getattr(self, "_wave_only", False):
+                QtCore.QTimer.singleShot(500, self._run_prophet_preview)
 
     # ------------------------------------------------------------------
     # Data loading
@@ -1105,43 +1107,15 @@ class SpectClickApp(QtWidgets.QMainWindow):
         click_t = _npw.array(self._wave_clicks_t)
         click_d = _npw.array(self._wave_clicks_d)
 
-        # Load spline CSV as the signal source
-        spline_csv = None
+        # Build time grid from segment bounds — no spline CSV needed
         import pathlib as _pl_wf
+        t_out = _npw.arange(self.seg_t0, self.seg_t1 + 1/3600, 1/60)
         stem = _pl_wf.Path(self.img_path).stem
         parent = _pl_wf.Path(self.img_path).parent
-        for candidate in [
-            parent / (stem.replace("_tid_zoom_clean", "") + "_spline_tid.csv"),
-            parent / (stem + "_spline_tid.csv"),
-        ]:
-            if candidate.exists():
-                spline_csv = candidate
-                break
 
-        if spline_csv is None:
-            self._set_status("WAVE-FIT: no spline CSV found — export spline first (X)")
-            return
-
-        try:
-            df = _pdw.read_csv(spline_csv, parse_dates=["timestamp_utc"])
-            df["t_h"] = (df["timestamp_utc"].dt.hour +
-                         df["timestamp_utc"].dt.minute / 60.0 +
-                         df["timestamp_utc"].dt.second / 3600.0)
-            df = df.sort_values("t_h")
-        except Exception as _e:
-            self._set_status(f"WAVE-FIT: could not load spline CSV: {_e}")
-            return
-
-        # Extract signal segment within marked window
-        mask = (df["t_h"] >= t0_mark) & (df["t_h"] <= t1_mark)
-        seg = df[mask].copy()
-        if len(seg) < 4:
-            self._set_status("WAVE-FIT: marked segment too short — mark more of the wave")
-            return
-
-        t_seg = seg["t_h"].values
-        d_seg = seg["doppler_hz"].values
-        d_seg -= d_seg.mean()
+        # Use click points as the segment
+        t_seg = click_t
+        d_seg = click_d - click_d.mean()
 
         # Ask user what fraction of the cycle they marked
         from PyQt5 import QtWidgets as _QtW
@@ -1179,8 +1153,8 @@ class SpectClickApp(QtWidgets.QMainWindow):
         def _sine(t, A, phi, offset):
             return A * _npw.sin(2 * _npw.pi / T_h * (t - t_centre) + phi) + offset
 
-        A_guess  = (d_seg.max() - d_seg.min()) / 2.0
-        off_guess = float(_npw.mean(d_seg))
+        A_guess   = (click_d.max() - click_d.min()) / 2.0
+        off_guess = float(_npw.mean(click_d))
         # Fit ONLY to user click points — they define the wave exactly
         try:
             popt, _ = _curve_fit(_sine, click_t, click_d,
@@ -1193,7 +1167,6 @@ class SpectClickApp(QtWidgets.QMainWindow):
             off_fit = off_guess
 
         # Reconstruct full window
-        t_out = df["t_h"].values
         d_wave = A_fit * _npw.sin(2 * _npw.pi / T_h * (t_out - t_centre) + phi_fit) + off_fit
 
         # Get date string
@@ -1304,6 +1277,8 @@ def _parse_args():
                         "outside this band are rejected. Default: 0.4 Hz.")
     p.add_argument("--sgolay-window", type=float, default=21.0, metavar="MINUTES",
                    help="SGOLAY smoothing window in minutes for preview (default 21)")
+    p.add_argument("--wave-only", action="store_true",
+                   help="Skip Pass 0. Open directly in wave-fit mode (W).")
     return p.parse_args()
 
 
