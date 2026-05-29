@@ -484,7 +484,7 @@ https://doi.org/10.1007/s00585-996-0917-6 — The canonical
 climatological review; primary source for the LSTID/MSTID
 speed, period, and wavelength ranges used by the phase-speed
 diagnostic.
-(https://www.researchgate.net/profile/Klemens-Hocke/publication/41086051_A_review_of_atmospheric_gravity_waves_and_travelling_ionospheric_disturbances_1982-1995/links/5b62e486a6fdccf0b20776fa/A-review-of-atmospheric-gravity-waves-and-travelling-ionospheric-disturbances-1982-1995.pdf)****
+(https://www.researchgate.net/profile/Klemens-Hocke/publication/41086051_A_review_of_atmospheric_gravity_waves_and_travelling_ionospheric_disturbances_1982-1995/links/5b62e486a6fdccf0b20776fa/A-review-of-atmospheric-gravity-waves-and-travelling-ionospheric-disturbances-1982-1995.pdf)
 
 Hunsucker, R. D. (1982). Atmospheric gravity waves generated in
 the high-latitude ionosphere: A review. *Reviews of Geophysics*,
