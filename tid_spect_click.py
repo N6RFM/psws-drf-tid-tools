@@ -216,6 +216,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self._wave_mode = False
         self._wave_done = False
         self._wave_only = False
+        self._wave_candidate = None
         self._wave_clicks_t = []
         self._wave_clicks_d = []
         self._prophet_csv   = None
@@ -1065,6 +1066,9 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self._wave_clicks_d = []
         self._wave_mode = True
         self._wave_done = False
+        if self._wave_candidate and self._wave_candidate.exists():
+            self._wave_candidate.unlink(missing_ok=True)
+        self._wave_candidate = None
         self._refresh_wave_scatter()
         self._set_status(
             f"[{self.name}] WAVE-FIT: click points along the wave  "
@@ -1213,19 +1217,32 @@ class SpectClickApp(QtWidgets.QMainWindow):
         out_df.to_csv(out_path, index=False)
 
         self._wave_done = True
+        self._wave_candidate = out_path
         self._set_status(
             f"[{self.name}] WAVE-FIT: T={T_s/60:.1f} min  A={abs(A_fit):.3f} Hz  "
-            f"phi={phi_fit:.2f} rad  → {out_path.name}   "
-            f"[W]=redo  [Q]=quit")
-        print(f"  Wave-fit: T={T_s/60:.1f} min, A={abs(A_fit):.3f} Hz, "
-              f"phi={phi_fit:.3f} rad")
-        print(f"  Saved: {out_path}")
+            f"phi={phi_fit:.2f} rad   "
+            f"[A]=accept  [W]=redo  [Q]=quit")
+        print(f"  Wave-fit candidate: T={T_s/60:.1f} min, A={abs(A_fit):.3f} Hz, "
+              f"phi={phi_fit:.3f} rad — press A to accept, W to redo")
         # Draw wave-fit overlay on spectrogram
         try:
             self.preview_curve.setData(list(t_out), list(d_wave))
             self.preview_curve.setPen({"color": "#00BFFF", "width": 2})
         except Exception:
             pass
+
+    def _wave_fit_accept(self):
+        """A key: accept the current wave-fit candidate as final output."""
+        if not getattr(self, "_wave_done", False) or not self._wave_candidate:
+            self._set_status(
+                f"[{self.name}] No wave-fit candidate to accept — run W+F first")
+            return
+        final = self._wave_candidate
+        self._wave_candidate = None
+        self._set_status(
+            f"[{self.name}] WAVE-FIT accepted → {final.name}  "
+            f"[W]=redo  [Q]=quit")
+        print(f"  Accepted: {final}")
 
     # ------------------------------------------------------------------
     # Shortcuts
@@ -1235,6 +1252,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
                         ("P", self._run_prophet_preview),
                         ("W", self._wave_fit_start),
                         ("F", self._wave_fit_execute),
+                        ("A", self._wave_fit_accept),
                         ("R", self._reset_clicks), ("C", self._clear_all),
                         ("Q", self.close)]:
             sc = QtWidgets.QShortcut(QtGui.QKeySequence(key), self, cb)
