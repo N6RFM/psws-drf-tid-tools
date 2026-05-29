@@ -1126,33 +1126,34 @@ class SpectClickApp(QtWidgets.QMainWindow):
         d_seg = seg["doppler_hz"].values
         d_seg -= d_seg.mean()
 
-        # Estimate period: span is >= half cycle, so T <= 2 * span
-        # Use autocorrelation of full signal to refine
-        t_full = df["t_h"].values
-        d_full = df["doppler_hz"].values - df["doppler_hz"].mean()
-        dt_h = _npw.median(_npw.diff(t_full))
-        dt_s = dt_h * 3600.0
-
-        # Period estimate from marked span — user marked >= half cycle
-        # so period is between span and 2*span
-        T_guess_s = span_s * 1.8  # assume ~0.55 of full cycle marked
-
-        # Refine with autocorrelation
-        from scipy.signal import correlate as _corr
-        xc = _corr(d_full, d_full, mode='full')
-        xc = xc[len(xc)//2:]
-        lags_s = _npw.arange(len(xc)) * dt_s
-        # Look for first peak after T_guess_s * 0.4
-        min_lag = int(T_guess_s * 0.4 / dt_s)
-        max_lag = int(T_guess_s * 2.0 / dt_s)
-        min_lag = max(1, min(min_lag, len(xc)-2))
-        max_lag = max(min_lag+2, min(max_lag, len(xc)-1))
-        sub = xc[min_lag:max_lag]
-        if len(sub) > 0:
-            peak_idx = _npw.argmax(sub) + min_lag
-            T_s = lags_s[peak_idx]
-        else:
-            T_s = T_guess_s
+        # Ask user what fraction of the cycle they marked
+        from PyQt5 import QtWidgets as _QtW
+        dlg = _QtW.QInputDialog()
+        dlg.setWindowTitle("Wave-fit: period")
+        dlg.setLabelText(
+            f"Marked span: {span_s/60:.1f} min\n\n"
+            "What did you mark?\n"
+            "  1 = half cycle  (trough→peak or peak→trough)  T = span × 2\n"
+            "  2 = full cycle  (trough→trough or peak→peak)  T = span × 1\n"
+            "  Or enter any multiplier (e.g. 1.5 = ⅔ cycle):\n")
+        dlg.setTextValue("1")
+        dlg.setOkButtonText("OK")
+        dlg.setCancelButtonText("Cancel")
+        if dlg.exec_() != _QtW.QDialog.Accepted:
+            self._set_status("Wave-fit cancelled")
+            return
+        try:
+            multiplier = float(dlg.textValue().strip())
+            if multiplier <= 0:
+                multiplier = 1.0
+        except ValueError:
+            multiplier = 1.0
+        T_s = span_s * multiplier * 2 if multiplier == 1 else span_s / (1.0 / (multiplier * 2) if multiplier != 1 else 0.5)
+        # Simplified: multiplier maps as follows:
+        #   1 → half cycle → T = span * 2
+        #   2 → full cycle → T = span * 1
+        #   other → T = span * (2 / multiplier)
+        T_s = span_s * 2.0 / multiplier
         T_h = T_s / 3600.0
 
         # Fit A*sin(2π/T * t + φ) to the marked segment
