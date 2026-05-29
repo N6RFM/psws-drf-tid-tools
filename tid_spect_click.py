@@ -1174,8 +1174,10 @@ class SpectClickApp(QtWidgets.QMainWindow):
         T_h = T_s / 3600.0
 
         # Fit A*sin(2π/T * t + φ) to the marked segment
+        # Centre time on segment midpoint to make phi well-conditioned
+        t_centre = (t0_mark + t1_mark) / 2.0
         def _sine(t, A, phi):
-            return A * _npw.sin(2 * _npw.pi / T_h * t + phi)
+            return A * _npw.sin(2 * _npw.pi / T_h * (t - t_centre) + phi)
 
         A_guess = (d_seg.max() - d_seg.min()) / 2.0
         # Fit using both segment signal and click points as constraints
@@ -1199,7 +1201,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
 
         # Reconstruct full window
         t_out = df["t_h"].values
-        d_wave = A_fit * _npw.sin(2 * _npw.pi / T_h * t_out + phi_fit)
+        d_wave = A_fit * _npw.sin(2 * _npw.pi / T_h * (t_out - t_centre) + phi_fit)
 
         # Get date string
         date_str = None
@@ -1246,7 +1248,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         print(f"  Saved: {out_path}")
         # Draw wave-fit overlay on spectrogram
         try:
-            self.preview_curve.setData(t_out, d_wave)
+            self.preview_curve.setData(list(t_out), list(d_wave))
             self.preview_curve.setPen({"color": "#00BFFF", "width": 2})
         except Exception:
             pass
