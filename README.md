@@ -179,7 +179,7 @@ coordinate calculation, and result interpretation.
 - `autocorr`: Lag-1 complex autocorrelation instantaneous-frequency
   estimator (G3ZIL method). 2-3x smoother output than fft.
 - `cwt`: CWT multi-peak tracker with linear extrapolation.
-- **wave-fit** (`--wave-only`): user clicks multiple points along the
+- `wave-fit` (`--wave-only`): user clicks multiple points along the
   visible TID cycle; tool fits A·sin(2π/T·t + φ) + offset to those
   points and reconstructs the full window. No Prophet run needed.
   Works best when ≥1.5 full cycles are visible. Each station
