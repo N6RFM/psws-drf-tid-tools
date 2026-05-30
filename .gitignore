@@ -26,6 +26,7 @@ ENV/
 
 # Output products (these are generated, not source)
 *.csv
+!examples/tid_event_20260119/*.csv
 *.png
 *.pdf
 !docs/*.png
@@ -42,7 +43,9 @@ OBS*
 # Synthetic experiment data and figures (research branch only)
 !research/synthetic/*.png
 !research/synthetic/*.csv
+!examples/tid_event_20260119/*.csv
 !research/synthetic/chunks/*.csv
+!examples/tid_event_20260119/*.csv
 
 # Research figures and reports
 !research/*.png
