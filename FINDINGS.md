@@ -2697,14 +2697,17 @@ for l in lines:
 ```
 
 **Results (event window 00:00-01:15 UTC):**
-- Mean AE: ~100 nT
-- Max AE: ~130 nT
-- AE at predicted onset window (Jan 18 19:00-21:00 UTC): ~200-300 nT
+- Mean AE: ~321-331 nT
+- Max AE: ~526 nT
+- Hour 02:00-03:00 UTC: drops to ~115 nT (rapid quiet)
 
-Day maximum: ~700 nT at ~21:00 UTC Jan 19 (separate later substorm).
-The relatively low AE during our event window (100 nT) is consistent
-with a declining storm phase — wave launched earlier, now propagating
-through a quieting ionosphere.
+NOTE: An earlier fetch used the wrong file (ae260101 = Jan 1 not
+Jan 19). Correct file is ae260119.
+
+AE 300-500 nT during our event window indicates ACTIVE auroral
+electrojet — the TID is being actively driven, not a remnant
+of an earlier substorm. This strengthens the auroral LSTID
+interpretation.
 
 **Output:** ae_plot.png, ae_index_20260119.png
 
