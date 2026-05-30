@@ -2617,3 +2617,279 @@ for clean multi-cycle events.
 On N5BRG, use the first wave-fit result (T=82.8 min) rather than
 the last. The tool currently overwrites on each F press — consider
 adding a compare/accept step so the user can choose the best fit.
+
+---
+
+## Entry 50 — Jan 2026: external validation — full session record
+**Date:** 2026-05-30
+**Branch:** research_gui
+
+### Objective
+Independently verify Jan 2026 DOA result (239 m/s from 30° NNE) using
+external data sources not derived from our own Doppler analysis.
+Document all tools, methods, data sources, results, and limitations.
+
+---
+
+### Tool: validate_external.py
+Created this session. Automates Kp fetch, AE fetch, GloTEC montage,
+and produces a text report. Usage:
+
+```bash
+python3 validate_external.py \
+    --date 2026-01-19 \
+    --event-start 2026-01-19T00:00:00Z \
+    --event-end   2026-01-19T01:15:00Z \
+    --speed-m-s 239 --azimuth-from 30 \
+    --glotec-dir ~/Downloads/glotec_2026_01_19 \
+    --output-dir ~/Downloads/tid_event_20260119/validation
+```
+
+Outputs: kp_plot.png, ae_plot.png, glotec_event_montage.png,
+         glotec_before_after.png, glotec_diff.png, validation_report.txt
+
+---
+
+### 1. Kp index — GFZ Potsdam
+
+**Source:** https://kp.gfz-potsdam.de/app/json/
+**Method:** HTTP GET, JSON response, 3-hourly values
+**Code:**
+```python
+import requests
+url = ("https://kp.gfz-potsdam.de/app/json/"
+       "?start=2026-01-18T12%3A00%3A00Z"
+       "&end=2026-01-20T06%3A00%3A00Z&index=Kp")
+data = requests.get(url).json()
+# data['datetime'] and data['Kp'] are parallel lists
+```
+
+**Results:**
+| Time UTC | Kp | Significance |
+|----------|-----|--------------|
+| Jan 18 18:00 | 3.7 | Substorm onset window |
+| Jan 18 21:00 | 3.0 | Sustained activity |
+| Jan 19 00:00 | 3.3 | Event window start |
+| Jan 19 03:00 | 0.7 | Rapid quiet |
+| Jan 19 06:00 | 0.3 | Quiet |
+
+Travel time: 3300 km / 239 m/s = 3.83h → substorm onset ~20:10 UTC
+Jan 18 expected. Kp=3.7 at 18:00 UTC Jan 18 is within ~2h of this —
+consistent with auroral LSTID origin.
+
+**Output:** kp_plot.png (in validation/ subdirectory)
+
+---
+
+### 2. AE index — WDC Kyoto
+
+**Source:** https://wdc.kugi.kyoto-u.ac.jp/ae_realtime/data_dir/2026/01/19/ae260119
+**Method:** HTTP GET of fixed-format ASCII file, 1-minute values
+**Format:** Each line = 1 hour, values at column 40 onwards
+
+```python
+url = "https://wdc.kugi.kyoto-u.ac.jp/ae_realtime/data_dir/2026/01/19/ae260119"
+lines = requests.get(url).text.splitlines()
+ae = []
+for l in lines:
+    if 'AE QUICKLK' in l:
+        ae.extend(map(int, l[40:].split())[:60])
+```
+
+**Results (event window 00:00-01:15 UTC):**
+- Mean AE: ~100 nT
+- Max AE: ~130 nT
+- AE at predicted onset window (Jan 18 19:00-21:00 UTC): ~200-300 nT
+
+Day maximum: ~700 nT at ~21:00 UTC Jan 19 (separate later substorm).
+The relatively low AE during our event window (100 nT) is consistent
+with a declining storm phase — wave launched earlier, now propagating
+through a quieting ionosphere.
+
+**Output:** ae_plot.png, ae_index_20260119.png
+
+---
+
+### 3. SuperMAG SME — JHU APL
+
+**Source:** https://supermag.jhuapl.edu/indices/
+**Method:** Browser only (no programmatic API without registration)
+**URL used:**
+```
+https://supermag.jhuapl.edu/indices/?layers=SME,E&start=2026-01-18T18:00:00Z
+```
+
+**Results:**
+SME 200-300 nT during Jan 18 18:00-22:00 UTC — sustained substorm
+activity 3-4 hours before event window. Onset timing consistent with
+239 m/s travel from auroral zone. SME during event window: ~100-150 nT
+(declining phase, clean measurement conditions).
+
+**Output:** Screenshot saved manually (supermag_sme_20260119.png)
+
+---
+
+### 4. SuperDARN RTI — Virginia Tech
+
+**Source:** http://vt.superdarn.org
+**Method:** Browser — Range-Time Intensity plots, 6 radars
+**Radars plotted:** FHW, FHE, CVE, BKS, CVW, WAL (Jan 19 2026, full day)
+
+**Results:**
+All 6 radars show sparse/quiet echoes during 00:00-01:15 UTC event
+window. Ground scatter band (dense echoes at 1200-1700 km slant range)
+absent during event window. Major activity at 15:00-22:00 UTC (separate
+later substorm). This confirms ionospherically quiet conditions during
+our measurement window — consistent with declining storm phase.
+
+**Limitation:** RTI plots show range vs time but not azimuth. TID
+wavefront would require fan plots showing spatial structure.
+
+**Output:** Screenshot saved manually (superdarn_rti_20260119.png)
+
+---
+
+### 5. GloTEC CONUS Anomaly — NOAA NCEI
+
+**Source:** https://www.ngdc.noaa.gov/stp/iono/ustec/
+**Product:** GloTEC (superseded US-TEC in 2015)
+**Download:** glotec_2026_01_19.tar.gz — 270 MB
+**Format:** PNG images at 10-minute cadence, multiple product types
+
+**Product types in archive:**
+| Code | Description |
+|------|-------------|
+| anomcus | CONUS TEC anomaly (diff from 30-day median) |
+| anomna | North America TEC anomaly |
+| anomaly | Global TEC anomaly |
+| 100asm | CONUS TEC absolute |
+| 100asmp | CONUS TEC with position error |
+| 100cus | CONUS TEC (alternate projection) |
+| 100na | North America TEC absolute |
+
+**Download method:**
+```bash
+# Browse to https://www.ngdc.noaa.gov/stp/iono/ustec/
+# Search: date=2026-01-19, product=glotec
+# Download: glotec_2026_01_19.tar.gz (270 MB)
+tar xzf glotec_2026_01_19.tar.gz
+ls glotec_2026_01_19/glotec_anomcus_urt_20260119T*.png | wc -l
+# ~144 files (one every 10 minutes for 24 hours)
+```
+
+**Loading PNGs in Python:**
+```python
+import matplotlib.image as mpimg
+import numpy as np
+from PIL import Image
+
+# Load anomaly map at specific time
+img = mpimg.imread("glotec_anomcus_urt_20260119T000500.png")
+# img shape: (H, W, 4) RGBA — colour encodes TEC anomaly
+# Orange/brown = positive anomaly (TEC above 30-day median)
+# Purple/blue  = negative anomaly (TEC below 30-day median)
+# Scale: approximately ±30 TECU
+
+# Difference between two times
+img0 = np.array(Image.open("glotec_anomcus_urt_20260119T000500.png").convert("RGB"))
+img1 = np.array(Image.open("glotec_anomcus_urt_20260119T010500.png").convert("RGB"))
+diff = img1.astype(float) - img0.astype(float)
+```
+
+**Results (00:05-00:55 UTC, 6 maps):**
+- Large positive anomaly (+10 to +20 TECU, orange) over northern CONUS
+  down to ~35°N — storm-time F-region enhancement
+- Negative anomaly (-10 to -20 TECU, purple) in southeastern US and
+  Gulf Coast
+- Boundary between positive/negative runs roughly E-W at ~35-38°N —
+  directly across our array
+- Between 00:05 and 01:05 UTC the positive anomaly retreats northward
+  as the storm decays (Kp dropping 3.3→0.7)
+
+**Why TID is not resolvable:**
+At 239 m/s with ~70 min period, LSTID wavelength = 239×70×60 ≈ 1000 km.
+GloTEC grid resolution is ~2°(~200 km) — in principle sufficient —
+but the assimilation model smooths sub-degree structure. The broad
+storm enhancement dominates and the TID amplitude (~1-2 TECU) is small
+relative to the storm anomaly (+15 TECU). Higher-resolution line-of-sight
+TEC (MIT Haystack) would be needed to resolve the wavefront.
+
+**Comparison 00:05 vs 01:05 UTC:**
+The orange region over Colorado/Kansas/Texas retreats northward by
+~3-5° latitude over 60 minutes. At 239 m/s that displacement (330-550 km)
+is consistent — but the motion is dominated by storm decay, not the TID.
+Cannot separate the two effects at this resolution.
+
+**Outputs:** glotec_anomaly_montage.png, glotec_diff.png (saved to
+~/Downloads/tid_event_20260119/)
+
+---
+
+### 6. IONEX GPS TEC — NASA CDDIS
+
+**Source:** https://cddis.nasa.gov/archive/gnss/products/ionex/2026/019/
+**Status:** Files confirmed present (jplg0190.26i.gz, codg0190.26i.gz)
+**Blocked by:** NASA Earthdata authentication required
+**Resolution:** Register free at https://urs.earthdata.nasa.gov/
+**Then use:**
+```bash
+# After registering, create ~/.netrc:
+echo "machine urs.earthdata.nasa.gov login USER password PASS" >> ~/.netrc
+chmod 600 ~/.netrc
+
+# Download with curl:
+curl -n -L -O \
+  "https://cddis.nasa.gov/archive/gnss/products/ionex/2026/019/jplg0190.26i.gz"
+gunzip jplg0190.26i.gz
+# Parse IONEX format for TEC at station locations
+```
+
+IONEX files have 2-hour cadence, global grid (2.5° lat × 5° lon).
+For TID wavefront tracking, the MIT Haystack line-of-sight TEC in
+Madrigal (instrument 8000) has much higher spatial resolution.
+
+---
+
+### 7. GIRO ionosondes
+
+**Attempted:** BC840 (Boulder CO), DY849 (Dyess TX), IF843 (Idaho Falls)
+**Blocked by:** NEXION network stopped sharing US data to GIRO after 2023
+**Evidence:** DIDBase for BC840 shows last entry 2024; all 2026 queries 404
+**Alternative:** Register NASA Earthdata → Madrigal → instrument codes
+  8000 (GPS TEC) or check individual ionosonde operators directly
+
+---
+
+### 8. Peak succession (internal, no external data)
+
+For wave from 30° NNE (toward 210° SSW), easternmost station leads.
+AA6BD (85°W, Alabama) is easternmost — should lead N6RFM (97°W) and
+W7LUX (112°W).
+
+| Pair | Observed lag | Expected sign | Consistent? |
+|------|-------------|---------------|-------------|
+| AA6BD → N6RFM | +1253 s | + (AA6BD leads) | ✓ |
+| AA6BD → W7LUX | +1481 s | + (AA6BD leads) | ✓ |
+| N6RFM → W7LUX | +228 s  | + (N6RFM leads) | ✓ |
+
+All three pairs consistent with NNE origin. This is a model-free
+directional verification — no inversion, no external data needed.
+
+---
+
+### Summary
+
+| Method | Result | Verifies? |
+|--------|--------|-----------|
+| Kp index | 3.3-3.7, substorm timing consistent | Direction context ✓ |
+| AE index | ~100 nT event, 200-300 nT at onset | Timing context ✓ |
+| SuperMAG SME | 200-300 nT, 3-4h before event | Timing ✓ |
+| SuperDARN RTI | Quiet during event window | Clean conditions ✓ |
+| GloTEC anomaly | Storm enhancement, TID not resolvable | Context only |
+| IONEX GPS TEC | Not accessed (auth required) | Pending |
+| GIRO ionosondes | Not accessible (NEXION gap) | Unavailable |
+| Peak succession | All pairs consistent | Direction ✓ |
+
+**Speed (239 m/s) not yet independently verified.**
+Priority: NASA Earthdata IONEX access or find_event_stations.py DOA
+cross-validation.
