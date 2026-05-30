@@ -186,6 +186,39 @@ coordinate calculation, and result interpretation.
   independently estimates its own period — handles dispersive TIDs.
   Exports `{stn}_wave_tid.csv` for use with `tid_doa.py`.
 
+**External validation:**
+After obtaining a DOA result, corroborate it with independent space
+weather data using the three validation tools:
+
+```bash
+# 1. Kp + AE + GloTEC automated validation
+python3 validate_external.py \
+    --date 2026-01-19 \
+    --event-start 2026-01-19T00:00:00Z \
+    --event-end   2026-01-19T01:15:00Z \
+    --speed-m-s 239 --azimuth-from 30 \
+    --glotec-dir ~/Downloads/glotec_2026_01_19 \
+    --output-dir ./validation
+
+# 2. AE index only
+python3 fetch_ae_index.py \
+    --date 2026-01-19 \
+    --event-start 2026-01-19T00:00:00Z \
+    --event-end   2026-01-19T01:15:00Z \
+    --speed-m-s 239 --output-dir ./validation
+
+# 3. GloTEC analysis (download tar.gz from NOAA NCEI first)
+#    https://www.ngdc.noaa.gov/stp/iono/ustec/
+python3 fetch_glotec.py \
+    --glotec-dir ~/Downloads/glotec_2026_01_19 \
+    --date 2026-01-19 \
+    --event-start 2026-01-19T00:00:00Z \
+    --event-end   2026-01-19T01:15:00Z \
+    --output-dir ./validation
+```
+
+See `docs/COOKBOOK.md` for full details on external validation.
+
 **xcorr aliasing note:** for LSTID events with ~60 min period, set
 `--max-lag 20` (minutes) to prevent alias peak lock. See
 `ASSESSING_RESULTS.md` for details.
@@ -229,6 +262,9 @@ psws-drf-tid-tools/
 ├── tid_doa.py                  multi-station DOA inversion
 ├── tid_stack_plot.py           stacked Doppler comparison
 ├── tid_map.py                  array geometry map
+├── validate_external.py        external space weather validation
+├── fetch_ae_index.py           fetch + plot AE index (WDC Kyoto)
+├── fetch_glotec.py             analyse GloTEC TEC anomaly maps
 │
 ├── docs/
 │   ├── ASSESSING_RESULTS.md    technical basis for DOA estimates
