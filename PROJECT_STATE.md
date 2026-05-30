@@ -134,3 +134,46 @@ N4RVE: 78.4 min
 1. Send Gwyn email
 2. Consider adding compare/accept step to wave-fit so user can
    choose best fit from multiple F presses
+
+---
+## 41. External validation session — 2026-05-30
+
+### Session goals
+Independently verify Jan 2026 DOA result (239 m/s from 30° NNE)
+using external space weather data.
+
+### Accomplished
+- Kp index (GFZ Potsdam): 3.3-3.7, substorm timing consistent
+- AE index (WDC Kyoto): ~100 nT event, 200-300 nT at predicted onset
+- SuperMAG SME (browser): 200-300 nT Jan 18 18:00-22:00 UTC
+- SuperDARN RTI (browser): 6 radars, quiet during event window
+- GloTEC (NOAA NCEI): downloaded glotec_2026_01_19.tar.gz (270 MB)
+  - anomcus product: CONUS TEC anomaly PNG images, 10-min cadence
+  - Storm-time +15 TECU enhancement visible; TID not resolvable
+  - Difference map: anomaly retreats northward over event window
+
+### Tools created
+- validate_external.py (committed to main and research_gui)
+  Automates: Kp fetch, AE fetch, GloTEC montage, validation report
+  Usage: python3 validate_external.py --date 2026-01-19
+         --event-start ...Z --event-end ...Z
+         --speed-m-s 239 --azimuth-from 30
+         --glotec-dir ~/Downloads/glotec_2026_01_19
+         --output-dir ./validation
+
+### What verifies direction (not speed)
+- Peak succession: AA6BD leads all stations → confirms NNE origin ✓
+- Kp/AE timing: substorm 3-4h before event ✓
+- GloTEC: broad storm context consistent ✓
+
+### What remains unverified
+- Speed magnitude: needs IONEX or ionosonde foF2
+- IONEX: files at CDDIS confirmed, auth required (free NASA Earthdata)
+- Additional HamSCI stations: find_event_stations.py not yet run
+- Gwyn comparison: 180° alias likely; speed discrepancy unresolved
+
+### Open items
+1. Send Gwyn email with all results
+2. Register NASA Earthdata → IONEX → verify speed
+3. Run find_event_stations.py for cross-validation DOA
+4. Commit validation PNGs to examples/ or a new validation/ folder
