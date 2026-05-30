@@ -233,6 +233,107 @@ Output: `station_wave_tid.csv`
 all stations. If periods differ significantly, consider using spline
 extraction instead.
 
+
+---
+
+## How do I validate my DOA result against independent data?
+
+Three tools automate external space weather validation. They fetch
+publicly available data from NOAA, WDC Kyoto, and GFZ Potsdam and
+compare the timing and context against your DOA result.
+
+### Quick start — automated validation
+
+```bash
+python3 validate_external.py \
+    --date 2026-01-19 \
+    --event-start 2026-01-19T00:00:00Z \
+    --event-end   2026-01-19T01:15:00Z \
+    --speed-m-s 239 --azimuth-from 30 \
+    --glotec-dir ~/Downloads/glotec_2026_01_19 \
+    --output-dir ./validation
+```
+
+Outputs: `kp_plot.png`, `ae_plot.png`, `glotec_event_montage.png`,
+`glotec_before_after.png`, `glotec_diff.png`, `validation_report.txt`
+
+### AE index only
+
+```bash
+python3 fetch_ae_index.py \
+    --date 2026-01-19 \
+    --event-start 2026-01-19T00:00:00Z \
+    --event-end   2026-01-19T01:15:00Z \
+    --speed-m-s 239 \
+    --output-dir ./validation
+```
+
+Fetches 1-minute AE from WDC Kyoto. Plots full day + zoom with event
+window and predicted substorm onset marker (travel time = distance /
+speed). Saves `ae_YYYYMMDD.png` and `ae_YYYYMMDD.csv`.
+
+### GloTEC analysis
+
+GloTEC is NOAA's GPS TEC assimilation product at 10-minute cadence.
+Download the daily tar.gz first:
+
+1. Browse to https://www.ngdc.noaa.gov/stp/iono/ustec/
+2. Search for your event date, download `glotec_YYYY_MM_DD.tar.gz`
+3. `tar xzf glotec_YYYY_MM_DD.tar.gz`
+4. Run:
+
+```bash
+python3 fetch_glotec.py \
+    --glotec-dir ~/Downloads/glotec_2026_01_19 \
+    --date 2026-01-19 \
+    --event-start 2026-01-19T00:00:00Z \
+    --event-end   2026-01-19T01:15:00Z \
+    --output-dir ./validation
+```
+
+Outputs: event montage, before/after comparison, diff map, product list.
+
+The most useful product is `anomcus` (CONUS TEC anomaly — difference
+from 30-day median). Orange = positive anomaly, purple = negative.
+A TID wavefront appears as diagonal stripes, but at ~2° resolution
+large LSTIDs may not be resolvable if a storm-time enhancement is present.
+
+### What each source verifies
+
+| Source | Verifies | Does NOT verify |
+|--------|----------|-----------------|
+| Kp index | Geomagnetic context, storm timing | Speed, direction |
+| AE index | Substorm onset timing | Speed, direction |
+| GloTEC | Storm-time TEC context | TID speed/direction at std res |
+| Peak succession | Propagation direction | Speed magnitude |
+| GPS TEC (IONEX) | Wavefront speed + direction | Needs NASA Earthdata auth |
+
+### Manual validation sources (browser only)
+
+- **SuperMAG SME**: https://supermag.jhuapl.edu/indices/
+  Select SME index, look for spike 3-4h before event window
+
+- **SuperDARN RTI**: http://vt.superdarn.org
+  Use Fort Hays East (FHE) or Blackstone (BKS) for mid-latitude US
+  Look for ground scatter boundary moving equatorward
+
+- **GIRO ionosondes**: https://giro.uml.edu/ionoweb/
+  Note: US NEXION stations not available after 2023
+
+### Speed verification (requires NASA Earthdata account)
+
+Register free at https://urs.earthdata.nasa.gov/ then:
+
+```bash
+# Download IONEX file for event date
+echo "machine urs.earthdata.nasa.gov login USER password PASS" >> ~/.netrc
+chmod 600 ~/.netrc
+curl -n -L -O \
+  "https://cddis.nasa.gov/archive/gnss/products/ionex/2026/019/jplg0190.26i.gz"
+gunzip jplg0190.26i.gz
+# Parse IONEX for TEC at station locations (2-hour cadence, 2.5°×5° grid)
+```
+
 ---
 ## Spectrograms
 
