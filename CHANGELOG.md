@@ -1,28 +1,56 @@
-## v2.3.5–v2.3.19 — 2026-05-28/29
+## v2.3.29–v2.3.30 — 2026-05-29
+
+### New features
+
+- **tid_spect_click.py: wave-fit compare/accept step (A key)**
+  After pressing F to fit, the result is shown as a candidate — not
+  immediately saved. Press A to accept (writes final `{stn}_wave_tid.csv`),
+  W to discard and redo with new points, or Q to quit without saving.
+  This prevents the last F press silently overwriting earlier better fits.
+
+### Documentation
+
+- WORKFLOW_TUTORIAL, MANUAL_TUTORIAL, COOKBOOK updated with A=accept key
+
+---
+
+## v2.3.28 — 2026-05-29
+
+### Bug fixes
+
+- **tid_spect_click.py: warn when <4 click points in wave-fit**
+  With fewer than 4 clicks the 3-parameter fit (A, φ, offset) is
+  under-constrained. A console NOTE is now printed to alert the user.
+  scipy OptimizeWarning is suppressed (was noisy and uninformative).
+
+---
+
+## v2.3.5–v2.3.27 — 2026-05-28/29
 
 ### New features
 
 - **tid_spect_click.py: W key wave-fit reconstruction**
   New interactive wave-fit mode alongside the existing spline/cwt-prophet
   workflow. Press W to enter wave-fit mode, click multiple points along
-  the visible TID cycle, press F to fit. The tool fits A·sin(2π/T·(t−t₀)+φ)+C
+  the visible TID cycle, press F to fit. The tool fits:
+  `A·sin(2π/T·(t−t₀)+φ) + C`
   to the click points only — user clicks define the wave exactly.
   - Brown diamond markers show click positions
   - Blue overlay shows the fitted wave on the spectrogram
-  - Period dialog after F: enter 1=half cycle, 2=full cycle, or custom multiplier
+  - Period dialog after F: 1=half cycle, 2=full cycle, or custom multiplier
   - DC offset as free parameter — overlay aligns with clicked points
-  - Exports {stn}_wave_tid.csv for use with tid_doa.py
-  - Each station independently estimates T, A, φ — no shared period assumption
+  - Exports `{stn}_wave_tid.csv` for use with `tid_doa.py`
+  - Each station independently estimates T, A, φ, C — no shared period assumption
 
 - **tid_spect_click.py: --wave-only flag**
   Skip Pass 0 (Prophet auto-run) and open directly in wave-fit mode.
-  Prints console caveat if periods may differ between stations.
   No spline CSV required — time grid built from segment bounds.
+  Console caveat printed if periods may differ between stations.
 
-```bash
+  ```bash
   python3 tid_spect_click.py --spectrogram zoom.png --name N6RFM \
       --seg-start 0.0 --seg-end 2.05 --wave-only
-```
+  ```
 
 ### Known limitations of wave-fit
 
@@ -30,15 +58,33 @@
 - If TID period differs significantly between stations, xcorr between
   wave-fit CSVs will be incoherent — use spline extraction instead
 - Jan 2026 dataset (<1 cycle visible): wave-fit not applicable
-- May 2024 dataset (2.5 cycles visible): suitable testbed
+- May 2024 dataset (2.5 cycles visible): validated — 442 m/s from 10° N
+  (vs spline 570 m/s from 354° N, 16° azimuth difference)
 
-### Bug fixes (v2.3.5–v2.3.19)
-- W key wave-fit: correct phase alignment (centred time axis)
-- W key wave-fit: DC offset parameter added
-- W key wave-fit: blocked X during wave-fit click mode
-- W key wave-fit: brown diamond markers for click points
-- W key wave-fit: multi-point mode (F to trigger, not auto on 2 clicks)
-- --wave-only: spline CSV dependency removed
+### Bug fixes (v2.3.5–v2.3.27)
+- Wave-fit: correct phase alignment (centred time axis)
+- Wave-fit: DC offset parameter added for correct overlay alignment
+- Wave-fit: blocked X during wave-fit click mode
+- Wave-fit: brown diamond markers for click points
+- Wave-fit: multi-point mode (F to trigger, not auto on 2 clicks)
+- Wave-fit: spline CSV dependency removed
+- Wave-fit: pathlib local import fixed
+- Wave-fit: state management — ignore clicks after done, draw overlay
+
+### Documentation (v2.3.1–v2.3.27)
+- README: extraction methods updated, wave-fit described, repo listing fixed,
+  find_event_stations added, citation version updated
+- WORKFLOW_TUTORIAL: Step 6 restructured as Option A/B/C with click guides
+- MANUAL_TUTORIAL: Option C wave-fit, use_ipp coords, find_event_stations
+- ASSESSING_RESULTS: reference speed updated to 239 m/s, stray asterisks fixed
+- COOKBOOK: wave-fit recipe, gitignore note, May 2024 example config
+- METHODOLOGY: extraction method table, wave-fit Step 1c, spline Step 1d
+- TROUBLESHOOTING: tid_spect_click entries, wave-fit issues, closure note
+- requirements.txt: PyQt5, pyqtgraph, Pillow added
+- requirements-optional.txt: prophet added with installation note
+- examples/: README, event_20240517.json, DOA report PDF, tid_event_20260119/ data
+
+---
 
 ## v2.3.0 — 2026-05-28
 
