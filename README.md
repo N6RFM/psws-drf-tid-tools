@@ -34,7 +34,7 @@ lets you:
   interactive spline (cwt-prophet, recommended), FFT, autocorr (G3ZIL method),
   CWT, or wave-fit (sine reconstruction from user-clicked cycle points)
 - render annotated Doppler spectrograms with optional overlay of
-  extracted Doppler traces for visual method validation
+  extracted Doppler traces for visual method assessment
 - run the complete pipeline in one guided interactive session
 - run a full multi-station direction-of-arrival (DOA) inversion
 - visualize results as stacked Doppler traces and array-geometry maps
@@ -104,7 +104,7 @@ The guided workflow handles all 8 steps interactively:
 4. Zoomed spectrogram generation
 5. Optional window refinement
 6. Doppler extraction (interactive spline via cwt-prophet, wave-fit, or automated)
-7. Extraction output and visual validation
+7. Extraction output and visual assessment
 8. Direction-of-arrival inversion with interactive drop-station loop
 
 State is saved after each step — use `--resume` to continue an
@@ -186,12 +186,12 @@ coordinate calculation, and result interpretation.
   independently estimates its own period — handles dispersive TIDs.
   Exports `{stn}_wave_tid.csv` for use with `tid_doa.py`.
 
-**External validation:**
+**External evaluation:**
 After obtaining a DOA result, corroborate it with independent space
-weather data using the three validation tools:
+weather data using the evaluation tools:
 
 ```bash
-# 1. Kp + AE + GloTEC automated validation
+# 1. Kp + AE + GloTEC automated evaluation
 python3 evaluate_external.py \
     --date 2026-01-19 \
     --event-start 2026-01-19T00:00:00Z \
@@ -217,7 +217,7 @@ python3 fetch_glotec.py \
     --output-dir ./evaluation
 ```
 
-See `docs/COOKBOOK.md` for full details on external validation.
+See `docs/COOKBOOK.md` for full details on external evaluation.
 
 **xcorr aliasing note:** for LSTID events with ~60 min period, set
 `--max-lag 20` (minutes) to prevent alias peak lock. See
@@ -255,14 +255,14 @@ psws-drf-tid-tools/
 ├── tid_workflow.py             guided 8-step workflow (NEW in v2.0)
 ├── tid_quicklook.py            interactive TID window selector
 ├── tid_spect_click.py          interactive spline extraction (cwt-prophet + wave-fit)
-├── drf_spectrogram.py          spectrograms + --overlay for validation
+├── drf_spectrogram.py          spectrograms + --overlay for visual assessment
 ├── drf_to_doppler.py           Doppler extraction (fft/autocorr/cwt/sgolay-ridge)
 ├── drf_inspect.py              verify DRF metadata + subchannel
 ├── find_event_stations.py      companion-station discovery
 ├── tid_doa.py                  multi-station DOA inversion
 ├── tid_stack_plot.py           stacked Doppler comparison
 ├── tid_map.py                  array geometry map
-├── evaluate_external.py        external space weather validation
+├── evaluate_external.py        external space weather evaluation
 ├── fetch_ae_index.py           fetch + plot AE index (WDC Kyoto)
 ├── fetch_glotec.py             analyse GloTEC TEC anomaly maps
 │
@@ -322,7 +322,7 @@ automatically (look for "Cite this repository" in the sidebar), or:
 
 - Gwyn Griffiths (G3ZIL) for co-development of the autocorr extractor,
   collaborative analysis of the Jan 2026 and May 2024 LSTID events,
-  and extensive validation of sign conventions and lag interpretation
+  and extensive assessment of sign conventions and lag interpretation
 - The HamSCI / PSWS infrastructure developers https://hamsci.org/
 - Bill Engelke (AB4EJ), University of Alabama, for the original DRF
   processing and spectrogram plotting code

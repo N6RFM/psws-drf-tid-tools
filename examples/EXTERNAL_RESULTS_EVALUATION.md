@@ -44,7 +44,7 @@ Requirements: `pip install requests matplotlib numpy Pillow madrigalWeb`
 
 ---
 
-### evaluate_external.py — combined validation report
+### evaluate_external.py — combined evaluation report
 
 The primary evaluation tool. Fetches Kp, AE, and optionally analyses
 GloTEC maps in one run.
@@ -108,7 +108,7 @@ python3 fetch_ae_index.py \
     --event-start 2026-01-19T00:00:00Z \
     --event-end   2026-01-19T01:15:00Z \
     --speed-m-s 239 \
-    --output-dir ./validation
+    --output-dir ./evaluation
 ```
 
 **Data source:**
@@ -410,7 +410,7 @@ event window. Confirms declining storm phase, clean measurement conditions.
 
 ### Pre-computed outputs
 
-Validation plots are included in the repository:
+Evaluation plots are included in the repository:
 ```
 examples/tid_event_20260119/evaluation/
     kp_plot.png

@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "/opt/openmadrigal/madroot/bin/isprint", line 126, in <module>
+    raise IOError("Illegal parameter: " + str(arg))
+OSError: Illegal parameter: hour,0,1.5

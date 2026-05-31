@@ -191,7 +191,7 @@ python3 drf_to_doppler.py ./n6rfm \
 The anchors JSON is written automatically by `tid_spect_click.py`
 when anchor points are placed.
 
-**Validate visually:**
+**Check visually:**
 
 ```bash
 python3 drf_spectrogram.py ./n6rfm \
@@ -208,11 +208,11 @@ python3 drf_spectrogram.py ./n6rfm \
 | Method | Best for |
 |--------|----------|
 | fft | General purpose, default |
-| autocorr | Smooth carriers, G3ZIL validation |
+| autocorr | Smooth carriers, G3ZIL method |
 | cwt | Multi-peak ambiguous carriers |
 | cwt-prophet | CWT + Prophet prediction (G3ZIL comparison) |
 
-**Important:** validation on the Jan 2026 event showed fft and
+**Important:** assessment on the Jan 2026 event showed fft and
 cwt-prophet give wrong lags on AC0G/ND due to E-region contamination.
 The spline extraction (Option A) correctly avoids this.
 
@@ -351,7 +351,7 @@ python3 tid_map.py --config event.json --output map.png \
 | spline/cwt-prophet | 239 m/s | 30° NNE | Best result (0/5 flags) |
 | sgolay-ridge | 218-257 m/s | 35-37° NNE | Comparable |
 | fft | ~281 m/s | ~33° NNE | Automated, 3/5 flags |
-| autocorr | similar to fft | — | G3ZIL validation method |
+| autocorr | similar to fft | — | G3ZIL method |
 | Peak-time direct | ~281 m/s | ~33 deg | Independent cross-check |
 
 The spline approach gives the physically correct result by letting the
@@ -377,7 +377,7 @@ selection entirely.
 ## Further reading
 
 - `WORKFLOW_TUTORIAL.md` -- guided workflow using tid_workflow.py
-- `FINDINGS.md` -- research work log documenting method validation
+- `FINDINGS.md` -- research work log documenting method assessment
 - `drf_to_doppler.py --help` -- full extraction options
 - `tid_doa.py --help` -- DOA config format and diagnostic thresholds
 - `tid_spect_click.py --help` -- spline extraction options
