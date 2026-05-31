@@ -224,6 +224,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self._prophet_curve = None
         self._prophet_pass  = 0     # increments each re-run for color cycling
         self._accepted_csv  = None  # path to last accepted baseline CSV
+        self._event_json    = None  # path to event JSON for reproducibility save
         self.period_hint = period_hint   # seconds
         self.transform   = transform     # AxisTransform or None
         self.cal_step    = 0 if transform is None else 4
@@ -981,6 +982,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
             self._set_status(
                 f"Exported: {out.name}  ({n_anchors} anchors, {len(df)} rows) — W=wave-fit  Q to quit")
             print(f"Spline CSV exported: {out}")
+            self._save_event_json(str(out), "spline")
 
     def _export_prophet_csv(self):
         """Export the current prophet CSV as the final output."""
@@ -995,6 +997,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         _sh.copy(self._prophet_csv, out)
         self._set_status(f"Exported: {out.name}  ({len(self.clicks_t)} anchors used)")
         print(f"Prophet CSV exported: {out}")
+        self._save_event_json(str(out), "cwt-prophet")
 
     def _reset_clicks(self):
         self.clicks_t = []
@@ -1247,8 +1250,84 @@ class SpectClickApp(QtWidgets.QMainWindow):
     # ------------------------------------------------------------------
     # Shortcuts
     # ------------------------------------------------------------------
+
+    def _save_event_json(self, csv_path, method):
+        """Update the event JSON with the exported CSV path and method.
+
+        Called after X export when --event-json was supplied on the CLI.
+        Updates the matching station entry (by name) in-place:
+          - "file"   -> relative path to the exported CSV
+          - "method" -> "cwt-prophet" or "spline"
+        Also stamps "max_lag_seconds" at top level if not present,
+        using the auto-computed value from min_expected_speed_m_s and
+        the longest baseline in the station list (rough heuristic —
+        user should review and adjust before running tid_doa.py).
+        """
+        if not self._event_json:
+            return
+        import json as _ej, math as _math
+        ej_path = Path(self._event_json)
+        if not ej_path.exists():
+            print(f"  [event JSON] not found: {ej_path}")
+            return
+        try:
+            with open(ej_path) as _f:
+                cfg = _ej.load(_f)
+        except Exception as e:
+            print(f"  [event JSON] read error: {e}")
+            return
+
+        # Make file path relative to event JSON directory if possible
+        try:
+            rel = Path(csv_path).resolve().relative_to(ej_path.parent.resolve())
+            file_val = str(rel)
+        except ValueError:
+            file_val = str(csv_path)
+
+        # Update matching station entry
+        updated = False
+        for stn in cfg.get("stations", []):
+            if stn.get("name", "").upper() == self.name.upper():
+                stn["file"]   = file_val
+                stn["method"] = method
+                updated = True
+                break
+
+        if not updated:
+            print(f"  [event JSON] station '{self.name}' not found in {ej_path.name} — not updated")
+            return
+
+        # Stamp max_lag_seconds if absent (rough heuristic)
+        if "max_lag_seconds" not in cfg:
+            stns = cfg.get("stations", [])
+            if len(stns) >= 2:
+                lats = [s.get("lat", 0) for s in stns]
+                lons = [s.get("lon", 0) for s in stns]
+                max_sep_km = 0.0
+                for i in range(len(stns)):
+                    for j in range(i+1, len(stns)):
+                        dlat = _math.radians(lats[i] - lats[j])
+                        dlon = _math.radians(lons[i] - lons[j])
+                        a = (_math.sin(dlat/2)**2 +
+                             _math.cos(_math.radians(lats[i])) *
+                             _math.cos(_math.radians(lats[j])) *
+                             _math.sin(dlon/2)**2)
+                        max_sep_km = max(max_sep_km, 6371 * 2 * _math.asin(_math.sqrt(a)))
+                min_spd = cfg.get("min_expected_speed_m_s", 100.0)
+                cfg["max_lag_seconds"] = round(max_sep_km * 1000 / min_spd)
+                print(f"  [event JSON] max_lag_seconds set to {cfg['max_lag_seconds']} "
+                      f"(heuristic — review before running tid_doa.py)")
+
+        with open(ej_path, "w") as _f:
+            _ej.dump(cfg, _f, indent=2)
+            _f.write("\n")
+
+        print(f"  [event JSON] updated {ej_path.name}: "
+              f"{self.name} file={file_val!r} method={method!r}")
+
     def _install_shortcuts(self):
         for key, cb in [("X", self._export_spline_csv),
+                        ("E", self._export_prophet_csv),
                         ("P", self._run_prophet_preview),
                         ("W", self._wave_fit_start),
                         ("F", self._wave_fit_execute),
@@ -1303,6 +1382,11 @@ def _parse_args():
                         "outside this band are rejected. Default: 0.4 Hz.")
     p.add_argument("--sgolay-window", type=float, default=21.0, metavar="MINUTES",
                    help="SGOLAY smoothing window in minutes for preview (default 21)")
+    p.add_argument("--event-json", default=None, metavar="JSON",
+                   help="Event JSON config (e.g. event_20260119.json). "
+                        "When X is pressed, the matching station entry is "
+                        "updated with the exported CSV path and method, "
+                        "making the run reproducible from the command line.")
     p.add_argument("--wave-only", action="store_true",
                    help="Skip Pass 0. Open directly in wave-fit mode (W).")
     return p.parse_args()
@@ -1368,6 +1452,9 @@ def main():
         sgolay_window = args.sgolay_window,
         corridor_width = args.corridor_width,
     )
+    if args.event_json:
+        win._event_json = args.event_json
+        print(f'  Event JSON: {args.event_json} (will update on X export)')
     if getattr(args, "wave_only", False):
         win._wave_only = True
         from PyQt5 import QtCore as _QtC
