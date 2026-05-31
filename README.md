@@ -192,7 +192,7 @@ weather data using the three validation tools:
 
 ```bash
 # 1. Kp + AE + GloTEC automated validation
-python3 validate_external.py \
+python3 evaluate_external.py \
     --date 2026-01-19 \
     --event-start 2026-01-19T00:00:00Z \
     --event-end   2026-01-19T01:15:00Z \
@@ -262,7 +262,7 @@ psws-drf-tid-tools/
 ├── tid_doa.py                  multi-station DOA inversion
 ├── tid_stack_plot.py           stacked Doppler comparison
 ├── tid_map.py                  array geometry map
-├── validate_external.py        external space weather validation
+├── evaluate_external.py        external space weather validation
 ├── fetch_ae_index.py           fetch + plot AE index (WDC Kyoto)
 ├── fetch_glotec.py             analyse GloTEC TEC anomaly maps
 │
