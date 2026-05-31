@@ -1,6 +1,6 @@
 # External Validation of TID DOA Results
 
-This document describes how to independently corroborate a TID
+This document describes how to independently evaluate a TID
 direction-of-arrival (DOA) result using publicly available space weather
 data. It covers the three automated tools shipped with this toolkit, the
 manual browser-based sources, and the Jan 2026 event as a worked example.
@@ -12,7 +12,7 @@ manual browser-based sources, and the Jan 2026 event as a worked example.
 A DOA result (phase speed and azimuth) from `tid_doa.py` is an internal
 consistency estimate — it tells you whether the pairwise time lags are
 consistent with a single plane wave, but it cannot confirm the result is
-physically real. External validation uses independent data sources that
+physically real. External evaluation uses independent data sources that
 are not derived from the HF Doppler recordings.
 
 ### What external data can verify
@@ -36,20 +36,20 @@ All require only `pip install requests matplotlib numpy Pillow`.
 
 ---
 
-### validate_external.py — combined validation report
+### evaluate_external.py — combined validation report
 
-The primary validation tool. Fetches Kp, AE, and optionally analyses
+The primary evaluation tool. Fetches Kp, AE, and optionally analyses
 GloTEC maps in one run.
 
 ```bash
-python3 validate_external.py \
+python3 evaluate_external.py \
     --date 2026-01-19 \
     --event-start 2026-01-19T00:00:00Z \
     --event-end   2026-01-19T01:15:00Z \
     --speed-m-s 239 \
     --azimuth-from 30 \
     --glotec-dir ~/Downloads/glotec_2026_01_19 \
-    --output-dir ./validation
+    --output-dir ./evaluation
 ```
 
 **Arguments:**
@@ -143,7 +143,7 @@ python3 fetch_glotec.py \
     --date 2026-01-19 \
     --event-start 2026-01-19T00:00:00Z \
     --event-end   2026-01-19T01:15:00Z \
-    --output-dir ./validation
+    --output-dir ./evaluation
 ```
 
 **Arguments:**
@@ -190,7 +190,7 @@ GPS TEC data in the Madrigal database (see below).
 
 ---
 
-## Manual Validation Sources
+## Manual Evaluation Sources
 
 These require browser access but no registration.
 
@@ -336,7 +336,7 @@ python3 validate_external.py \
     --event-end   2026-01-19T01:15:00Z \
     --speed-m-s 239 --azimuth-from 30 \
     --glotec-dir ~/Downloads/glotec_2026_01_19 \
-    --output-dir examples/tid_event_20260119/validation
+    --output-dir examples/tid_event_20260119/evaluation
 ```
 
 ### Results
@@ -393,7 +393,7 @@ event window. Confirms declining storm phase, clean measurement conditions.
 
 Validation plots are included in the repository:
 ```
-examples/tid_event_20260119/validation/
+examples/tid_event_20260119/evaluation/
     kp_plot.png
     ae_plot.png
     ae_index_20260119.png
@@ -401,7 +401,7 @@ examples/tid_event_20260119/validation/
     glotec_before_after.png
     glotec_diff.png
     glotec_anomaly_montage.png
-    validation_report.txt
+    evaluation_report.txt
 ```
 
 ### What remains unverified
