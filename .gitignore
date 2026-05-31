@@ -52,3 +52,5 @@ OBS*
 !research/synthetic/*.png
 !research/*.pdf
 !research/synthetic/*.pdf
+*_wave_tid.csv
+runs/
