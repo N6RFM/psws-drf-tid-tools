@@ -7,6 +7,90 @@ data sources. For a worked example using the Jan 2026 event, see
 
 ---
 
+---
+
+## Verification Strategy — Direction and Speed
+
+Two independent checks address the two key DOA outputs separately.
+
+---
+
+### Verifying direction — peak succession (internal, no external data)
+
+The most reliable direction check uses only the pairwise lag table
+produced by `tid_doa.py`. No external data required.
+
+**Method:**
+For a wave propagating toward azimuth θ, the station geometrically
+closest to the source (in the FROM direction) should show its Doppler
+peak first — it has the most negative lag relative to all other stations.
+
+**Example (Jan 2026, wave from 30° NNE):**
+
+| Pair | Lag (s) | Sign correct? |
+|------|---------|---------------|
+| AA6BD → N6RFM | +1253 | ✓ AA6BD (easternmost) leads |
+| AA6BD → W7LUX | +1481 | ✓ AA6BD leads |
+| N6RFM → W7LUX | +228  | ✓ N6RFM (more eastern) leads |
+
+All three pairs confirm NNE origin. This is a model-free directional
+verification — no inversion, no external network.
+
+**When succession fails:** if any lag sign disagrees with the predicted
+direction, suspect a 180° alias or wrong-peak lock in that pair.
+The diagnostic [4] triangle closure check in `tid_doa.py` flags this.
+
+---
+
+### Verifying speed — Madrigal GPS TEC cross-correlation
+
+The `fetch_madrigal_tec.py` tool provides independent speed evidence
+by cross-correlating GPS TEC time series at station locations.
+
+**Key considerations:**
+
+1. **Geometry is critical.** The GPS TEC xcorr measures the
+   along-baseline lag, not the true phase lag. The relationship is:
+
+   ```
+   along-baseline lag = true lag × cos(angle between wave and baseline)
+   ```
+
+   When the baseline is perpendicular to the wave (angle = 90°),
+   the along-baseline lag → 0 regardless of true speed. When
+   parallel (angle = 0°), along-baseline lag = true lag.
+
+2. **Choose the best baseline.** For GPS TEC speed verification,
+   use the station pair whose baseline is most aligned with the wave
+   propagation direction (angle < 45°). Discard pairs with angle > 60°.
+
+3. **Primary xcorr peak ≠ TID peak.** The primary peak at lag=0
+   reflects correlated storm-time TEC background. Look for a
+   secondary peak near the DOA-predicted lag.
+
+4. **Amplitude limit.** GPS TEC TID amplitude is ~0.1-0.5 TECU.
+   During geomagnetic storms, background TEC changes 10-20× faster.
+   Detrending (polynomial removal) is essential but imperfect.
+
+**Jan 2026 worked example:**
+
+| Pair | Baseline° | Angle to wave | GPS TEC lag | DOA lag | Agreement |
+|------|-----------|---------------|-------------|---------|-----------|
+| AA6BD→W7LUX | 272° | 62° | 22 min | 24.7 min | 12% on lag |
+| AA6BD→N6RFM | 256° | 46° | 0 min (ambiguous) | 20.9 min | — |
+| N6RFM→W7LUX | 282° | 72° | 0 min (ambiguous) | 3.8 min | — |
+
+The AA6BD→W7LUX baseline is 62° from the wave direction — not ideal
+but the best available. The 12% lag agreement is encouraging; the
+implied true speed (~423 m/s) differs from the DOA result (239 m/s)
+partly due to this geometric projection uncertainty.
+
+**Ideal geometry for future events:** arrange station pairs so at
+least one baseline runs roughly parallel to the expected wave
+propagation direction (NNE-SSW for auroral LSTIDs over CONUS).
+
+---
+
 ## Overview
 
 A DOA result (phase speed and azimuth) from `tid_doa.py` is an internal
