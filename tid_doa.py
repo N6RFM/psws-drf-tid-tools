@@ -761,7 +761,7 @@ def format_diagnostics(result):
     L.append("Reminder: these are internal consistency checks. They")
     L.append("cannot confirm the result is physically real -- cross-")
     L.append("checking against an independent method or a hand-analysed")
-    L.append("event remains the strongest validation.")
+    L.append("event remains the strongest corroboration.")
     return "\n".join(L), flagged
 
 
