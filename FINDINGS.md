@@ -5574,3 +5574,5 @@ Check again in 6-12 months.
 ### Summary
 Speed (239 m/s) remains unverified by external independent data.
 IONEX confirms storm-time context but cannot resolve the TID wavefront.
+Note: Gwyn G3ZIL's result is from the May 2024 event — a different
+dataset and not applicable for Jan 2026 speed verification.
