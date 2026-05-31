@@ -283,7 +283,7 @@ spline/cwt-prophet (Option A): writes `<station>_spline_tid.csv`
 wave-fit (Option B): writes `<station>_wave_tid.csv`
 automated fft/autocorr/cwt (Option C): writes `<station>_<method>_tid.csv`
 
-An overlay spectrogram is generated for visual validation.
+An overlay spectrogram is generated for visual assessment.
 
 ---
 

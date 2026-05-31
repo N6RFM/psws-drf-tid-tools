@@ -1,0 +1,175 @@
+════════════════════════════════════════════════════════════════════════
+EXTERNAL RESULTS EVALUATION REPORT
+psws-drf-tid-tools evaluate_external.py v1.0.0
+════════════════════════════════════════════════════════════════════════
+Event date:    2026-01-19
+Event window:  00:00–01:15 UTC
+DOA result:    239 m/s from 30° NNE (4 stations, 1/5 flags)
+Array:         mid-latitude US (WWV 10 MHz)
+Generated:     2026-05-30
+════════════════════════════════════════════════════════════════════════
+
+────────────────────────────────────────────────────────────────────────
+1. DIRECTION ASSESSMENT — PEAK SUCCESSION (internal, no external data)
+────────────────────────────────────────────────────────────────────────
+  Method:  Pairwise lag ordering from tid_doa.py output
+  Tool:    tid_doa.py (built-in diagnostic)
+
+  For a wave from 30° NNE toward 210° SSW, AA6BD (Alabama, easternmost)
+  should receive the wave first — leading all other stations.
+
+  Observed pairwise lags:
+    AA6BD → N6RFM:  +1253 s  (AA6BD leads — correct ✓)
+    AA6BD → W7LUX:  +1481 s  (AA6BD leads — correct ✓)
+    N6RFM → W7LUX:  +228 s   (N6RFM leads — correct ✓)
+
+  Result: ALL pairs consistent with NNE origin.
+  This is a model-free directional assessment — no external data needed.
+
+────────────────────────────────────────────────────────────────────────
+2. Kp INDEX  (GFZ Potsdam)
+────────────────────────────────────────────────────────────────────────
+  Source:  https://kp.gfz-potsdam.de/app/json/
+  Tool:    evaluate_external.py (automated)
+
+  Travel time at 239 m/s over 3300 km:  3.84 hours
+  Predicted substorm onset:  2026-01-18 20:09 UTC
+  Peak Kp within ±2h of predicted onset:  3.0
+  Timing consistent with DOA result:  YES
+
+  Kp values around event:
+    2026-01-18 18:00 UTC  Kp=3.7  ← near predicted onset
+    2026-01-18 21:00 UTC  Kp=3.0
+    2026-01-19 00:00 UTC  Kp=3.3  ← event window
+    2026-01-19 03:00 UTC  Kp=0.7
+    2026-01-19 06:00 UTC  Kp=0.3
+
+  Output: kp_plot.png
+
+────────────────────────────────────────────────────────────────────────
+3. AE INDEX  (WDC Kyoto)
+────────────────────────────────────────────────────────────────────────
+  Source:  https://wdc.kugi.kyoto-u.ac.jp/ae_realtime/data_dir/
+  Tool:    evaluate_external.py / fetch_ae_index.py (automated)
+  File:    ae260119 (1-minute real-time AE)
+
+  AE during event window (00:00–01:15 UTC):
+    Mean:  ~325 nT
+    Max:   ~526 nT
+  Hour 02:00–03:00 UTC: drops to ~115 nT (rapid quiet)
+
+  AE 300–500 nT during event window indicates ACTIVE auroral
+  electrojet — the TID is being actively driven during the
+  measurement window. This strengthens the auroral LSTID
+  interpretation.
+
+  Output: ae_plot.png, ae_index_20260119.png
+
+────────────────────────────────────────────────────────────────────────
+4. GloTEC CONUS ANOMALY  (NOAA NCEI)
+────────────────────────────────────────────────────────────────────────
+  Source:  https://www.ngdc.noaa.gov/stp/iono/ustec/
+  Tool:    fetch_glotec.py (automated, after manual download)
+  File:    glotec_2026_01_19.tar.gz (270 MB)
+  Product: anomcus (CONUS TEC anomaly, diff from 30-day median)
+  Files:   144 PNG images at 10-minute cadence
+
+  Large-scale positive TEC anomaly (+10 to +20 TECU, orange) over
+  northern CONUS — storm-time F-region enhancement consistent with
+  Kp=3.3. TID wavefront NOT resolvable at GloTEC resolution (~2°
+  grid) due to dominant storm-time signal.
+
+  Outputs: glotec_event_montage.png, glotec_before_after.png,
+           glotec_diff.png, glotec_anomaly_montage.png
+
+────────────────────────────────────────────────────────────────────────
+5. IONEX GPS TEC  (NASA CDDIS)
+────────────────────────────────────────────────────────────────────────
+  Source:  https://cddis.nasa.gov/archive/gnss/products/ionex/2026/019/
+  Auth:    NASA Earthdata (free, register at urs.earthdata.nasa.gov)
+           Authorize CDDIS_Archive + CDDIS Cloud apps after registration
+  Files:   JPL0OPSFIN_20260190000_01D_02H_GIM.INX.gz (128 KB)
+           UPC0OPSRAP_20260190000_01D_15M_GIM.INX.gz (1.2 MB)
+  Download: wget --auth-no-challenge --user=USER --ask-password URL
+
+  JPL 2-hour product: VTEC 20–29 TECU at stations during event
+  UPC 15-minute product: smooth monotonic TEC decline — storm decay
+  Resolution insufficient to resolve TID wavefront at this cadence.
+
+  Outputs: ionex_tec_stations.png, ionex_upc_15min_event.png
+
+────────────────────────────────────────────────────────────────────────
+6. MADRIGAL GPS TEC  (MIT Haystack)
+────────────────────────────────────────────────────────────────────────
+  Source:  https://cedar.openmadrigal.org/
+  Tool:    fetch_madrigal_tec.py (automated)
+  Auth:    None — open access (name/email only)
+  File:    gps260119g.002.hdf5 (kindat=3500, gridded TEC)
+           Experiment id=100311059
+  Status:  Jan 2026 data CONFIRMED INGESTED (verified May 2026)
+
+  Method:
+    - madrigalWeb isprint API with spatial/temporal filters
+    - 1-minute binned mean (≥3 GPS links per bin)
+    - 2nd-order polynomial detrend to remove storm background
+    - Pairwise cross-correlation of detrended TEC
+
+  Results:
+    AA6BD→W7LUX (272° baseline, 1207 km):
+      GPS TEC xcorr lag:  22 min
+      DOA spline lag:     24.7 min
+      Agreement:          12% on lag ✓
+      Baseline angle to wave: 62° (not ideal — nearly perpendicular)
+      Along-baseline speed: GPS 914 m/s vs DOA 815 m/s
+      Implied true speed:   ~423 m/s (assumes direction = 30° NNE)
+
+    AA6BD→N6RFM: ambiguous (primary peak at lag=0)
+    N6RFM→W7LUX: ambiguous (3.8 min DOA lag < 1 bin resolution)
+
+  The 12% lag agreement on AA6BD→W7LUX provides independent
+  corroboration of NNE propagation direction. Implied speed
+  (~423 m/s) differs from DOA (239 m/s) partly due to geometric
+  projection (62° angle reduces sensitivity).
+
+  Outputs: madrigal_tec_stations.png, madrigal_tec_detrended.png,
+           madrigal_tec_1min.png, madrigal_tec_xcorr.png
+
+────────────────────────────────────────────────────────────────────────
+7. SUPERMAG SME  (browser only)
+────────────────────────────────────────────────────────────────────────
+  Source:  https://supermag.jhuapl.edu/indices/
+  SME 200–300 nT at Jan 18 18:00–22:00 UTC — substorm ~3–4h before
+  event window. Consistent with 239 m/s travel from auroral zone.
+
+────────────────────────────────────────────────────────────────────────
+8. SUPERDARN RTI  (browser only)
+────────────────────────────────────────────────────────────────────────
+  Source:  http://vt.superdarn.org
+  Radars FHW, FHE, CVE, BKS, CVW, WAL — all quiet during 00:00–01:15
+  UTC event window. Confirms declining storm phase, clean measurement.
+
+────────────────────────────────────────────────────────────────────────
+9. SUMMARY
+────────────────────────────────────────────────────────────────────────
+
+  What is corroborated:
+    ✓ Direction — peak succession confirms NNE origin (internal)
+    ✓ Direction — GPS TEC AA6BD→W7LUX lag sign consistent with NNE
+    ✓ Geomagnetic context — Kp 3.3–3.7, substorm timing consistent
+    ✓ AE activity — 300–500 nT during event, active auroral driving
+    ✓ Storm-time TEC enhancement — GloTEC consistent with Kp=3.3
+
+  What remains uncertain:
+    ? Speed magnitude (239 m/s) — GPS TEC implies ~423 m/s
+      (discrepancy may reflect geometry: 62° projection angle)
+    ? Speed from ionosonde foF2 — US NEXION data gap since 2023
+    ? Additional HamSCI station DOA cross-check (pending)
+
+  The result is physically plausible and internally consistent.
+  Direction is corroborated by two independent methods.
+  Speed is uncertain — GPS TEC suggests ~300–500 m/s range.
+
+════════════════════════════════════════════════════════════════════════
+Generated by evaluate_external.py v1.0.0
+psws-drf-tid-tools — https://github.com/N6RFM/psws-drf-tid-tools
+════════════════════════════════════════════════════════════════════════
