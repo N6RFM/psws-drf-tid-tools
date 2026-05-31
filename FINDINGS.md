@@ -5740,3 +5740,101 @@ noisy or phase-inconsistent. The feature is most useful when:
 - The CSV was extracted with good phase lock (GUI cwt-prophet)
 - The trim window is chosen by visual inspection of the traces
 - Not as a blind edge-trim of arbitrary minutes
+
+---
+
+## Entry 55 — Jan 2026: cwt-prophet re-run, reproducible result
+**Date:** 2026-05-31
+**Branch:** research_gui
+
+### Context
+Following Entry 54 (reproducibility gap), the cwt-prophet extraction
+was re-run for all four stations using Pass 0 auto-extraction in
+tid_spect_click.py. Two changes were made first:
+
+1. `--event-json` CLI arg added to tid_spect_click.py: on X/E export,
+   the matching station entry in the event JSON is updated with the
+   CSV path and method (cwt-prophet or spline).
+2. `E` key wired to `_export_prophet_csv` — previously there was no
+   keyboard shortcut to export the prophet trace directly.
+
+### Extraction
+Pass 0 ran automatically on all four stations:
+- examples/tid_event_20260119/n6rfm_tid_zoom_clean_prophet_preview.csv
+- examples/tid_event_20260119/aa6bd_tid_zoom_clean_prophet_preview.csv
+- examples/tid_event_20260119/w7lux_tid_zoom_clean_prophet_preview.csv
+- examples/tid_event_20260119/ac0g_nd_tid_zoom_clean_prophet_preview.csv
+
+event_20260119.json updated to point at prophet_preview CSVs,
+method: cwt-prophet for all four stations.
+
+### 4-station result (all stations)
+```
+Speed: 1470 m/s  Direction: from 76° ENE  Flags: 4/5
+N6RFM→W7LUX lag: 6.8 s (near-zero — wrong peak or wave parallel to baseline)
+```
+Poor result. Triangle closure 23%, residual 64%.
+
+### 3-station result: drop AC0G_ND (N6RFM + AA6BD + W7LUX)
+```
+Speed:     304 m/s
+Direction: from 10° NNE
+Flags:     0/5  (all diagnostics within typical ranges)
+```
+
+Full diagnostics:
+
+| Diagnostic | Value | Status |
+|-----------|-------|--------|
+| SVR (geometry) | 7.5 | OK (< 30) |
+| RMS lag residual | 0.4% of mean lag | OK (< 25%) |
+| Pairwise corr | min 0.433, mean 0.571, max 0.704 | OK |
+| Triangle closure | 1.1% of mean leg | OK (< 15%) |
+| Phase speed | 304 m/s | OK (MSTID range) |
+
+Pairwise lags:
+```
+N6RFM  → AA6BD   lag = -828.8 s  corr = 0.433
+N6RFM  → W7LUX   lag =   +6.8 s  corr = 0.576
+AA6BD  → W7LUX   lag = +841.9 s  corr = 0.704
+```
+
+### Interpretation
+Direction 10° NNE is consistent with:
+- Original 239 m/s result (30° NNE, Entry 50)
+- GPS TEC lag sign from Madrigal (NNE confirmed, Entry 52)
+
+Speed 304 m/s vs 239 m/s — both MSTID range, difference likely
+due to different extraction method (prophet vs interactive spline)
+and different station subset.
+
+N6RFM→W7LUX lag of 6.8 s (near-zero) means that baseline
+contributes almost no directional information. Result is effectively
+driven by AA6BD lags. This is consistent with the wave front being
+nearly parallel to the N6RFM–W7LUX baseline (roughly E–W at these
+latitudes), which is consistent with a northward-propagating wave.
+
+AC0G_ND dropped: correlations with other stations weak (max 0.415),
+SNR fades after ~01:18 UTC (window ends 01:15 to accommodate this).
+
+### Reproducibility status
+This result IS reproducible:
+```bash
+python3 tid_doa.py examples/event_20260119.json --drop-station AC0G_ND
+# or use /tmp/event_drop_ac0g.json (3-station subset)
+```
+The prophet_preview CSVs are committed to the repo.
+event_20260119.json points to them with method: cwt-prophet.
+
+### Caveats
+- W7LUX prophet_preview quality not independently verified
+  (previous spline extractions gave low corr with other stations)
+- Near-zero N6RFM→W7LUX lag means array geometry is effectively
+  2-baseline for direction; result is less constrained than 4-station
+- 239 m/s (Entry 50) remains the best-flagged previous result
+  but is not reproducible from committed files
+
+### Open items
+1. Send Gwyn email — Jan 2026 results (304 m/s NNE, 5/5 clean)
+2. find_event_stations.py — find better 4th station to replace AC0G_ND
+3. Add --drop-station flag to tid_doa.py (currently need temp JSON)

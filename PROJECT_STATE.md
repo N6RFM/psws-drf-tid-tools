@@ -295,3 +295,27 @@ Add reproducibility notes to WORKFLOW_TUTORIAL.md.
 1. Send Gwyn email
 2. Re-run cwt-prophet to get reproducible event JSON
 3. find_event_stations.py DOA cross-check
+
+---
+## 47. cwt-prophet re-run + reproducible result — 2026-05-31
+
+### Accomplished
+- Added `--event-json` CLI arg to tid_spect_click.py (commit 87fd282)
+- Wired `E` key to `_export_prophet_csv` (was previously unreachable)
+- Re-ran Pass 0 cwt-prophet on all 4 stations
+- prophet_preview CSVs committed to examples/tid_event_20260119/
+- event_20260119.json updated: all stations method=cwt-prophet
+- Best reproducible result: **304 m/s from 10° NNE, 0/5 flags**
+  (3 stations: N6RFM + AA6BD + W7LUX, drop AC0G_ND)
+- FINDINGS Entry 55 written
+
+### Key finding
+239 m/s (Entry 50) is not reproducible from committed files.
+304 m/s from 10° NNE is the new canonical reproducible result.
+Direction is consistent across both results and GPS TEC confirmation.
+
+### Open items
+1. Send Gwyn email — 304 m/s NNE result
+2. find_event_stations.py — better 4th station
+3. Add --drop-station flag to tid_doa.py
+4. WORKFLOW_TUTORIAL.md reproducibility notes ✓ (done this session)

@@ -1327,6 +1327,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
 
     def _install_shortcuts(self):
         for key, cb in [("X", self._export_spline_csv),
+                        ("E", self._export_prophet_csv),
                         ("P", self._run_prophet_preview),
                         ("W", self._wave_fit_start),
                         ("F", self._wave_fit_execute),
