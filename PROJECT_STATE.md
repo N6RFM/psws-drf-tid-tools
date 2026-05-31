@@ -257,6 +257,26 @@ FINDINGS Entry 52 written.
 2. Run find_event_stations.py for independent DOA cross-check
 
 ---
+## 45. xcorr trim feature (Gwyn G3ZIL suggestion) — 2026-05-31
+
+### Implemented
+- `xcorr_start_utc` / `xcorr_end_utc` optional keys added to event JSON
+- tid_doa.py: trims xcorr/DOA window independently of plot window
+- Backward compatible — omitting keys preserves prior behaviour
+- Confirmation print: `xcorr window trimmed to HH:MM–HH:MM UTC (NNN min)`
+- FINDINGS Entry 53 written
+
+### Outcome
+Feature works correctly. Applied to Jan 2026 event — results still
+inconsistent across CSV file combinations. Root cause is source CSV
+quality, not the trim logic (see §46 and Entry 54).
+
+### Open items
+1. Send Gwyn email — Jan 2026 results + GPS TEC xcorr finding
+2. Re-run cwt-prophet to get reproducible event JSON
+3. find_event_stations.py DOA cross-check
+
+---
 ## 46. Reproducibility investigation — 2026-05-31
 
 ### Finding

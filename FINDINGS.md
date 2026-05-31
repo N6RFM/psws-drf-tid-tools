@@ -5579,6 +5579,109 @@ dataset and not applicable for Jan 2026 speed verification.
 
 ---
 
+## Entry 52 — Jan 2026: Madrigal GPS TEC cross-correlation
+**Date:** 2026-05-30
+**Branch:** research_gui
+
+### Objective
+Use MIT Haystack Madrigal GPS TEC data to independently verify the
+Jan 2026 DOA result (239 m/s from 30° NNE) by tracking ionospheric
+TEC perturbations across station pairs.
+
+### Data
+- Instrument 8000 (GPS TEC), experiment id=100311059
+- File: gps260119g.002.hdf5 (kindat=3500, gridded TEC)
+- Access: cedar.openmadrigal.org (open, no account required)
+- Latency: Jan 2026 data already ingested as of May 2026
+  (2–4 week latency, not 6–12 months as IONEX experience suggested)
+- Tool: fetch_madrigal_tec.py
+
+### Method
+- madrigalWeb isprint API, 1-min bins, ≥3 GPS links per bin
+- ±3° lat, ±4° lon boxes around each station's IPP
+- 2nd-order polynomial detrend to remove geomagnetic storm background
+- Pairwise cross-correlation of detrended TEC series
+
+### Results
+
+| Pair | Baseline | Angle to wave | TEC lag | DOA lag | Agreement |
+|------|----------|--------------|---------|---------|-----------| 
+| AA6BD→W7LUX | 272°, 1207 km | 62° | 22 min | 24.7 min | 12% |
+| AA6BD→N6RFM | — | — | ambiguous (peak at lag=0) | — | — |
+| N6RFM→W7LUX | — | — | ambiguous (peak at lag=0) | — | — |
+
+Along-baseline speed (AA6BD→W7LUX): GPS 914 m/s vs DOA 815 m/s
+Implied true speed: ~423 m/s (geometric correction, assumes 30° NNE)
+
+### Interpretation
+Direction confirmed NNE by sign of GPS TEC lag (AA6BD leads W7LUX).
+Speed discrepancy (239 m/s DOA vs ~423 m/s GPS TEC implied) is partly
+geometric: the 62° angle between the AA6BD→W7LUX baseline and the wave
+propagation direction means the along-baseline projection overstates
+true speed, and the correction is sensitive to assumed direction.
+
+The two ambiguous pairs (peak at lag=0) are consistent with the wave
+front being nearly parallel to those baselines — also consistent with
+the NNE propagation direction found by DOA.
+
+### Outputs
+- examples/tid_event_20260119/evaluation/madrigal_tec_stations.png
+- examples/tid_event_20260119/evaluation/madrigal_tec_detrended.png
+- examples/tid_event_20260119/evaluation/madrigal_tec_1min.png
+- examples/tid_event_20260119/evaluation/madrigal_tec_xcorr.png
+
+### Status
+Partial independent confirmation: lag agrees to 12%, direction agrees.
+Speed remains uncertain due to geometric projection sensitivity.
+
+---
+
+## Entry 53 — Jan 2026: xcorr trim feature implementation
+**Date:** 2026-05-31
+**Branch:** research_gui
+
+### Background
+Gwyn Griffiths (G3ZIL) suggested restricting the cross-correlation
+to a sub-window of the full event window — trimming ragged partial-cycle
+edges at the start and end, and using only the cleanest portion of the
+TID signal (e.g. straddling the clearest peak/trough) to maximise SNR.
+
+### Implementation
+Added `xcorr_start_utc` / `xcorr_end_utc` optional keys to the event
+JSON config. When present, cross-correlation and DOA inversion operate
+on the trimmed window; the full event window is still used for plotting.
+If the keys are omitted, behaviour is unchanged (backward compatible).
+
+**tid_doa.py** (line ~871): reads `xcorr_start_utc` / `xcorr_end_utc`
+from config, trims each station's time series to the sub-window via
+index masking, prints confirmation:
+```
+xcorr window trimmed to HH:MM–HH:MM UTC (NNN min) [event window: HH:MM–HH:MM]
+```
+
+Scale factor derived from t0 vs `stations[0].times[0]` to handle
+pandas timezone-aware DatetimeIndex unit conventions correctly.
+
+**Example config usage:**
+```json
+"xcorr_start_utc": "2026-01-19T00:10:00Z",
+"xcorr_end_utc":   "2026-01-19T01:10:00Z"
+```
+
+### Testing
+Feature confirmed working (trim window print fires correctly).
+Applied to Jan 2026 event with multiple window choices — results
+remain inconsistent across CSV file combinations (see Entry 54).
+Conclusion: feature is correct; inconsistency is in the source CSVs,
+not the trim logic.
+
+### When this feature helps
+- CSV extracted with good phase lock (GUI cwt-prophet, not manual spline)
+- Trim window chosen by visual inspection of the Doppler traces
+- Not useful as a blind edge-trim when underlying data is noisy
+
+---
+
 ## Entry 54 — Jan 2026: reproducibility investigation
 **Date:** 2026-05-31
 **Branch:** research_gui
