@@ -251,11 +251,11 @@ python3 evaluate_external.py \
     --event-end   2026-01-19T01:15:00Z \
     --speed-m-s 239 --azimuth-from 30 \
     --glotec-dir ~/Downloads/glotec_2026_01_19 \
-    --output-dir ./validation
+    --output-dir ./evaluation
 ```
 
 Outputs: `kp_plot.png`, `ae_plot.png`, `glotec_event_montage.png`,
-`glotec_before_after.png`, `glotec_diff.png`, `validation_report.txt`
+`glotec_before_after.png`, `glotec_diff.png`, `evaluation_report.txt`
 
 ### AE index only
 
@@ -265,7 +265,7 @@ python3 fetch_ae_index.py \
     --event-start 2026-01-19T00:00:00Z \
     --event-end   2026-01-19T01:15:00Z \
     --speed-m-s 239 \
-    --output-dir ./validation
+    --output-dir ./evaluation
 ```
 
 Fetches 1-minute AE from WDC Kyoto. Plots full day + zoom with event
@@ -288,7 +288,7 @@ python3 fetch_glotec.py \
     --date 2026-01-19 \
     --event-start 2026-01-19T00:00:00Z \
     --event-end   2026-01-19T01:15:00Z \
-    --output-dir ./validation
+    --output-dir ./evaluation
 ```
 
 Outputs: event montage, before/after comparison, diff map, product list.
