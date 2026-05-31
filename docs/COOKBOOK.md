@@ -334,6 +334,47 @@ gunzip jplg0190.26i.gz
 # Parse IONEX for TEC at station locations (2-hour cadence, 2.5°×5° grid)
 ```
 
+
+### How do I use Madrigal GPS TEC to corroborate a DOA result?
+
+The `fetch_madrigal_tec.py` tool retrieves gridded GPS TEC from MIT
+Haystack, extracts TEC at station locations, detrends to remove the
+storm background, and cross-correlates all station pairs to independently
+estimate TID phase lags.
+
+No account needed — Madrigal uses open access (just provide name/email):
+
+```bash
+python3 fetch_madrigal_tec.py \
+    --date 2026-01-19 \
+    --event-start 2026-01-19T00:00:00Z \
+    --event-end   2026-01-19T01:15:00Z \
+    --stations N6RFM,-97.21,32.94 AA6BD,-85.13,35.06 \
+               W7LUX,-111.71,35.10 AC0G_ND,-96.83,46.88 \
+    --user-name "Your Name" \
+    --user-email your@email.com \
+    --user-affiliation "Your Institution" \
+    --doa-lags AA6BD,N6RFM,1253 AA6BD,W7LUX,1481 N6RFM,W7LUX,228 \
+    --doa-speed 239 --doa-azimuth-from 30 \
+    --output-dir ./evaluation
+```
+
+**Outputs:** `madrigal_tec_raw.png`, `madrigal_tec_detrended.png`,
+`madrigal_tec_xcorr.png`, `madrigal_tec_report.txt`
+
+**Data availability:** GPS TEC is typically ingested into Madrigal
+within 2-4 weeks of the event. Check availability with:
+
+```python
+import madrigalWeb.madrigalWeb as mad
+m = mad.MadrigalData("https://cedar.openmadrigal.org/")
+exps = m.getExperiments(8000, YYYY, MM, DD, 0,0,0, YYYY, MM, DD, 23,59,59)
+print(f"Found {len(exps)} experiments")
+```
+
+See `docs/EXTERNAL_RESULTS_EVALUATION.md` for full tool reference
+and `examples/EXTERNAL_RESULTS_EVALUATION.md` for the Jan 2026 results.
+
 ---
 ## Spectrograms
 
