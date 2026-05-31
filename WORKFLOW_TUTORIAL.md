@@ -388,3 +388,70 @@ For the 19 January 2026 event (00:00-01:36 UTC, 4 stations):
 | Window | 2026-01-19T00:00–01:15 UTC |
 | Stations | N6RFM, AA6BD, W7LUX, AC0G_ND |
 | Flags | 1/5 |
+
+
+---
+
+## Reproducibility notes
+
+### Why results vary between sessions
+
+cwt-prophet Pass 0 extractions are **not fully deterministic** across
+sessions. The prophet algorithm is sensitive to initial CWT ridge
+selection, which can vary with subchannel noise and display window.
+This means running the GUI twice on the same spectrogram may give
+slightly different `_prophet_preview.csv` files, and therefore
+slightly different DOA results.
+
+**To make a result reproducible:**
+
+1. Use `--event-json` when running tid_spect_click.py:
+   ```bash
+   python3 tid_spect_click.py \
+     --spectrogram examples/tid_event_20260119/n6rfm_tid_zoom_clean.png \
+     --name N6RFM \
+     --event-json examples/event_20260119.json
+   ```
+   On export (E or X key), the event JSON is updated automatically
+   with the CSV path and method.
+
+2. Press **E** to export the prophet trace directly (recommended),
+   or **X** to export a spline. Both update the event JSON.
+
+3. Commit the `_prophet_preview.csv` files along with the event JSON.
+   The CSV files are the reproducible record of the extraction.
+
+4. To reproduce from the command line after committing:
+   ```bash
+   python3 tid_doa.py examples/event_20260119.json
+   ```
+
+### Canonical Jan 2026 result (as of 2026-05-31)
+
+The committed `examples/event_20260119.json` points to
+cwt-prophet Pass 0 extractions. Best reproducible result:
+
+| Metric | Value |
+|--------|-------|
+| Phase speed | 304 m/s |
+| Coming from | 10° NNE |
+| Stations | N6RFM, AA6BD, W7LUX (AC0G_ND dropped) |
+| Flags | 0/5 |
+| Method | cwt-prophet Pass 0 |
+| Files | `*_tid_zoom_clean_prophet_preview.csv` |
+
+The earlier 239 m/s result (Entry 50) was produced interactively
+with the GUI and is **not reproducible** from committed files.
+Direction (NNE) is consistent between both results and confirmed
+independently by Madrigal GPS TEC lag sign (Entry 52).
+
+### When to use spline vs prophet
+
+| Method | Use when |
+|--------|----------|
+| cwt-prophet (E key) | Pass 0 trace looks clean — fast, reproducible |
+| Spline (X key) | Pass 0 has excursions — you've added anchor clicks |
+| Wave-fit (W+F+A) | Signal is sinusoidal and clean |
+
+For reproducibility, prefer committing the prophet_preview CSV
+(E key export) over the spline CSV when Pass 0 is acceptable.
