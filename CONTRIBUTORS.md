@@ -12,3 +12,12 @@ research-doppler-extraction branch, including event data,
 autocorrelation parameters, and cross-correlation results for
 comparison. Ongoing collaborator on the FFT vs complex-autocorrelation
 Doppler extraction research. GitHub: g3zil.
+
+## Claude (Anthropic)
+AI assistant and pair-programming collaborator. Contributed to
+algorithm design, code implementation, documentation, and external
+validation methodology across psws-drf-tid-tools v2.x. Assisted
+with the wave-fit reconstruction feature (W/F/A keys), DOA analysis
+workflows, space weather validation tools (evaluate_external.py,
+fetch_ae_index.py, fetch_glotec.py), and all associated
+documentation. https://claude.ai
