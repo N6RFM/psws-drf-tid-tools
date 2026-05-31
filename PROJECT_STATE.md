@@ -255,3 +255,23 @@ FINDINGS Entry 52 written.
 ### Open items
 1. Send Gwyn email — Jan 2026 results + GPS TEC xcorr finding
 2. Run find_event_stations.py for independent DOA cross-check
+
+---
+## 46. Reproducibility investigation — 2026-05-31
+
+### Finding
+239 m/s result cannot be reproduced from exported CSVs.
+Root cause: GUI cwt-prophet extraction applies phase locking
+not preserved in prophet_preview.csv exports.
+
+### xcorr trim feature
+Works correctly. Limited by data quality of exported CSVs.
+
+### Action
+Re-run cwt-prophet in GUI, save event JSON with max_lag_seconds.
+Add reproducibility notes to WORKFLOW_TUTORIAL.md.
+
+### Open items
+1. Send Gwyn email
+2. Re-run cwt-prophet to get reproducible event JSON
+3. find_event_stations.py DOA cross-check
