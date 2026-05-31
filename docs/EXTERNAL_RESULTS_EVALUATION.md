@@ -7,8 +7,6 @@ data sources. For a worked example using the Jan 2026 event, see
 
 ---
 
----
-
 ## Verification Strategy — Direction and Speed
 
 Two independent checks address the two key DOA outputs separately.
@@ -272,6 +270,71 @@ better for direct wavefront tracking.
 
 ---
 
+### fetch_madrigal_tec.py — Madrigal GPS TEC retrieval and TID xcorr
+
+The primary tool for independent speed verification. Retrieves gridded
+GPS TEC from MIT Haystack, extracts TEC at station locations, detrends
+to remove storm background, and cross-correlates all station pairs.
+No account needed — Madrigal uses open access.
+
+```bash
+pip install madrigalWeb matplotlib numpy scipy
+
+python3 fetch_madrigal_tec.py \
+    --date YYYY-MM-DD \
+    --event-start YYYY-MM-DDTHH:MM:SSZ \
+    --event-end   YYYY-MM-DDTHH:MM:SSZ \
+    --stations NAME1,LON1,LAT1 NAME2,LON2,LAT2 NAME3,LON3,LAT3 \
+    --user-name "Your Name" \
+    --user-email your@email.com \
+    --user-affiliation "Your Institution" \
+    --doa-lags S1,S2,LAG_S S1,S3,LAG_S \
+    --doa-speed SPEED_MS --doa-azimuth-from AZIMUTH \
+    --output-dir ./evaluation
+```
+
+**Arguments:**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `--date` | Yes | Event date YYYY-MM-DD |
+| `--event-start/end` | Yes | ISO 8601 UTC window |
+| `--stations` | Yes | NAME,LON,LAT per station (use IPP coords) |
+| `--user-name/email/affiliation` | Yes | Madrigal access credentials |
+| `--doa-lags` | No | S1,S2,lag_seconds per pair for comparison |
+| `--doa-speed` | No | True phase speed in m/s |
+| `--doa-azimuth-from` | No | Wave coming FROM azimuth (degrees true) |
+| `--lat-box` | No | ±lat degrees for station box (default 3.0) |
+| `--lon-box` | No | ±lon degrees for station box (default 4.0) |
+| `--bin-min` | No | Time bin in minutes (default 1.0) |
+| `--output-dir` | No | Output directory |
+
+**Outputs:**
+
+| File | Description |
+|------|-------------|
+| `madrigal_tec_raw.png` | Raw 1-min binned TEC at all stations |
+| `madrigal_tec_detrended.png` | Detrended TEC + primary pair xcorr |
+| `madrigal_tec_xcorr.png` | All pairwise cross-correlations |
+| `madrigal_tec_report.txt` | Full text summary with speed estimates |
+
+**How it works:**
+1. Connects to `https://cedar.openmadrigal.org/`
+2. Searches for gridded GPS TEC experiments (instrument 8000, kindat 3500)
+3. Extracts TEC via `isprint` API with spatial/temporal filters
+4. Bins to 1-min grid (mean of all GPS links in station box, min 3 links)
+5. Removes 2nd-order polynomial trend (storm background)
+6. Cross-correlates all station pairs
+7. Compares GPS TEC lags to DOA lags and computes implied true speed
+
+**Critical note on geometry:**
+The GPS TEC xcorr gives the along-baseline lag, not the true phase lag.
+When the baseline is nearly perpendicular to the wave direction (>45°),
+the along-baseline speed is much higher than the true speed. Always
+check baseline bearing vs wave direction before interpreting results.
+
+---
+
 ## Manual Evaluation Sources
 
 These require only a browser — no registration needed.
@@ -361,10 +424,16 @@ IONEX files contain global TEC maps at 2-hour cadence on a
 echo "machine urs.earthdata.nasa.gov login USER password PASS" >> ~/.netrc
 chmod 600 ~/.netrc
 
-# Example: JPL IONEX for Jan 19 2026 (DOY 019)
-curl -n -L -O \
-  "https://cddis.nasa.gov/archive/gnss/products/ionex/YYYY/DOY/jplgDOY0.YYi.gz"
-gunzip jplgDOY0.YYi.gz
+# Example: JPL IONEX for Jan 19 2026 (DOY 019) — new IGS filename format
+curl -n -L \
+  "https://cddis.nasa.gov/archive/gnss/products/ionex/2026/019/JPL0OPSFIN_20260190000_01D_02H_GIM.INX.gz" \
+  -o JPL0OPSFIN_20260190000_01D_02H_GIM.INX.gz
+gunzip JPL0OPSFIN_20260190000_01D_02H_GIM.INX.gz
+
+# Note: new IGS filename format (2022+): CCCCSSSSOOO_YYYYDDDHHMM_LEN_SMP_TYP.FMT
+# Browse directory first to find exact filename:
+# https://cddis.nasa.gov/archive/gnss/products/ionex/YYYY/DOY/
+# Authorize CDDIS_Archive at https://urs.earthdata.nasa.gov/ first
 ```
 
 **File naming:** `{centre}g{DOY}0.{YY}i.gz`
@@ -407,8 +476,14 @@ exps = m.getExperiments(8000,
                         YYYY, MM, DD, 23, 59, 59)
 ```
 
-**Note:** Recent data (< ~12 months) may not yet be ingested into
-Madrigal. Check availability before assuming data is present.
+**Note:** Jan 2026 data IS ingested and confirmed available (May 2026).
+GPS TEC typically appears in Madrigal within 2-4 weeks of the event.
+Use `fetch_madrigal_tec.py` for automated retrieval and xcorr analysis.
+Availability check:
+```python
+exps = m.getExperiments(8000, YYYY, MM, DD, 0,0,0, YYYY, MM, DD, 23,59,59)
+print(f'Found {len(exps)} experiments')
+```
 
 ---
 
@@ -458,7 +533,7 @@ This is a model-free directional check requiring no external data.
 | SuperMAG SME | https://supermag.jhuapl.edu/indices/ | None | Browser only |
 | SuperDARN RTI | http://vt.superdarn.org | None | Browser only |
 | IONEX/CDDIS | https://cddis.nasa.gov/archive/gnss/products/ionex/ | NASA Earthdata (free) | curl + Python |
-| Madrigal TEC | https://cedar.openmadrigal.org/ | None | madrigalWeb |
+| Madrigal TEC | https://cedar.openmadrigal.org/ | None | ✓ fetch_madrigal_tec.py |
 | GIRO ionosondes | https://giro.uml.edu/ionoweb/ | None | Browser / API (US gap 2024+) |
 
 ---
