@@ -198,14 +198,14 @@ python3 evaluate_external.py \
     --event-end   2026-01-19T01:15:00Z \
     --speed-m-s 239 --azimuth-from 30 \
     --glotec-dir ~/Downloads/glotec_2026_01_19 \
-    --output-dir ./validation
+    --output-dir ./evaluation
 
 # 2. AE index only
 python3 fetch_ae_index.py \
     --date 2026-01-19 \
     --event-start 2026-01-19T00:00:00Z \
     --event-end   2026-01-19T01:15:00Z \
-    --speed-m-s 239 --output-dir ./validation
+    --speed-m-s 239 --output-dir ./evaluation
 
 # 3. GloTEC analysis (download tar.gz from NOAA NCEI first)
 #    https://www.ngdc.noaa.gov/stp/iono/ustec/
@@ -214,7 +214,7 @@ python3 fetch_glotec.py \
     --date 2026-01-19 \
     --event-start 2026-01-19T00:00:00Z \
     --event-end   2026-01-19T01:15:00Z \
-    --output-dir ./validation
+    --output-dir ./evaluation
 ```
 
 See `docs/COOKBOOK.md` for full details on external validation.
@@ -267,10 +267,11 @@ psws-drf-tid-tools/
 ├── fetch_glotec.py             analyse GloTEC TEC anomaly maps
 │
 ├── docs/
-│   ├── ASSESSING_RESULTS.md    technical basis for DOA estimates
-│   ├── COOKBOOK.md             task-oriented recipes
-│   ├── METHODOLOGY.md          signal processing details
-│   └── TROUBLESHOOTING.md      failure modes and fixes
+│   ├── ASSESSING_RESULTS.md         technical basis for DOA estimates
+│   ├── COOKBOOK.md                  task-oriented recipes
+│   ├── EXTERNAL_RESULTS_EVALUATION.md  external space weather tools
+│   ├── METHODOLOGY.md               signal processing details
+│   └── TROUBLESHOOTING.md           failure modes and fixes
 │
 └── examples/
     ├── README.md               event descriptions and data access
