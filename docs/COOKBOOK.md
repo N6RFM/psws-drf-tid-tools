@@ -236,13 +236,13 @@ extraction instead.
 
 ---
 
-## How do I validate my DOA result against independent data?
+## How do I evaluate my DOA result against independent data?
 
-Three tools automate external space weather validation. They fetch
+Three tools automate external space weather evaluation. They fetch
 publicly available data from NOAA, WDC Kyoto, and GFZ Potsdam and
 compare the timing and context against your DOA result.
 
-### Quick start — automated validation
+### Quick start — automated evaluation
 
 ```bash
 python3 evaluate_external.py \
@@ -308,7 +308,7 @@ large LSTIDs may not be resolvable if a storm-time enhancement is present.
 | Peak succession | Propagation direction | Speed magnitude |
 | GPS TEC (IONEX) | Wavefront speed + direction | Needs NASA Earthdata auth |
 
-### Manual validation sources (browser only)
+### Manual evaluation sources (browser only)
 
 - **SuperMAG SME**: https://supermag.jhuapl.edu/indices/
   Select SME index, look for spike 3-4h before event window
