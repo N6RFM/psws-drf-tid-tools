@@ -5576,3 +5576,64 @@ Speed (239 m/s) remains unverified by external independent data.
 IONEX confirms storm-time context but cannot resolve the TID wavefront.
 Note: Gwyn G3ZIL's result is from the May 2024 event — a different
 dataset and not applicable for Jan 2026 speed verification.
+
+---
+
+## Entry 54 — Jan 2026: reproducibility investigation
+**Date:** 2026-05-31
+**Branch:** research_gui
+
+### Context
+During testing of the xcorr_start/end_utc trim feature (Gwyn G3ZIL
+suggestion), we attempted to reproduce the best Jan 2026 result
+(239 m/s from 30° NNE, 1/5 flags) from exported CSV files.
+
+### Finding: reproducibility gap
+The 239 m/s result cannot be reproduced from any exported CSV file
+using tid_doa.py command-line. Multiple attempts with different
+file combinations and settings gave inconsistent results:
+
+| Files | Stations | max_lag | Result | Flags |
+|-------|----------|---------|--------|-------|
+| spline_tid.csv | 4 stn | 2000s | 1262 m/s 328° | 4/5 |
+| spline_tid.csv | 3 stn (drop W7LUX) | 2000s | 462 m/s 45° | 1/5 |
+| wave_tid.csv | 3 stn | 2000s | 135 m/s 179° | 2/5 |
+| prophet_preview.csv | 4 stn | 2000s | 607 m/s | 2/5 |
+| prophet_preview.csv | 3 stn (drop AA6BD) | 2000s | 652 m/s | 1/5 |
+| prophet_preview.csv | 4 stn | 1200s | 720 m/s | 2/5 |
+
+### Root cause
+The 239 m/s result was produced interactively through tid_spect_click.py
+GUI using cwt-prophet Pass 0 auto-extraction. The GUI applies visual
+constraints and phase-locking during extraction that are not preserved
+in the exported CSV files. Specifically:
+
+1. The cwt-prophet extraction in the GUI operates on the raw Doppler
+   spectrogram and locks phase at the point of manual acceptance —
+   the prophet_preview.csv captures the fit but not the phase lock
+2. The max_lag_seconds constraint is critical — without it the xcorr
+   lands on wrong peaks for near-zero-lag pairs (N6RFM→W7LUX)
+3. W7LUX spline_tid.csv is noisy throughout (corr < 0.1 with AC0G_ND)
+   suggesting the manual spline captured noise, not the TID
+
+### What the consistent finding is
+Across all runs, the direction is broadly consistent:
+- NNE origin confirmed in most runs (from 25-45°)
+- W7LUX is consistently the problem station (low correlations)
+- N6RFM→W7LUX near-zero lag appears in multiple runs — possibly
+  reflecting that these stations see the wave nearly simultaneously
+  (wave front nearly parallel to N6RFM-W7LUX baseline)
+
+### Action required
+To properly reproduce 239 m/s, need to:
+1. Re-run cwt-prophet extraction in GUI and save the exact config
+2. Save the event JSON with specific max_lag_seconds used
+3. Add reproducibility notes to WORKFLOW_TUTORIAL.md
+
+### xcorr trim feature (Gwyn suggestion) — status
+Feature works correctly (confirmed xcorr window trimming prints).
+However it cannot improve results when the underlying CSV data is
+noisy or phase-inconsistent. The feature is most useful when:
+- The CSV was extracted with good phase lock (GUI cwt-prophet)
+- The trim window is chosen by visual inspection of the traces
+- Not as a blind edge-trim of arbitrary minutes
