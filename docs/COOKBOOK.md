@@ -335,6 +335,82 @@ gunzip jplg0190.26i.gz
 ```
 
 
+
+---
+
+## How do I verify my DOA result is physically real?
+
+Two independent checks are available — one for direction, one for speed.
+They use completely different data sources from the HF Doppler recordings.
+
+---
+
+### Step 1: Verify direction — peak succession check (no external data)
+
+The strongest direction check requires no external data. For a wave
+propagating from azimuth θ, the station closest to the source should
+show its Doppler peak first — most negative lag relative to all others.
+
+**How to read the tid_doa.py lag table:**
+
+```
+Pairwise time lags (positive = second station lags first):
+   AA6BD -> N6RFM    lag= +1253 s   corr=+0.847
+   AA6BD -> W7LUX    lag= +1481 s   corr=+0.812
+   N6RFM -> W7LUX    lag=  +228 s   corr=+0.761
+```
+
+**Check (wave from 30° NNE — easternmost station should lead):**
+1. AA6BD (easternmost) has positive lag vs all others ✓
+2. Lag magnitudes consistent with inter-station distances ✓
+3. Triangle closure checked by diagnostic [4] in tid_doa.py ✓
+
+This check is **definitive for direction** — no GPS, no ionosonde needed.
+If any lag sign disagrees with the predicted direction, suspect a 180°
+alias or wrong-peak lock in that pair.
+
+---
+
+### Step 2: Verify speed — Madrigal GPS TEC cross-correlation
+
+`fetch_madrigal_tec.py` retrieves gridded GPS TEC from MIT Haystack
+and cross-correlates station pairs independently of the HF Doppler data.
+
+```bash
+python3 fetch_madrigal_tec.py \\
+    --date YYYY-MM-DD \\
+    --event-start YYYY-MM-DDTHH:MM:SSZ \\
+    --event-end   YYYY-MM-DDTHH:MM:SSZ \\
+    --stations N6RFM,-97.21,32.94 AA6BD,-85.13,35.06 W7LUX,-111.71,35.10 \\
+    --user-name "Your Name" --user-email your@email.com \\
+    --user-affiliation "Your Institution" \\
+    --doa-lags AA6BD,N6RFM,1253 AA6BD,W7LUX,1481 N6RFM,W7LUX,228 \\
+    --doa-speed 239 --doa-azimuth-from 30 \\
+    --output-dir ./evaluation
+```
+
+**Critical caveat — geometry matters:**
+GPS TEC xcorr gives the along-baseline lag, not the true phase lag.
+Best results when baseline bearing is within ~45° of the wave direction.
+
+```
+along-baseline speed = true speed / cos(angle between wave and baseline)
+```
+
+---
+
+### Quick reference
+
+| What to verify | Tool | Data needed |
+|----------------|------|-------------|
+| Direction | Peak succession (tid_doa.py output) | None — internal |
+| Speed | fetch_madrigal_tec.py xcorr | Madrigal GPS TEC (free) |
+| Geomagnetic context | evaluate_external.py | Kp (GFZ), AE (Kyoto) |
+| Storm-time TEC | fetch_glotec.py | NOAA GloTEC (~270 MB) |
+
+See `docs/EXTERNAL_RESULTS_EVALUATION.md` for full methodology and
+`examples/EXTERNAL_RESULTS_EVALUATION.md` for the Jan 2026 worked example.
+
 ### How do I use Madrigal GPS TEC to corroborate a DOA result?
 
 The `fetch_madrigal_tec.py` tool retrieves gridded GPS TEC from MIT
