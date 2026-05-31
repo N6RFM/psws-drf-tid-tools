@@ -9,6 +9,9 @@ manual browser-based sources, and the Jan 2026 event as a worked example.
 
 ## Overview
 
+> **Quick reference:** See `docs/COOKBOOK.md` — 'How do I verify my DOA result is physically real?' for the two-step direction/speed verification guide.
+
+
 A DOA result (phase speed and azimuth) from `tid_doa.py` is an internal
 consistency estimate — it tells you whether the pairwise time lags are
 consistent with a single plane wave, but it cannot confirm the result is
@@ -419,8 +422,8 @@ Speed (239 m/s) is not yet independently verified. The next steps are:
 
 | Source | URL | Auth | Automated? |
 |--------|-----|------|-----------|
-| Kp index | https://kp.gfz-potsdam.de/app/json/ | None | ✓ fetch_ae_index.py |
-| AE index | https://wdc.kugi.kyoto-u.ac.jp/ae_realtime/ | None | ✓ fetch_ae_index.py |
+| Kp index | https://kp.gfz-potsdam.de/app/json/ | None | ✓ evaluate_external.py |
+| AE index | https://wdc.kugi.kyoto-u.ac.jp/ae_realtime/ | None | ✓ evaluate_external.py |
 | GloTEC | https://www.ngdc.noaa.gov/stp/iono/ustec/ | None | ✓ fetch_glotec.py |
 | SuperMAG | https://supermag.jhuapl.edu/indices/ | None | Browser only |
 | SuperDARN | http://vt.superdarn.org | None | Browser only |
