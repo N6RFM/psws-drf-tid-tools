@@ -1,4 +1,4 @@
-# External Validation of TID DOA Results
+# External Results Evaluation — Jan 2026 Worked Example
 
 This document describes how to independently evaluate a TID
 direction-of-arrival (DOA) result using publicly available space weather
@@ -34,8 +34,13 @@ are not derived from the HF Doppler recordings.
 
 ## Automated Tools
 
-Three scripts automate the retrieval and analysis of external data.
-All require only `pip install requests matplotlib numpy Pillow`.
+Four scripts automate the retrieval and analysis of external data:
+- `evaluate_external.py` — Kp + AE + GloTEC combined report
+- `fetch_ae_index.py` — AE index only
+- `fetch_glotec.py` — GloTEC TEC anomaly analysis
+- `fetch_madrigal_tec.py` — Madrigal GPS TEC retrieval + TID xcorr
+
+Requirements: `pip install requests matplotlib numpy Pillow madrigalWeb`
 
 ---
 
@@ -77,7 +82,7 @@ python3 evaluate_external.py \
 | `glotec_event_montage.png` | CONUS anomaly maps spanning event window |
 | `glotec_before_after.png` | Before / during / after comparison |
 | `glotec_diff.png` | Pixel difference: event end − event start |
-| `validation_report.txt` | Full text summary of all findings |
+| `evaluation_report.txt` | Full text summary of all findings |
 
 **Travel time logic:**
 
@@ -193,6 +198,16 @@ GPS TEC data in the Madrigal database (see below).
 
 ---
 
+### fetch_madrigal_tec.py — Madrigal GPS TEC retrieval and TID xcorr
+
+See `docs/EXTERNAL_RESULTS_EVALUATION.md` for full argument reference.
+The Jan 2026 command and results are in the Worked Example section below.
+
+Requirements: `pip install madrigalWeb`
+No account needed — Madrigal uses open access (name/email only).
+
+---
+
 ## Manual Evaluation Sources
 
 These require browser access but no registration.
@@ -304,8 +319,9 @@ exps = m.getExperiments(8000,           # instrument: GPS TEC
                         2026, 1, 19, 23, 59, 59)
 ```
 
-**Note:** Jan 2026 data may not be ingested yet. GPS TEC processing
-typically has a 6-12 month lag before appearing in Madrigal.
+**Note:** Jan 2026 data IS ingested and confirmed available (May 2026).
+GPS TEC typically appears within 2-4 weeks. Use `fetch_madrigal_tec.py`
+for automated retrieval — see `docs/EXTERNAL_RESULTS_EVALUATION.md`.
 
 ---
 
