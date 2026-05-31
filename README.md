@@ -342,3 +342,10 @@ Bob Mattaliano (N6RFM) — n6rfm1@gmail.com
 
 Issues and pull requests welcome on
 [GitHub](https://github.com/N6RFM/psws-drf-tid-tools).
+
+---
+
+## AI Assistance
+
+This project was developed in collaboration with
+[Claude](https://claude.ai) (Anthropic). See [CONTRIBUTORS.md](CONTRIBUTORS.md).
