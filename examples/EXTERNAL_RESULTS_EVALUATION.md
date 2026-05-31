@@ -330,7 +330,7 @@ show no data after 2024 in DIDBase. Non-US stations are unaffected.
 ### Command used
 
 ```bash
-python3 validate_external.py \
+python3 evaluate_external.py \
     --date 2026-01-19 \
     --event-start 2026-01-19T00:00:00Z \
     --event-end   2026-01-19T01:15:00Z \
