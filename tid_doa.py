@@ -77,6 +77,8 @@ The event is described by a JSON config file. Example:
     {
       "event_start_utc": "2026-01-19T00:00:00Z",
       "event_end_utc":   "2026-01-19T01:15:00Z",
+      "xcorr_start_utc": "2026-01-19T00:10:00Z",
+      "xcorr_end_utc":   "2026-01-19T01:10:00Z",
       "resample_seconds": 10,
       "use_bandpass": false,
       "min_expected_speed_m_s": 100,
@@ -132,6 +134,20 @@ PARAMETER GUIDANCE
         [1800, 5400]  =  30-90 min   (MSTID/early LSTID)
         [3600, 7200]  =  60-120 min  (LSTID)
         [1800, 7200]  =  30-120 min  (broad band)
+
+  xcorr_start_utc / xcorr_end_utc  (optional)
+      Trim the Doppler data fed into the cross-correlation to a sub-window
+      of the event window.  The full event window is still loaded and used
+      for plotting; only the xcorr and DOA inversion use the trimmed data.
+
+      Use this to restrict the xcorr to the cleanest part of the TID signal
+      — ideally straddling the most clearly visible peak/trough — avoiding
+      ragged partial-cycle edges that reduce SNR and can bias lag estimates.
+      Suggested by Gwyn Griffiths G3ZIL.
+
+      Example: event window 00:00–01:15 UTC; visible TID peak around 00:30;
+        "xcorr_start_utc": "2026-01-19T00:10:00Z",
+        "xcorr_end_utc":   "2026-01-19T01:10:00Z"
 
   max_lag_seconds  (optional)
       Maximum |lag| considered in the cross-correlation peak search.
@@ -761,7 +777,7 @@ def format_diagnostics(result):
     L.append("Reminder: these are internal consistency checks. They")
     L.append("cannot confirm the result is physically real -- cross-")
     L.append("checking against an independent method or a hand-analysed")
-    L.append("event remains the strongest corroboration.")
+    L.append("event remains the strongest validation.")
     return "\n".join(L), flagged
 
 
@@ -852,6 +868,49 @@ def run(config):
     if len(stations) < 3:
         raise SystemExit("Need at least 3 stations for direction-of-arrival.")
 
+    # Optional xcorr window — Gwyn G3ZIL's suggestion:
+    # Restrict cross-correlation to a sub-window of the event window,
+    # trimming ragged partial-cycle edges and maximising SNR by using only
+    # the cleanest part of the TID signal (e.g. straddling the clearest
+    # peak/trough).  The full event window is still used for plotting.
+    # If xcorr_start_utc / xcorr_end_utc are omitted, behaviour is unchanged.
+    xcorr_t0 = pd.to_datetime(
+        config.get("xcorr_start_utc", config["event_start_utc"]), utc=True)
+    xcorr_t1 = pd.to_datetime(
+        config.get("xcorr_end_utc",   config["event_end_utc"]),   utc=True)
+
+    if xcorr_t0 != t0 or xcorr_t1 != t1:
+        dur_min = int((xcorr_t1 - xcorr_t0).total_seconds() // 60)
+        print(f"xcorr window trimmed to {xcorr_t0.strftime('%H:%M')}–"
+              f"{xcorr_t1.strftime('%H:%M')} UTC ({dur_min} min) "
+              f"[event window: {t0.strftime('%H:%M')}–{t1.strftime('%H:%M')}]")
+        import copy
+        # s.times = df.index.astype("int64") / 1e9. For timezone-aware
+        # pandas DatetimeIndex, int64 is microseconds, so s.times is in
+        # units of unix_ms / 1e3 (i.e. 1000x smaller than unix seconds).
+        # Derive the scale once from t0 vs stations[0].times[0] and apply
+        # to xcorr bounds so the comparison is in the same units.
+        _t0_unix = t0.timestamp()             # proper unix seconds
+        _t0_stored = stations[0].times[0]     # whatever load_station stored
+        _scale = _t0_stored / _t0_unix if _t0_unix != 0 else 1.0
+        xcorr_lo = xcorr_t0.timestamp() * _scale
+        xcorr_hi = xcorr_t1.timestamp() * _scale
+        xcorr_stations = []
+        for s in stations:
+            mask = (s.times >= xcorr_lo) & (s.times <= xcorr_hi)
+            if mask.sum() < 10:
+                raise ValueError(
+                    f"{s.name}: fewer than 10 samples in xcorr window "
+                    f"{xcorr_t0.strftime('%H:%M')}–{xcorr_t1.strftime('%H:%M')}"
+                )
+            sc = StationData(s.name, s.lat, s.lon, s.midpoint,
+                                s.times[mask], s.doppler[mask], s.method)
+            xcorr_stations.append(sc)
+        print(f"  {xcorr_stations[0].times.shape[0]} samples per station "
+              f"in xcorr window")
+    else:
+        xcorr_stations = stations
+
     # Compute the largest pairwise midpoint baseline (km) for a smarter
     # default max_lag_seconds. The maximum lag any pair can have is
     # baseline / min_expected_speed, so this sets the search to JUST cover
@@ -903,7 +962,7 @@ def run(config):
         print(f"  {s.name:12s} mid=({s.midpoint[0]:.2f},{s.midpoint[1]:.2f}) "
               f"N={len(s.doppler)}")
 
-    result = solve_doa(stations, fs_hz, period_band, max_lag_s,
+    result = solve_doa(xcorr_stations, fs_hz, period_band, max_lag_s,
                        use_bandpass=use_bandpass)
 
     print("\nPairwise time lags (positive = second station lags first):")
