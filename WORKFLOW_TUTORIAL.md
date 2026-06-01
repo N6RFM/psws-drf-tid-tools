@@ -310,6 +310,14 @@ result, an interactive drop-station loop activates:
 
 A comparison table shows results with and without the dropped station.
 
+When running `tid_doa.py` directly (outside the workflow), use the
+`--drop` flag instead of the interactive prompt:
+
+```bash
+python3 tid_doa.py event.json --drop W7LUX
+python3 tid_doa.py event.json --drop W7LUX --drop AC0G_ND
+```
+
 ---
 
 ## Interpreting the DOA diagnostics
@@ -318,7 +326,7 @@ A comparison table shows results with and without the dropped station.
 |---|-----------|-----------|-----------|
 | 1 | Geometry SVR | < 30 | Near-collinear -- need more stations |
 | 2 | Plane-wave residual | < 25% | TID non-stationary or wrong peaks |
-| 3 | Pairwise correlation | min > 0.4 | Drop suggested station |
+| 3 | Pairwise correlation | min > 0.4 | Drop suggested station (`--drop` or interactive loop) |
 | 4 | Triangle closure | < 15% | Wrong-peak lock -- try smaller --max-lag |
 | 5 | Phase speed | 100-1000 m/s | Likely aliased lags |
 
@@ -343,7 +351,12 @@ to accept what you have and let the baseline handle the rest.
 Widen with `--max-lag 60`, or re-extract with better anchor coverage.
 
 **Speed unphysical after dropping a station**
-Check SVR -- if > 5, the remaining array is near-collinear.
+Check SVR — if > 5, the remaining array is near-collinear.
+Try a different combination via the interactive loop (workflow) or:
+```bash
+python3 tid_doa.py event.json --drop W7LUX
+python3 tid_doa.py event.json --drop AC0G_ND
+```
 
 ---
 
@@ -368,6 +381,13 @@ Options:
   --max-lag MIN         Max xcorr lag in minutes (default: auto)
                         Recommended: ~1/3 of expected TID period
   --sgolay-window MIN   Sgolay smoothing window in minutes (default: 21)
+
+tid_doa.py (direct use, outside workflow):
+  --drop NAME           Exclude a station by name before DOA
+                        (repeatable, case-insensitive)
+                        E.g. --drop W7LUX --drop AC0G_ND
+  --smooth N            Savitzky-Golay smoothing window in seconds
+  --max-lag MIN         Override max xcorr lag in minutes
   --tx-lat DEG          Transmitter latitude (default: WWV 40.68N)
   --tx-lon DEG          Transmitter longitude (default: WWV -105.04W)
   --tx-freq-mhz MHZ     Transmitter frequency in MHz (default: 10.0)
@@ -381,13 +401,15 @@ For the 19 January 2026 event (00:00-01:36 UTC, 4 stations):
 
 | Metric | Value |
 |--------|-------|
-| Phase speed | 239 m/s (spline, best result) |
-| Coming from | 30° NNE |
-| Heading toward | ~210° SSW |
-| Classification | LSTID, auroral origin |
+| Phase speed | 304 m/s |
+| Coming from | 10° NNE |
+| Heading toward | ~190° SSW |
+| Classification | MSTID, auroral origin |
 | Window | 2026-01-19T00:00–01:15 UTC |
-| Stations | N6RFM, AA6BD, W7LUX, AC0G_ND |
-| Flags | 1/5 |
+| Stations | N6RFM, AA6BD, W7LUX (AC0G_ND dropped) |
+| Flags | 0/5 |
+| Method | cwt-prophet Pass 0 |
+| Command | `python3 tid_doa.py examples/event_20260119.json --drop AC0G_ND` |
 
 
 ---
