@@ -1325,6 +1325,52 @@ class SpectClickApp(QtWidgets.QMainWindow):
         print(f"  [event JSON] updated {ej_path.name}: "
               f"{self.name} file={file_val!r} method={method!r}")
 
+
+    def _export_capt_seed(self):
+        """Save CAPT seed JSON from current click points (S key).
+
+        Requires ≥2 clicks. Saves {spectrogram_stem}_capt_seed.json
+        alongside the spectrogram PNG. The seed JSON contains the
+        clicked (t, doppler) points that CAPT will use to initialise
+        its phase tracker.
+        """
+        if len(self.clicks_t) < 2:
+            self._set_status(
+                f"[{self.name}] CAPT seed needs ≥2 clicks — "
+                f"click on clean TID carrier first"
+            )
+            return
+        import json as _json
+        out = Path(self.img_path).with_name(
+            Path(self.img_path).stem + "_capt_seed.json"
+        )
+        seed = {
+            "station":            self.name,
+            "spectrogram_png":    str(Path(self.img_path).name),
+            "n_clicks":           len(self.clicks_t),
+            "seed_clicks": [
+                {"t_hours": float(t), "doppler_hz": float(d)}
+                for t, d in zip(self.clicks_t, self.clicks_d)
+            ],
+        }
+        if self.period_hint:
+            seed["period_hint_seconds"] = float(self.period_hint)
+        # Include sidecar time range if available
+        if self.transform is not None:
+            try:
+                seed["t_start_utc_hours"] = float(self.transform.t0)
+                seed["t_end_utc_hours"]   = float(self.transform.t1)
+            except Exception:
+                pass
+        with open(out, "w") as _f:
+            _json.dump(seed, _f, indent=2)
+            _f.write("\n")
+        self._set_status(
+            f"[{self.name}] CAPT seed saved: {out.name} "
+            f"({len(self.clicks_t)} clicks)"
+        )
+        print(f"CAPT seed saved: {out}")
+
     def _install_shortcuts(self):
         for key, cb in [("X", self._export_spline_csv),
                         ("E", self._export_prophet_csv),
@@ -1332,6 +1378,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
                         ("W", self._wave_fit_start),
                         ("F", self._wave_fit_execute),
                         ("A", self._wave_fit_accept),
+                        ("S", self._export_capt_seed),
                         ("R", self._reset_clicks), ("C", self._clear_all),
                         ("Q", self.close)]:
             sc = QtWidgets.QShortcut(QtGui.QKeySequence(key), self, cb)
