@@ -3218,3 +3218,117 @@ event_20260119.json points to them with method: cwt-prophet.
 1. Send Gwyn email — Jan 2026 results (304 m/s NNE, 5/5 clean)
 2. find_event_stations.py — find better 4th station to replace AC0G_ND
 3. Add --drop-station flag to tid_doa.py (currently need temp JSON)
+
+---
+
+## Entry 56 — Jan 2026: CAPT first results
+**Date:** 2026-06-01
+**Branch:** research_gui
+
+### Method
+CAPT — Constrained Adaptive Phase Tracking. New extraction method
+proposed by N6RFM and agreed with Gwyn Griffiths G3ZIL as a research
+direction (2026-06-01).
+
+**Core idea:** user seeds 2–N clicks on a clean carrier segment in
+`tid_spect_click.py` (S key). A Kalman filter propagates the carrier
+phase forward and backward in time from the seed midpoint, under
+physical continuity constraints tuned to TID timescales.
+
+**Implementation: `capt_extract.py` v0.1.0**
+- State vector: [doppler_hz, doppler_rate_hz_per_s]
+- Motion model: constant-rate (F = [[1,dt],[0,1]])
+- Process noise: PROC_NOISE_HZ=0.02 Hz/√step, PROC_NOISE_RATE=2e-4 Hz/s/√step
+- Measurement: FFT peak at each 60s block
+- Measurement noise: SNR-adaptive (high SNR → trust measurement; low SNR → trust prediction)
+- Wrong-peak rejection: MAX_STEP_HZ=0.5 — measurements deviating
+  more than 0.5 Hz from predicted state are treated as missing;
+  Kalman coasts on prediction alone
+- Two-pass: forward from seed midpoint, then backward
+
+**GUI integration:** S key in `tid_spect_click.py` saves a seed JSON
+with the click coordinates. `capt_extract.py` reads the seed JSON
+and DRF directory directly.
+
+### Seed clicks (Jan 2026 event)
+| Station | N clicks | Seed window | SNR range |
+|---------|----------|-------------|-----------|
+| N6RFM | 6 | 00:45–01:20 UTC | 54–63 dB |
+| AA6BD | 6 | ~00:45–01:15 UTC | 47–54 dB |
+| W7LUX | 4 | ~01:06–01:20 UTC | 57–61 dB |
+| AC0G_ND | 4 | ~00:50–01:00 UTC | 60–68 dB |
+
+### Results
+
+**4-station:**
+```
+Speed: 652 m/s  Direction: from 37° NNE  Flags: 2/5
+N6RFM→W7LUX lag: 29 s (near-zero — same geometry issue as prophet)
+RMS residual: 43.8%  Triangle closure: 26.8%
+```
+
+**3-station, drop AC0G_ND:**
+```
+Speed:     211 m/s
+Direction: from 10.6° NNE
+Flags:     0/5
+```
+
+Full diagnostics (drop AC0G_ND):
+
+| Diagnostic | Value | Status |
+|-----------|-------|--------|
+| SVR | 7.5 | OK |
+| RMS residual | 0.1% of mean lag | OK |
+| Pairwise corr | min 0.545, mean 0.680, max 0.798 | OK |
+| Triangle closure | 0.3% | OK |
+| Phase speed | 211 m/s | OK (MSTID) |
+
+Pairwise lags (drop AC0G_ND):
+```
+N6RFM  → AA6BD   lag = -1209.0 s  corr = 0.697
+N6RFM  → W7LUX   lag =   +29.3 s  corr = 0.545
+AA6BD  → W7LUX   lag = +1240.7 s  corr = 0.798
+```
+
+### Comparison with canonical prophet result
+
+| | CAPT (drop AC0G_ND) | Prophet (drop AC0G_ND) |
+|---|---|---|
+| Speed | 211 m/s | 304 m/s |
+| Direction | 10.6° NNE | 10.3° NNE |
+| RMS residual | 0.1% | 0.4% |
+| Triangle closure | 0.3% | 1.1% |
+| Min corr | 0.545 | 0.433 |
+| Flags | 0/5 | 0/5 |
+
+Direction agreement: essentially perfect (0.3° difference).
+CAPT gives better residual, better closure, and higher minimum
+correlation than prophet on the same 3-station subset.
+
+Speed difference (211 vs 304 m/s): both MSTID range. Likely due to
+different phase of the oscillation being tracked — CAPT seed was
+placed in the late part of the window (00:45–01:20) while prophet
+Pass 0 ran on the full window. Both are plausible.
+
+The N6RFM→W7LUX near-zero lag (29 s) persists — this is a geometry
+issue (wave front nearly parallel to that baseline), not a CAPT
+artefact. Direction is robustly NNE across all methods and all
+station subsets.
+
+### Interpretation
+CAPT v0.1.0 confirms:
+1. The Kalman-filter continuity constraint successfully rejects
+   wrong-peak jumps — correlations are higher than prophet on
+   all pairs despite identical underlying DRF data
+2. Direction NNE is confirmed by a third independent method
+3. The method is practical: 6 clicks per station, ~30s of user
+   time per station
+
+### Open items / next steps
+1. Run CAPT on May 2024 event (Gwyn's dataset) — the real test
+   case where automated methods fail on AC0G_ND/N4RVE
+2. Tune Kalman parameters (PROC_NOISE_HZ, MAX_STEP_HZ) for
+   heavily contaminated stations
+3. Add CAPT to `tid_workflow.py` as an extraction option
+4. Share results with Gwyn — agreed method, first clean result

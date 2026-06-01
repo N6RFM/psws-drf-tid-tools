@@ -319,3 +319,26 @@ Direction is consistent across both results and GPS TEC confirmation.
 2. find_event_stations.py — better 4th station
 3. Add --drop-station flag to tid_doa.py
 4. WORKFLOW_TUTORIAL.md reproducibility notes ✓ (done this session)
+
+---
+## 48. CAPT: Constrained Adaptive Phase Tracking — first results — 2026-06-01
+
+### Implemented
+- `capt_extract.py` v0.1.0: Kalman filter extractor seeded from GUI clicks
+- `tid_spect_click.py`: S key saves CAPT seed JSON (2–N clicks)
+- Committed: `aafc2b0` on research_gui
+- FINDINGS Entry 56 written
+
+### Jan 2026 result
+- 4-station: 652 m/s, 37° NNE, 2/5 flags
+- 3-station (drop AC0G_ND): **211 m/s from 10.6° NNE, 0/5 flags**
+- Direction matches prophet canonical (10.3°) to 0.3°
+- Better residual and closure than prophet on same subset
+
+### Open items
+1. Run CAPT on May 2024 Gwyn event — the real test
+2. Tune Kalman parameters for contaminated stations
+3. Add to tid_workflow.py
+4. Share with Gwyn
+5. Send Gwyn email — Jan 2026 results + CAPT first results
+6. find_event_stations.py — better 4th station
