@@ -1051,6 +1051,11 @@ def _cli():
     ap.add_argument("--no-run-log", action="store_true",
                     help="do not write the per-run log under ./runs/ "
                          "(written by default)")
+    ap.add_argument("--drop", metavar="NAME", action="append",
+                    dest="drop_stations", default=[],
+                    help="drop a station by name before running DOA "
+                         "(repeatable, case-insensitive). E.g. "
+                         "--drop W7LUX --drop AC0G_ND")
     ap.add_argument("--version", action="version",
                     version="%(prog)s 1.2.0")
     return ap.parse_args()
@@ -1075,4 +1080,18 @@ if __name__ == "__main__":
     if _args.max_lag is not None:
         cfg["max_lag_seconds"] = _args.max_lag * 60.0
         print(f"max_lag override: {_args.max_lag:g} min ({_args.max_lag*60:.0f} s)")
+    if _args.drop_stations:
+        drop_upper = [d.upper() for d in _args.drop_stations]
+        before = [s["name"] for s in cfg["stations"]]
+        cfg["stations"] = [s for s in cfg["stations"]
+                           if s["name"].upper() not in drop_upper]
+        after = [s["name"] for s in cfg["stations"]]
+        dropped = [n for n in before if n not in after]
+        not_found = [d for d in _args.drop_stations
+                     if d.upper() not in [n.upper() for n in before]]
+        if dropped:
+            print(f"Dropped station(s): {', '.join(dropped)}")
+        if not_found:
+            print(f"WARNING: --drop name(s) not found in config: "
+                  f"{', '.join(not_found)}")
     run(cfg)
