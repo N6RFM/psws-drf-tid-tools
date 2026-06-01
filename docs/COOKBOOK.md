@@ -772,9 +772,39 @@ should be committed.
 | `find_event_stations.py` first run is slow | Building station cache | Wait 3–5 min; subsequent runs fast |
 | Multi-subchannel station has no `*** YES ***` | Frequency not recorded | Check `drf_inspect.py` table; pick nearest |
 | `tid_doa.py` correlations < 0.4 across all pairs | Wrong analysis window | Look at spectrograms; pick a cleaner window |
-| `tid_doa.py` one lag at the edge of max_lag_s | Pair too noisy or wrong cycle | Reduce `max_lag_seconds` or drop that station |
+| `tid_doa.py` one lag at the edge of max_lag_s | Pair too noisy or wrong cycle | Reduce `max_lag_seconds` or `--drop` that station |
 | `tid_map.py` says "install cartopy" | Optional dep missing | `pip install cartopy` for nicer maps |
 
+
+## Recipe: drop a station from DOA
+
+When running `tid_doa.py` directly, use `--drop` to exclude a station
+by name. When using `tid_workflow.py`, the interactive drop-station
+loop activates automatically after the DOA result.
+
+```bash
+# Drop one station (direct tid_doa.py use)
+python3 tid_doa.py event.json --drop W7LUX
+
+# Drop two stations (need at least 3 remaining)
+python3 tid_doa.py event.json --drop W7LUX --drop AC0G_ND
+```
+
+`--drop` is case-insensitive and repeatable. Prints `Dropped station(s): ...`
+to confirm. Warns if the name is not found in the config.
+
+After dropping, check:
+- SVR (diagnostic 1) — if > 5 with 3 stations, the array is near-collinear
+- Pairwise correlations — all remaining pairs should be > 0.4
+- Direction consistency — should agree within ~20° of the full-array result
+
+The Jan 2026 canonical result uses `--drop AC0G_ND`:
+```bash
+python3 tid_doa.py examples/event_20260119.json --drop AC0G_ND
+# Result: 304 m/s from 10° NNE, 0/5 flags
+```
+
+---
 
 ## Recipe: handle a noisy companion station
 
