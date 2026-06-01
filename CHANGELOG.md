@@ -1,3 +1,182 @@
+## v2.3.50 — 2026-05-30
+
+### New features
+
+- **tid_doa.py: xcorr_start_utc / xcorr_end_utc — trim xcorr window**
+  Optional keys in the event JSON config. When present, cross-correlation
+  and DOA inversion operate on the sub-window; full event window is still
+  used for plotting. Backward compatible — omitting the keys preserves
+  prior behaviour. Suggested by Gwyn Griffiths G3ZIL.
+  Example:
+  ```json
+  "xcorr_start_utc": "2026-01-19T00:10:00Z",
+  "xcorr_end_utc":   "2026-01-19T01:10:00Z"
+  ```
+
+---
+
+## v2.3.49 — 2026-05-30
+
+### Changes
+
+- **Terminology: validation → evaluation throughout**
+  All "validate/validation" language replaced with "evaluate/evaluation"
+  project-wide. `validate_external.py` renamed to `evaluate_external.py`.
+  Evaluation folder renamed accordingly. All docs and references updated.
+
+### Bug fixes
+
+- Removed accidentally committed n6rfm@hamsci.org file.
+
+---
+
+## v2.3.48 — 2026-05-30
+
+### Documentation
+
+- **EXTERNAL_RESULTS_EVALUATION.md comprehensive update**
+  Added `fetch_madrigal_tec.py` to tool reference. Fixed Madrigal
+  data-availability note (Jan 2026 data already ingested — 2–4 week
+  latency, not 6–12 months as previously noted). Fixed title, tool
+  count, and IONEX filename format.
+
+---
+
+## v2.3.47 — 2026-05-30
+
+### Bug fixes
+
+- **COOKBOOK: direction/speed verification guide — wording fix**
+  Minor wording correction to the verification guide added in v2.3.46.
+
+---
+
+## v2.3.46 — 2026-05-30
+
+### Documentation
+
+- **COOKBOOK and EXTERNAL_RESULTS_EVALUATION: direction/speed verification guide**
+  New section covering how to cross-check DOA speed and direction against
+  independent data sources (GPS TEC, AE index, GloTEC). Covers
+  `fetch_madrigal_tec.py`, `fetch_ae_index.py`, and `evaluate_external.py`
+  in a unified workflow.
+
+---
+
+## v2.3.45 — 2026-05-30
+
+### New features
+
+- **fetch_madrigal_tec.py — MIT Haystack Madrigal GPS TEC retrieval**
+  Queries the Madrigal Web API (cedar.openmadrigal.org) for gridded
+  GPS TEC data around station IPP locations. Detrends with a 2nd-order
+  polynomial to remove storm background, then cross-correlates TEC
+  perturbations across station pairs for independent lag estimation.
+  Generates four output plots:
+  - `madrigal_tec_stations.png` — station map with IPP boxes
+  - `madrigal_tec_detrended.png` — detrended TEC time series
+  - `madrigal_tec_1min.png` — raw 1-min TEC data
+  - `madrigal_tec_xcorr.png` — pairwise cross-correlation curves
+  No account required. Jan 2026 data already ingested as of May 2026.
+
+---
+
+## v2.3.44 — 2026-05-30
+
+### Documentation
+
+- **README: Claude AI assistance note**
+  Added acknowledgement that Claude (Anthropic) assisted with code
+  development and documentation.
+
+---
+
+## v2.3.43 — 2026-05-30
+
+### Documentation
+
+- **CONTRIBUTORS.md: added Claude (Anthropic)**
+
+---
+
+## v2.3.41–v2.3.42 — 2026-05-29
+
+### Documentation
+
+- **docs/EXTERNAL_RESULTS_EVALUATION.md** — new tool reference document
+  covering all external evaluation tools (`evaluate_external.py`,
+  `fetch_ae_index.py`, `fetch_glotec.py`, `fetch_madrigal_tec.py`).
+  Updated README and COOKBOOK with cross-references.
+- Removed stale `docs/EXTERNAL_VALIDATION.md` (superseded by
+  `examples/EXTERNAL_RESULTS_EVALUATION.md`).
+
+---
+
+## v2.3.37–v2.3.40 — 2026-05-29
+
+### Changes
+
+- **EXTERNAL_VALIDATION.md → EXTERNAL_RESULTS_EVALUATION.md**
+  Renamed for clarity. All references updated across README, COOKBOOK,
+  and evaluate_external.py. The document now covers all external
+  evaluation methods, not just validation.
+- `validate_external.py` → `evaluate_external.py` (see v2.3.49 for
+  the project-wide terminology change that followed).
+
+### Documentation
+
+- Added `EXTERNAL_VALIDATION.md` / `EXTERNAL_RESULTS_EVALUATION.md`
+  to examples/ — documents the Jan 2026 external evaluation session,
+  tools used, and results.
+- Added external evaluation usage to README and COOKBOOK.
+
+---
+
+## v2.3.35–v2.3.36 — 2026-05-29
+
+### New features
+
+- **validate_external.py (now evaluate_external.py) — external evaluation tool**
+  Automates Kp index fetch (GFZ), AE index fetch (SuperMAG/Kyoto),
+  and GloTEC montage retrieval for a given event date. Produces a
+  text report summarising geomagnetic conditions at event time.
+  Usage:
+  ```
+  python3 evaluate_external.py event.json
+  ```
+- **fetch_ae_index.py** — standalone AE index retrieval (SuperMAG API
+  or Kyoto WDC fallback). Plots AE vs time with event window marked.
+- **fetch_glotec.py** — standalone GloTEC TEC anomaly retrieval
+  (NOAA SWPC). Generates montage of TEC anomaly maps around event time.
+
+### Examples
+
+- Added external evaluation PNGs and report for Jan 2026 event to
+  `examples/tid_event_20260119/evaluation/`.
+
+---
+
+## v2.3.32–v2.3.34 — 2026-05-29
+
+### Examples
+
+- Added spline CSVs and spectrograms for the Jan 2026 MSTID event
+  to `examples/tid_event_20260119/`.
+- `examples/event_20260119.json` updated: added `use_ipp`, `max_lag_seconds`,
+  fixed station filenames. Corrected result annotation to 239 m/s.
+- Removed `examples/event_20240517.json` (moved to
+  `~/Downloads/gwyn_tid_event_20240517/` working directory).
+
+---
+
+## v2.3.31 — 2026-05-29
+
+### Documentation
+
+- **CHANGELOG: added entries for v2.3.1–v2.3.30** (wave-fit series)
+
+---
+
 ## v2.3.29–v2.3.30 — 2026-05-29
 
 ### New features
