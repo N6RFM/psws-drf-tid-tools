@@ -367,3 +367,62 @@ Canonical Jan 2026 result remains prophet (304 m/s, 0/5 flags).
 2. Run CAPT on May 2024 Gwyn event — the real test
 3. Send Gwyn email
 4. find_event_stations.py — better 4th station
+
+---
+## 50. Session wrap-up: tooling, docs, workflow fixes — 2026-06-01/02
+
+### Code changes (all merged to main)
+
+**capt_extract.py:**
+- `--method tracked`: constrained FFT search ±track-band around Kalman prediction
+- `--track-band` (default 0.3 Hz): search half-width for tracked mode
+- `--proc-noise` (default 0.02): Kalman process noise tuning
+- Sort seed clicks by time (fixes PchipInterpolator error for out-of-order clicks)
+- Finding: tracked mode does not solve broad/diffuse carriers (AA6BD)
+
+**tid_spect_click.py:**
+- `--no-prophet`: skips Pass 0 auto-run for CAPT seeding and pure spline
+- Context-specific key bindings: status bar shows only relevant keys
+  (prophet mode vs no-prophet mode vs wave-only mode)
+
+**tid_workflow.py:**
+- 7 extraction methods in menu (added wave-fit and CAPT)
+- Clear instruction boxes for all methods before GUI launch
+- Retry loops when seed/CSV not saved (CAPT, wave-fit, cwt-prophet)
+- DOA CSV priority: selected method first (was always spline first — bug)
+- Extraction file summary printed before DOA
+- Console output logger: full session saved to <event_dir>/runs/<ts>_workflow_console.log
+
+**tid_doa.py:**
+- Run logs written to <event_dir>/runs/ (derived from station CSV paths)
+- Extraction method summary line in run log output
+
+### Documentation (all merged to main, all consistent)
+
+| Document | Updates |
+|----------|---------|
+| README | 6-method table, CAPT, --drop, --event-json, Madrigal, tool listing |
+| MANUAL_TUTORIAL | Option A=anchor-guided (recommended), Options D+E added, all keys |
+| WORKFLOW_TUTORIAL | Option A renamed, Options D+E added, Step 7 output table, Step 8 --drop |
+| METHODOLOGY | 6-method table, Step 1d=anchor-guided, Step 1e=CAPT, Step 1f=sgolay-ridge |
+| COOKBOOK | cwt-prophet recipe updated (E+P keys), CAPT recipe added |
+| TROUBLESHOOTING | --drop in Step 4, CAPT entries, key bindings reference |
+| ASSESSING_RESULTS | --drop in station perturbation |
+| CHANGELOG | v2.3.51 entry covering all new features |
+
+### Structural fixes
+- FINDINGS entries 1-13 promoted from ### work log to ## Entry format
+- Both preamble blocks removed (The question / The gate / Open deps)
+- Duplicate entries 14-49 removed (earlier session)
+- FINDINGS numbering verified clean: 1-57
+
+### Branch state
+- main, gwyn-g3zil, research_gui all synced
+- All PR branches deleted (local + remote)
+- Only 3 branches remain: main, research_gui, gwyn-g3zil
+
+### Open items
+1. Run CAPT on May 2024 Gwyn event — the real test
+2. Gwyn email — Jan 2026 results + CAPT status
+3. find_event_stations.py — better 4th station
+4. CAPT tuning slider tool (interactive parameter exploration)
