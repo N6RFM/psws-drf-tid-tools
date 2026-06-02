@@ -875,6 +875,11 @@ def run_workflow(args):
     for s in completed:
         print(f"    {s['name']:<14s} method={s['method']:<12s} {Path(s['file']).name}")
 
+    # Show which CSV and method will be used per station
+    print(f"\n  Extraction files for DOA:")
+    for s in completed:
+        print(f"    {s['name']:<14s} method={s['method']:<12s} {Path(s['file']).name}")
+
     # Check time overlap
     import pandas as pd
     dfs = {}
