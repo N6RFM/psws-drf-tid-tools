@@ -113,7 +113,7 @@ python3 drf_spectrogram.py ./n6rfm \
 
 ## Step 5 -- Doppler extraction
 
-### Option A: spline extraction (recommended)
+### Option A: anchor-guided cwt-prophet extraction (recommended)
 
 Launch the interactive click tool:
 
@@ -149,21 +149,39 @@ shows a green trace overlay. Inspect it.
     Q       Quit
 
 **Workflow:**
-1. Inspect Pass 0 trace (green overlay)
-2. If good: press E to export prophet CSV (0 clicks needed)
-3. If excursions: click on carrier at problem region (2+ clicks)
-   — live PCHIP spline preview (green curve) updates after each click
-4. Press Z to undo a misplaced click
-5. Inspect spline preview — add more clicks if needed
-6. Press X to export spline CSV when all regions are correct
-7. Or press S to save a CAPT seed JSON (see Option D)
+1. Inspect Pass 0 trace (green overlay) — this is the cwt-prophet
+   automatic extraction
+2. If good: press **E** to export prophet CSV (0 clicks needed)
+3. If excursions: click anchor points on the carrier where Prophet
+   went wrong (2+ clicks) — live spline preview updates after each click
+4. Press **P** to re-run Prophet with your anchors as hard constraints
+   — Prophet re-fits the carrier, constrained to pass through your
+   anchor points. This is the key step: the result is a smooth,
+   physically motivated trace, not a raw spline through clicks.
+5. Inspect the new prophet overlay — add more anchors and press P
+   again if needed. Press Z to undo a misplaced click.
+6. When satisfied: press **E** to export the anchor-guided prophet CSV
+7. Or press **X** to export the raw PCHIP spline through clicks only
+   (without Prophet smoothing — use when Prophet cannot fit the signal)
 
-Output: `n6rfm_spline_tid.csv`
+Output:
+- E key: `n6rfm_prophet_tid.csv` (recommended — smooth, prophet-guided)
+- X key: `n6rfm_spline_tid.csv` (raw spline through clicks)
+- S key: `n6rfm_zoom_capt_seed.json` (CAPT seed — see Option D)
 
-**Why spline extraction?** The user clicks directly on the carrier.
-The PCHIP spline interpolates smoothly between clicks. No wrong-peak
-lock possible. The number of clicks needed is a quality metric --
-clean stations need 0 clicks.
+**Why anchor-guided cwt-prophet?** Prophet provides a smooth,
+physically motivated carrier estimate. The user's anchor clicks
+correct only the regions where Prophet fails (E-region contamination,
+wrong-peak lock). Most of the trace is Prophet's work — the user
+only intervenes where needed. This gives a better result than raw
+spline clicking because Prophet uses the full spectral context, not
+just the clicked points. The number of anchor clicks is a station
+quality metric — clean stations need 0 clicks.
+
+**E vs X:** prefer E (prophet) when Prophet follows the carrier well
+after anchoring. Use X (raw spline) only when the carrier is too
+complex for Prophet to fit — e.g. multiple overlapping carriers, or
+a carrier that changes character mid-window.
 
 ---
 
@@ -182,24 +200,6 @@ python3 drf_to_doppler.py ./n6rfm \
 ```
 
 Replace `fft` with `autocorr`, `cwt`, or `cwt-prophet` as needed.
-
-**Anchor-guided cwt-prophet:** pass an anchors JSON from the click
-tool to constrain the CWT search around a user-defined spline:
-
-```bash
-python3 drf_to_doppler.py ./n6rfm \
-    --subchannel 0 \
-    --start 2026-01-19T00:00:00 \
-    --end   2026-01-19T02:00:00 \
-    --decim-seconds 60 \
-    --method cwt-prophet \
-    --anchors n6rfm_zoom_anchors.json \
-    --corridor-width 0.4 \
-    --output n6rfm_cwt_prophet_tid.csv
-```
-
-The anchors JSON is written automatically by `tid_spect_click.py`
-when anchor points are placed.
 
 **Check visually:**
 
@@ -222,9 +222,11 @@ python3 drf_spectrogram.py ./n6rfm \
 | cwt | Multi-peak ambiguous carriers |
 | cwt-prophet | CWT + Prophet prediction (G3ZIL comparison) |
 
-**Important:** assessment on the Jan 2026 event showed fft and
-cwt-prophet give wrong lags on AC0G/ND due to E-region contamination.
-The spline extraction (Option A) correctly avoids this.
+**Important:** automated methods pick the strongest spectral peak
+without constraint. On the Jan 2026 event, fft and cwt-prophet give
+wrong lags on AC0G/ND due to E-region contamination. The anchor-guided
+cwt-prophet extraction (Option A) avoids this by constraining Prophet
+to the user's anchor points on the correct carrier.
 
 ### Option C: wave-fit extraction (--wave-only)
 
