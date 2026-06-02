@@ -263,6 +263,72 @@ def discover_stations(event_dir):
     return stations
 
 
+# ── Console output logger ────────────────────────────────────────────────────
+# Captures all console output (including subprocess) via fd-level tee.
+# Used to save a complete workflow log to the runs/ directory.
+
+class ConsoleLogger:
+    """Tee stdout+stderr to a log file at the file-descriptor level.
+
+    Captures everything including subprocess output. Starts a reader
+    thread that copies data from a pipe to both the original terminal
+    and the log file.
+    """
+
+    def __init__(self, log_path):
+        import os as _os, threading as _th
+        self.log_path = log_path
+        self.log_file = open(log_path, "w")
+        # Save original stdout/stderr file descriptors
+        self._orig_stdout_fd = _os.dup(1)
+        self._orig_stderr_fd = _os.dup(2)
+        # Create pipe: subprocess writes to w, reader reads from r
+        r, w = _os.pipe()
+        # Redirect stdout and stderr to the write end of the pipe
+        _os.dup2(w, 1)
+        _os.dup2(w, 2)
+        _os.close(w)
+        # Reader thread: reads from pipe, writes to terminal + log
+        self._reader_fd = r
+        self._stop = False
+        self._thread = _th.Thread(target=self._reader, daemon=True)
+        self._thread.start()
+
+    def _reader(self):
+        import os as _os
+        buf = b""
+        while True:
+            try:
+                data = _os.read(self._reader_fd, 4096)
+            except OSError:
+                break
+            if not data:
+                break
+            # Write to original terminal
+            _os.write(self._orig_stdout_fd, data)
+            # Write to log file
+            try:
+                self.log_file.write(data.decode("utf-8", errors="replace"))
+                self.log_file.flush()
+            except Exception:
+                pass
+
+    def close(self):
+        import os as _os
+        # Restore original stdout/stderr
+        _os.dup2(self._orig_stdout_fd, 1)
+        _os.dup2(self._orig_stderr_fd, 2)
+        # Close the read end so the reader thread exits
+        try:
+            _os.close(self._reader_fd)
+        except OSError:
+            pass
+        self._thread.join(timeout=3)
+        self.log_file.close()
+        _os.close(self._orig_stdout_fd)
+        _os.close(self._orig_stderr_fd)
+
+
 def load_state(state_file):
     if Path(state_file).exists():
         with open(state_file) as f:
@@ -298,6 +364,14 @@ def run_workflow(args):
     event_dir = Path(args.event_dir).resolve()
     state_file = event_dir / "tid_workflow_state.json"
     state = load_state(state_file) if args.resume else {}
+
+    # Start console logging
+    from datetime import datetime, timezone
+    _log_ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M%SZ")
+    _log_dir = event_dir / "runs"
+    _log_dir.mkdir(exist_ok=True)
+    _log_path = _log_dir / f"{_log_ts}_workflow_console.log"
+    _console_logger = ConsoleLogger(str(_log_path))
 
     print(f"\n{'='*60}")
     print(f"TID Workflow — {event_dir.name}")
@@ -1052,6 +1126,10 @@ def run_workflow(args):
     print(f"\n{'='*60}")
     print("Workflow complete.")
     print(f"{'='*60}")
+
+    # Save console log
+    _console_logger.close()
+    print(f"Console log saved: {_log_path}")
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
