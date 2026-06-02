@@ -48,18 +48,22 @@ and `θ`) from observed pairwise lags.
 The raw DRF I/Q stream is complex baseband, sampled at 10 Hz. The WWV
 carrier sits within ±5 Hz of zero after baseband mixing.
 
-Four extraction methods are available, in order of recommended preference:
+Six extraction methods are available, in order of recommended preference:
 
 | Method | How | Best for |
 |--------|-----|----------|
-| **cwt-prophet** (spline) | Interactive: user corrects CWT+Prophet auto-trace | All events, especially E-region contamination |
+| **Anchor-guided cwt-prophet** | Interactive: Prophet auto-trace + user anchor corrections, P to re-run | All events, especially E-region contamination (recommended) |
+| **CAPT** (experimental) | Semi-interactive: user seeds 2+ clicks, Kalman filter tracks | Moderate contamination where FFT can find carrier |
 | **wave-fit** | Interactive: user clicks cycle points, sine fit | Clean signals with ≥1.5 cycles visible |
+| **sgolay-ridge** (legacy) | Semi-interactive: user defines corridor, Savitzky-Golay ridge-finder | Contaminated carriers needing constrained search |
 | **autocorr** | Automated: lag-1 complex autocorrelation | Clean signals, G3ZIL validation |
 | **fft** | Automated: bin-peak tracker | Clean signals, fast survey |
 
-The FFT bin-peak method is described below. The cwt-prophet/spline and
-wave-fit methods bypass the automated bin-peak tracker entirely —
-the user defines the Doppler trace directly from the spectrogram.
+The FFT bin-peak method is described below. The anchor-guided
+cwt-prophet, wave-fit, and sgolay-ridge methods bypass the automated
+bin-peak tracker — the user defines or constrains the Doppler trace
+from the spectrogram. CAPT uses a Kalman filter seeded from user
+clicks to track the carrier under physical continuity constraints.
 
 For each output sample of duration `T = decim_seconds` (FFT method):
 
@@ -159,7 +163,9 @@ disagreement between the two methods, not fit to an external truth.
      causes wrong-peak lock in this regime).
 
 6. If automated methods still give contaminated traces:
-   Use cwt-prophet interactive spline extraction (Step 1d).
+   Use anchor-guided cwt-prophet extraction (Step 1d) — recommended.
+   Or try CAPT with --method tracked (Step 1e) for moderate contamination.
+   Or use sgolay-ridge (Step 1f) if familiar with corridor-based extraction.
 
 7. Record which method was chosen and why in the run log.
 ```
@@ -217,16 +223,37 @@ use spline extraction instead.
 
 ---
 
-## Step 1d: Interactive spline extraction (cwt-prophet)
+## Step 1d: Anchor-guided cwt-prophet extraction (recommended)
 
 For contaminated stations or when automated methods give inconsistent
-lags, the interactive spline tool gives the most reliable results.
-Pass 0 auto-runs CWT+Prophet to seed the spline; the user corrects
-excursions by clicking anchor points on the F-region carrier.
+lags, the anchor-guided cwt-prophet gives the most reliable results.
 
-The PCHIP spline through anchor clicks IS the extracted Doppler —
-no bin-peak tracker, no wrong-peak lock possible. Output:
-`{stn}_spline_tid.csv`.
+**How it works:**
+1. On open, CWT+Prophet runs automatically (Pass 0) and displays
+   a green trace overlay — the best automated carrier estimate.
+2. The user inspects the trace and clicks anchor points where
+   Prophet tracked the wrong feature (E-region, noise spike, etc.).
+3. The user presses **P** to re-run Prophet with anchors as hard
+   constraints — Prophet re-fits, forced to pass through the
+   anchored positions. This produces a smooth, physically motivated
+   trace that follows the correct carrier.
+4. The user presses **E** to export the anchor-guided prophet CSV.
+
+**Why this is recommended over raw spline (X key):** Prophet uses
+the full spectral context and time-series continuity to produce a
+smooth carrier estimate. The anchor clicks correct only the regions
+where Prophet fails — most of the trace is Prophet's own work,
+guided by the user's physical judgment. A raw PCHIP spline through
+clicks (X key) has no smoothness constraint and depends entirely
+on click density and placement.
+
+**Key bindings:** P=re-run Prophet with anchors, E=export prophet
+CSV (recommended), X=export raw spline, S=save CAPT seed, Z=undo,
+R=reset.
+
+**Output:**
+- E key: `{stn}_prophet_tid.csv` (recommended — smooth, guided)
+- X key: `{stn}_spline_tid.csv` (raw spline — fallback)
 
 See `WORKFLOW_TUTORIAL.md` Step 6 (Option A) for the full workflow.
 
@@ -261,8 +288,39 @@ rejected and the filter coasts on its own state.
 
 **Limitation:** when the carrier is too broad or diffuse for any
 peak-picking approach to resolve (e.g. AA6BD on the Jan 2026 event),
-CAPT cannot track it. Manual spline extraction (X key) remains the
-correct choice for such stations.
+CAPT cannot track it. Anchor-guided cwt-prophet (Step 1d) or manual
+spline extraction (X key) remains the correct choice for such stations.
+
+---
+
+## Step 1f: Sgolay-ridge extraction (legacy)
+
+The sgolay-ridge method is a corridor-based extraction where the user
+defines a frequency band on the spectrogram and a Savitzky-Golay
+ridge-finder tracks the carrier only within that corridor.
+
+```
+python3 drf_to_doppler.py ./station --subchannel 0 \
+    --method sgolay-ridge \
+    --anchors corridor.json --corridor-width 0.4 \
+    --output station_sgolay_tid.csv
+```
+
+The corridor is defined by anchor clicks in `tid_spect_click.py`.
+The Savitzky-Golay filter smooths the spectral peak within the
+corridor, rejecting features outside it.
+
+**Comparison with anchor-guided cwt-prophet:**
+- Sgolay-ridge constrains the *search region* (corridor) — the
+  algorithm finds the peak within the band
+- Cwt-prophet constrains the *result* (anchor points) — Prophet
+  fits a smooth trace through the constraints
+- Cwt-prophet generally gives smoother, more physically motivated
+  results with fewer clicks
+- Sgolay-ridge is retained for users familiar with the corridor
+  approach and for comparison with earlier results
+
+Output: `{stn}_sgolay_tid.csv`
 
 ---
 
