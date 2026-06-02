@@ -166,6 +166,26 @@ includes a DC offset parameter, but a strong linear trend across
 the window can still bias the fit. Try a shorter window centred
 on the clearest cycle.
 
+### `tid_spect_click.py` — key bindings reference
+
+Full key bindings for anchor-guided cwt-prophet mode:
+
+    Click   Add anchor point on carrier
+    P       Re-run Prophet with anchors as hard constraints
+    E       Export prophet CSV (recommended)
+    X       Export raw spline CSV
+    S       Save CAPT seed JSON (for capt_extract.py)
+    W       Enter wave-fit mode
+    Z       Undo last click
+    R       Reset all clicks
+    C       Clear all (clicks + calibration)
+    Q       Quit
+
+With `--no-prophet`: P and E are hidden (Prophet didn't run).
+Only X, S, Z, R, Q are shown.
+
+---
+
 ### `tid_spect_click.py` — X key has no effect
 
 The tool requires at least 2 anchor clicks before X exports. If Pass 0
@@ -173,6 +193,48 @@ gave a good trace and you want to export it without clicking, the Pass 0
 result is exported automatically when you press X with 0 clicks — but
 only if Pass 0 completed successfully. If X still does nothing, check
 the status bar at the top for an error message.
+
+---
+
+### `capt_extract.py` — CAPT tracks the wrong feature
+
+CAPT's Kalman filter uses FFT measurements by default (`--method fft`).
+If the FFT consistently locks onto a strong near-zero feature instead
+of the displaced F-region carrier, CAPT cannot recover it.
+
+**Solutions:**
+- Use `--method tracked` with a tight `--track-band 0.15` to
+  constrain the FFT search around the Kalman prediction
+- Use `--method seed` to ignore FFT entirely and smooth the user's
+  clicked trace (equivalent to spline export)
+- If neither works, the carrier is too broad/diffuse for any
+  peak-picking approach. Use anchor-guided cwt-prophet (P+E keys)
+  or manual spline (X key) instead
+
+### `capt_extract.py` — CAPT trace is too noisy
+
+The Kalman filter trusts measurements too much relative to its
+own prediction. Lower the process noise:
+
+```bash
+python3 capt_extract.py seed.json --drf-dir DIR \
+    --method tracked --proc-noise 0.005 --track-band 0.15
+```
+
+Lower `--proc-noise` = smoother trace (trusts prediction more).
+Lower `--track-band` = narrower FFT search (fewer noise peaks).
+
+### `tid_workflow.py` — CAPT seed not saved
+
+If you close `tid_spect_click.py` without pressing S, no seed JSON
+is written. The workflow will prompt you to retry. Press S before Q.
+
+Use `--no-prophet` mode for faster CAPT seeding (skips Pass 0):
+
+```bash
+python3 tid_spect_click.py --spectrogram img.png --name STN \
+    --drf-dir DIR --no-prophet
+```
 
 ---
 
@@ -226,8 +288,13 @@ If 5 of 6 pairwise correlations are 0.6–0.8 but one is 0.1, that pair
 is noise. The least-squares solution will still try to fit it,
 distorting the answer. Options:
 
-- Drop the offending station and re-run with 3 stations (still valid
-  if the geometry allows).
+- Drop the offending station with `--drop`:
+  ```bash
+  python3 tid_doa.py event.json --drop STATION_NAME
+  python3 tid_doa.py event.json --drop W7LUX --drop AC0G_ND
+  ```
+  `--drop` is repeatable and case-insensitive. Still valid with 3
+  stations if the geometry allows.
 - Tighten the time window to avoid noisy parts of that station's
   signal.
 
