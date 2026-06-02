@@ -571,23 +571,41 @@ def run_workflow(args):
             wave_csv = event_dir / f"{stn_key}_wave_tid.csv"
             wave_key = f"{stn_key}_wave"
             if wave_key not in state:
-                print(f"\n[Step 6] Wave-fit extraction for {name}...")
-                print(f"  → Click points along TID cycle, F=fit, A=accept")
-                run([
-                    "python3", tool("tid_spect_click.py"),
-                    "--spectrogram", str(zoom_clean_png),
-                    "--name", name,
-                    "--seg-start", str(max(0.0, t0_h)),
-                    "--seg-end",   str(t1_h),
-                    "--wave-only",
-                ])
+                while True:
+                    print(f"")
+                    print(f"  ┌──────────────────────────────────────────────────┐")
+                    print(f"  │  [Step 6] Wave-fit extraction for {name:<14s}  │")
+                    print(f"  │                                                  │")
+                    print(f"  │  1. Click 3+ points along the TID oscillation    │")
+                    print(f"  │     (peaks and troughs of the wave)              │")
+                    print(f"  │  2. Press F to fit a sinusoid                    │")
+                    print(f"  │  3. Press A to accept the fit                    │")
+                    print(f"  │  4. Press Q to close                             │")
+                    print(f"  │                                                  │")
+                    print(f"  │  Keys: W=start  F=fit  A=accept  R=reset  Q=quit │")
+                    print(f"  └──────────────────────────────────────────────────┘")
+                    run([
+                        "python3", tool("tid_spect_click.py"),
+                        "--spectrogram", str(zoom_clean_png),
+                        "--name", name,
+                        "--seg-start", str(max(0.0, t0_h)),
+                        "--seg-end",   str(t1_h),
+                        "--wave-only",
+                    ])
+                    if wave_csv.exists():
+                        break
+                    print(f"  ⚠️  No wave-fit CSV saved (did you press A to accept?)")
+                    retry = input(f"  Retry wave-fit for {name}? [Y/n/skip]: ").strip().lower()
+                    if retry == "n" or retry == "skip":
+                        print(f"  Skipping {name}")
+                        break
                 if not wave_csv.exists():
-                    print(f"  WARNING: No wave-fit CSV saved for {name} — skipping")
                     continue
                 state[wave_key] = str(wave_csv)
                 save_state(state_file, state)
+                print(f"  ✓ Wave-fit CSV: {wave_csv.name}")
             else:
-                print(f"  Wave-fit CSV: {wave_csv.name} (already done)")
+                print(f"  ✓ Wave-fit CSV: {wave_csv.name} (already done)")
 
         elif method == "capt":
             # Step 6: CAPT extraction — seed via tid_spect_click, then run capt_extract.py
@@ -661,35 +679,83 @@ def run_workflow(args):
             # P=re-run Prophet, E=export prophet, X=export spline, R=reset, Q=quit
             spline_csv = event_dir / f"{stn_key}_spline_tid.csv"
             spline_key = f"{stn_key}_spline"
+            prophet_csv = event_dir / f"{stn_key}_prophet_tid.csv"
             if spline_key not in state:
-                print(f"\n[Step 6] Interactive spline extraction for {name}...")
-                print(f"  → Pass 0 auto-runs on open (cwt-prophet)")
-                print(f"  → Click anchor points where Prophet went wrong")
-                print(f"  → P=re-run Prophet  E=export prophet  X=export spline")
-                print(f"  → S=CAPT seed  Z=undo  R=reset  Q=quit")
-                run([
-                    "python3", tool("tid_spect_click.py"),
-                    "--spectrogram", str(zoom_clean_png),
-                    "--name", name,
-                    "--drf-dir", drf_dir_s,
-                    "--subchannel", str(sub),
-                    "--corridor-width", "0.4",
-                    "--seg-start", str(max(0.0, t0_h)),
-                    "--seg-end",   str(t1_h),
-                ])
-                if not spline_csv.exists():
-                    print(f"  WARNING: No spline CSV saved for {name} — skipping")
+                while True:
+                    if method == "cwt-prophet":
+                        print(f"")
+                        print(f"  ┌──────────────────────────────────────────────────────┐")
+                        print(f"  │  [Step 6] Anchor-guided cwt-prophet for {name:<10s}  │")
+                        print(f"  │                                                      │")
+                        print(f"  │  Pass 0 runs automatically (green trace)             │")
+                        print(f"  │                                                      │")
+                        print(f"  │  If trace looks good:                                │")
+                        print(f"  │    → Press E to export prophet CSV                   │")
+                        print(f"  │                                                      │")
+                        print(f"  │  If trace has excursions:                             │")
+                        print(f"  │    1. Click anchor points where Prophet went wrong    │")
+                        print(f"  │    2. Press P to re-run Prophet with anchors          │")
+                        print(f"  │    3. Repeat until trace is correct                   │")
+                        print(f"  │    4. Press E to export prophet CSV                   │")
+                        print(f"  │       (or X to export raw spline)                     │")
+                        print(f"  │                                                      │")
+                        print(f"  │  Keys: P=re-run  E=export prophet  X=export spline   │")
+                        print(f"  │        S=CAPT seed  Z=undo  R=reset  Q=quit          │")
+                        print(f"  └──────────────────────────────────────────────────────┘")
+                    else:  # sgolay-ridge
+                        print(f"")
+                        print(f"  ┌──────────────────────────────────────────────────────┐")
+                        print(f"  │  [Step 6] Sgolay-ridge extraction for {name:<12s}  │")
+                        print(f"  │                                                      │")
+                        print(f"  │  1. Click anchor points to define corridor            │")
+                        print(f"  │  2. Press X to export spline CSV                     │")
+                        print(f"  │  3. Press Q to close                                 │")
+                        print(f"  │                                                      │")
+                        print(f"  │  Keys: X=export  Z=undo  R=reset  Q=quit             │")
+                        print(f"  └──────────────────────────────────────────────────────┘")
+                    run([
+                        "python3", tool("tid_spect_click.py"),
+                        "--spectrogram", str(zoom_clean_png),
+                        "--name", name,
+                        "--drf-dir", drf_dir_s,
+                        "--subchannel", str(sub),
+                        "--corridor-width", "0.4",
+                        "--seg-start", str(max(0.0, t0_h)),
+                        "--seg-end",   str(t1_h),
+                    ])
+                    # Check for either prophet or spline CSV
+                    if prophet_csv.exists() or spline_csv.exists():
+                        break
+                    print(f"  ⚠️  No CSV saved (did you press E or X before Q?)")
+                    retry = input(f"  Retry for {name}? [Y/n/skip]: ").strip().lower()
+                    if retry == "n" or retry == "skip":
+                        print(f"  Skipping {name}")
+                        break
+                if not (prophet_csv.exists() or spline_csv.exists()):
                     continue
-                state[spline_key] = str(spline_csv)
+                # Prefer prophet CSV if it exists (E key export)
+                if prophet_csv.exists():
+                    state[spline_key] = str(prophet_csv)
+                    print(f"  ✓ Prophet CSV: {prophet_csv.name}")
+                else:
+                    state[spline_key] = str(spline_csv)
+                    print(f"  ✓ Spline CSV: {spline_csv.name}")
                 save_state(state_file, state)
             else:
-                print(f"  Spline CSV: {spline_csv.name} (already done)")
+                csv_name = Path(state[spline_key]).name
+                print(f"  ✓ {csv_name} (already done)")
         else:  # method in (fft, autocorr, cwt)
             # Step 6: Automated extraction
             csv_key = f"{stn_key}_{method.replace('-', '_')}"
             out_csv = event_dir / f"{stn_key}_{method}_tid.csv"
             if csv_key not in state:
-                print(f"\n[Step 6] {method} extraction for {name}...")
+                print(f"")
+                print(f"  ┌──────────────────────────────────────────────────────┐")
+                print(f"  │  [Step 6] Automated {method} extraction for {name:<8s}  │")
+                print(f"  │                                                      │")
+                print(f"  │  Fully automated — no interaction needed.             │")
+                print(f"  │  Extracting Doppler from DRF...                       │")
+                print(f"  └──────────────────────────────────────────────────────┘")
                 r = run([
                     "python3", tool("drf_to_doppler.py"),
                     drf_dir_s,
@@ -869,6 +935,11 @@ def run_workflow(args):
     if len(completed) < 3:
         print(f"  Only {len(completed)} station(s) completed — need ≥3 for DOA")
         return
+
+    # Show which CSV and method will be used per station
+    print(f"\n  Extraction files for DOA:")
+    for s in completed:
+        print(f"    {s['name']:<14s} method={s['method']:<12s} {Path(s['file']).name}")
 
     # Show which CSV and method will be used per station
     print(f"\n  Extraction files for DOA:")
