@@ -216,6 +216,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self._wave_mode = False
         self._wave_done = False
         self._wave_only = False
+        self._no_prophet = False
         self._wave_candidate = None
         self._wave_clicks_t = []
         self._wave_clicks_d = []
@@ -237,7 +238,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self._update_status()
         # Auto-run Prophet on open (Pass 0 — no clicks needed)
         if self.drf_dir:
-            if not getattr(self, "_wave_only", False):
+            if not getattr(self, "_wave_only", False) and not self._no_prophet:
                 QtCore.QTimer.singleShot(500, self._run_prophet_preview)
 
     # ------------------------------------------------------------------
@@ -621,9 +622,13 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self._preview_spline()
         self._update_status()
         n = len(self.clicks_t)
-        self._set_status(
-            f"{n} anchor(s).  P=re-run Prophet  X=export  W=wave-fit  "
-            f"S=CAPT seed  Z=undo  R=reset  Q=quit")
+        if self._no_prophet:
+            self._set_status(
+                f"{n} anchor(s).  X=export  S=CAPT seed  Z=undo  R=reset  Q=quit")
+        else:
+            self._set_status(
+                f"{n} anchor(s).  P=re-run Prophet  E=export prophet  "
+                f"X=export spline  S=CAPT seed  Z=undo  R=reset  Q=quit")
 
     def _refresh_scatter(self):
         if self.clicks_t:
@@ -1049,11 +1054,13 @@ class SpectClickApp(QtWidgets.QMainWindow):
         else:
             n = len(self.clicks_t)
             seg = f"  seg: {self.seg_t0:.2f}–{self.seg_t1:.2f} h"
-            msg = (
-                f"[{self.name}] {n} click(s){seg}   "
-                "[X] export  [W] wave-fit  "
-                "[R] reset  [C] clear  [Q] quit"
-            )
+            if self._no_prophet:
+                keys = "[X] export  [S] CAPT seed  [Z] undo  [R] reset  [Q] quit"
+            else:
+                keys = ("[P] re-run Prophet  [E] export prophet  "
+                        "[X] export spline  [S] CAPT seed  "
+                        "[Z] undo  [W] wave-fit  [R] reset  [Q] quit")
+            msg = f"[{self.name}] {n} click(s){seg}   {keys}"
         self.status_label.setText(msg)
 
 
@@ -1454,6 +1461,10 @@ def _parse_args():
                         "When X is pressed, the matching station entry is "
                         "updated with the exported CSV path and method, "
                         "making the run reproducible from the command line.")
+    p.add_argument("--no-prophet", action="store_true",
+                   help="Skip Prophet Pass 0 auto-run. Use for CAPT seeding, "
+                        "pure spline clicking, or when Prophet is not needed. "
+                        "Status bar shows only relevant key bindings.")
     p.add_argument("--wave-only", action="store_true",
                    help="Skip Pass 0. Open directly in wave-fit mode (W).")
     return p.parse_args()
@@ -1519,6 +1530,9 @@ def main():
         sgolay_window = args.sgolay_window,
         corridor_width = args.corridor_width,
     )
+    if args.no_prophet:
+        win._no_prophet = True
+        print('  Prophet Pass 0: skipped (--no-prophet)')
     if args.event_json:
         win._event_json = args.event_json
         print(f'  Event JSON: {args.event_json} (will update on X export)')
