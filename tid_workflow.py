@@ -14,9 +14,12 @@ Automates the 10-step guided extraction workflow:
   Step 3:  User selects TID window (tid_quicklook.py)
   Step 4:  Zoomed spectrogram
   Step 5:  Optionally refine TID window (opt-in)
-  Step 6:  cwt-prophet/sgolay-ridge: interactive spline extraction (Pass 0 auto + click-to-correct)
+  Step 6:  cwt-prophet: anchor-guided extraction (Pass 0 auto + P to re-run with anchors)
+           sgolay-ridge: corridor-based extraction (legacy)
            fft/autocorr/cwt: fully automated extraction
-  Step 7:  sgolay-ridge: sgolay extraction  |  fft: overlay spectrogram  |  autocorr/cwt: (none)
+           wave-fit: sine fit to user-clicked cycle points
+           CAPT: Kalman filter seeded from user clicks (experimental)
+  Step 7:  overlay spectrogram for visual assessment
   Step 8:  DOA (tid_doa.py)
 
 State is saved after each interactive step so the workflow can be
@@ -413,15 +416,18 @@ def run_workflow(args):
     # ── Method selection ─────────────────────────────────────────────────
     if "extraction_method" not in state:
         print("\nExtraction method:")
-        print("  1. cwt-prophet   (interactive spline — recommended)")
+        print("  1. cwt-prophet   (anchor-guided — recommended)")
         print("  2. fft           (automated)")
         print("  3. autocorr      (automated, Gwyn G3ZIL method)")
         print("  4. cwt           (automated, CWT multi-peak tracker)")
-        print("  5. sgolay-ridge  (interactive spline, legacy corridor method)")
+        print("  5. sgolay-ridge  (legacy corridor method)")
+        print("  6. wave-fit      (sine fit to clicked cycle points)")
+        print("  7. capt          (Kalman filter from seed clicks — experimental)")
         choice = input("Choose [1]: ").strip() or "1"
         method = {"1": "cwt-prophet", "2": "fft",
                   "3": "autocorr", "4": "cwt",
-                  "5": "sgolay-ridge"}.get(choice, "cwt-prophet")
+                  "5": "sgolay-ridge", "6": "wave-fit",
+                  "7": "capt"}.get(choice, "cwt-prophet")
         state["extraction_method"] = method
         save_state(state_file, state)
     else:
@@ -560,17 +566,84 @@ def run_workflow(args):
             t0_h = zwj["t_start_utc_hours"]
             t1_h = zwj["t_end_utc_hours"]
         print(f"  Analysis window: {h_to_hhmm(t0_h)}–{h_to_hhmm(t1_h)} UTC")
-        if method in ("sgolay-ridge", "cwt-prophet"):
-            # Step 6/7: Interactive spline extraction via tid_spect_click
-            # Pass 0: cwt-prophet auto-runs on open, user corrects with clicks
-            # P=re-run Prophet, X=export spline, R=reset, Q=quit
+        if method == "wave-fit":
+            # Step 6: Wave-fit extraction via tid_spect_click --wave-only
+            wave_csv = event_dir / f"{stn_key}_wave_tid.csv"
+            wave_key = f"{stn_key}_wave"
+            if wave_key not in state:
+                print(f"\n[Step 6] Wave-fit extraction for {name}...")
+                print(f"  → Click points along TID cycle, F=fit, A=accept")
+                run([
+                    "python3", tool("tid_spect_click.py"),
+                    "--spectrogram", str(zoom_clean_png),
+                    "--name", name,
+                    "--seg-start", str(max(0.0, t0_h)),
+                    "--seg-end",   str(t1_h),
+                    "--wave-only",
+                ])
+                if not wave_csv.exists():
+                    print(f"  WARNING: No wave-fit CSV saved for {name} — skipping")
+                    continue
+                state[wave_key] = str(wave_csv)
+                save_state(state_file, state)
+            else:
+                print(f"  Wave-fit CSV: {wave_csv.name} (already done)")
+
+        elif method == "capt":
+            # Step 6: CAPT extraction — seed via tid_spect_click, then run capt_extract.py
+            seed_json = event_dir / f"{stn_key}_tid_zoom_clean_capt_seed.json"
+            capt_csv  = event_dir / f"{stn_key}_capt_tid.csv"
+            seed_key  = f"{stn_key}_capt_seed"
+            capt_key  = f"{stn_key}_capt"
+            if capt_key not in state:
+                # Step 6a: seed
+                if seed_key not in state:
+                    print(f"\n[Step 6a] CAPT seed for {name}...")
+                    print(f"  → Click 2+ points on carrier, S=save seed, Z=undo, Q=quit")
+                    run([
+                        "python3", tool("tid_spect_click.py"),
+                        "--spectrogram", str(zoom_clean_png),
+                        "--name", name,
+                        "--drf-dir", drf_dir_s,
+                        "--subchannel", str(sub),
+                        "--no-prophet",
+                    ])
+                    if not seed_json.exists():
+                        print(f"  WARNING: No CAPT seed saved for {name} — skipping")
+                        continue
+                    state[seed_key] = str(seed_json)
+                    save_state(state_file, state)
+                # Step 6b: extract
+                print(f"\n[Step 6b] CAPT extraction for {name}...")
+                r = run([
+                    "python3", tool("capt_extract.py"),
+                    str(seed_json),
+                    "--drf-dir", drf_dir_s,
+                    "--subchannel", str(sub),
+                    "--start", h_to_iso(date_str, t0_h),
+                    "--end",   h_to_iso(date_str, t1_h),
+                    "--output", str(capt_csv),
+                ])
+                if r.returncode != 0 or not capt_csv.exists():
+                    print(f"  ERROR: CAPT extraction failed for {name}")
+                    continue
+                state[capt_key] = str(capt_csv)
+                save_state(state_file, state)
+            else:
+                print(f"  CAPT CSV: {capt_csv.name} (already done)")
+
+        elif method in ("sgolay-ridge", "cwt-prophet"):
+            # Step 6: Anchor-guided cwt-prophet or sgolay-ridge via tid_spect_click
+            # Pass 0: cwt-prophet auto-runs on open, user corrects with anchors
+            # P=re-run Prophet, E=export prophet, X=export spline, R=reset, Q=quit
             spline_csv = event_dir / f"{stn_key}_spline_tid.csv"
             spline_key = f"{stn_key}_spline"
             if spline_key not in state:
                 print(f"\n[Step 6] Interactive spline extraction for {name}...")
                 print(f"  → Pass 0 auto-runs on open (cwt-prophet)")
-                print(f"  → Click F-region carrier to correct excursions")
-                print(f"  → P=re-run  X=export  R=reset  Q=quit")
+                print(f"  → Click anchor points where Prophet went wrong")
+                print(f"  → P=re-run Prophet  E=export prophet  X=export spline")
+                print(f"  → S=CAPT seed  Z=undo  R=reset  Q=quit")
                 run([
                     "python3", tool("tid_spect_click.py"),
                     "--spectrogram", str(zoom_clean_png),
