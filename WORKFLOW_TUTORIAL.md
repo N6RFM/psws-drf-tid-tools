@@ -146,31 +146,37 @@ reveals the window needs adjustment.
 
 ### Step 6 -- Extraction
 
-Three extraction options are available. Choose based on signal quality
-and how many TID cycles are visible in the window.
+Five extraction options are available. Choose based on signal quality,
+contamination level, and how many TID cycles are visible.
 
 ---
 
-#### Option A: Spline extraction (cwt-prophet) — recommended
+#### Option A: Anchor-guided cwt-prophet extraction — recommended
 
 A `tid_spect_click` window opens showing the zoomed spectrogram.
+Use `--event-json event.json` to auto-update the event config on export.
 
 **Pass 0 (automatic):** The tool immediately runs cwt-prophet and
 shows the result as a green overlay. No clicks needed — inspect
 the trace first.
 
-**If the Pass 0 trace looks good:** press **X** to export and move
-to the next station.
+**If the Pass 0 trace looks good:** press **E** to export the
+prophet CSV and move to the next station.
 
-**If the trace has excursions:** click on the carrier at the
-problem region to add anchor points (black dots), then:
+**If the trace has excursions:** click anchor points on the carrier
+where Prophet went wrong, then press **P** to re-run Prophet with
+your anchors as hard constraints:
 
     Key bindings (shown in status bar at top):
       Click   Add anchor point on carrier (black dot)
       P       Re-run Prophet with current anchors as constraints
-      X       Export final spline CSV
+      E       Export prophet CSV (recommended — smooth, guided trace)
+      X       Export raw spline CSV (PCHIP through clicks only)
+      S       Save CAPT seed JSON (for capt_extract.py, see Option D)
       W       Switch to wave-fit mode (Option B)
+      Z       Undo last click
       R       Reset all clicks
+      C       Clear all (clicks + calibration)
       Q       Quit
 
 **What to click for Option A (spline):**
@@ -191,18 +197,26 @@ this is the F-region carrier you want to track.
 
 **Multi-region editing workflow:**
 1. Inspect Pass 0 automatic trace (green)
-2. Click 2+ points on the carrier in any problem region —
+2. Click 2+ anchor points on the carrier in any problem region —
    live spline preview updates immediately
-3. Inspect the spline preview — add more clicks if needed
-4. Click next problem region
-5. When all regions are correct — press **X** to export
+3. Press **P** to re-run Prophet with your anchors as constraints
+4. Inspect the new prophet overlay — add more anchors and press
+   P again if needed. Press Z to undo a misplaced click.
+5. When satisfied: press **E** to export the prophet CSV
+6. Or press **X** to export the raw spline (without Prophet smoothing)
+7. Or press **S** to save a CAPT seed JSON (see Option D)
 
 **Key points:**
-- Clicks define the carrier position directly
-- The PCHIP spline interpolates smoothly between clicks
-- Outside the clicked range, the last accepted trace is used as baseline
-- Minimum clicks needed = quality metric: clean stations may need 0
-- Output: `<station>_spline_tid.csv`
+- Prophet provides a smooth, physically motivated carrier estimate
+- Anchor clicks correct only the regions where Prophet fails
+- Most of the trace is Prophet's work — user intervenes only where needed
+- Prefer **E** (prophet) over **X** (raw spline) when Prophet fits well
+- Use **X** only when the carrier is too complex for Prophet
+- Minimum clicks needed = quality metric: clean stations need 0
+
+**Output:**
+- E key: `<station>_prophet_tid.csv` (recommended)
+- X key: `<station>_spline_tid.csv`
 
 ---
 
@@ -277,11 +291,65 @@ Not recommended when E-region contamination is present.
 
 ---
 
+#### Option D: CAPT extraction (experimental)
+
+CAPT (Constrained Adaptive Phase Tracking) uses a Kalman filter seeded
+from a few clicks to propagate the carrier. Fewer clicks than spline;
+more constrained than automated methods.
+
+1. Open tid_spect_click.py, click 2+ points on a clean carrier
+   segment, press **S** to save a CAPT seed JSON
+2. Run the Kalman tracker:
+
+```bash
+python3 capt_extract.py seed.json \
+    --drf-dir ./n6rfm --subchannel 0 \
+    --start 2026-01-19T00:00:00Z \
+    --end 2026-01-19T01:15:00Z
+```
+
+Methods: `--method fft` (default), `tracked` (constrained FFT search),
+`seed` (spline-only), `autocorr`. Tuning: `--max-step`, `--track-band`,
+`--proc-noise`.
+
+**When CAPT helps:** moderate contamination where FFT can find the
+carrier but needs continuity constraints to reject wrong-peak jumps.
+
+**When CAPT does not help:** carrier displaced far from 0 Hz where FFT
+consistently locks onto wrong feature. Use anchor-guided cwt-prophet
+(Option A) or raw spline (X key) instead.
+
+Output: `<station>_capt_tid.csv`
+
+---
+
+#### Option E: Sgolay-ridge extraction (legacy)
+
+Corridor-based extraction where the user defines a frequency band
+and the Savitzky-Golay ridge-finder tracks within it. Superseded by
+anchor-guided cwt-prophet (Option A) but still available:
+
+```bash
+python3 drf_to_doppler.py ./n6rfm --subchannel 0 \
+    --start 2026-01-19T00:00:00 --end 2026-01-19T02:00:00 \
+    --decim-seconds 60 --method sgolay-ridge \
+    --output n6rfm_sgolay_tid.csv
+```
+
+Output: `<station>_sgolay_tid.csv`
+
+---
+
 ### Step 7 -- Extraction output
 
-spline/cwt-prophet (Option A): writes `<station>_spline_tid.csv`
-wave-fit (Option B): writes `<station>_wave_tid.csv`
-automated fft/autocorr/cwt (Option C): writes `<station>_<method>_tid.csv`
+| Option | Key/command | Output file |
+|--------|-------------|-------------|
+| A (cwt-prophet, recommended) | E key | `<station>_prophet_tid.csv` |
+| A (raw spline) | X key | `<station>_spline_tid.csv` |
+| B (wave-fit) | A key (accept) | `<station>_wave_tid.csv` |
+| C (automated) | drf_to_doppler.py | `<station>_<method>_tid.csv` |
+| D (CAPT) | capt_extract.py | `<station>_capt_tid.csv` |
+| E (sgolay-ridge) | drf_to_doppler.py | `<station>_sgolay_tid.csv` |
 
 An overlay spectrogram is generated for visual assessment.
 
