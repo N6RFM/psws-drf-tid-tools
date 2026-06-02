@@ -3332,3 +3332,94 @@ CAPT v0.1.0 confirms:
    heavily contaminated stations
 3. Add CAPT to `tid_workflow.py` as an extraction option
 4. Share results with Gwyn — agreed method, first clean result
+
+---
+
+## Entry 57 — Jan 2026: CAPT limitation finding + extraction roadmap
+**Date:** 2026-06-01
+**Branch:** research_gui
+
+### Context
+Following Entry 56 (CAPT first results), CAPT was exercised harder on
+the Jan 2026 event, particularly the AA6BD station whose carrier is
+displaced far from 0 Hz by a large TID excursion.
+
+### New CAPT options added
+- `capt_extract.py --method fft|seed|autocorr`
+  - fft (default): FFT peak per block
+  - seed: PCHIP spline through seed clicks as Kalman measurements
+  - autocorr: lag-1 complex autocorrelation
+- `tid_spect_click.py`: Z key (undo last click), live PCHIP spline
+  preview after every click
+- `--max-step` tightened experiments: 0.5 → 0.2 → 0.05 Hz
+
+### Key finding: CAPT does not solve the AA6BD case
+On AA6BD the F-region carrier rises to ~+1.5 Hz mid-window while a
+strong near-zero feature persists. The FFT measurement always locks
+onto the near-zero feature regardless of seed placement (block 21:
+-0.316 Hz; block 41: +0.118 Hz — both wrong; true carrier ~+1 Hz).
+
+Consequences:
+- `--method fft`: Kalman rejects the wrong FFT measurements (good) but
+  then has no real data — coasts on prediction only
+- `--method seed`: Kalman smooths/extrapolates the PCHIP spline, but
+  outside the seed region it just coasts on the spline. It does not
+  track the carrier in the DRF — it only re-expresses the user's clicks
+
+**Conclusion:** when the FFT cannot find the correct carrier, neither
+CAPT mode tracks it. `--method seed` is mathematically equivalent to
+the existing spline export (X key) — clicking the full carrier and
+exporting the PCHIP spline. The Kalman layer adds nothing on a station
+that requires full manual tracing.
+
+### Physical tuning note
+TID carrier rate of change is small. For period ~60 min, amplitude
+~1.5 Hz: max rate ≈ 1.5 / (30·60) ≈ 0.0008 Hz/s, i.e. ~0.05 Hz per
+60s block. The default MAX_STEP_HZ=0.5 is ~10× too loose for slow
+TIDs. Tightening to 0.05 Hz is physically correct but does not fix
+the AA6BD case because the problem is wrong-feature lock, not step size.
+
+### Assessment
+Jan 2026 is the wrong test event for CAPT:
+- N6RFM, W7LUX, AC0G_ND have near-zero carriers — FFT works, CAPT adds little
+- AA6BD has a displaced carrier — FFT fails, CAPT can't help without
+  full manual clicking (at which point spline export is equivalent)
+
+The canonical Jan 2026 result remains the prophet extraction:
+304 m/s from 10° NNE, 0/5 flags (drop AC0G_ND). CAPT defaults unchanged.
+
+### The right test for CAPT: May 2024 Gwyn event
+May 2024 has E-region contamination on AC0G_ND and N4RVE where the
+F-region carrier is displaced but the FFT locks onto the E-region.
+This is the case CAPT is designed for — a single seed click on the
+correct carrier, then track under continuity constraints. Sgolay-ridge
+currently handles this with a full corridor definition; CAPT should
+do it with fewer clicks. Deferred to next session.
+
+### Extraction roadmap (ideas for future work)
+1. **Constrained FFT search** (smallest change, addresses today's gap)
+   Instead of argmax over the whole spectrum, search for the FFT peak
+   only within ±band of the previous block's value. Tracks the real
+   carrier in the DRF but is immune to wrong-peak lock once locked onto
+   the displaced carrier. One seed click to start, then follows signal.
+   This is what AA6BD actually needed.
+
+2. **Spectrogram ridge-following**
+   Operate on the spectrogram image the user already sees, not the DRF.
+   From a seed click, follow the brightest connected ridge through the
+   image via path-finding (Dijkstra/seam-carving on intensity). The user
+   sees exactly what the algorithm sees; sidesteps FFT-vs-autocorr.
+
+3. **Multi-hypothesis tracking**
+   Run several trackers in parallel from different seeds (one per
+   candidate carrier), each following its ridge; user picks the physical
+   F-region carrier at the end. Handles the genuine two-feature ambiguity
+   on AA6BD-type stations.
+
+Idea 1 (constrained FFT search) is the recommended next implementation.
+
+### Open items
+1. Implement constrained FFT search as capt_extract --method tracked
+2. Run CAPT on May 2024 Gwyn event — the real test
+3. Send Gwyn email — Jan 2026 results + CAPT status
+4. find_event_stations.py — better 4th station

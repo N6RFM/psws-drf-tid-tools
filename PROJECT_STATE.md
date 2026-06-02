@@ -342,3 +342,28 @@ Direction is consistent across both results and GPS TEC confirmation.
 4. Share with Gwyn
 5. Send Gwyn email — Jan 2026 results + CAPT first results
 6. find_event_stations.py — better 4th station
+
+---
+## 49. CAPT limitation finding + extraction roadmap — 2026-06-01
+
+### Added
+- `capt_extract.py --method fft|seed|autocorr` (commit 3e08d39)
+- `tid_spect_click.py`: Z key undo, live PCHIP spline preview
+- Defaults unchanged (method=fft, max_step=0.5)
+
+### Key finding
+CAPT does not solve the AA6BD displaced-carrier case. When FFT locks
+onto the wrong (near-zero) feature, neither CAPT mode tracks the real
+carrier. `--method seed` is equivalent to spline export (X key).
+Canonical Jan 2026 result remains prophet (304 m/s, 0/5 flags).
+
+### Extraction roadmap
+1. Constrained FFT search (search ±band of previous block) — recommended next
+2. Spectrogram ridge-following (path-find on image intensity)
+3. Multi-hypothesis tracking (parallel trackers, user picks)
+
+### Open items
+1. Implement constrained FFT search
+2. Run CAPT on May 2024 Gwyn event — the real test
+3. Send Gwyn email
+4. find_event_stations.py — better 4th station

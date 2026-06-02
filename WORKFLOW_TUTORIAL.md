@@ -477,3 +477,34 @@ independently by Madrigal GPS TEC lag sign (Entry 52).
 
 For reproducibility, prefer committing the prophet_preview CSV
 (E key export) over the spline CSV when Pass 0 is acceptable.
+
+
+### CAPT (Constrained Adaptive Phase Tracking)
+
+CAPT (`capt_extract.py`) is an experimental extraction method that
+seeds from a few clicks and propagates the carrier under a Kalman
+filter. Seed via the S key in `tid_spect_click.py`, then run:
+
+```bash
+python3 capt_extract.py seed.json --drf-dir DIR \
+    --start HH:MM --end HH:MM --method fft
+```
+
+Methods:
+- `--method fft` (default): FFT peak per block, Kalman-constrained
+- `--method seed`: PCHIP spline through clicks (equivalent to X export)
+- `--method autocorr`: lag-1 complex autocorrelation
+
+**When CAPT helps:** stations where the FFT can find the carrier but
+needs continuity constraints to reject occasional wrong-peak jumps.
+
+**When CAPT does not help:** stations where the carrier is displaced
+far from 0 Hz and the FFT consistently locks onto a different feature
+(e.g. a strong near-zero band). In that case the FFT measurement is
+always wrong and CAPT cannot recover it — use manual spline (X key)
+instead.
+
+**Tuning:** `--max-step` is the maximum Doppler change per block before
+a measurement is rejected. For slow TIDs (period ~60 min) the physical
+maximum is ~0.05 Hz per 60s block; the default 0.5 Hz is deliberately
+loose. Tighten for cleaner tracking on slow events.
