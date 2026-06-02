@@ -223,6 +223,19 @@ See `docs/COOKBOOK.md` for full details on external evaluation.
 `--max-lag 20` (minutes) to prevent alias peak lock. See
 `ASSESSING_RESULTS.md` for details.
 
+- `capt` **(experimental)**: Constrained Adaptive Phase Tracking.
+  User seeds 2+ clicks on the carrier in `tid_spect_click.py` (S key),
+  then `capt_extract.py` propagates the carrier via Kalman filter.
+  Methods: `--method fft` (default), `seed`, `autocorr`, `tracked`.
+  `tracked` mode constrains the FFT search to ±band around the
+  prediction — immune to wrong-feature lock on moderate contamination.
+
+**New in tid_spect_click.py:** S=save CAPT seed, Z=undo last click,
+E=export prophet CSV, `--event-json` updates event config on export.
+
+**New in tid_doa.py:** `--drop NAME` excludes a station by name
+(repeatable, case-insensitive). Avoids editing the event JSON.
+
 See `MANUAL_TUTORIAL.md` for the full extraction method comparison.
 
 ---
@@ -259,12 +272,14 @@ psws-drf-tid-tools/
 ├── drf_to_doppler.py           Doppler extraction (fft/autocorr/cwt/sgolay-ridge)
 ├── drf_inspect.py              verify DRF metadata + subchannel
 ├── find_event_stations.py      companion-station discovery
-├── tid_doa.py                  multi-station DOA inversion
+├── tid_doa.py                  multi-station DOA inversion (--drop to exclude stations)
+├── capt_extract.py             CAPT: Constrained Adaptive Phase Tracking extractor
 ├── tid_stack_plot.py           stacked Doppler comparison
 ├── tid_map.py                  array geometry map
 ├── evaluate_external.py        external space weather evaluation
 ├── fetch_ae_index.py           fetch + plot AE index (WDC Kyoto)
 ├── fetch_glotec.py             analyse GloTEC TEC anomaly maps
+├── fetch_madrigal_tec.py        Madrigal GPS TEC retrieval + xcorr
 │
 ├── docs/
 │   ├── ASSESSING_RESULTS.md         technical basis for DOA estimates

@@ -232,6 +232,40 @@ See `WORKFLOW_TUTORIAL.md` Step 6 (Option A) for the full workflow.
 
 ---
 
+## Step 1e: CAPT — Constrained Adaptive Phase Tracking (experimental)
+
+`capt_extract.py` implements a Kalman-filter-based carrier tracker
+seeded from user clicks in `tid_spect_click.py` (S key).
+
+**State vector:** [doppler_hz, doppler_rate_hz_per_s]
+**Motion model:** constant-rate F = [[1,dt],[0,1]]
+**Process noise:** tunable via `--proc-noise` (default 0.02 Hz/√step)
+
+The user clicks 2+ points on the carrier to establish the initial
+state. The Kalman filter propagates forward and backward in time,
+using one of four measurement sources (`--method`):
+
+- `fft` (default): unconstrained FFT peak — same as drf_to_doppler
+- `seed`: PCHIP spline through seed clicks (no DRF processing)
+- `autocorr`: lag-1 complex autocorrelation
+- `tracked`: FFT peak searched only within ±track-band of the
+  prediction — constrained to follow the seeded carrier
+
+The `tracked` mode is the key innovation: by restricting the FFT
+search to a narrow band around where the carrier is predicted to be,
+it cannot lock onto a strong feature far from the true carrier
+(e.g. an E-region band near 0 Hz when the F-region carrier is
+displaced). The `--max-step` parameter provides a second constraint:
+measurements deviating more than this from the prediction are
+rejected and the filter coasts on its own state.
+
+**Limitation:** when the carrier is too broad or diffuse for any
+peak-picking approach to resolve (e.g. AA6BD on the Jan 2026 event),
+CAPT cannot track it. Manual spline extraction (X key) remains the
+correct choice for such stations.
+
+---
+
 ## Step 2: Cross-correlation
 
 For two Doppler series `x[n]` and `y[n]` (resampled to common cadence
