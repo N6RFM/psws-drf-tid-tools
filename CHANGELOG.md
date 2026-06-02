@@ -1,3 +1,41 @@
+## v2.3.51 — 2026-06-01
+
+### New features
+
+- **capt_extract.py v0.1.0 — Constrained Adaptive Phase Tracking**
+  New Doppler extraction method using a Kalman filter seeded from
+  user clicks (S key in tid_spect_click.py). Propagates carrier phase
+  forward and backward under TID physics continuity constraints.
+  Methods: `--method fft` (default), `seed`, `autocorr`, `tracked`.
+  `tracked` mode constrains the FFT search to ±track-band around the
+  Kalman prediction — immune to wrong-feature lock. Tunable via
+  `--proc-noise`, `--track-band`, `--max-step`.
+
+- **tid_doa.py: --drop flag**
+  Exclude stations by name before DOA inversion. Repeatable and
+  case-insensitive. E.g. `--drop W7LUX --drop AC0G_ND`.
+
+- **tid_spect_click.py: --event-json + new keys**
+  `--event-json` arg: on export (X/E key), the matching station entry
+  in the event JSON is updated with file path and method. New keys:
+  E=export prophet CSV, S=save CAPT seed JSON, Z=undo last click.
+  Live PCHIP spline preview after every click.
+
+### Documentation
+
+- WORKFLOW_TUTORIAL: --drop usage, CAPT section, reference result
+  updated to 304 m/s 10° NNE 0/5 flags (cwt-prophet, drop AC0G_ND)
+- COOKBOOK: drop-station recipe, --drop in troubleshooting
+- README: capt_extract.py in tool listing, CAPT/--drop/--event-json
+  in extraction methods
+- MANUAL_TUTORIAL: --drop in Step 8, CAPT in method comparison,
+  reference result updated
+- METHODOLOGY: CAPT method description
+- ASSESSING_RESULTS: --drop in diagnostic workflow
+- CHANGELOG: entries for v2.3.31–v2.3.50 backfilled
+
+---
+
 ## v2.3.50 — 2026-05-30
 
 ### New features

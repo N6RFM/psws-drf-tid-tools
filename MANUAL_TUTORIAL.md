@@ -303,14 +303,13 @@ Run log written to `runs/<timestamp>_run.log`.
 Test robustness by dropping a station:
 
 ```bash
-python3 -c "
-import json
-e = json.load(open('event.json'))
-e['stations'] = [s for s in e['stations'] if s['name'] != 'AC0G_ND']
-json.dump(e, open('event_3stn.json','w'), indent=2)
-"
-python3 tid_doa.py event_3stn.json
+python3 tid_doa.py event.json --drop AC0G_ND
+python3 tid_doa.py event.json --drop W7LUX --drop AC0G_ND
 ```
+
+`--drop` is repeatable and case-insensitive. The diagnostics suggest
+which station to try dropping when triangle closure or correlation
+flags fire.
 
 ---
 
@@ -358,19 +357,29 @@ The spline approach gives the physically correct result by letting the
 user define the carrier position directly, bypassing automated peak
 selection entirely.
 
+**CAPT (experimental):** Constrained Adaptive Phase Tracking.
+User seeds 2+ clicks on the carrier (S key), then `capt_extract.py`
+propagates via Kalman filter. `--method tracked` constrains the FFT
+search around the prediction. Best for moderate contamination where
+the carrier is findable but FFT sometimes jumps to a wrong feature.
+Not effective when the carrier is too broad/diffuse (use spline).
+Jan 2026 result (drop AC0G_ND): 211 m/s, 11° NNE, 0/5 flags.
+
 ---
 
 ## Reference result -- Jan 2026 event
 
 | Metric | Value |
 |--------|-------|
-| Stations | N6RFM, AA6BD, W7LUX, AC0G/ND |
-| Phase speed | 239 m/s (spline, best result) |
-| Coming from | 30° NNE |
-| Heading toward | ~210° SSW |
-| Classification | LSTID, auroral origin |
+| Stations | N6RFM, AA6BD, W7LUX (AC0G_ND dropped) |
+| Phase speed | 304 m/s |
+| Coming from | 10° NNE |
+| Heading toward | ~190° SSW |
+| Classification | MSTID, auroral origin |
 | Window | 2026-01-19T00:00–01:15 UTC |
-| Flags | 1/5 |
+| Flags | 0/5 |
+| Method | cwt-prophet Pass 0 |
+| Command | `python3 tid_doa.py event.json --drop AC0G_ND` |
 
 ---
 
