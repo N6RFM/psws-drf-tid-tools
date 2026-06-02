@@ -238,6 +238,18 @@ python3 fetch_glotec.py \
     --output-dir ./evaluation
 ```
 
+# 4. Madrigal GPS TEC cross-correlation
+python3 fetch_madrigal_tec.py \
+    --date 2026-01-19 \
+    --event-start 2026-01-19T00:00:00Z \
+    --event-end   2026-01-19T01:15:00Z \
+    --output-dir ./evaluation
+```
+
+Madrigal queries MIT Haystack GPS TEC data (cedar.openmadrigal.org,
+no account required) and cross-correlates detrended TEC perturbations
+across station pairs for independent lag/direction verification.
+
 See `docs/COOKBOOK.md` for full details on external evaluation.
 
 **xcorr aliasing note:** for LSTID events with ~60 min period, set
