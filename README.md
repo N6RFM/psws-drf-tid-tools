@@ -236,7 +236,6 @@ python3 fetch_glotec.py \
     --event-start 2026-01-19T00:00:00Z \
     --event-end   2026-01-19T01:15:00Z \
     --output-dir ./evaluation
-```
 
 # 4. Madrigal GPS TEC cross-correlation
 python3 fetch_madrigal_tec.py \
