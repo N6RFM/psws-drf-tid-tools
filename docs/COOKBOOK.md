@@ -170,40 +170,27 @@ python3 tid_spect_click.py \
     --drf-dir ./station \
     --subchannel 0 \
     --corridor-width 0.4 \
-    --seg-start 0 --seg-end 2
+    --seg-start 0 --seg-end 2 \
+    --event-json event.json
 ```
 
 On open, cwt-prophet runs automatically (Pass 0). Key bindings:
 
-    Click   Add anchor on F-region carrier (slow oscillation near 0 Hz)
-    P       Re-run Prophet with anchors as constraints
-    X       Export spline CSV
+    Click   Add anchor on F-region carrier
+    P       Re-run Prophet with anchors as hard constraints
+    E       Export prophet CSV (recommended — smooth, guided trace)
+    X       Export raw spline CSV (PCHIP through clicks only)
+    S       Save CAPT seed JSON (for capt_extract.py)
     W       Enter wave-fit mode (click cycle points, F to fit)
+    Z       Undo last click
     R       Reset clicks
+    C       Clear all (clicks + calibration)
     Q       Quit
 
-The PCHIP spline through anchor clicks IS the extracted Doppler.
-No wrong-peak lock possible. Output: `station_spline_tid.csv`
-
-**Multi-region corrections:** after pressing X, click on another
-problem region and press X again. Each X sets the exported CSV as
-the new baseline.
-
-### How do I use anchor-guided cwt-prophet extraction?
-
-Pass an anchors JSON (written automatically by `tid_spect_click.py`)
-to constrain the CWT search around a user-defined spline:
-
-```bash
-python3 drf_to_doppler.py ./station \
-    --subchannel 0 \
-    --start 2026-01-19T00:00:00 --end 2026-01-19T02:00:00 \
-    --decim-seconds 60 --method cwt-prophet \
-    --anchors station_tid_zoom_clean_anchors.json \
-    --corridor-width 0.4 \
-    --output station_cwt_prophet_tid.csv
-```
-
+**Recommended workflow:** click anchors where Prophet went wrong,
+press P to re-run, then E to export the smooth prophet CSV.
+Use X only when the carrier is too complex for Prophet to fit.
+`--event-json` auto-updates the event config on export.
 
 ### How do I use wave-fit extraction (--wave-only)?
 
@@ -335,6 +322,47 @@ gunzip jplg0190.26i.gz
 ```
 
 
+
+---
+
+### How do I use CAPT extraction (experimental)?
+
+CAPT (Constrained Adaptive Phase Tracking) uses a Kalman filter seeded
+from a few clicks. Fewer clicks than spline; more constrained than
+automated methods.
+
+**Step 1: Seed** — open tid_spect_click.py with `--no-prophet` (skips
+Pass 0 for faster launch), click 2+ points on the carrier, press S:
+
+```bash
+python3 tid_spect_click.py \
+    --spectrogram station_tid_zoom_clean.png \
+    --name STATION \
+    --drf-dir ./station \
+    --subchannel 0 \
+    --no-prophet
+```
+
+**Step 2: Extract** — run the Kalman tracker:
+
+```bash
+python3 capt_extract.py station_capt_seed.json \
+    --drf-dir ./station \
+    --subchannel 0 \
+    --start 2026-01-19T00:00:00Z \
+    --end 2026-01-19T01:15:00Z
+```
+
+Methods: `--method fft` (default), `tracked` (constrained FFT search),
+`seed` (spline-only), `autocorr`. Tuning: `--track-band` (default 0.3),
+`--proc-noise` (default 0.02), `--max-step` (default 0.5).
+
+**When CAPT helps:** moderate contamination where FFT can find the
+carrier but occasionally jumps to a wrong feature.
+
+**When CAPT does not help:** carrier displaced far from 0 Hz where
+FFT consistently locks onto the wrong feature. Use anchor-guided
+cwt-prophet (P+E workflow) instead.
 
 ---
 
