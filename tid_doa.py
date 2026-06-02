@@ -782,14 +782,21 @@ def format_diagnostics(result):
 
 
 def _write_run_log(config, result, diag_text):
-    """Append a self-contained per-run record to ./runs/<ts>_run.log.
+    """Append a self-contained per-run record to <event_data_dir>/runs/<ts>_run.log.
 
     Non-fatal on any error -- a logging failure must never break a run.
     """
     import os, sys, subprocess, datetime
-    # Use event config directory for runs log, fall back to cwd
+    # Use TID event data directory for runs log (derived from station files),
+    # fall back to config directory, then cwd
     _config_path = config.get("_config_path", None)
-    if _config_path:
+    stations = config.get("stations", [])
+    if stations and stations[0].get("file"):
+        stn_file = stations[0]["file"]
+        if _config_path and not os.path.isabs(stn_file):
+            stn_file = os.path.join(os.path.dirname(os.path.abspath(_config_path)), stn_file)
+        runs_dir = os.path.join(os.path.dirname(os.path.abspath(stn_file)), "runs")
+    elif _config_path:
         runs_dir = os.path.join(os.path.dirname(os.path.abspath(_config_path)), "runs")
     else:
         runs_dir = os.path.join(os.getcwd(), "runs")
@@ -804,7 +811,6 @@ def _write_run_log(config, result, diag_text):
             stderr=subprocess.DEVNULL).decode().strip()
     except Exception:
         git_hash = "(unavailable)"
-    stations = config.get("stations", [])
     lines = []
     lines.append("=== psws-drf-tid-tools run log ===")
     lines.append(f"Timestamp:   {ts}")
@@ -826,6 +832,9 @@ def _write_run_log(config, result, diag_text):
                      f"file={s.get('file','?')}  "
                      f"method={method_str}  "
                      f"lat={s.get('lat','?')} lon={s.get('lon','?')}")
+    # Extraction method summary
+    methods_used = sorted(set(s.get("method", "fft") for s in stations))
+    lines.append(f"Extraction:  {', '.join(methods_used)}")
     lines.append("")
     lines.append("--- RESULT ---")
     lines.append(f"Phase speed:    {result.get('speed_m_s'):.1f} m/s")
@@ -1049,7 +1058,7 @@ def _cli():
                     help="suppress the RESULT DIAGNOSTICS block "
                          "(shown by default)")
     ap.add_argument("--no-run-log", action="store_true",
-                    help="do not write the per-run log under ./runs/ "
+                    help="do not write the per-run log under <event_data_dir>/runs/ "
                          "(written by default)")
     ap.add_argument("--drop", metavar="NAME", action="append",
                     dest="drop_stations", default=[],
