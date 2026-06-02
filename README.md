@@ -30,9 +30,9 @@ lets you:
 
 - find which other stations were on the air during your event of interest
 - inspect a DRF recording and identify the correct subchannel for 10 MHz
-- extract Doppler-vs-time CSVs from raw I/Q using multiple methods:
-  interactive spline (cwt-prophet, recommended), FFT, autocorr (G3ZIL method),
-  CWT, or wave-fit (sine reconstruction from user-clicked cycle points)
+- extract Doppler-vs-time CSVs from raw I/Q using six methods:
+  anchor-guided cwt-prophet (recommended), CAPT (experimental),
+  wave-fit, sgolay-ridge (legacy), autocorr (G3ZIL method), or FFT
 - render annotated Doppler spectrograms with optional overlay of
   extracted Doppler traces for visual method assessment
 - run the complete pipeline in one guided interactive session
@@ -103,7 +103,7 @@ The guided workflow handles all 8 steps interactively:
 3. TID window selection (interactive)
 4. Zoomed spectrogram generation
 5. Optional window refinement
-6. Doppler extraction (interactive spline via cwt-prophet, wave-fit, or automated)
+6. Doppler extraction (anchor-guided cwt-prophet, CAPT, wave-fit, automated, or sgolay-ridge)
 7. Extraction output and visual assessment
 8. Direction-of-arrival inversion with interactive drop-station loop
 
@@ -136,11 +136,13 @@ python3 drf_spectrogram.py ./n6rfm --subchannel 0 \
     --window n6rfm_fullday_window.json \
     --ylim=-5,5 --dpi 150 --callsign N6RFM
 
-# 5a. Interactive spline extraction (cwt-prophet — recommended)
-#     Pass 0 auto-runs on open. Click F-region carrier to correct
-#     excursions. P=re-run  X=export  W=wave-fit  F=fit  R=reset  Q=quit
+# 5a. Anchor-guided cwt-prophet extraction (recommended)
+#     Pass 0 auto-runs. Click anchors where Prophet went wrong.
+#     P=re-run Prophet  E=export prophet  X=export spline  S=CAPT seed
+#     W=wave-fit  Z=undo  R=reset  Q=quit
 python3 tid_spect_click.py --spectrogram n6rfm_zoom.png \
-    --name N6RFM --drf-dir ./n6rfm --subchannel 0
+    --name N6RFM --drf-dir ./n6rfm --subchannel 0 \
+    --event-json event.json
 
 # 5b. Wave-fit only (skip Prophet, fit sine to clicked cycle points)
 #     Best when >=1.5 cycles visible in window
@@ -152,8 +154,14 @@ python3 drf_to_doppler.py ./n6rfm --subchannel 0 \
     --start 2026-01-19T00:00:00 --end 2026-01-19T02:00:00 \
     --decim-seconds 60 --method fft --output n6rfm_fft_tid.csv
 
+# 5d. CAPT extraction (experimental — seed 2+ clicks, Kalman tracks)
+python3 capt_extract.py seed.json --drf-dir ./n6rfm \
+    --start 2026-01-19T00:00:00Z --end 2026-01-19T01:15:00Z \
+    --method tracked --track-band 0.3
+
 # 6. Run DOA (use --max-lag ~20 min for LSTID with ~60 min period)
 python3 tid_doa.py event.json --max-lag 20
+python3 tid_doa.py event.json --drop AC0G_ND   # exclude a station
 ```
 
 See **[`MANUAL_TUTORIAL.md`](MANUAL_TUTORIAL.md)** for the complete
@@ -165,26 +173,39 @@ coordinate calculation, and result interpretation.
 ## Doppler Extraction Methods
 
 `tid_spect_click.py` is the primary interactive extraction tool.
-`drf_to_doppler.py` provides automated extraction via `--method`:
+`drf_to_doppler.py` provides automated extraction. `capt_extract.py`
+provides experimental Kalman-filter-based extraction.
 
-- `cwt-prophet` **(recommended)**: interactive spline extraction via
-  `tid_spect_click.py`. Pass 0 auto-runs CWT+Prophet to seed the
-  spline; click the F-region carrier to correct excursions. Handles
-  E-region contamination and wrong-peak lock. Use for any event where
-  contamination is present or automated methods give inconsistent lags.
-- `sgolay-ridge`: interactive corridor-based extraction (legacy).
-  Precursor to cwt-prophet; still available but superseded.
-- `fft`: FFT-based carrier tracker. Fully automated. Good for clean
-  stations with no E-region contamination.
-- `autocorr`: Lag-1 complex autocorrelation instantaneous-frequency
-  estimator (G3ZIL method). 2-3x smoother output than fft.
-- `cwt`: CWT multi-peak tracker with linear extrapolation.
-- `wave-fit` (`--wave-only`): user clicks multiple points along the
-  visible TID cycle; tool fits A·sin(2π/T·t + φ) + offset to those
-  points and reconstructs the full window. No Prophet run needed.
-  Works best when ≥1.5 full cycles are visible. Each station
-  independently estimates its own period — handles dispersive TIDs.
-  Exports `{stn}_wave_tid.csv` for use with `tid_doa.py`.
+Six methods are available, in order of recommended preference:
+
+| Method | Tool | User input | Best for |
+|--------|------|-----------|----------|
+| **Anchor-guided cwt-prophet** (recommended) | tid_spect_click.py | Anchor clicks + P to re-run Prophet | All events, especially E-region contamination |
+| **CAPT** (experimental) | capt_extract.py | Seed 2+ clicks (S key) | Moderate contamination, FFT can find carrier |
+| **Wave-fit** | tid_spect_click.py --wave-only | Click cycle points + F to fit | Clean signals with ≥1.5 visible cycles |
+| **Sgolay-ridge** (legacy) | drf_to_doppler.py --method sgolay-ridge | Corridor definition | Contaminated carriers needing constrained search |
+| **Autocorr** | drf_to_doppler.py --method autocorr | None | Clean signals, G3ZIL validation |
+| **FFT** | drf_to_doppler.py --method fft | None | Clean signals, fast survey |
+
+**Anchor-guided cwt-prophet** (recommended): Pass 0 auto-runs
+CWT+Prophet on open; the user clicks anchor points only where Prophet
+tracked the wrong feature, then presses **P** to re-run Prophet with
+anchors as constraints. Press **E** to export the smooth prophet CSV.
+This gives a physically motivated trace with minimal user effort.
+
+**Key bindings** (tid_spect_click.py): P=re-run Prophet with anchors,
+E=export prophet CSV (recommended), X=export raw spline, S=save CAPT
+seed, W=wave-fit mode, Z=undo last click, R=reset, Q=quit.
+`--event-json event.json` auto-updates the event config on export.
+
+**CAPT** (experimental): user seeds 2+ clicks on the carrier (S key),
+then `capt_extract.py` propagates via Kalman filter. `--method tracked`
+constrains the FFT search to ±band around the prediction — immune to
+wrong-feature lock on moderate contamination. Tuning: `--track-band`,
+`--proc-noise`, `--max-step`. Not effective on broad/diffuse carriers.
+
+**tid_doa.py:** `--drop NAME` excludes a station by name (repeatable,
+case-insensitive). Avoids editing the event JSON for robustness testing.
 
 **External evaluation:**
 After obtaining a DOA result, corroborate it with independent space
@@ -223,20 +244,8 @@ See `docs/COOKBOOK.md` for full details on external evaluation.
 `--max-lag 20` (minutes) to prevent alias peak lock. See
 `ASSESSING_RESULTS.md` for details.
 
-- `capt` **(experimental)**: Constrained Adaptive Phase Tracking.
-  User seeds 2+ clicks on the carrier in `tid_spect_click.py` (S key),
-  then `capt_extract.py` propagates the carrier via Kalman filter.
-  Methods: `--method fft` (default), `seed`, `autocorr`, `tracked`.
-  `tracked` mode constrains the FFT search to ±band around the
-  prediction — immune to wrong-feature lock on moderate contamination.
-
-**New in tid_spect_click.py:** S=save CAPT seed, Z=undo last click,
-E=export prophet CSV, `--event-json` updates event config on export.
-
-**New in tid_doa.py:** `--drop NAME` excludes a station by name
-(repeatable, case-insensitive). Avoids editing the event JSON.
-
-See `MANUAL_TUTORIAL.md` for the full extraction method comparison.
+See `MANUAL_TUTORIAL.md` for the full extraction method comparison
+and `docs/METHODOLOGY.md` for the mathematical details of each method.
 
 ---
 
@@ -267,7 +276,7 @@ psws-drf-tid-tools/
 │
 ├── tid_workflow.py             guided 8-step workflow (NEW in v2.0)
 ├── tid_quicklook.py            interactive TID window selector
-├── tid_spect_click.py          interactive spline extraction (cwt-prophet + wave-fit)
+├── tid_spect_click.py          anchor-guided cwt-prophet extraction + wave-fit + CAPT seeding
 ├── drf_spectrogram.py          spectrograms + --overlay for visual assessment
 ├── drf_to_doppler.py           Doppler extraction (fft/autocorr/cwt/sgolay-ridge)
 ├── drf_inspect.py              verify DRF metadata + subchannel
