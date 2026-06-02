@@ -45,6 +45,7 @@ PROC_NOISE_HZ = 0.02    # process noise on doppler (Hz per sqrt(step))
 PROC_NOISE_RATE = 2e-4  # process noise on rate (Hz/s per sqrt(step))
 MAX_STEP_HZ = 0.5       # max Doppler change per block — rejects jumps
 SEARCH_BAND_HZ = 5.0    # FFT search band (Hz either side of 0)
+TRACK_BAND_HZ = 0.3     # tracked mode: FFT search ± this around prediction
 INIT_COV = 0.5          # initial state covariance
 
 
@@ -66,6 +67,8 @@ def seed_to_initial_state(t_hours, d_hz, t_query_hours):
     by fitting a PCHIP spline through the seed clicks and evaluating
     its first derivative.
     """
+    order = np.argsort(t_hours)
+    t_hours, d_hz = t_hours[order], d_hz[order]
     interp = PchipInterpolator(t_hours, d_hz, extrapolate=True)
     d0 = float(interp(t_query_hours))
     # rate: derivative of spline in Hz/hour → Hz/s
@@ -117,7 +120,7 @@ def estimate_autocorr(iq_block, fs_hz):
     return freq, float(snr)
 
 
-def kalman_step(x, P, z, dt, meas_noise_var):
+def kalman_step(x, P, z, dt, meas_noise_var, proc_noise_hz=0.02, proc_noise_rate=2e-4):
     """
     One Kalman filter predict+update step.
 
@@ -129,8 +132,8 @@ def kalman_step(x, P, z, dt, meas_noise_var):
     """
     # Predict
     F = np.array([[1.0, dt], [0.0, 1.0]])
-    Q = np.array([[PROC_NOISE_HZ**2 * dt, 0.0],
-                  [0.0, PROC_NOISE_RATE**2 * dt]])
+    Q = np.array([[proc_noise_hz**2 * dt, 0.0],
+                  [0.0, proc_noise_rate**2 * dt]])
     x_pred = F @ x
     P_pred = F @ P @ F.T + Q
 
@@ -161,6 +164,8 @@ def extract_capt(drf_dir, subchannel, start_utc, end_utc,
                  seed_t_hours, seed_d_hz, dt_s=DT_S,
                  max_step_hz=MAX_STEP_HZ,
                  method='fft',
+                 track_band=0.3,
+                 proc_noise_hz=0.02,
                  period_hint_s=None, verbose=False):
     """
     Main CAPT extraction loop.
@@ -213,6 +218,7 @@ def extract_capt(drf_dir, subchannel, start_utc, end_utc,
     raw_d = []
     raw_snr = []
     raw_ts = []
+    iq_blocks = []   # stored only for tracked mode
 
     for i, samp0 in enumerate(block_starts):
         samp1 = samp0 + block_samples
@@ -225,6 +231,8 @@ def extract_capt(drf_dir, subchannel, start_utc, end_utc,
             raw_t.append(samp_to_hours(samp0 + block_samples // 2))
             raw_ts.append(datetime.fromtimestamp(
                 (samp0 + block_samples // 2) / float(fs), tz=timezone.utc))
+            if method == 'tracked':
+                iq_blocks.append(None)
             continue
 
         t_mid = samp_to_hours(samp0 + block_samples // 2)
@@ -237,6 +245,8 @@ def extract_capt(drf_dir, subchannel, start_utc, end_utc,
         raw_snr.append(snr)
         raw_ts.append(datetime.fromtimestamp(
             (samp0 + block_samples // 2) / float(fs), tz=timezone.utc))
+        if method == 'tracked':
+            iq_blocks.append(iq)
 
         if verbose and i % 20 == 0:
             print(f"    block {i+1}/{n_blocks}  "
@@ -285,11 +295,31 @@ def extract_capt(drf_dir, subchannel, start_utc, end_utc,
     capt_d = np.full(n_blocks, np.nan)
     capt_snr = raw_snr.copy()
 
+    def measure(i, x_pred):
+        """Return (doppler, snr) for block i.
+
+        In tracked mode, search the FFT peak only within ±track_band
+        of the predicted carrier x_pred[0], so the search cannot lock
+        onto a strong feature far from where the carrier should be.
+        Otherwise use the pre-computed raw measurement.
+        """
+        if method == 'tracked':
+            iq = iq_blocks[i]
+            if iq is None:
+                return np.nan, 0.0
+            lo = x_pred[0] - track_band
+            hi = x_pred[0] + track_band
+            return estimate_fft(iq, float(fs), search_lo=lo, search_hi=hi)
+        return raw_d[i], raw_snr[i]
+
     # Forward pass (seed_block_idx → end)
     x, P = x0.copy(), P0.copy()
     for i in range(seed_block_idx, n_blocks):
-        z_raw = raw_d[i]
-        meas_var = snr_to_meas_noise(raw_snr[i]) if not np.isnan(raw_snr[i]) else 1.0
+        # Predict first so tracked search can use the prediction
+        F = np.array([[1.0, DT_S], [0.0, 1.0]])
+        x_pred = F @ x
+        z_raw, snr_i = measure(i, x_pred)
+        meas_var = snr_to_meas_noise(snr_i) if not np.isnan(snr_i) and snr_i > 0 else 1.0
 
         # Reject measurement if it's too far from prediction (wrong-peak lock)
         if not np.isnan(z_raw) and abs(z_raw - x[0]) > max_step_hz:
@@ -297,21 +327,26 @@ def extract_capt(drf_dir, subchannel, start_utc, end_utc,
         else:
             z = z_raw
 
-        x, P, innov = kalman_step(x, P, z, DT_S, meas_var)
+        x, P, innov = kalman_step(x, P, z, DT_S, meas_var, proc_noise_hz=proc_noise_hz)
         capt_d[i] = x[0]
+        if method == 'tracked':
+            capt_snr[i] = snr_i
 
     # Backward pass (seed_block_idx-1 → start)
-    # Run Kalman on reversed time series then flip
     x, P = x0.copy(), P0.copy()
     for i in range(seed_block_idx - 1, -1, -1):
-        z_raw = raw_d[i]
-        meas_var = snr_to_meas_noise(raw_snr[i]) if not np.isnan(raw_snr[i]) else 1.0
+        F = np.array([[1.0, DT_S], [0.0, 1.0]])
+        x_pred = F @ x
+        z_raw, snr_i = measure(i, x_pred)
+        meas_var = snr_to_meas_noise(snr_i) if not np.isnan(snr_i) and snr_i > 0 else 1.0
         if not np.isnan(z_raw) and abs(z_raw - x[0]) > max_step_hz:
             z = np.nan
         else:
             z = z_raw
-        x, P, innov = kalman_step(x, P, z, DT_S, meas_var)
+        x, P, innov = kalman_step(x, P, z, DT_S, meas_var, proc_noise_hz=proc_noise_hz)
         capt_d[i] = x[0]
+        if method == 'tracked':
+            capt_snr[i] = snr_i
 
     # ── Build output DataFrame ────────────────────────────────────────────────
     df = pd.DataFrame({
@@ -344,12 +379,21 @@ def main():
     p.add_argument("--output", default=None, metavar="CSV",
                    help="Output CSV path. Default: {seed_stem}_capt_tid.csv")
     p.add_argument("--method", default="fft",
-                   choices=["fft", "seed", "autocorr"],
+                   choices=["fft", "seed", "autocorr", "tracked"],
                    help="Measurement source for Kalman filter. "
                         "fft: FFT peak (default). "
                         "seed: PCHIP spline through seed clicks — no FFT, "
                         "Kalman smooths and extrapolates user-defined trace. "
-                        "autocorr: lag-1 complex autocorrelation.")
+                        "autocorr: lag-1 complex autocorrelation. "
+                        "tracked: FFT peak searched only within ±track-band "
+                        "of the Kalman prediction — follows the real carrier, "
+                        "immune to wrong-feature lock.")
+    p.add_argument("--track-band", type=float, default=TRACK_BAND_HZ, metavar="HZ",
+                   help=f"tracked mode: FFT search half-width around prediction "
+                        f"(default: {TRACK_BAND_HZ} Hz)")
+    p.add_argument("--proc-noise", type=float, default=0.02, metavar="HZ",
+                   help="Kalman process noise on doppler (Hz/sqrt(step)). "
+                        "Lower = smoother, trusts prediction more. Default: 0.02")
     p.add_argument("--max-step", type=float, default=MAX_STEP_HZ, metavar="HZ",
                    help=f"Max Doppler jump per block before rejecting measurement "
                         f"(default: {MAX_STEP_HZ} Hz)")
@@ -410,7 +454,7 @@ def main():
     print(f"  Station:  {seed.get('station', '?')}")
     print(f"  DRF:      {args.drf_dir}")
     print(f"  Window:   {start_utc.strftime('%H:%M')}–{end_utc.strftime('%H:%M')} UTC")
-    print(f"  Cadence:  {args.cadence}s  max_step={args.max_step}Hz  method={args.method}")
+    print(f"  Cadence:  {args.cadence}s  max_step={args.max_step}Hz  method={args.method}  proc_noise={args.proc_noise}")
 
     df = extract_capt(
         drf_dir=args.drf_dir,
@@ -422,6 +466,8 @@ def main():
         dt_s=args.cadence,
         max_step_hz=args.max_step,
         method=args.method,
+        track_band=args.track_band,
+        proc_noise_hz=args.proc_noise,
         verbose=args.verbose,
     )
 
