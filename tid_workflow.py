@@ -596,25 +596,41 @@ def run_workflow(args):
             seed_key  = f"{stn_key}_capt_seed"
             capt_key  = f"{stn_key}_capt"
             if capt_key not in state:
-                # Step 6a: seed
+                # Step 6a: seed (with retry loop)
                 if seed_key not in state:
-                    print(f"\n[Step 6a] CAPT seed for {name}...")
-                    print(f"  → Click 2+ points on carrier, S=save seed, Z=undo, Q=quit")
-                    run([
-                        "python3", tool("tid_spect_click.py"),
-                        "--spectrogram", str(zoom_clean_png),
-                        "--name", name,
-                        "--drf-dir", drf_dir_s,
-                        "--subchannel", str(sub),
-                        "--no-prophet",
-                    ])
+                    while True:
+                        print(f"")
+                        print(f"  ┌─────────────────────────────────────────────┐")
+                        print(f"  │  [Step 6a] CAPT seed for {name:<18s}  │")
+                        print(f"  │                                             │")
+                        print(f"  │  1. Click 2+ points on the carrier          │")
+                        print(f"  │  2. Press S to save seed                    │")
+                        print(f"  │  3. Press Q to close                        │")
+                        print(f"  │                                             │")
+                        print(f"  │  Keys: S=save seed  Z=undo  R=reset  Q=quit │")
+                        print(f"  └─────────────────────────────────────────────┘")
+                        run([
+                            "python3", tool("tid_spect_click.py"),
+                            "--spectrogram", str(zoom_clean_png),
+                            "--name", name,
+                            "--drf-dir", drf_dir_s,
+                            "--subchannel", str(sub),
+                            "--no-prophet",
+                        ])
+                        if seed_json.exists():
+                            break
+                        print(f"  ⚠️  No CAPT seed saved (did you press S before Q?)")
+                        retry = input(f"  Retry seeding for {name}? [Y/n/skip]: ").strip().lower()
+                        if retry == "n" or retry == "skip":
+                            print(f"  Skipping {name} — will not be included in DOA")
+                            break
                     if not seed_json.exists():
-                        print(f"  WARNING: No CAPT seed saved for {name} — skipping")
                         continue
                     state[seed_key] = str(seed_json)
                     save_state(state_file, state)
                 # Step 6b: extract
-                print(f"\n[Step 6b] CAPT extraction for {name}...")
+                print(f"")
+                print(f"  [Step 6b] CAPT Kalman extraction for {name}...")
                 r = run([
                     "python3", tool("capt_extract.py"),
                     str(seed_json),
@@ -625,12 +641,19 @@ def run_workflow(args):
                     "--output", str(capt_csv),
                 ])
                 if r.returncode != 0 or not capt_csv.exists():
-                    print(f"  ERROR: CAPT extraction failed for {name}")
+                    print(f"  ⚠️  CAPT extraction failed for {name}")
+                    retry = input(f"  Retry? [Y/n]: ").strip().lower()
+                    if retry != "n":
+                        # Clear seed state so it re-seeds
+                        state.pop(seed_key, None)
+                        save_state(state_file, state)
+                        print(f"  Cleared seed state — will re-seed on next run")
                     continue
                 state[capt_key] = str(capt_csv)
                 save_state(state_file, state)
+                print(f"  ✓ CAPT CSV: {capt_csv.name}")
             else:
-                print(f"  CAPT CSV: {capt_csv.name} (already done)")
+                print(f"  ✓ CAPT CSV: {capt_csv.name} (already done)")
 
         elif method in ("sgolay-ridge", "cwt-prophet"):
             # Step 6: Anchor-guided cwt-prophet or sgolay-ridge via tid_spect_click
@@ -808,26 +831,29 @@ def run_workflow(args):
     print("[Step 8] DOA")
     print(f"{'─'*60}")
 
-    # Collect completed stations — prefer sgolay, then current method CSV
+    # Collect completed stations — selected method first, then fallbacks
     completed = []
     for stn in stations:
         stn_key = stn["name"].lower()
-        spline_csv   = event_dir / f"{stn_key}_spline_tid.csv"
-        sgolay_csv   = event_dir / f"{stn_key}_sgolay_tid.csv"
-        fft_csv      = event_dir / f"{stn_key}_fft_tid.csv"
-        autocorr_csv = event_dir / f"{stn_key}_autocorr_tid.csv"
-        cwt_csv      = event_dir / f"{stn_key}_cwt_tid.csv"
-        # Priority: spline > sgolay > current method > fft > autocorr > cwt
-        candidates = [
-            (spline_csv,   "spline"),
-            (sgolay_csv,   "sgolay-ridge"),
-            (event_dir / f"{stn_key}_{method}_tid.csv", method),
-            (fft_csv,      "fft"),
-            (autocorr_csv, "autocorr"),
-            (cwt_csv,      "cwt"),
-        ]
+        # Build candidate list with SELECTED METHOD FIRST
+        all_csvs = {
+            "capt":         event_dir / f"{stn_key}_capt_tid.csv",
+            "spline":       event_dir / f"{stn_key}_spline_tid.csv",
+            "sgolay-ridge": event_dir / f"{stn_key}_sgolay_tid.csv",
+            "fft":          event_dir / f"{stn_key}_fft_tid.csv",
+            "autocorr":     event_dir / f"{stn_key}_autocorr_tid.csv",
+            "cwt":          event_dir / f"{stn_key}_cwt_tid.csv",
+            "wave-fit":     event_dir / f"{stn_key}_wave_tid.csv",
+            "cwt-prophet":  event_dir / f"{stn_key}_spline_tid.csv",
+        }
+        # Priority: selected method > spline > others
+        candidates = [(all_csvs.get(method, ""), method)]
+        for meth, csv in all_csvs.items():
+            if meth != method:
+                candidates.append((csv, meth))
+        found = False
         for csv, meth in candidates:
-            if csv.exists():
+            if csv and Path(csv).exists():
                 completed.append({
                     "name": stn["name"],
                     "file": str(csv),
@@ -835,11 +861,19 @@ def run_workflow(args):
                     "lat": stn["receiver_lat"],
                     "lon": stn["receiver_lon"],
                 })
+                found = True
                 break
+        if not found:
+            print(f"  ⚠️  No extraction CSV found for {stn['name']} — excluded from DOA")
 
     if len(completed) < 3:
         print(f"  Only {len(completed)} station(s) completed — need ≥3 for DOA")
         return
+
+    # Show which CSV and method will be used per station
+    print(f"\n  Extraction files for DOA:")
+    for s in completed:
+        print(f"    {s['name']:<14s} method={s['method']:<12s} {Path(s['file']).name}")
 
     # Check time overlap
     import pandas as pd
