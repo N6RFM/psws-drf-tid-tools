@@ -618,10 +618,12 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self.clicks_t.append(t_hours)
         self.clicks_d.append(dop_hz)
         self._refresh_scatter()
+        self._preview_spline()
         self._update_status()
         n = len(self.clicks_t)
         self._set_status(
-            f"{n} anchor(s).  P=re-run Prophet  X=export  W=wave-fit  R=reset  Q=quit")
+            f"{n} anchor(s).  P=re-run Prophet  X=export  W=wave-fit  "
+            f"S=CAPT seed  Z=undo  R=reset  Q=quit")
 
     def _refresh_scatter(self):
         if self.clicks_t:
@@ -998,6 +1000,23 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self._set_status(f"Exported: {out.name}  ({len(self.clicks_t)} anchors used)")
         print(f"Prophet CSV exported: {out}")
         self._save_event_json(str(out), "cwt-prophet")
+
+    def _undo_last_click(self):
+        """Remove the last clicked anchor point (Z key)."""
+        if not self.clicks_t:
+            self._set_status("No clicks to undo")
+            return
+        self.clicks_t.pop()
+        self.clicks_d.pop()
+        self._refresh_scatter()
+        if len(self.clicks_t) >= 2:
+            self._preview_spline()
+        else:
+            self.preview_curve.setData([], [])
+        n = len(self.clicks_t)
+        self._set_status(
+            f"Undo — {n} anchor(s) remaining.  "
+            f"S=CAPT seed  Z=undo  R=reset")
 
     def _reset_clicks(self):
         self.clicks_t = []
@@ -1379,6 +1398,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
                         ("F", self._wave_fit_execute),
                         ("A", self._wave_fit_accept),
                         ("S", self._export_capt_seed),
+                        ("Z", self._undo_last_click),
                         ("R", self._reset_clicks), ("C", self._clear_all),
                         ("Q", self.close)]:
             sc = QtWidgets.QShortcut(QtGui.QKeySequence(key), self, cb)

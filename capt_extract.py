@@ -106,6 +106,17 @@ def estimate_fft(iq_block, fs_hz, search_lo=None, search_hi=None):
     return float(peak), float(snr)
 
 
+def estimate_autocorr(iq_block, fs_hz):
+    """Lag-1 complex autocorrelation instantaneous frequency."""
+    if len(iq_block) < 4:
+        return np.nan, 0.0
+    x = np.asarray(iq_block, dtype=complex)
+    R1 = np.sum(x[1:] * np.conj(x[:-1]))
+    freq = float(np.angle(R1) / (2 * np.pi * (1.0 / fs_hz)))
+    snr = 20 * np.log10(np.abs(R1) / (np.std(np.abs(x)) + 1e-12))
+    return freq, float(snr)
+
+
 def kalman_step(x, P, z, dt, meas_noise_var):
     """
     One Kalman filter predict+update step.
@@ -149,6 +160,7 @@ def snr_to_meas_noise(snr_db):
 def extract_capt(drf_dir, subchannel, start_utc, end_utc,
                  seed_t_hours, seed_d_hz, dt_s=DT_S,
                  max_step_hz=MAX_STEP_HZ,
+                 method='fft',
                  period_hint_s=None, verbose=False):
     """
     Main CAPT extraction loop.
@@ -216,7 +228,10 @@ def extract_capt(drf_dir, subchannel, start_utc, end_utc,
             continue
 
         t_mid = samp_to_hours(samp0 + block_samples // 2)
-        freq, snr = estimate_fft(iq, float(fs))
+        if method == 'autocorr':
+            freq, snr = estimate_autocorr(iq, float(fs))
+        else:
+            freq, snr = estimate_fft(iq, float(fs))
         raw_t.append(t_mid)
         raw_d.append(freq)
         raw_snr.append(snr)
@@ -230,6 +245,26 @@ def extract_capt(drf_dir, subchannel, start_utc, end_utc,
     raw_t = np.array(raw_t)
     raw_d = np.array(raw_d)
     raw_snr = np.array(raw_snr)
+
+    # ── Seed-method: replace raw measurements with spline values ──────────────
+    if method == 'seed':
+        # Evaluate seed spline at every block timestamp
+        # Uses a fixed low measurement noise — trusts the user clicks
+        _, seed_interp_full = seed_to_initial_state(
+            seed_t_hours, seed_d_hz, seed_t_hours.mean())
+        raw_d = np.array([float(seed_interp_full(t)) for t in raw_t])
+        # Low SNR outside seed region to increase measurement noise
+        # (extrapolation less trusted than interpolation)
+        seed_t0 = seed_t_hours.min()
+        seed_t1 = seed_t_hours.max()
+        raw_snr = np.where(
+            (raw_t >= seed_t0) & (raw_t <= seed_t1),
+            50.0,   # inside seed region: high confidence
+            25.0    # outside seed region: lower confidence
+        )
+        if verbose:
+            print(f'  Seed method: using PCHIP spline as measurements')
+            print(f'  Seed region: {seed_t0:.3f}–{seed_t1:.3f}h')
 
     # ── Pass 2: Kalman filter forward from seed midpoint ─────────────────────
     seed_mid_h = (seed_t0_h + seed_t1_h) / 2.0
@@ -308,6 +343,13 @@ def main():
                    help="Block cadence in seconds (default: 60)")
     p.add_argument("--output", default=None, metavar="CSV",
                    help="Output CSV path. Default: {seed_stem}_capt_tid.csv")
+    p.add_argument("--method", default="fft",
+                   choices=["fft", "seed", "autocorr"],
+                   help="Measurement source for Kalman filter. "
+                        "fft: FFT peak (default). "
+                        "seed: PCHIP spline through seed clicks — no FFT, "
+                        "Kalman smooths and extrapolates user-defined trace. "
+                        "autocorr: lag-1 complex autocorrelation.")
     p.add_argument("--max-step", type=float, default=MAX_STEP_HZ, metavar="HZ",
                    help=f"Max Doppler jump per block before rejecting measurement "
                         f"(default: {MAX_STEP_HZ} Hz)")
@@ -368,7 +410,7 @@ def main():
     print(f"  Station:  {seed.get('station', '?')}")
     print(f"  DRF:      {args.drf_dir}")
     print(f"  Window:   {start_utc.strftime('%H:%M')}–{end_utc.strftime('%H:%M')} UTC")
-    print(f"  Cadence:  {args.cadence}s  max_step={args.max_step}Hz")
+    print(f"  Cadence:  {args.cadence}s  max_step={args.max_step}Hz  method={args.method}")
 
     df = extract_capt(
         drf_dir=args.drf_dir,
@@ -379,6 +421,7 @@ def main():
         seed_d_hz=seed_d,
         dt_s=args.cadence,
         max_step_hz=args.max_step,
+        method=args.method,
         verbose=args.verbose,
     )
 
