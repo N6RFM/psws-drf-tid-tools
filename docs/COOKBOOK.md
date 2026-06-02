@@ -139,7 +139,7 @@ python3 drf_to_doppler.py ./ac0g_nd \
 ```
 
 Default is `--method fft`. For best results on contaminated stations,
-use the interactive spline extraction (see recipe below).
+use the anchor-guided cwt-prophet extraction (see recipe below).
 
 ### How do I compare FFT and autocorr side by side?
 
@@ -157,9 +157,9 @@ The legend shows inter-method Pearson r and RMS diff. r > 0.95 and
 RMS < 0.10 Hz means both methods are equivalent — use FFT. See
 `docs/METHODOLOGY.md` Step 1b for the full decision guide.
 
-### How do I use the interactive spline extraction (recommended)?
+### How do I use the anchor-guided cwt-prophet extraction (recommended)?
 
-The interactive spline tool gives the most reliable results, especially
+The anchor-guided cwt-prophet tool gives the most reliable results, especially
 for stations with E-region contamination. Launch via `tid_workflow.py`
 (recommended, method 1) or directly:
 

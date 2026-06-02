@@ -81,18 +81,19 @@ After all stations are confirmed, choose the extraction method
 and DOA coordinate system:
 
     Extraction method:
-      1. cwt-prophet   (interactive spline -- recommended)
+      1. cwt-prophet   (anchor-guided -- recommended)
       2. fft           (automated)
       3. autocorr      (automated, Gwyn G3ZIL method)
       4. cwt           (automated, CWT multi-peak tracker)
-      5. sgolay-ridge  (interactive spline, legacy corridor method)
+      5. sgolay-ridge  (legacy corridor method)
     Choose [1]:
 
 Also prompted: DOA coordinate system (IPP midpoints recommended).
 
-**Recommended method: cwt-prophet** (option 1) -- interactive spline
+**Recommended method: cwt-prophet** (option 1) -- anchor-guided
 extraction via tid_spect_click.py. Pass 0 auto-runs CWT+Prophet;
-click the F-region carrier to correct excursions.
+click anchor points where Prophet went wrong, press P to re-run,
+then E to export the smooth prophet CSV.
 
 | Method | Best for | Requires GUI |
 |--------|----------|-------------|
