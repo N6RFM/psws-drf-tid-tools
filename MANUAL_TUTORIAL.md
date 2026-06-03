@@ -183,7 +183,7 @@ a carrier that changes character mid-window.
 
 ---
 
-### Option B: automated extraction (fft / autocorr / cwt / cwt-prophet)
+### Option B: automated extraction (autocorr / cwt)
 
 No GUI required.
 
@@ -193,11 +193,12 @@ python3 drf_to_doppler.py ./n6rfm \
     --start 2026-01-19T00:00:00 \
     --end   2026-01-19T02:00:00 \
     --decim-seconds 60 \
-    --method fft \
-    --output n6rfm_fft_tid.csv
+    --method autocorr \
+    --output n6rfm_autocorr_tid.csv
 ```
 
-Replace `fft` with `autocorr`, `cwt`, or `cwt-prophet` as needed.
+Replace `autocorr` with `cwt` if preferred. These are fully
+automated — no GUI interaction needed.
 
 **Check visually:**
 
@@ -220,11 +221,10 @@ python3 drf_spectrogram.py ./n6rfm \
 | cwt | Multi-peak ambiguous carriers |
 | cwt-prophet | CWT + Prophet prediction (G3ZIL comparison) |
 
-**Important:** automated methods pick the strongest spectral peak
-without constraint. On the Jan 2026 event, fft and cwt-prophet give
-wrong lags on AC0G/ND due to E-region contamination. The anchor-guided
-cwt-prophet extraction (Option A) avoids this by constraining Prophet
-to the user's anchor points on the correct carrier.
+**Important:** automated methods pick the strongest spectral peak without
+constraint and can lock onto the wrong feature (e.g. E-region
+contamination). Use Option A (anchor-guided cwt-prophet) for
+any station where the auto-trace doesn't follow the carrier.
 
 ### Option C: wave-fit extraction (--wave-only)
 
