@@ -146,7 +146,12 @@ python3 tid_spect_click.py --spectrogram n6rfm_zoom.png \
 python3 tid_spect_click.py --spectrogram n6rfm_zoom.png \
     --name N6RFM --seg-start 0.0 --seg-end 2.0 --wave-only
 
-# 5c. Automated extraction (clean stations, no GUI needed)
+# 5c. Automated extraction — autocorr (recommended for clean stations)
+python3 drf_to_doppler.py ./n6rfm --subchannel 0 \
+    --start 2026-01-19T00:00:00 --end 2026-01-19T02:00:00 \
+    --decim-seconds 60 --method autocorr --output n6rfm_autocorr_tid.csv
+
+# 5d. Automated extraction — fft (fastest, basic)
 python3 drf_to_doppler.py ./n6rfm --subchannel 0 \
     --start 2026-01-19T00:00:00 --end 2026-01-19T02:00:00 \
     --decim-seconds 60 --method fft --output n6rfm_fft_tid.csv
