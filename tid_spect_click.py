@@ -619,7 +619,8 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self.clicks_t.append(t_hours)
         self.clicks_d.append(dop_hz)
         self._refresh_scatter()
-        self._preview_spline()
+        if self._no_prophet:
+            self._preview_spline()
         self._update_status()
         n = len(self.clicks_t)
         if self._no_prophet:
@@ -1014,10 +1015,11 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self.clicks_t.pop()
         self.clicks_d.pop()
         self._refresh_scatter()
-        if len(self.clicks_t) >= 2:
-            self._preview_spline()
-        else:
-            self.preview_curve.setData([], [])
+        if self._no_prophet:
+            if len(self.clicks_t) >= 2:
+                self._preview_spline()
+            else:
+                self.preview_curve.setData([], [])
         n = len(self.clicks_t)
         self._set_status(
             f"Undo — {n} anchor(s) remaining.  "
@@ -1353,15 +1355,18 @@ class SpectClickApp(QtWidgets.QMainWindow):
 
 
     def _install_shortcuts(self):
-        for key, cb in [("X", self._export_spline_csv),
-                        ("E", self._export_prophet_csv),
-                        ("P", self._run_prophet_preview),
-                        ("W", self._wave_fit_start),
-                        ("F", self._wave_fit_execute),
-                        ("A", self._wave_fit_accept),
-                        ("Z", self._undo_last_click),
-                        ("R", self._reset_clicks), ("C", self._clear_all),
-                        ("Q", self.close)]:
+        keys = [("X", self._export_spline_csv),
+                ("E", self._export_prophet_csv),
+                ("P", self._run_prophet_preview),
+                ("Z", self._undo_last_click),
+                ("R", self._reset_clicks), ("C", self._clear_all),
+                ("Q", self.close)]
+        # Wave-fit keys only in --wave-only mode
+        if getattr(self, "_wave_only", False):
+            keys.extend([("W", self._wave_fit_start),
+                         ("F", self._wave_fit_execute),
+                         ("A", self._wave_fit_accept)])
+        for key, cb in keys:
             sc = QtWidgets.QShortcut(QtGui.QKeySequence(key), self, cb)
             sc.setContext(QtCore.Qt.ApplicationShortcut)
 
