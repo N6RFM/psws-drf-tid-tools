@@ -48,12 +48,11 @@ and `θ`) from observed pairwise lags.
 The raw DRF I/Q stream is complex baseband, sampled at 10 Hz. The WWV
 carrier sits within ±5 Hz of zero after baseband mixing.
 
-Six extraction methods are available, in order of recommended preference:
+Five extraction methods are available, in order of recommended preference:
 
 | Method | How | Best for |
 |--------|-----|----------|
 | **Anchor-guided cwt-prophet** | Interactive: Prophet auto-trace + user anchor corrections, P to re-run | All events, especially E-region contamination (recommended) |
-| **CAPT** (experimental) | Semi-interactive: user seeds 2+ clicks, Kalman filter tracks | Moderate contamination where FFT can find carrier |
 | **wave-fit** | Interactive: user clicks cycle points, sine fit | Clean signals with ≥1.5 cycles visible |
 | **sgolay-ridge** (legacy) | Semi-interactive: user defines corridor, Savitzky-Golay ridge-finder | Contaminated carriers needing constrained search |
 | **autocorr** | Automated: lag-1 complex autocorrelation | Clean signals, G3ZIL validation |
@@ -62,7 +61,6 @@ Six extraction methods are available, in order of recommended preference:
 The FFT bin-peak method is described below. The anchor-guided
 cwt-prophet, wave-fit, and sgolay-ridge methods bypass the automated
 bin-peak tracker — the user defines or constrains the Doppler trace
-from the spectrogram. CAPT uses a Kalman filter seeded from user
 clicks to track the carrier under physical continuity constraints.
 
 For each output sample of duration `T = decim_seconds` (FFT method):
@@ -164,7 +162,6 @@ disagreement between the two methods, not fit to an external truth.
 
 6. If automated methods still give contaminated traces:
    Use anchor-guided cwt-prophet extraction (Step 1d) — recommended.
-   Or try CAPT with --method tracked (Step 1e) for moderate contamination.
    Or use sgolay-ridge (Step 1f) if familiar with corridor-based extraction.
 
 7. Record which method was chosen and why in the run log.
@@ -248,7 +245,6 @@ clicks (X key) has no smoothness constraint and depends entirely
 on click density and placement.
 
 **Key bindings:** P=re-run Prophet with anchors, E=export prophet
-CSV (recommended), X=export raw spline, S=save CAPT seed, Z=undo,
 R=reset.
 
 **Output:**
@@ -259,41 +255,8 @@ See `WORKFLOW_TUTORIAL.md` Step 6 (Option A) for the full workflow.
 
 ---
 
-## Step 1e: CAPT — Constrained Adaptive Phase Tracking (experimental)
 
-`capt_extract.py` implements a Kalman-filter-based carrier tracker
-seeded from user clicks in `tid_spect_click.py` (S key).
-
-**State vector:** [doppler_hz, doppler_rate_hz_per_s]
-**Motion model:** constant-rate F = [[1,dt],[0,1]]
-**Process noise:** tunable via `--proc-noise` (default 0.02 Hz/√step)
-
-The user clicks 2+ points on the carrier to establish the initial
-state. The Kalman filter propagates forward and backward in time,
-using one of four measurement sources (`--method`):
-
-- `fft` (default): unconstrained FFT peak — same as drf_to_doppler
-- `seed`: PCHIP spline through seed clicks (no DRF processing)
-- `autocorr`: lag-1 complex autocorrelation
-- `tracked`: FFT peak searched only within ±track-band of the
-  prediction — constrained to follow the seeded carrier
-
-The `tracked` mode is the key innovation: by restricting the FFT
-search to a narrow band around where the carrier is predicted to be,
-it cannot lock onto a strong feature far from the true carrier
-(e.g. an E-region band near 0 Hz when the F-region carrier is
-displaced). The `--max-step` parameter provides a second constraint:
-measurements deviating more than this from the prediction are
-rejected and the filter coasts on its own state.
-
-**Limitation:** when the carrier is too broad or diffuse for any
-peak-picking approach to resolve (e.g. AA6BD on the Jan 2026 event),
-CAPT cannot track it. Anchor-guided cwt-prophet (Step 1d) or manual
-spline extraction (X key) remains the correct choice for such stations.
-
----
-
-## Step 1f: Sgolay-ridge extraction (legacy)
+## Step 1e: Sgolay-ridge extraction (legacy)
 
 The sgolay-ridge method is a corridor-based extraction where the user
 defines a frequency band on the spectrogram and a Savitzky-Golay

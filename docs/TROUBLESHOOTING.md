@@ -174,7 +174,6 @@ Full key bindings for anchor-guided cwt-prophet mode:
     P       Re-run Prophet with anchors as hard constraints
     E       Export prophet CSV (recommended)
     X       Export raw spline CSV
-    S       Save CAPT seed JSON (for capt_extract.py)
     W       Enter wave-fit mode
     Z       Undo last click
     R       Reset all clicks
@@ -196,47 +195,6 @@ the status bar at the top for an error message.
 
 ---
 
-### `capt_extract.py` — CAPT tracks the wrong feature
-
-CAPT's Kalman filter uses FFT measurements by default (`--method fft`).
-If the FFT consistently locks onto a strong near-zero feature instead
-of the displaced F-region carrier, CAPT cannot recover it.
-
-**Solutions:**
-- Use `--method tracked` with a tight `--track-band 0.15` to
-  constrain the FFT search around the Kalman prediction
-- Use `--method seed` to ignore FFT entirely and smooth the user's
-  clicked trace (equivalent to spline export)
-- If neither works, the carrier is too broad/diffuse for any
-  peak-picking approach. Use anchor-guided cwt-prophet (P+E keys)
-  or manual spline (X key) instead
-
-### `capt_extract.py` — CAPT trace is too noisy
-
-The Kalman filter trusts measurements too much relative to its
-own prediction. Lower the process noise:
-
-```bash
-python3 capt_extract.py seed.json --drf-dir DIR \
-    --method tracked --proc-noise 0.005 --track-band 0.15
-```
-
-Lower `--proc-noise` = smoother trace (trusts prediction more).
-Lower `--track-band` = narrower FFT search (fewer noise peaks).
-
-### `tid_workflow.py` — CAPT seed not saved
-
-If you close `tid_spect_click.py` without pressing S, no seed JSON
-is written. The workflow will prompt you to retry. Press S before Q.
-
-Use `--no-prophet` mode for faster CAPT seeding (skips Pass 0):
-
-```bash
-python3 tid_spect_click.py --spectrogram img.png --name STN \
-    --drf-dir DIR --no-prophet
-```
-
----
 
 ## "The DOA result looks wrong"
 

@@ -624,11 +624,11 @@ class SpectClickApp(QtWidgets.QMainWindow):
         n = len(self.clicks_t)
         if self._no_prophet:
             self._set_status(
-                f"{n} anchor(s).  X=export  S=CAPT seed  Z=undo  R=reset  Q=quit")
+                f"{n} anchor(s).  X=export  Z=undo  R=reset  Q=quit")
         else:
             self._set_status(
                 f"{n} anchor(s).  P=re-run Prophet  E=export prophet  "
-                f"X=export spline  S=CAPT seed  Z=undo  R=reset  Q=quit")
+                f"X=export spline  Z=undo  R=reset  Q=quit")
 
     def _refresh_scatter(self):
         if self.clicks_t:
@@ -1021,7 +1021,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         n = len(self.clicks_t)
         self._set_status(
             f"Undo — {n} anchor(s) remaining.  "
-            f"S=CAPT seed  Z=undo  R=reset")
+            f"Z=undo  R=reset")
 
     def _reset_clicks(self):
         self.clicks_t = []
@@ -1055,10 +1055,10 @@ class SpectClickApp(QtWidgets.QMainWindow):
             n = len(self.clicks_t)
             seg = f"  seg: {self.seg_t0:.2f}–{self.seg_t1:.2f} h"
             if self._no_prophet:
-                keys = "[X] export  [S] CAPT seed  [Z] undo  [R] reset  [Q] quit"
+                keys = "[X] export  [Z] undo  [R] reset  [Q] quit"
             else:
                 keys = ("[P] re-run Prophet  [E] export prophet  "
-                        "[X] export spline  [S] CAPT seed  "
+                        "[X] export spline  "
                         "[Z] undo  [W] wave-fit  [R] reset  [Q] quit")
             msg = f"[{self.name}] {n} click(s){seg}   {keys}"
         self.status_label.setText(msg)
@@ -1352,51 +1352,6 @@ class SpectClickApp(QtWidgets.QMainWindow):
               f"{self.name} file={file_val!r} method={method!r}")
 
 
-    def _export_capt_seed(self):
-        """Save CAPT seed JSON from current click points (S key).
-
-        Requires ≥2 clicks. Saves {spectrogram_stem}_capt_seed.json
-        alongside the spectrogram PNG. The seed JSON contains the
-        clicked (t, doppler) points that CAPT will use to initialise
-        its phase tracker.
-        """
-        if len(self.clicks_t) < 2:
-            self._set_status(
-                f"[{self.name}] CAPT seed needs ≥2 clicks — "
-                f"click on clean TID carrier first"
-            )
-            return
-        import json as _json
-        out = Path(self.img_path).with_name(
-            Path(self.img_path).stem + "_capt_seed.json"
-        )
-        seed = {
-            "station":            self.name,
-            "spectrogram_png":    str(Path(self.img_path).name),
-            "n_clicks":           len(self.clicks_t),
-            "seed_clicks": [
-                {"t_hours": float(t), "doppler_hz": float(d)}
-                for t, d in zip(self.clicks_t, self.clicks_d)
-            ],
-        }
-        if self.period_hint:
-            seed["period_hint_seconds"] = float(self.period_hint)
-        # Include sidecar time range if available
-        if self.transform is not None:
-            try:
-                seed["t_start_utc_hours"] = float(self.transform.t0)
-                seed["t_end_utc_hours"]   = float(self.transform.t1)
-            except Exception:
-                pass
-        with open(out, "w") as _f:
-            _json.dump(seed, _f, indent=2)
-            _f.write("\n")
-        self._set_status(
-            f"[{self.name}] CAPT seed saved: {out.name} "
-            f"({len(self.clicks_t)} clicks)"
-        )
-        print(f"CAPT seed saved: {out}")
-
     def _install_shortcuts(self):
         for key, cb in [("X", self._export_spline_csv),
                         ("E", self._export_prophet_csv),
@@ -1404,7 +1359,6 @@ class SpectClickApp(QtWidgets.QMainWindow):
                         ("W", self._wave_fit_start),
                         ("F", self._wave_fit_execute),
                         ("A", self._wave_fit_accept),
-                        ("S", self._export_capt_seed),
                         ("Z", self._undo_last_click),
                         ("R", self._reset_clicks), ("C", self._clear_all),
                         ("Q", self.close)]:
@@ -1462,8 +1416,8 @@ def _parse_args():
                         "updated with the exported CSV path and method, "
                         "making the run reproducible from the command line.")
     p.add_argument("--no-prophet", action="store_true",
-                   help="Skip Prophet Pass 0 auto-run. Use for CAPT seeding, "
-                        "pure spline clicking, or when Prophet is not needed. "
+                   help="Skip Prophet Pass 0 auto-run. Use for pure spline clicking "
+                        "or when Prophet is not needed. "
                         "Status bar shows only relevant key bindings.")
     p.add_argument("--wave-only", action="store_true",
                    help="Skip Pass 0. Open directly in wave-fit mode (W).")

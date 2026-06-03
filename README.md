@@ -23,15 +23,13 @@ for TID extraction are included.
 
 ## What this toolkit does
 
-
 Given Digital RF (DRF) I/Q recordings from several HamSCI Grape or
 WSPRDaemon stations all recording the same WWV carrier, this toolkit
 lets you:
 
 - find which other stations were on the air during your event of interest
 - inspect a DRF recording and identify the correct subchannel for 10 MHz
-- extract Doppler-vs-time CSVs from raw I/Q using six methods:
-  anchor-guided cwt-prophet (recommended), CAPT (experimental),
+- extract Doppler-vs-time CSVs from raw I/Q using five methods:
   wave-fit, sgolay-ridge (legacy), autocorr (G3ZIL method), or FFT
 - render annotated Doppler spectrograms with optional overlay of
   extracted Doppler traces for visual method assessment
@@ -103,7 +101,6 @@ The guided workflow handles all 8 steps interactively:
 3. TID window selection (interactive)
 4. Zoomed spectrogram generation
 5. Optional window refinement
-6. Doppler extraction (anchor-guided cwt-prophet, CAPT, wave-fit, automated, or sgolay-ridge)
 7. Extraction output and visual assessment
 8. Direction-of-arrival inversion with interactive drop-station loop
 
@@ -138,7 +135,6 @@ python3 drf_spectrogram.py ./n6rfm --subchannel 0 \
 
 # 5a. Anchor-guided cwt-prophet extraction (recommended)
 #     Pass 0 auto-runs. Click anchors where Prophet went wrong.
-#     P=re-run Prophet  E=export prophet  X=export spline  S=CAPT seed
 #     W=wave-fit  Z=undo  R=reset  Q=quit
 python3 tid_spect_click.py --spectrogram n6rfm_zoom.png \
     --name N6RFM --drf-dir ./n6rfm --subchannel 0 \
@@ -154,11 +150,6 @@ python3 drf_to_doppler.py ./n6rfm --subchannel 0 \
     --start 2026-01-19T00:00:00 --end 2026-01-19T02:00:00 \
     --decim-seconds 60 --method fft --output n6rfm_fft_tid.csv
 
-# 5d. CAPT extraction (experimental — seed 2+ clicks, Kalman tracks)
-python3 capt_extract.py seed.json --drf-dir ./n6rfm \
-    --start 2026-01-19T00:00:00Z --end 2026-01-19T01:15:00Z \
-    --method tracked --track-band 0.3
-
 # 6. Run DOA (use --max-lag ~20 min for LSTID with ~60 min period)
 python3 tid_doa.py event.json --max-lag 20
 python3 tid_doa.py event.json --drop AC0G_ND   # exclude a station
@@ -173,15 +164,13 @@ coordinate calculation, and result interpretation.
 ## Doppler Extraction Methods
 
 `tid_spect_click.py` is the primary interactive extraction tool.
-`drf_to_doppler.py` provides automated extraction. `capt_extract.py`
 provides experimental Kalman-filter-based extraction.
 
-Six methods are available, in order of recommended preference:
+Five methods are available, in order of recommended preference:
 
 | Method | Tool | User input | Best for |
 |--------|------|-----------|----------|
 | **Anchor-guided cwt-prophet** (recommended) | tid_spect_click.py | Anchor clicks + P to re-run Prophet | All events, especially E-region contamination |
-| **CAPT** (experimental) | capt_extract.py | Seed 2+ clicks (S key) | Moderate contamination, FFT can find carrier |
 | **Wave-fit** | tid_spect_click.py --wave-only | Click cycle points + F to fit | Clean signals with ≥1.5 visible cycles |
 | **Sgolay-ridge** (legacy) | drf_to_doppler.py --method sgolay-ridge | Corridor definition | Contaminated carriers needing constrained search |
 | **Autocorr** | drf_to_doppler.py --method autocorr | None | Clean signals, G3ZIL validation |
@@ -194,12 +183,9 @@ anchors as constraints. Press **E** to export the smooth prophet CSV.
 This gives a physically motivated trace with minimal user effort.
 
 **Key bindings** (tid_spect_click.py): P=re-run Prophet with anchors,
-E=export prophet CSV (recommended), X=export raw spline, S=save CAPT
 seed, W=wave-fit mode, Z=undo last click, R=reset, Q=quit.
 `--event-json event.json` auto-updates the event config on export.
 
-**CAPT** (experimental): user seeds 2+ clicks on the carrier (S key),
-then `capt_extract.py` propagates via Kalman filter. `--method tracked`
 constrains the FFT search to ±band around the prediction — immune to
 wrong-feature lock on moderate contamination. Tuning: `--track-band`,
 `--proc-noise`, `--max-step`. Not effective on broad/diffuse carriers.
@@ -287,13 +273,11 @@ psws-drf-tid-tools/
 │
 ├── tid_workflow.py             guided 8-step workflow (NEW in v2.0)
 ├── tid_quicklook.py            interactive TID window selector
-├── tid_spect_click.py          anchor-guided cwt-prophet extraction + wave-fit + CAPT seeding
 ├── drf_spectrogram.py          spectrograms + --overlay for visual assessment
 ├── drf_to_doppler.py           Doppler extraction (fft/autocorr/cwt/sgolay-ridge)
 ├── drf_inspect.py              verify DRF metadata + subchannel
 ├── find_event_stations.py      companion-station discovery
 ├── tid_doa.py                  multi-station DOA inversion (--drop to exclude stations)
-├── capt_extract.py             CAPT: Constrained Adaptive Phase Tracking extractor
 ├── tid_stack_plot.py           stacked Doppler comparison
 ├── tid_map.py                  array geometry map
 ├── evaluate_external.py        external space weather evaluation

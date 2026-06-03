@@ -674,72 +674,6 @@ def run_workflow(args):
             else:
                 print(f"  ✓ Wave-fit CSV: {wave_csv.name} (already done)")
 
-        elif method == "capt":
-            # Step 6: CAPT extraction — seed via tid_spect_click, then run capt_extract.py
-            seed_json = event_dir / f"{stn_key}_tid_zoom_clean_capt_seed.json"
-            capt_csv  = event_dir / f"{stn_key}_capt_tid.csv"
-            seed_key  = f"{stn_key}_capt_seed"
-            capt_key  = f"{stn_key}_capt"
-            if capt_key not in state:
-                # Step 6a: seed (with retry loop)
-                if seed_key not in state:
-                    while True:
-                        print(f"")
-                        print(f"  ┌─────────────────────────────────────────────┐")
-                        print(f"  │  [Step 6a] CAPT seed for {name:<18s}  │")
-                        print(f"  │                                             │")
-                        print(f"  │  1. Click 2+ points on the carrier          │")
-                        print(f"  │  2. Press S to save seed                    │")
-                        print(f"  │  3. Press Q to close                        │")
-                        print(f"  │                                             │")
-                        print(f"  │  Keys: S=save seed  Z=undo  R=reset  Q=quit │")
-                        print(f"  └─────────────────────────────────────────────┘")
-                        run([
-                            "python3", tool("tid_spect_click.py"),
-                            "--spectrogram", str(zoom_clean_png),
-                            "--name", name,
-                            "--drf-dir", drf_dir_s,
-                            "--subchannel", str(sub),
-                            "--no-prophet",
-                        ])
-                        if seed_json.exists():
-                            break
-                        print(f"  ⚠️  No CAPT seed saved (did you press S before Q?)")
-                        retry = input(f"  Retry seeding for {name}? [Y/n/skip]: ").strip().lower()
-                        if retry == "n" or retry == "skip":
-                            print(f"  Skipping {name} — will not be included in DOA")
-                            break
-                    if not seed_json.exists():
-                        continue
-                    state[seed_key] = str(seed_json)
-                    save_state(state_file, state)
-                # Step 6b: extract
-                print(f"")
-                print(f"  [Step 6b] CAPT Kalman extraction for {name}...")
-                r = run([
-                    "python3", tool("capt_extract.py"),
-                    str(seed_json),
-                    "--drf-dir", drf_dir_s,
-                    "--subchannel", str(sub),
-                    "--start", h_to_iso(date_str, t0_h),
-                    "--end",   h_to_iso(date_str, t1_h),
-                    "--output", str(capt_csv),
-                ])
-                if r.returncode != 0 or not capt_csv.exists():
-                    print(f"  ⚠️  CAPT extraction failed for {name}")
-                    retry = input(f"  Retry? [Y/n]: ").strip().lower()
-                    if retry != "n":
-                        # Clear seed state so it re-seeds
-                        state.pop(seed_key, None)
-                        save_state(state_file, state)
-                        print(f"  Cleared seed state — will re-seed on next run")
-                    continue
-                state[capt_key] = str(capt_csv)
-                save_state(state_file, state)
-                print(f"  ✓ CAPT CSV: {capt_csv.name}")
-            else:
-                print(f"  ✓ CAPT CSV: {capt_csv.name} (already done)")
-
         elif method in ("sgolay-ridge", "cwt-prophet"):
             # Step 6: Anchor-guided cwt-prophet or sgolay-ridge via tid_spect_click
             # Pass 0: cwt-prophet auto-runs on open, user corrects with anchors
@@ -767,7 +701,7 @@ def run_workflow(args):
                         print(f"  │       (or X to export raw spline)                     │")
                         print(f"  │                                                      │")
                         print(f"  │  Keys: P=re-run  E=export prophet  X=export spline   │")
-                        print(f"  │        S=CAPT seed  Z=undo  R=reset  Q=quit          │")
+                        print(f"  │        Z=undo  R=reset  Q=quit          │")
                         print(f"  └──────────────────────────────────────────────────────┘")
                     else:  # sgolay-ridge
                         print(f"")
@@ -970,7 +904,6 @@ def run_workflow(args):
         stn_key = stn["name"].lower()
         # Build candidate list with SELECTED METHOD FIRST
         all_csvs = {
-            "capt":         event_dir / f"{stn_key}_capt_tid.csv",
             "spline":       event_dir / f"{stn_key}_spline_tid.csv",
             "sgolay-ridge": event_dir / f"{stn_key}_sgolay_tid.csv",
             "fft":          event_dir / f"{stn_key}_fft_tid.csv",
