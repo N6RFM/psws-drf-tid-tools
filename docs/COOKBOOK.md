@@ -187,7 +187,7 @@ On open, cwt-prophet runs automatically (Pass 0). Key bindings:
     Q       Quit
 
 **Recommended workflow:** click anchors where Prophet went wrong,
-press P to re-run, then E to export the smooth prophet CSV.
+if auto-trace looks good press E; if not, click carrier and press X.
 Use X only when the carrier is too complex for Prophet to fit.
 `--event-json` auto-updates the event config on export.
 

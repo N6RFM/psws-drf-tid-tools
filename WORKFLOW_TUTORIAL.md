@@ -92,8 +92,8 @@ Also prompted: DOA coordinate system (IPP midpoints recommended).
 
 **Recommended method: cwt-prophet** (option 1) -- anchor-guided
 extraction via tid_spect_click.py. Pass 0 auto-runs CWT+Prophet;
-click anchor points where Prophet went wrong, press P to re-run,
-then E to export the smooth prophet CSV.
+if auto-trace looks good press E; if not, click the carrier
+and press X to export your trace.
 
 | Method | Best for | Requires GUI |
 |--------|----------|-------------|
