@@ -85,7 +85,6 @@ and DOA coordinate system:
       2. fft           (automated)
       3. autocorr      (automated, Gwyn G3ZIL method)
       4. cwt           (automated, CWT multi-peak tracker)
-      5. sgolay-ridge  (legacy corridor method)
     Choose [1]:
 
 Also prompted: DOA coordinate system (IPP midpoints recommended).
@@ -101,7 +100,6 @@ and press X to export your trace.
 | fft | Quick automated first look | No |
 | autocorr | Smooth carriers, G3ZIL validation | No |
 | cwt | Multi-peak ambiguous carriers | No |
-| sgolay-ridge | Legacy corridor method | Yes |
 
 ---
 
@@ -290,24 +288,6 @@ Not recommended when E-region contamination is present.
 
 ---
 
-
-#### Option D: Sgolay-ridge extraction (legacy)
-
-Corridor-based extraction where the user defines a frequency band
-and the Savitzky-Golay ridge-finder tracks within it. Superseded by
-anchor-guided cwt-prophet (Option A) but still available:
-
-```bash
-python3 drf_to_doppler.py ./n6rfm --subchannel 0 \
-    --start 2026-01-19T00:00:00 --end 2026-01-19T02:00:00 \
-    --decim-seconds 60 --method sgolay-ridge \
-    --output n6rfm_sgolay_tid.csv
-```
-
-Output: `<station>_sgolay_tid.csv`
-
----
-
 ### Step 7 -- Extraction output
 
 | Option | Key/command | Output file |
@@ -316,7 +296,6 @@ Output: `<station>_sgolay_tid.csv`
 | A (raw spline) | X key | `<station>_spline_tid.csv` |
 | B (wave-fit) | A key (accept) | `<station>_wave_tid.csv` |
 | C (automated) | drf_to_doppler.py | `<station>_<method>_tid.csv` |
-| E (sgolay-ridge) | drf_to_doppler.py | `<station>_sgolay_tid.csv` |
 
 An overlay spectrogram is generated for visual assessment.
 
@@ -415,7 +394,6 @@ Options:
   --resume              Resume from saved state
   --max-lag MIN         Max xcorr lag in minutes (default: auto)
                         Recommended: ~1/3 of expected TID period
-  --sgolay-window MIN   Sgolay smoothing window in minutes (default: 21)
 
 tid_doa.py (direct use, outside workflow):
   --drop NAME           Exclude a station by name before DOA
@@ -445,7 +423,6 @@ For the 19 January 2026 event (00:00-01:36 UTC, 4 stations):
 | Flags | 0/5 |
 | Method | cwt-prophet Pass 0 |
 | Command | `python3 tid_doa.py examples/event_20260119.json --drop AC0G_ND` |
-
 
 ---
 
@@ -512,8 +489,6 @@ independently by Madrigal GPS TEC lag sign (Entry 52).
 
 For reproducibility, prefer committing the prophet_preview CSV
 (E key export) over the spline CSV when Pass 0 is acceptable.
-
-
 
 seeds from a few clicks and propagates the carrier under a Kalman
 filter. Seed via the S key in `tid_spect_click.py`, then run:
