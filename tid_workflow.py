@@ -798,17 +798,17 @@ def run_workflow(args):
             if wave_key not in state:
                 while True:
                     print(f"")
-                    print(f"  ┌──────────────────────────────────────────────────┐")
-                    print(f"  │  [Step 6] Wave-fit extraction for {name:<14s}  │")
-                    print(f"  │                                                  │")
-                    print(f"  │  1. Click 3+ points along the TID oscillation    │")
-                    print(f"  │     (peaks and troughs of the wave)              │")
-                    print(f"  │  2. Press F to fit a sinusoid                    │")
-                    print(f"  │  3. Press A to accept the fit                    │")
-                    print(f"  │  4. Press Q to close                             │")
-                    print(f"  │                                                  │")
-                    print(f"  │  Keys: W=start  F=fit  A=accept  R=reset  Q=quit │")
-                    print(f"  └──────────────────────────────────────────────────┘")
+                    print(f"  ┌───────────────────────────────────────────────────────┐")
+                    print(f"  │  [Step 6] Wave-fit extraction for {name:<14s}      │")
+                    print(f"  │                                                       │")
+                    print(f"  │  1. Click 3+ points along the TID oscillation         │")
+                    print(f"  │     (peaks and troughs of the wave)                   │")
+                    print(f"  │  2. Press F to fit and save                           │")
+                    print(f"  │  3. If fit looks good → press Q to close              │")
+                    print(f"  │     If not → press W to redo, adjust clicks, F again  │")
+                    print(f"  │                                                       │")
+                    print(f"  │  Keys: F=fit+save  W=redo  Q=done (close window)      │")
+                    print(f"  └───────────────────────────────────────────────────────┘")
                     run([
                         "python3", tool("tid_spect_click.py"),
                         "--spectrogram", str(zoom_clean_png),
@@ -819,7 +819,7 @@ def run_workflow(args):
                     ])
                     if wave_csv.exists():
                         break
-                    print(f"  ⚠️  No wave-fit CSV saved (did you press A to accept?)")
+                    print(f"  ⚠️  No wave-fit CSV saved (did you press F to fit?)")
                     retry = input(f"  Retry wave-fit for {name}? [Y/n/skip]: ").strip().lower()
                     if retry == "n" or retry == "skip":
                         print(f"  Skipping {name}")
