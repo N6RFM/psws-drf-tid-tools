@@ -364,17 +364,21 @@ alias or wrong-peak lock in that pair.
 and cross-correlates station pairs independently of the HF Doppler data.
 
 ```bash
-python3 fetch_madrigal_tec.py \\
-    --date YYYY-MM-DD \\
-    --event-start YYYY-MM-DDTHH:MM:SSZ \\
-    --event-end   YYYY-MM-DDTHH:MM:SSZ \\
-    --stations N6RFM,-97.21,32.94 AA6BD,-85.13,35.06 W7LUX,-111.71,35.10 \\
-    --user-name "Your Name" --user-email your@email.com \\
-    --user-affiliation "Your Institution" \\
-    --doa-lags AA6BD,N6RFM,1253 AA6BD,W7LUX,1481 N6RFM,W7LUX,228 \\
-    --doa-speed 304 --doa-azimuth-from 10 \\
+python3 fetch_madrigal_tec.py \
+    --date YYYY-MM-DD \
+    --event-start YYYY-MM-DDTHH:MM:SSZ \
+    --event-end   YYYY-MM-DDTHH:MM:SSZ \
+    --stations N6RFM,-100.93,36.87 AA6BD,-94.70,38.29 W7LUX,-108.50,37.94 \
+    --user-name "Your Name" \
+    --user-email your@email.com \
+    --user-affiliation "Your Institution" \
+    --doa-lags AA6BD,N6RFM,1253 AA6BD,W7LUX,1481 N6RFM,W7LUX,228 \
+    --doa-speed 304 --doa-azimuth-from 10 \
     --output-dir <event_dir>/runs/external_evaluations
 ```
+
+`--stations` takes NAME,LON,LAT triples for each receiver station.
+`--user-*` fields are required by the Madrigal API (free, no approval needed).
 
 **Critical caveat — geometry matters:**
 GPS TEC xcorr gives the along-baseline lag, not the true phase lag.
