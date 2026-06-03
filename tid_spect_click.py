@@ -628,7 +628,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
                 f"{n} anchor(s).  X=export  Z=undo  R=reset  Q=quit")
         else:
             self._set_status(
-                f"{n} anchor(s).  P=re-run Prophet  E=export prophet  "
+                f"{n} anchor(s).  E=accept auto-trace  "
                 f"X=export spline  Z=undo  R=reset  Q=quit")
 
     def _refresh_scatter(self):
@@ -824,7 +824,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
             ts = _dt.datetime.now().strftime("%H:%M:%S")
             self._set_status(
                 f"[{ts}] Pass {self._prophet_pass} — {n} anchor(s).  "
-                f"Click F-region carrier to add anchors  P=re-run  E=export prophet  X=export spline  Z=undo  R=reset  Q=quit")
+                f"E=accept auto-trace  X=export clicked trace  Z=undo  R=reset  Q=quit")
         except Exception as _e:
             self._set_status(f"Prophet overlay failed: {_e}")
 
@@ -1059,7 +1059,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
             if self._no_prophet:
                 keys = "[X] export  [Z] undo  [R] reset  [Q] quit"
             else:
-                keys = ("[P] re-run Prophet  [E] export prophet  "
+                keys = ("[E] accept auto-trace  "
                         "[X] export spline  "
                         "[Z] undo  [R] reset  [Q] quit")
             msg = f"[{self.name}] {n} click(s){seg}   {keys}"
