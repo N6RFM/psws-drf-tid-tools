@@ -1056,12 +1056,14 @@ class SpectClickApp(QtWidgets.QMainWindow):
         else:
             n = len(self.clicks_t)
             seg = f"  seg: {self.seg_t0:.2f}–{self.seg_t1:.2f} h"
-            if self._no_prophet:
-                keys = "[X] export  [Z] undo  [R] reset  [Q] close (no export)"
+            if getattr(self, "_wave_only", False):
+                keys = "[F] fit  [A] accept  [W] redo  [R] reset  [Q] done (close window)"
+            elif self._no_prophet:
+                keys = "[X] export  [Z] undo  [R] reset  [Q] done (close window)"
             else:
                 keys = ("[E] accept auto-trace  "
-                        "[X] export spline  "
-                        "[Z] undo  [R] reset  [Q] close (no export)")
+                        "[X] export clicked trace  "
+                        "[Z] undo  [R] reset  [Q] done (close window)")
             msg = f"[{self.name}] {n} click(s){seg}   {keys}"
         self.status_label.setText(msg)
 
