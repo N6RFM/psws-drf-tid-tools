@@ -81,7 +81,7 @@ After all stations are confirmed, choose the extraction method
 and DOA coordinate system:
 
     Extraction method:
-      1. cwt-prophet   (anchor-guided)
+      1. cwt-prophet   (recommended)
       2. fft           (automated)
       3. autocorr      (automated)
       4. cwt           (automated, CWT multi-peak tracker)
@@ -89,8 +89,8 @@ and DOA coordinate system:
 
 Also prompted: DOA coordinate system (IPP midpoints recommended).
 
-**Suggest try first: cwt-prophet** (option 1) -- anchor-guided
-extraction via tid_spect_click.py. Pass 0 auto-runs CWT+Prophet;
+**Suggest try first: cwt-prophet** (option 1) —
+auto-trace via tid_spect_click.py. CWT+Prophet runs on open;
 if auto-trace looks good press E; if not, click the carrier
 and press X to export your trace.
 
@@ -150,70 +150,45 @@ contamination level, and how many TID cycles are visible.
 
 ---
 
-#### Option A: Anchor-guided cwt-prophet extraction — recommended
+#### Option A: cwt-prophet extraction — recommended
 
 A `tid_spect_click` window opens showing the zoomed spectrogram.
 Use `--event-json event.json` to auto-update the event config on export.
 
-**Pass 0 (automatic):** The tool immediately runs cwt-prophet and
-shows the result as a green overlay. No clicks needed — inspect
-the trace first.
+**Auto-trace:** The tool runs cwt-prophet automatically and shows
+a trace overlay. Inspect it — does it follow the carrier?
 
-**If the Pass 0 trace looks good:** press **E** to export the
-prophet CSV and move to the next station.
+**Key bindings:**
 
-**If the trace has excursions:** click anchor points on the carrier
-where Prophet went wrong, then press **P** to re-run Prophet with
-your anchors as hard constraints:
+    E       Accept auto-trace and export
+    X       Export clicked trace (spline through your clicks)
+    Z       Undo last click
+    R       Reset all clicks
+    C       Clear all (clicks + calibration)
+    Q       Done (close window)
 
-    Key bindings (shown in status bar at top):
-      Click   Add anchor point on carrier (black dot)
-      P       Re-run Prophet with current anchors as constraints
-      E       Export prophet CSV (recommended — smooth, guided trace)
-      X       Export raw spline CSV (PCHIP through clicks only)
-      W       Switch to wave-fit mode (Option B)
-      Z       Undo last click
-      R       Reset all clicks
-      C       Clear all (clicks + calibration)
-      Q       Quit
+**Workflow:**
+1. Inspect the auto-trace — does it follow the carrier?
+2. If yes: press **E** to accept and export (done)
+3. If no: click along the carrier from left to right (as many
+   points as needed to define the correct trace)
+4. Press **X** to export your clicked trace
+5. Press **Q** to close
 
-**What to click for Option A (spline):**
+**What to click when the auto-trace is wrong:**
 
-The spectrogram shows frequency on the vertical axis and time on
-the horizontal axis. The WWV carrier appears as a **bright ridge**
-near 0 Hz that slowly drifts up and down as the TID passes —
-this is the F-region carrier you want to track.
+The spectrogram shows frequency (vertical) vs time (horizontal).
+The carrier appears as a **bright ridge** near 0 Hz that drifts
+up and down as the TID passes.
 
-- Click **on the bright ridge** at the carrier's current position
-- Click where the Pass 0 green trace has gone wrong (excursions,
-  flat sections, jumps to the wrong ridge)
-- Place clicks at the **start and end** of the problem region,
-  plus 2–3 points inside it
+- Click **on the bright ridge** from left to right across the window
 - Do NOT click on the E-region flat band near 0 Hz (if present)
-- The black dot markers show your click positions
-- The live spline preview (red/orange curve) updates immediately
-
-**Multi-region editing workflow:**
-1. Inspect Pass 0 automatic trace (green)
-2. Click 2+ anchor points on the carrier in any problem region —
-   live spline preview updates immediately
-3. Press **P** to re-run Prophet with your anchors as constraints
-4. Inspect the new prophet overlay — add more anchors and press
-   P again if needed. Press Z to undo a misplaced click.
-5. When satisfied: press **E** to export the prophet CSV
-6. Or press **X** to export the raw spline (without Prophet smoothing)
-
-**Key points:**
-- Prophet provides a smooth, physically motivated carrier estimate
-- Anchor clicks correct only the regions where Prophet fails
-- Most of the trace is Prophet's work — user intervenes only where needed
-- Prefer **E** (prophet) over **X** (raw spline) when Prophet fits well
-- Use **X** only when the carrier is too complex for Prophet
-- Minimum clicks needed = quality metric: clean stations need 0
+- Black dot markers show your click positions
+- Press Z to undo a misplaced click
 
 **Output:**
-- E key: `<station>_prophet_tid.csv` (recommended)
-- X key: `<station>_spline_tid.csv`
+- E key: `<station>_prophet_tid.csv` (auto-trace accepted)
+- X key: `<station>_spline_tid.csv` (user-clicked trace)
 
 ---
 
