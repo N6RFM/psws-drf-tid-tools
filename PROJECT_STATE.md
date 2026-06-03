@@ -1,3 +1,225 @@
+# PROJECT_STATE.md
+# psws-drf-tid-tools — project state log
+# Sections 1-35 reconstructed from git history and FINDINGS entries.
+
+---
+## 1. Initial release v1.0.0 — 2026-05-12
+First public release of psws-drf-tid-tools. Core tools: drf_to_doppler.py
+(FFT extraction), tid_pair.py (2-station cross-correlation), tid_doa.py
+(multi-station DOA inversion), drf_spectrogram.py. README with full
+methodology documentation.
+
+---
+## 2. Documentation and README updates — 2026-05-12/13
+Step 1 (identify TID region) added to methodology. Window parameter
+documentation. Multiple README clarifications. PRs #1-#3.
+
+---
+## 3. Driver script and automation — 2026-05-13
+analyze_event.sh: interactive driver script for the full TID analysis
+pipeline. AUTOMATION.md documentation. PR #4.
+
+---
+## 4. Quality scoring tools — 2026-05-14
+quality_summary.py: per-station Doppler quality scoring with worked
+example. find_event_stations.py: filter magnetometers, include
+reference station. PRs #5-#8. v1.2.0.
+
+---
+## 5. G3ZIL feedback round 1 — 2026-05-14
+Doc clarifications from Gwyn Griffiths G3ZIL review. Five corrections
+to tid_pair output, tutorial, methodology. Viewer stdio fix. Progress
+dots for drf_spectrogram.py. PRs #9-#11. v1.2.1.
+
+---
+## 6. G3ZIL feedback round 2 — 2026-05-15
+Three improvements from G3ZIL feedback. Driver script fixes (tee
+ordering, viewer instance management, stage 1b survey feedback).
+PRs #12-#16. v1.3.0, v1.4.0.
+
+---
+## 7. First May 2024 LSTID analysis — 2026-05-16
+FINDINGS 1-3. First run on self-downloaded copy of May 17 2024 event.
+N4RVE/N5BRG investigation: noise issues, dual-channel discovery.
+Self-download thread closed — need Gwyn's processed data.
+
+---
+## 8. Autocorr extractor and first results — 2026-05-17
+FINDINGS 4-5. Gwyn replies with processed data. Autocorr (lag-1
+complex autocorrelation) extractor implemented — G3ZIL method, 2-3x
+smoother than FFT. First contaminated-pair cross-correlation results.
+Autocorr vs FFT comparison on N4RVE/N5BRG.
+
+---
+## 9. Lag discrepancy investigation — 2026-05-17/18
+FINDINGS 6. Lag discrepancy found between our results and Gwyn's.
+Clarification email sent. Root cause: different array geometry
+assumptions (receiver coords vs IPP midpoints).
+
+---
+## 10. Synthetic Monte Carlo experiment — 2026-05-18
+FINDINGS 7. Synthetic wave propagation with known speed/direction.
+Verified DOA inversion accuracy. Confirmed: plane-wave assumption
+holds for MSTID-scale wavelengths on the PSWS array.
+
+---
+## 11. Jan 2026 MSTID four-configuration comparison — 2026-05-18
+FINDINGS 8. Four-station comparison on Jan 19 2026 event. Multiple
+extraction method configurations tested. Identified sensitivity to
+extraction method and station subset.
+
+---
+## 12. v1.6.x toolkit — overlay, method selection, workflow — 2026-05-18/19
+FINDINGS 9. drf_to_doppler.py: --method flag (fft/autocorr/cwt),
+overlay spectrograms with extraction trace, method comparison plots.
+Systematic method evaluation framework.
+
+---
+## 13. May 2024 LSTID re-run with mixed methods — 2026-05-19
+FINDINGS 10. Mixed-method DOA on May 2024 event. Discovery:
+collinear array geometry limits direction resolution. Station
+midpoints nearly co-linear → direction poorly constrained.
+
+---
+## 14. CWT multi-peak tracker — 2026-05-19/20
+FINDINGS 11. CWT (Continuous Wavelet Transform) multi-peak tracker
+implemented. Tracks multiple spectral peaks through time, handles
+peak crossings. Better than FFT on contaminated signals but still
+automated (no user guidance).
+
+---
+## 15. Adaptive bandpass and multi-peak xcorr — 2026-05-20
+FINDINGS 12-13. Adaptive bandpass pre-filter for xcorr. Multi-peak
+xcorr selector in tid_doa.py: when multiple correlation peaks exist,
+select the one most consistent with the plane-wave model.
+
+---
+## 16. Multi-peak xcorr results and parabolic interpolation — 2026-05-22
+FINDINGS 14-15. Multi-peak xcorr selector tested on May 2024 collinear
+array. Parabolic lag interpolation fixes discretisation closure error —
+key improvement for lag precision.
+
+---
+## 17. Interactive guided extraction tools — 2026-05-22/23
+FINDINGS 16-17. research_gui branch created. tid_spect_click.py:
+interactive spectrogram click tool for carrier identification.
+Click-guided corridor extraction: user defines frequency corridor,
+algorithm tracks carrier within it.
+
+---
+## 18. Post-processing limitations — 2026-05-23
+FINDINGS 18. Post-processing detrending (Savitzky-Golay, outlier
+rejection) cannot fix wrong-peak lock. Key insight: extraction must
+be correct at source — no amount of post-processing can recover a
+trace that locked onto the wrong spectral feature.
+
+---
+## 19. Bandpass and CWT extraction comparison — 2026-05-23
+FINDINGS 19. Bandpass and CWT extraction comparison on AC0G_ND.
+Method comparison matrix showing which extraction approaches work
+on contaminated stations.
+
+---
+## 20. sgolay-ridge: first complete 4-station result — 2026-05-24
+FINDINGS 20-21. sgolay-ridge extraction on all stations. First
+complete 4-station DOA result using guided extraction. Validated
+the corridor-based approach as superior to automated methods on
+contaminated stations.
+
+---
+## 21. 4-station DOA with N5BRG and IPP coordinates — 2026-05-24/25
+FINDINGS 22-23. Added N5BRG as fourth station. IPP (Ionospheric
+Pierce Point) coordinate system implemented for more physical
+midpoint calculation. Automated FFT vs sgolay-ridge comparison.
+
+---
+## 22. Full method comparison — 2026-05-25
+FINDINGS 24-25. Systematic comparison: FFT vs autocorr vs sgolay-ridge.
+Array geometry comparison with Gwyn's method. Identified: sgolay-ridge
+gives consistent results where FFT/autocorr fail due to contamination.
+
+---
+## 23. Critical limitation identified — 2026-05-25
+FINDINGS 26. Key finding: DOA diagnostics (closure, residual, SVR)
+are internal consistency checks, not independent validation. A result
+can pass all diagnostics and still be wrong. External validation
+(GPS TEC, ionosonde, Kp/AE) is essential.
+
+---
+## 24. tid_workflow.py implementation — 2026-05-26
+FINDINGS 27-28. Complete guided workflow wrapper: station discovery,
+spectrogram generation, window selection, extraction, DOA — all in
+one interactive command. Strategy summary: sgolay-ridge for
+contaminated stations, FFT/autocorr for clean ones.
+
+---
+## 25. EMD test and GUI cleanup — 2026-05-26
+FINDINGS 29-31. EMD (Empirical Mode Decomposition) tested on W7LUX
+May 2024 — did not improve extraction. GUI cleanup: amplitude panel
+and sinusoid fit removed from spectrogram viewer. Clean launch fix.
+
+---
+## 26. Jan 2026 event analysis begins — 2026-05-27
+FINDINGS 32-33. sgolay-ridge vs FFT comparison on Jan 2026 event.
+Document speed error identified in earlier analysis — corrected.
+
+---
+## 27. max_lag_seconds constraint — 2026-05-27
+FINDINGS 34. max_lag_seconds constraint in tid_doa.py improves
+result by preventing alias peak lock. Key parameter for DOA quality.
+
+---
+## 28. Sign convention reconciliation with Gwyn — 2026-05-27
+FINDINGS 35-36. Gwyn's email identifies sign convention difference.
+Full cross-check: our "coming from" = Gwyn's "heading toward" + 180°.
+Results agree once convention is aligned. Critical for comparing
+results between groups.
+
+---
+## 29. Corridor extraction variability — 2026-05-27
+FINDINGS 37. Jan 2026 corridor extraction variability investigation.
+Lag consistency across different corridor placements. Finding:
+corridor width and placement affect lags — need reproducible method.
+
+---
+## 30. cwt-prophet implementation — 2026-05-27
+FINDINGS 38. CWT-prophet hybrid: CWT ridge detection + Facebook
+Prophet time-series model for smooth carrier tracking. Comparison
+with cwt and sgolay-ridge on Jan 2026 event.
+
+---
+## 31. AA6BD carrier identification — 2026-05-27
+FINDINGS 39. AA6BD carrier identification: the strong near-zero
+feature is NOT the F-region carrier. sgolay-ridge correctly tracks
+the displaced carrier arc. Key finding for understanding why
+automated methods fail on this station.
+
+---
+## 32. Jan 2026 final sgolay-ridge result — 2026-05-28
+FINDINGS 40. Final sgolay-ridge result on Jan 2026 event. AC0G_ND
+lag analysis: this station consistently degrades the DOA result.
+Dropping AC0G_ND gives cleaner results.
+
+---
+## 33. May 2024 cwt-prophet and spline extraction — 2026-05-28
+FINDINGS 41-43. May 2024 event: cwt-prophet DOA result.
+tid_spect_click.py: spline extraction and Prophet-guided modes.
+Jan 2026 best DOA result with spline extraction.
+
+---
+## 34. May 2024 best results and wave-fit — 2026-05-28/29
+FINDINGS 44-49. May 2024 LSTID: first successful 4-station DOA.
+Window selection criterion and max-lag tightening. Wave-fit
+reconstruction prototype: A·sin(2π/T·t + φ) fit to clicked cycle
+points. DOA comparison: wave-fit vs spline vs prophet. v2.2.0.
+
+---
+## 35. External validation session — 2026-05-29/30
+FINDINGS 50-52. Jan 2026 external validation: Kp/AE indices,
+GloTEC TEC anomaly maps, IONEX GPS TEC analysis, Madrigal GPS
+TEC cross-correlation. evaluate_external.py, fetch_ae_index.py,
+fetch_glotec.py, fetch_madrigal_tec.py. v2.3.x series.
+
 
 ---
 ## 36. End of session — 2026-05-28 (late)
