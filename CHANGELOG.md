@@ -2,14 +2,7 @@
 
 ### New features
 
-- **capt_extract.py v0.1.0 — Constrained Adaptive Phase Tracking**
-  New Doppler extraction method using a Kalman filter seeded from
-  user clicks (S key in tid_spect_click.py). Propagates carrier phase
-  forward and backward under TID physics continuity constraints.
-  Methods: `--method fft` (default), `seed`, `autocorr`, `tracked`.
-  `tracked` mode constrains the FFT search to ±track-band around the
-  Kalman prediction — immune to wrong-feature lock. Tunable via
-  `--proc-noise`, `--track-band`, `--max-step`.
+- ~~capt_extract.py~~ — removed (experimental, not reliable enough)
 
 - **tid_doa.py: --drop flag**
   Exclude stations by name before DOA inversion. Repeatable and
