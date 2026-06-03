@@ -215,9 +215,9 @@ python3 drf_spectrogram.py ./n6rfm \
 | Method | Best for |
 |--------|----------|
 | fft | General purpose, default |
-| autocorr | Smooth carriers, G3ZIL method |
+| autocorr | Smooth carriers|
 | cwt | Multi-peak ambiguous carriers |
-| cwt-prophet | CWT + Prophet prediction (G3ZIL comparison) |
+| cwt-prophet | CWT + Prophet prediction |
 
 **Important:** automated methods pick the strongest spectral peak without
 constraint and can lock onto the wrong feature (e.g. E-region
