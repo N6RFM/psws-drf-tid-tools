@@ -235,9 +235,9 @@ python3 evaluate_external.py \
     --date 2026-01-19 \
     --event-start 2026-01-19T00:00:00Z \
     --event-end   2026-01-19T01:15:00Z \
-    --speed-m-s 239 --azimuth-from 30 \
+    --speed-m-s 304 --azimuth-from 10 \
     --glotec-dir ~/Downloads/glotec_2026_01_19 \
-    --output-dir ./evaluation
+    --output-dir <event_dir>/runs/external_evaluations
 ```
 
 Outputs: `kp_plot.png`, `ae_plot.png`, `glotec_event_montage.png`,
@@ -250,8 +250,8 @@ python3 fetch_ae_index.py \
     --date 2026-01-19 \
     --event-start 2026-01-19T00:00:00Z \
     --event-end   2026-01-19T01:15:00Z \
-    --speed-m-s 239 \
-    --output-dir ./evaluation
+    --speed-m-s 304 \
+    --output-dir <event_dir>/runs/external_evaluations
 ```
 
 Fetches 1-minute AE from WDC Kyoto. Plots full day + zoom with event
@@ -274,7 +274,7 @@ python3 fetch_glotec.py \
     --date 2026-01-19 \
     --event-start 2026-01-19T00:00:00Z \
     --event-end   2026-01-19T01:15:00Z \
-    --output-dir ./evaluation
+    --output-dir <event_dir>/runs/external_evaluations
 ```
 
 Outputs: event montage, before/after comparison, diff map, product list.
@@ -372,8 +372,8 @@ python3 fetch_madrigal_tec.py \\
     --user-name "Your Name" --user-email your@email.com \\
     --user-affiliation "Your Institution" \\
     --doa-lags AA6BD,N6RFM,1253 AA6BD,W7LUX,1481 N6RFM,W7LUX,228 \\
-    --doa-speed 239 --doa-azimuth-from 30 \\
-    --output-dir ./evaluation
+    --doa-speed 304 --doa-azimuth-from 10 \\
+    --output-dir <event_dir>/runs/external_evaluations
 ```
 
 **Critical caveat — geometry matters:**
@@ -418,8 +418,8 @@ python3 fetch_madrigal_tec.py \
     --user-email your@email.com \
     --user-affiliation "Your Institution" \
     --doa-lags AA6BD,N6RFM,1253 AA6BD,W7LUX,1481 N6RFM,W7LUX,228 \
-    --doa-speed 239 --doa-azimuth-from 30 \
-    --output-dir ./evaluation
+    --doa-speed 304 --doa-azimuth-from 10 \
+    --output-dir <event_dir>/runs/external_evaluations
 ```
 
 **Outputs:** `madrigal_tec_raw.png`, `madrigal_tec_detrended.png`,

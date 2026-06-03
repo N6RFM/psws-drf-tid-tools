@@ -208,16 +208,16 @@ python3 evaluate_external.py \
     --date 2026-01-19 \
     --event-start 2026-01-19T00:00:00Z \
     --event-end   2026-01-19T01:15:00Z \
-    --speed-m-s 239 --azimuth-from 30 \
+    --speed-m-s 304 --azimuth-from 10 \
     --glotec-dir ~/Downloads/glotec_2026_01_19 \
-    --output-dir ./evaluation
+    --output-dir <event_dir>/runs/external_evaluations
 
 # 2. AE index only
 python3 fetch_ae_index.py \
     --date 2026-01-19 \
     --event-start 2026-01-19T00:00:00Z \
     --event-end   2026-01-19T01:15:00Z \
-    --speed-m-s 239 --output-dir ./evaluation
+    --speed-m-s 304 --output-dir <event_dir>/runs/external_evaluations
 
 # 3. GloTEC analysis (download tar.gz from NOAA NCEI first)
 #    https://www.ngdc.noaa.gov/stp/iono/ustec/
@@ -226,14 +226,14 @@ python3 fetch_glotec.py \
     --date 2026-01-19 \
     --event-start 2026-01-19T00:00:00Z \
     --event-end   2026-01-19T01:15:00Z \
-    --output-dir ./evaluation
+    --output-dir <event_dir>/runs/external_evaluations
 
 # 4. Madrigal GPS TEC cross-correlation
 python3 fetch_madrigal_tec.py \
     --date 2026-01-19 \
     --event-start 2026-01-19T00:00:00Z \
     --event-end   2026-01-19T01:15:00Z \
-    --output-dir ./evaluation
+    --output-dir <event_dir>/runs/external_evaluations
 ```
 
 Madrigal queries MIT Haystack GPS TEC data (cedar.openmadrigal.org,
