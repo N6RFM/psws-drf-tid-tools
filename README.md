@@ -30,7 +30,7 @@ lets you:
 - find which other stations were on the air during your event of interest
 - inspect a DRF recording and identify the correct subchannel for 10 MHz
 - extract Doppler-vs-time CSVs from raw I/Q using four methods:
-  anchor-guided cwt-prophet (recommended), autocorr (G3ZIL method),
+  anchor-guided cwt-prophet (recommended), autocorr,
   CWT, or wave-fit
 - render annotated Doppler spectrograms with optional overlay of
   extracted Doppler traces for visual method assessment
