@@ -15,10 +15,8 @@ Automates the 10-step guided extraction workflow:
   Step 4:  Zoomed spectrogram
   Step 5:  Optionally refine TID window (opt-in)
   Step 6:  cwt-prophet: anchor-guided extraction (Pass 0 auto + P to re-run with anchors)
-           sgolay-ridge: corridor-based extraction (legacy)
-           fft/autocorr/cwt: fully automated extraction
+           autocorr/cwt: fully automated extraction
            wave-fit: sine fit to user-clicked cycle points
-           CAPT: Kalman filter seeded from user clicks (experimental)
   Step 7:  overlay spectrogram for visual assessment
   Step 8:  DOA (tid_doa.py)
 
@@ -491,17 +489,12 @@ def run_workflow(args):
     if "extraction_method" not in state:
         print("\nExtraction method:")
         print("  1. cwt-prophet   (anchor-guided — recommended)")
-        print("  2. fft           (automated)")
-        print("  3. autocorr      (automated, Gwyn G3ZIL method)")
-        print("  4. cwt           (automated, CWT multi-peak tracker)")
-        print("  5. sgolay-ridge  (legacy corridor method)")
-        print("  6. wave-fit      (sine fit to clicked cycle points)")
-        print("  7. capt          (Kalman filter from seed clicks — experimental)")
+        print("  2. autocorr      (automated, Gwyn G3ZIL method)")
+        print("  3. cwt           (automated, CWT multi-peak tracker)")
+        print("  4. wave-fit      (sine fit to clicked cycle points)")
         choice = input("Choose [1]: ").strip() or "1"
-        method = {"1": "cwt-prophet", "2": "fft",
-                  "3": "autocorr", "4": "cwt",
-                  "5": "sgolay-ridge", "6": "wave-fit",
-                  "7": "capt"}.get(choice, "cwt-prophet")
+        method = {"1": "cwt-prophet", "2": "autocorr",
+                  "3": "cwt", "4": "wave-fit"}.get(choice, "cwt-prophet")
         state["extraction_method"] = method
         save_state(state_file, state)
     else:
