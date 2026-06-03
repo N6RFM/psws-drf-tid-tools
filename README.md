@@ -29,8 +29,9 @@ lets you:
 
 - find which other stations were on the air during your event of interest
 - inspect a DRF recording and identify the correct subchannel for 10 MHz
-- extract Doppler-vs-time CSVs from raw I/Q using five methods:
-  wave-fit, sgolay-ridge (legacy), autocorr (G3ZIL method), or FFT
+- extract Doppler-vs-time CSVs from raw I/Q using four methods:
+  anchor-guided cwt-prophet (recommended), autocorr (G3ZIL method),
+  CWT, or wave-fit
 - render annotated Doppler spectrograms with optional overlay of
   extracted Doppler traces for visual method assessment
 - run the complete pipeline in one guided interactive session
@@ -166,13 +167,12 @@ coordinate calculation, and result interpretation.
 `tid_spect_click.py` is the primary interactive extraction tool.
 provides experimental Kalman-filter-based extraction.
 
-Five methods are available, in order of recommended preference:
+Four methods are available, in order of recommended preference:
 
 | Method | Tool | User input | Best for |
 |--------|------|-----------|----------|
 | **Anchor-guided cwt-prophet** (recommended) | tid_spect_click.py | Anchor clicks + P to re-run Prophet | All events, especially E-region contamination |
 | **Wave-fit** | tid_spect_click.py --wave-only | Click cycle points + F to fit | Clean signals with ≥1.5 visible cycles |
-| **Sgolay-ridge** (legacy) | drf_to_doppler.py --method sgolay-ridge | Corridor definition | Contaminated carriers needing constrained search |
 | **Autocorr** | drf_to_doppler.py --method autocorr | None | Clean signals, G3ZIL validation |
 | **FFT** | drf_to_doppler.py --method fft | None | Clean signals, fast survey |
 
@@ -274,7 +274,7 @@ psws-drf-tid-tools/
 ├── tid_workflow.py             guided 8-step workflow (NEW in v2.0)
 ├── tid_quicklook.py            interactive TID window selector
 ├── drf_spectrogram.py          spectrograms + --overlay for visual assessment
-├── drf_to_doppler.py           Doppler extraction (fft/autocorr/cwt/sgolay-ridge)
+├── drf_to_doppler.py           Doppler extraction (autocorr/cwt/fft)
 ├── drf_inspect.py              verify DRF metadata + subchannel
 ├── find_event_stations.py      companion-station discovery
 ├── tid_doa.py                  multi-station DOA inversion (--drop to exclude stations)

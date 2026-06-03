@@ -118,12 +118,45 @@ def read_drf_metadata(drf_dir):
     return None, None
 
 
-def get_station_coords(name, drf_dir):
-    """Get receiver lat/lon: DRF metadata → callsign DB → user input."""
+def _load_coords_cache(event_dir):
+    """Load station coordinates cache from event directory."""
+    cache_path = Path(event_dir) / "station_coords.json"
+    if cache_path.exists():
+        with open(cache_path) as f:
+            return json.load(f)
+    return {}
+
+
+def _save_coords_cache(event_dir, cache):
+    """Save station coordinates cache to event directory."""
+    cache_path = Path(event_dir) / "station_coords.json"
+    with open(cache_path, "w") as f:
+        json.dump(cache, f, indent=2)
+
+
+def get_station_coords(name, drf_dir, event_dir=None):
+    """Get receiver lat/lon: cache → DRF metadata → callsign DB → user input.
+
+    If event_dir is provided, coordinates are cached in
+    <event_dir>/station_coords.json and reused across runs.
+    """
+    # 0. Try persistent cache
+    cache = {}
+    if event_dir:
+        cache = _load_coords_cache(event_dir)
+        key_cache = name.upper()
+        if key_cache in cache:
+            lat, lon = cache[key_cache]["lat"], cache[key_cache]["lon"]
+            print(f"    Coords from cache: {lat:.4f}N, {abs(lon):.4f}{'W' if lon < 0 else 'E'}")
+            return lat, lon
+
     # 1. Try DRF metadata
     lat, lon = read_drf_metadata(drf_dir)
     if lat is not None:
         print(f"    Coords from DRF metadata: {lat:.4f}N, {abs(lon):.4f}{'W' if lon < 0 else 'E'}")
+        if event_dir:
+            cache[name.upper()] = {"lat": lat, "lon": lon}
+            _save_coords_cache(event_dir, cache)
         return lat, lon
 
     # 2. Try callsign database
@@ -131,6 +164,9 @@ def get_station_coords(name, drf_dir):
     for k, (la, lo, gr) in KNOWN_STATIONS.items():
         if k in key or key in k:
             print(f"    Coords from callsign DB ({k}): {la:.4f}N, {abs(lo):.4f}{'W' if lo < 0 else 'E'}  {gr}")
+            if event_dir:
+                cache[name.upper()] = {"lat": la, "lon": lo}
+                _save_coords_cache(event_dir, cache)
             return la, lo
 
     # 3. User input
@@ -139,6 +175,10 @@ def get_station_coords(name, drf_dir):
         try:
             lat = float(input(f"    Enter latitude for {name} (decimal degrees N): "))
             lon = float(input(f"    Enter longitude for {name} (decimal degrees E, negative=W): "))
+            if event_dir:
+                cache[name.upper()] = {"lat": lat, "lon": lon}
+                _save_coords_cache(event_dir, cache)
+                print(f"    Saved to station_coords.json (will be reused on re-run)")
             return lat, lon
         except ValueError:
             print("    Invalid — enter decimal numbers e.g. 35.1042 and -111.7083")
@@ -450,7 +490,7 @@ def run_workflow(args):
                 except ValueError:
                     print('    Please enter a number')
             # Get coords
-            rx_lat, rx_lon = get_station_coords(name, drf_dir_s)
+            rx_lat, rx_lon = get_station_coords(name, drf_dir_s, event_dir=event_dir)
 
             # Compute IPP midpoint
             # Look up grid square
