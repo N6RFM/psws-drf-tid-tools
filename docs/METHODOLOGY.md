@@ -160,7 +160,7 @@ disagreement between the two methods, not fit to an external truth.
      causes wrong-peak lock in this regime).
 
 6. If automated methods still give contaminated traces:
-   Use anchor-guided cwt-prophet extraction (Step 1d) — recommended.
+   Use anchor-guided cwt-prophet extraction (Step 1d).
 
 7. Record which method was chosen and why in the run log.
 ```
@@ -218,7 +218,7 @@ use spline extraction instead.
 
 ---
 
-## Step 1d: Anchor-guided cwt-prophet extraction (recommended)
+## Step 1d: Anchor-guided cwt-prophet extraction
 
 For contaminated stations or when automated methods give inconsistent
 lags, the anchor-guided cwt-prophet gives the most reliable results.
