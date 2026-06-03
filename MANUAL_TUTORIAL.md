@@ -355,7 +355,7 @@ python3 tid_map.py --config event.json --output map.png \
 |--------|-------|------|-------|
 | spline/cwt-prophet | 239 m/s | 30° NNE | Best result (0/5 flags) |
 | fft | ~281 m/s | ~33° NNE | Automated, 3/5 flags |
-| autocorr | similar to fft | — | G3ZIL method |
+| autocorr | similar to fft | — | — |
 | Peak-time direct | ~281 m/s | ~33 deg | Independent cross-check |
 
 The spline approach gives the physically correct result by letting the
