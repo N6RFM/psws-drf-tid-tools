@@ -48,20 +48,19 @@ and `θ`) from observed pairwise lags.
 The raw DRF I/Q stream is complex baseband, sampled at 10 Hz. The WWV
 carrier sits within ±5 Hz of zero after baseband mixing.
 
-Five extraction methods are available, in order of recommended preference:
+Four extraction methods are available, in order of recommended preference:
 
 | Method | How | Best for |
 |--------|-----|----------|
 | **Anchor-guided cwt-prophet** | Interactive: Prophet auto-trace + user anchor corrections, P to re-run | All events, especially E-region contamination (recommended) |
 | **wave-fit** | Interactive: user clicks cycle points, sine fit | Clean signals with ≥1.5 cycles visible |
-| **sgolay-ridge** (legacy) | Semi-interactive: user defines corridor, Savitzky-Golay ridge-finder | Contaminated carriers needing constrained search |
 | **autocorr** | Automated: lag-1 complex autocorrelation | Clean signals, G3ZIL validation |
 | **fft** | Automated: bin-peak tracker | Clean signals, fast survey |
 
 The FFT bin-peak method is described below. The anchor-guided
-cwt-prophet, wave-fit, and sgolay-ridge methods bypass the automated
-bin-peak tracker — the user defines or constrains the Doppler trace
-clicks to track the carrier under physical continuity constraints.
+cwt-prophet and wave-fit methods bypass the automated
+bin-peak tracker — the user defines the Doppler trace
+directly from the spectrogram.
 
 For each output sample of duration `T = decim_seconds` (FFT method):
 
@@ -162,7 +161,6 @@ disagreement between the two methods, not fit to an external truth.
 
 6. If automated methods still give contaminated traces:
    Use anchor-guided cwt-prophet extraction (Step 1d) — recommended.
-   Or use sgolay-ridge (Step 1f) if familiar with corridor-based extraction.
 
 7. Record which method was chosen and why in the run log.
 ```
@@ -252,38 +250,6 @@ R=reset.
 - X key: `{stn}_spline_tid.csv` (raw spline — fallback)
 
 See `WORKFLOW_TUTORIAL.md` Step 6 (Option A) for the full workflow.
-
----
-
-
-## Step 1e: Sgolay-ridge extraction (legacy)
-
-The sgolay-ridge method is a corridor-based extraction where the user
-defines a frequency band on the spectrogram and a Savitzky-Golay
-ridge-finder tracks the carrier only within that corridor.
-
-```
-python3 drf_to_doppler.py ./station --subchannel 0 \
-    --method sgolay-ridge \
-    --anchors corridor.json --corridor-width 0.4 \
-    --output station_sgolay_tid.csv
-```
-
-The corridor is defined by anchor clicks in `tid_spect_click.py`.
-The Savitzky-Golay filter smooths the spectral peak within the
-corridor, rejecting features outside it.
-
-**Comparison with anchor-guided cwt-prophet:**
-- Sgolay-ridge constrains the *search region* (corridor) — the
-  algorithm finds the peak within the band
-- Cwt-prophet constrains the *result* (anchor points) — Prophet
-  fits a smooth trace through the constraints
-- Cwt-prophet generally gives smoother, more physically motivated
-  results with fewer clicks
-- Sgolay-ridge is retained for users familiar with the corridor
-  approach and for comparison with earlier results
-
-Output: `{stn}_sgolay_tid.csv`
 
 ---
 
