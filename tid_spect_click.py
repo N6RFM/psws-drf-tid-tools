@@ -1254,7 +1254,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self._set_status(
             f"[{self.name}] WAVE-FIT: T={T_s/60:.1f} min  A={abs(A_fit):.3f} Hz  "
             f"phi={phi_fit:.2f} rad   "
-            f"[A]=accept  [W]=redo  [Q]=quit")
+            f"[W]=redo  [Q]=done")
         print(f"  Wave-fit candidate: T={T_s/60:.1f} min, A={abs(A_fit):.3f} Hz, "
               f"phi={phi_fit:.3f} rad — press A to accept, W to redo")
         # Draw wave-fit overlay on spectrogram
