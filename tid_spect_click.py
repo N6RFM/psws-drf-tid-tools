@@ -1499,7 +1499,13 @@ def main():
         print(f'  Event JSON: {args.event_json} (will update on X export)')
     if getattr(args, "wave_only", False):
         win._wave_only = True
-        win._install_shortcuts()  # re-bind W/F/A keys for wave-fit
+        # Bind wave-fit keys (not done in __init__ because _wave_only was False)
+        from PyQt5 import QtWidgets as _QtW, QtGui as _QtG, QtCore as _QtC2
+        for key, cb in [("W", win._wave_fit_start),
+                        ("F", win._wave_fit_execute),
+                        ("A", win._wave_fit_accept)]:
+            sc = _QtW.QShortcut(_QtG.QKeySequence(key), win, cb)
+            sc.setContext(_QtC2.Qt.ApplicationShortcut)
         from PyQt5 import QtCore as _QtC
         _QtC.QTimer.singleShot(600, win._wave_fit_start)
     win.show()
