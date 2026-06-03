@@ -217,14 +217,13 @@ this is the F-region carrier you want to track.
 
 ---
 
-#### Option B: Wave-fit reconstruction (W key)
+#### Option B: Wave-fit extraction (--wave-only)
 
 Use when the TID shows ≥1.5 clear cycles in the window and you want
 to fit a sine wave directly to the carrier. Each station independently
 estimates its own period — handles dispersive TIDs.
 
-From within spline mode, press **W** to switch. Or open directly
-in wave-fit mode (skips Prophet entirely):
+Open in wave-fit mode (skips Prophet entirely):
 
 ```bash
 python3 tid_spect_click.py --spectrogram zoom.png --name N6RFM \\
@@ -280,11 +279,12 @@ opening a window — useful for batch processing:
 ```bash
 python3 drf_to_doppler.py ./n6rfm --subchannel 0 \\
     --start 2026-01-19T00:00:00 --end 2026-01-19T02:00:00 \\
-    --decim-seconds 60 --method fft --output n6rfm_fft_tid.csv
+    --decim-seconds 60 --method autocorr --output n6rfm_autocorr_tid.csv
 ```
 
-Methods: `fft`, `autocorr` (G3ZIL method), `cwt`, `cwt-prophet`.
-Not recommended when E-region contamination is present.
+Methods: `autocorr` (G3ZIL method), `cwt`.
+Fully automated, no GUI interaction. Not recommended when
+E-region contamination is present — use Option A 
 
 ---
 
@@ -479,35 +479,12 @@ with the GUI and is **not reproducible** from committed files.
 Direction (NNE) is consistent between both results and confirmed
 independently by Madrigal GPS TEC lag sign (Entry 52).
 
-### When to use spline vs prophet
+### When to use E vs X
 
-| Method | Use when |
-|--------|----------|
-| cwt-prophet (E key) | Pass 0 trace looks clean — fast, reproducible |
-| Spline (X key) | Pass 0 has excursions — you've added anchor clicks |
-| Wave-fit (W+F+A) | Signal is sinusoidal and clean |
+| Situation | Key | Result |
+|-----------|-----|--------|
+| Auto-trace follows the carrier | E | Export auto-trace (fast, reproducible) |
+| Auto-trace has problems | X | Click carrier from left to right, export your trace |
+| Signal has clear sinusoidal cycles | Use wave-fit (Option B) | F=fit+save |
 
-For reproducibility, prefer committing the prophet_preview CSV
-(E key export) over the spline CSV when Pass 0 is acceptable.
-
-seeds from a few clicks and propagates the carrier under a Kalman
-filter. Seed via the S key in `tid_spect_click.py`, then run:
-
-```bash
-```
-
-Methods:
-- `--method fft` (default): FFT peak per block, Kalman-constrained
-- `--method seed`: PCHIP spline through clicks (equivalent to X export)
-- `--method autocorr`: lag-1 complex autocorrelation
-
-needs continuity constraints to reject occasional wrong-peak jumps.
-
-far from 0 Hz and the FFT consistently locks onto a different feature
-(e.g. a strong near-zero band). In that case the FFT measurement is
-instead.
-
-**Tuning:** `--max-step` is the maximum Doppler change per block before
-a measurement is rejected. For slow TIDs (period ~60 min) the physical
-maximum is ~0.05 Hz per 60s block; the default 0.5 Hz is deliberately
-loose. Tighten for cleaner tracking on slow events.
+For reproducibility, prefer E (auto-trace) when it looks correct.
