@@ -1499,6 +1499,7 @@ def main():
         print(f'  Event JSON: {args.event_json} (will update on X export)')
     if getattr(args, "wave_only", False):
         win._wave_only = True
+        win._install_shortcuts()  # re-bind W/F/A keys for wave-fit
         from PyQt5 import QtCore as _QtC
         _QtC.QTimer.singleShot(600, win._wave_fit_start)
     win.show()
