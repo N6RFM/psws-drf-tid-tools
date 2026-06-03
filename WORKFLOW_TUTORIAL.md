@@ -83,7 +83,7 @@ and DOA coordinate system:
     Extraction method:
       1. cwt-prophet   (anchor-guided)
       2. fft           (automated)
-      3. autocorr      (automated, Gwyn G3ZIL method)
+      3. autocorr      (automated)
       4. cwt           (automated, CWT multi-peak tracker)
     Choose [1]:
 
@@ -98,7 +98,7 @@ and press X to export your trace.
 |--------|----------|-------------|
 | cwt-prophet | All stations, best accuracy | Yes |
 | fft | Quick automated first look | No |
-| autocorr | Smooth carriers, G3ZIL validation | No |
+| autocorr | Smooth carriers | No |
 | cwt | Multi-peak ambiguous carriers | No |
 
 ---
