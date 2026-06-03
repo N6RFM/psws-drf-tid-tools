@@ -81,7 +81,7 @@ After all stations are confirmed, choose the extraction method
 and DOA coordinate system:
 
     Extraction method:
-      1. cwt-prophet   (anchor-guided -- recommended)
+      1. cwt-prophet   (anchor-guided)
       2. fft           (automated)
       3. autocorr      (automated, Gwyn G3ZIL method)
       4. cwt           (automated, CWT multi-peak tracker)
