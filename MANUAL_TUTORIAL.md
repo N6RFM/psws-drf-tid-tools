@@ -138,14 +138,12 @@ shows a green trace overlay. Inspect it.
 **Key bindings (shown in status bar):**
 
     Click   Add anchor point on carrier (black dot)
-    P       Re-run Prophet with anchors as constraints
-    X       Export spline CSV (updates --event-json if supplied)
-    E       Export prophet CSV (cwt-prophet Pass 0 trace)
-    W       Enter wave-fit mode (click cycle points, F to fit)
+    E       Accept auto-trace and export
+    X       Export clicked trace (spline through your clicks)
     Z       Undo last click
     R       Reset all clicks
     C       Clear all (clicks + calibration)
-    Q       Quit
+    Q       Done (close window)
 
 **Workflow:**
 1. Inspect Pass 0 trace (green overlay) — this is the cwt-prophet
