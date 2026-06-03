@@ -178,7 +178,7 @@ Four methods are available, in order of recommended preference:
 |--------|------|-----------|----------|
 | **Anchor-guided cwt-prophet** | tid_spect_click.py | E=accept auto-trace, or click carrier + X | All events, especially E-region contamination |
 | **Wave-fit** | tid_spect_click.py --wave-only | Click cycle points + F to fit | Clean signals with ≥1.5 visible cycles |
-| **Autocorr** | drf_to_doppler.py --method autocorr | None | Clean signals, G3ZIL validation |
+| **Autocorr** | drf_to_doppler.py --method autocorr | None | Clean signals, G3ZIL|
 | **FFT** | drf_to_doppler.py --method fft | None | Clean signals, fast survey |
 
 **Anchor-guided cwt-prophet** : Pass 0 auto-runs
