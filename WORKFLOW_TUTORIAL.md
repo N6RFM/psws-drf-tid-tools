@@ -83,22 +83,22 @@ and DOA coordinate system:
     Extraction method:
       1. cwt-prophet   (anchor-guided)
       2. fft           (automated)
-      3. autocorr      (automated, Gwyn G3ZIL method)
+      3. autocorr      (automated)
       4. cwt           (automated, CWT multi-peak tracker)
     Choose [1]:
 
 Also prompted: DOA coordinate system (IPP midpoints recommended).
 
-**Recommended method: cwt-prophet** (option 1) -- anchor-guided
+**Suggest try first: cwt-prophet** (option 1) -- anchor-guided
 extraction via tid_spect_click.py. Pass 0 auto-runs CWT+Prophet;
 if auto-trace looks good press E; if not, click the carrier
 and press X to export your trace.
 
 | Method | Best for | Requires GUI |
 |--------|----------|-------------|
-| cwt-prophet | All stations, best accuracy | Yes |
+| cwt-prophet | All stations | Yes |
 | fft | Quick automated first look | No |
-| autocorr | Smooth carriers, G3ZIL validation | No |
+| autocorr | Smooth carriers | No |
 | cwt | Multi-peak ambiguous carriers | No |
 
 ---

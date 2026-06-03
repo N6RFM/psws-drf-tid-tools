@@ -30,7 +30,7 @@ lets you:
 - find which other stations were on the air during your event of interest
 - inspect a DRF recording and identify the correct subchannel for 10 MHz
 - extract Doppler-vs-time CSVs from raw I/Q using four methods:
-  anchor-guided cwt-prophet (recommended), autocorr (G3ZIL method),
+  anchor-guided cwt-prophet (recommended), autocorr,
   CWT, or wave-fit
 - render annotated Doppler spectrograms with optional overlay of
   extracted Doppler traces for visual method assessment
@@ -178,7 +178,7 @@ Four methods are available, in order of recommended preference:
 |--------|------|-----------|----------|
 | **Anchor-guided cwt-prophet** | tid_spect_click.py | E=accept auto-trace, or click carrier + X | All events, especially E-region contamination |
 | **Wave-fit** | tid_spect_click.py --wave-only | Click cycle points + F to fit | Clean signals with ≥1.5 visible cycles |
-| **Autocorr** | drf_to_doppler.py --method autocorr | None | Clean signals, G3ZIL validation |
+| **Autocorr** | drf_to_doppler.py --method autocorr | None | Clean signals|
 | **FFT** | drf_to_doppler.py --method fft | None | Clean signals, fast survey |
 
 **Anchor-guided cwt-prophet** : Pass 0 auto-runs
