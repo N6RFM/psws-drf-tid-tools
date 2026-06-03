@@ -215,9 +215,9 @@ python3 drf_spectrogram.py ./n6rfm \
 | Method | Best for |
 |--------|----------|
 | fft | General purpose, default |
-| autocorr | Smooth carriers, G3ZIL method |
+| autocorr | Smooth carriers|
 | cwt | Multi-peak ambiguous carriers |
-| cwt-prophet | CWT + Prophet prediction (G3ZIL comparison) |
+| cwt-prophet | CWT + Prophet prediction |
 
 **Important:** automated methods pick the strongest spectral peak without
 constraint and can lock onto the wrong feature (e.g. E-region
@@ -355,7 +355,7 @@ python3 tid_map.py --config event.json --output map.png \
 |--------|-------|------|-------|
 | spline/cwt-prophet | 239 m/s | 30° NNE | Best result (0/5 flags) |
 | fft | ~281 m/s | ~33° NNE | Automated, 3/5 flags |
-| autocorr | similar to fft | — | G3ZIL method |
+| autocorr | similar to fft | — | — |
 | Peak-time direct | ~281 m/s | ~33 deg | Independent cross-check |
 
 The spline approach gives the physically correct result by letting the
