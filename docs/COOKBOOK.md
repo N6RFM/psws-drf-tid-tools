@@ -180,7 +180,6 @@ On open, cwt-prophet runs automatically (Pass 0). Key bindings:
     P       Re-run Prophet with anchors as hard constraints
     E       Export prophet CSV (recommended — smooth, guided trace)
     X       Export raw spline CSV (PCHIP through clicks only)
-    S       Save CAPT seed JSON (for capt_extract.py)
     W       Enter wave-fit mode (click cycle points, F to fit)
     Z       Undo last click
     R       Reset clicks
@@ -325,46 +324,6 @@ gunzip jplg0190.26i.gz
 
 ---
 
-### How do I use CAPT extraction (experimental)?
-
-CAPT (Constrained Adaptive Phase Tracking) uses a Kalman filter seeded
-from a few clicks. Fewer clicks than spline; more constrained than
-automated methods.
-
-**Step 1: Seed** — open tid_spect_click.py with `--no-prophet` (skips
-Pass 0 for faster launch), click 2+ points on the carrier, press S:
-
-```bash
-python3 tid_spect_click.py \
-    --spectrogram station_tid_zoom_clean.png \
-    --name STATION \
-    --drf-dir ./station \
-    --subchannel 0 \
-    --no-prophet
-```
-
-**Step 2: Extract** — run the Kalman tracker:
-
-```bash
-python3 capt_extract.py station_capt_seed.json \
-    --drf-dir ./station \
-    --subchannel 0 \
-    --start 2026-01-19T00:00:00Z \
-    --end 2026-01-19T01:15:00Z
-```
-
-Methods: `--method fft` (default), `tracked` (constrained FFT search),
-`seed` (spline-only), `autocorr`. Tuning: `--track-band` (default 0.3),
-`--proc-noise` (default 0.02), `--max-step` (default 0.5).
-
-**When CAPT helps:** moderate contamination where FFT can find the
-carrier but occasionally jumps to a wrong feature.
-
-**When CAPT does not help:** carrier displaced far from 0 Hz where
-FFT consistently locks onto the wrong feature. Use anchor-guided
-cwt-prophet (P+E workflow) instead.
-
----
 
 ## How do I verify my DOA result is physically real?
 

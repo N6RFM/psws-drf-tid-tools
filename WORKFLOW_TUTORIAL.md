@@ -173,7 +173,6 @@ your anchors as hard constraints:
       P       Re-run Prophet with current anchors as constraints
       E       Export prophet CSV (recommended — smooth, guided trace)
       X       Export raw spline CSV (PCHIP through clicks only)
-      S       Save CAPT seed JSON (for capt_extract.py, see Option D)
       W       Switch to wave-fit mode (Option B)
       Z       Undo last click
       R       Reset all clicks
@@ -205,7 +204,6 @@ this is the F-region carrier you want to track.
    P again if needed. Press Z to undo a misplaced click.
 5. When satisfied: press **E** to export the prophet CSV
 6. Or press **X** to export the raw spline (without Prophet smoothing)
-7. Or press **S** to save a CAPT seed JSON (see Option D)
 
 **Key points:**
 - Prophet provides a smooth, physically motivated carrier estimate
@@ -292,39 +290,8 @@ Not recommended when E-region contamination is present.
 
 ---
 
-#### Option D: CAPT extraction (experimental)
 
-CAPT (Constrained Adaptive Phase Tracking) uses a Kalman filter seeded
-from a few clicks to propagate the carrier. Fewer clicks than spline;
-more constrained than automated methods.
-
-1. Open tid_spect_click.py, click 2+ points on a clean carrier
-   segment, press **S** to save a CAPT seed JSON
-2. Run the Kalman tracker:
-
-```bash
-python3 capt_extract.py seed.json \
-    --drf-dir ./n6rfm --subchannel 0 \
-    --start 2026-01-19T00:00:00Z \
-    --end 2026-01-19T01:15:00Z
-```
-
-Methods: `--method fft` (default), `tracked` (constrained FFT search),
-`seed` (spline-only), `autocorr`. Tuning: `--max-step`, `--track-band`,
-`--proc-noise`.
-
-**When CAPT helps:** moderate contamination where FFT can find the
-carrier but needs continuity constraints to reject wrong-peak jumps.
-
-**When CAPT does not help:** carrier displaced far from 0 Hz where FFT
-consistently locks onto wrong feature. Use anchor-guided cwt-prophet
-(Option A) or raw spline (X key) instead.
-
-Output: `<station>_capt_tid.csv`
-
----
-
-#### Option E: Sgolay-ridge extraction (legacy)
+#### Option D: Sgolay-ridge extraction (legacy)
 
 Corridor-based extraction where the user defines a frequency band
 and the Savitzky-Golay ridge-finder tracks within it. Superseded by
@@ -349,7 +316,6 @@ Output: `<station>_sgolay_tid.csv`
 | A (raw spline) | X key | `<station>_spline_tid.csv` |
 | B (wave-fit) | A key (accept) | `<station>_wave_tid.csv` |
 | C (automated) | drf_to_doppler.py | `<station>_<method>_tid.csv` |
-| D (CAPT) | capt_extract.py | `<station>_capt_tid.csv` |
 | E (sgolay-ridge) | drf_to_doppler.py | `<station>_sgolay_tid.csv` |
 
 An overlay spectrogram is generated for visual assessment.
@@ -548,15 +514,11 @@ For reproducibility, prefer committing the prophet_preview CSV
 (E key export) over the spline CSV when Pass 0 is acceptable.
 
 
-### CAPT (Constrained Adaptive Phase Tracking)
 
-CAPT (`capt_extract.py`) is an experimental extraction method that
 seeds from a few clicks and propagates the carrier under a Kalman
 filter. Seed via the S key in `tid_spect_click.py`, then run:
 
 ```bash
-python3 capt_extract.py seed.json --drf-dir DIR \
-    --start HH:MM --end HH:MM --method fft
 ```
 
 Methods:
@@ -564,13 +526,10 @@ Methods:
 - `--method seed`: PCHIP spline through clicks (equivalent to X export)
 - `--method autocorr`: lag-1 complex autocorrelation
 
-**When CAPT helps:** stations where the FFT can find the carrier but
 needs continuity constraints to reject occasional wrong-peak jumps.
 
-**When CAPT does not help:** stations where the carrier is displaced
 far from 0 Hz and the FFT consistently locks onto a different feature
 (e.g. a strong near-zero band). In that case the FFT measurement is
-always wrong and CAPT cannot recover it — use manual spline (X key)
 instead.
 
 **Tuning:** `--max-step` is the maximum Doppler change per block before
