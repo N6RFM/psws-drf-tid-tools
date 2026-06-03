@@ -96,10 +96,10 @@ and press X to export your trace.
 
 | Method | Best for | Requires GUI |
 |--------|----------|-------------|
-| cwt-prophet | All stations | Yes |
-| fft | Quick automated first look | No |
-| autocorr | Smooth carriers | No |
-| cwt | Multi-peak ambiguous carriers | No |
+| cwt-prophet | All stations (recommended) | Yes |
+| wave-fit | Clean sinusoidal signals (≥1.5 cycles) | Yes |
+| autocorr | Clean stations, automated | No |
+| cwt | Multi-peak ambiguous carriers, automated | No |
 
 ---
 
