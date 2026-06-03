@@ -171,7 +171,7 @@ Four methods are available, in order of recommended preference:
 
 | Method | Tool | User input | Best for |
 |--------|------|-----------|----------|
-| **Anchor-guided cwt-prophet** (recommended) | tid_spect_click.py | Anchor clicks + P to re-run Prophet | All events, especially E-region contamination |
+| **Anchor-guided cwt-prophet** (recommended) | tid_spect_click.py | E=accept auto-trace, or click carrier + X | All events, especially E-region contamination |
 | **Wave-fit** | tid_spect_click.py --wave-only | Click cycle points + F to fit | Clean signals with ≥1.5 visible cycles |
 | **Autocorr** | drf_to_doppler.py --method autocorr | None | Clean signals, G3ZIL validation |
 | **FFT** | drf_to_doppler.py --method fft | None | Clean signals, fast survey |
@@ -182,8 +182,8 @@ tracked the wrong feature, then presses **P** to re-run Prophet with
 anchors as constraints. Press **E** to export the smooth prophet CSV.
 This gives a physically motivated trace with minimal user effort.
 
-**Key bindings** (tid_spect_click.py): P=re-run Prophet with anchors,
-seed, W=wave-fit mode, Z=undo last click, R=reset, Q=quit.
+**Key bindings** (tid_spect_click.py): E=accept auto-trace,
+X=export clicked trace, Z=undo, R=reset, Q=done.
 `--event-json event.json` auto-updates the event config on export.
 
 constrains the FFT search to ±band around the prediction — immune to
