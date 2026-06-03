@@ -141,7 +141,6 @@ shows a green trace overlay. Inspect it.
     P       Re-run Prophet with anchors as constraints
     X       Export spline CSV (updates --event-json if supplied)
     E       Export prophet CSV (cwt-prophet Pass 0 trace)
-    S       Save CAPT seed JSON (for capt_extract.py)
     W       Enter wave-fit mode (click cycle points, F to fit)
     Z       Undo last click
     R       Reset all clicks
@@ -167,7 +166,6 @@ shows a green trace overlay. Inspect it.
 Output:
 - E key: `n6rfm_prophet_tid.csv` (recommended — smooth, prophet-guided)
 - X key: `n6rfm_spline_tid.csv` (raw spline through clicks)
-- S key: `n6rfm_zoom_capt_seed.json` (CAPT seed — see Option D)
 
 **Why anchor-guided cwt-prophet?** Prophet provides a smooth,
 physically motivated carrier estimate. The user's anchor clicks
@@ -256,79 +254,8 @@ If periods differ significantly, use spline extraction instead.
 
 ---
 
-### Option D: CAPT extraction (experimental)
 
-CAPT (Constrained Adaptive Phase Tracking) uses a Kalman filter seeded
-from a few clicks to propagate the carrier. Fewer clicks than spline;
-more constrained than automated methods.
-
-**Step 1: Seed** — open tid_spect_click.py, click 2+ points on a clean
-segment of the carrier, press S:
-
-```bash
-python3 tid_spect_click.py \
-    --spectrogram n6rfm_zoom.png \
-    --name N6RFM \
-    --drf-dir ./n6rfm \
-    --subchannel 0
-```
-
-Output: `n6rfm_zoom_capt_seed.json`
-
-**Step 2: Extract** — run the Kalman tracker:
-
-```bash
-python3 capt_extract.py n6rfm_zoom_capt_seed.json \
-    --drf-dir ./n6rfm \
-    --subchannel 0 \
-    --start 2026-01-19T00:00:00Z \
-    --end 2026-01-19T01:15:00Z
-```
-
-Output: `n6rfm_zoom_capt_tid.csv`
-
-**Methods (`--method`):**
-
-| Method | Measurement source | Use when |
-|--------|--------------------|----------|
-| `fft` (default) | FFT peak per block | Carrier near 0 Hz, clean signal |
-| `tracked` | FFT peak within ±track-band of prediction | Moderate contamination, carrier findable |
-| `seed` | PCHIP spline through clicks (no FFT) | Full manual trace needed (equivalent to X export) |
-| `autocorr` | Lag-1 complex autocorrelation | Smoother than FFT, G3ZIL method |
-
-**Tuning parameters:**
-
-| Parameter | Default | Effect |
-|-----------|---------|--------|
-| `--max-step` | 0.5 Hz | Max Doppler jump per block before rejection |
-| `--track-band` | 0.3 Hz | `tracked` mode: FFT search half-width around prediction |
-| `--proc-noise` | 0.02 Hz | Kalman process noise — lower = smoother, trusts prediction more |
-| `--cadence` | 60 s | Block size in seconds |
-
-**When CAPT helps:** stations where the FFT can find the carrier but
-needs continuity constraints to reject occasional wrong-peak jumps.
-
-**When CAPT does not help:** stations where the carrier is displaced
-far from 0 Hz and the FFT consistently locks onto a different feature.
-Use manual spline (X key) instead.
-
-**Example: tracked mode with tight constraints:**
-
-```bash
-python3 capt_extract.py seed.json \
-    --drf-dir ./station \
-    --method tracked \
-    --track-band 0.15 \
-    --max-step 0.1 \
-    --proc-noise 0.005 \
-    --start 2026-01-19T00:00:00Z \
-    --end 2026-01-19T01:15:00Z \
-    --verbose
-```
-
----
-
-### Option E: sgolay-ridge extraction (legacy)
+### Option D: sgolay-ridge extraction (legacy)
 
 Sgolay-ridge is the precursor to cwt-prophet spline extraction. The
 user defines a frequency corridor on the spectrogram; a Savitzky-Golay
@@ -468,14 +395,6 @@ python3 tid_map.py --config event.json --output map.png \
 The spline approach gives the physically correct result by letting the
 user define the carrier position directly, bypassing automated peak
 selection entirely.
-
-**CAPT (experimental):** Constrained Adaptive Phase Tracking.
-User seeds 2+ clicks on the carrier (S key), then `capt_extract.py`
-propagates via Kalman filter. `--method tracked` constrains the FFT
-search around the prediction. Best for moderate contamination where
-the carrier is findable but FFT sometimes jumps to a wrong feature.
-Not effective when the carrier is too broad/diffuse (use spline).
-Jan 2026 result (drop AC0G_ND): 211 m/s, 11° NNE, 0/5 flags.
 
 ---
 
