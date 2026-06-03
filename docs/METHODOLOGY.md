@@ -52,7 +52,7 @@ Four extraction methods are available, in order of recommended preference:
 
 | Method | How | Best for |
 |--------|-----|----------|
-| **Anchor-guided cwt-prophet** | Interactive: Prophet auto-trace + user anchor corrections, E=accept | All events, especially E-region contamination (recommended) |
+| **Anchor-guided cwt-prophet** | Interactive: Prophet auto-trace + user anchor corrections, E=accept | All events, especially E-region contamination |
 | **wave-fit** | Interactive: user clicks cycle points, sine fit | Clean signals with ≥1.5 cycles visible |
 | **autocorr** | Automated: lag-1 complex autocorrelation | Clean signals, G3ZIL validation |
 | **fft** | Automated: bin-peak tracker | Clean signals, fast survey |
