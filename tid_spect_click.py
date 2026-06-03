@@ -619,7 +619,8 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self.clicks_t.append(t_hours)
         self.clicks_d.append(dop_hz)
         self._refresh_scatter()
-        self._preview_spline()
+        if self._no_prophet:
+            self._preview_spline()
         self._update_status()
         n = len(self.clicks_t)
         if self._no_prophet:
@@ -627,7 +628,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
                 f"{n} anchor(s).  X=export  Z=undo  R=reset  Q=quit")
         else:
             self._set_status(
-                f"{n} anchor(s).  P=re-run Prophet  E=export prophet  "
+                f"{n} anchor(s).  E=accept auto-trace  "
                 f"X=export spline  Z=undo  R=reset  Q=quit")
 
     def _refresh_scatter(self):
@@ -772,11 +773,11 @@ class SpectClickApp(QtWidgets.QMainWindow):
         n_clicks = len(self.clicks_t)
         if n_clicks == 0:
             self._set_status(
-                "Pass 0: running Prophet automatically... "
-                "Click excursions to add anchors, P to re-run, X to export, R to reset, Q to quit")
+                "Pass 0: running auto-trace... "
+                "E=accept auto-trace  X=export clicked trace  Z=undo  R=reset  Q=quit")
         else:
             self._set_status(
-                f"Re-running Prophet with {n_clicks} anchor(s)...")
+                f"Re-running with {n_clicks} anchor(s)...")
         self._prophet_done = False
 
         def _run():
@@ -823,7 +824,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
             ts = _dt.datetime.now().strftime("%H:%M:%S")
             self._set_status(
                 f"[{ts}] Pass {self._prophet_pass} — {n} anchor(s).  "
-                f"Click F-region carrier to add anchors  P=re-run Prophet  X=export  W=wave-fit  R=reset  Q=quit")
+                f"E=accept auto-trace  X=export clicked trace  Z=undo  R=reset  Q=quit")
         except Exception as _e:
             self._set_status(f"Prophet overlay failed: {_e}")
 
@@ -987,7 +988,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
             self._refresh_scatter()
             n_anchors = len(pairs)
             self._set_status(
-                f"Exported: {out.name}  ({n_anchors} anchors, {len(df)} rows) — W=wave-fit  Q to quit")
+                f"Exported: {out.name}  ({n_anchors} anchors, {len(df)} rows)  Q to quit")
             print(f"Spline CSV exported: {out}")
             self._save_event_json(str(out), "spline")
 
@@ -1014,10 +1015,11 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self.clicks_t.pop()
         self.clicks_d.pop()
         self._refresh_scatter()
-        if len(self.clicks_t) >= 2:
-            self._preview_spline()
-        else:
-            self.preview_curve.setData([], [])
+        if self._no_prophet:
+            if len(self.clicks_t) >= 2:
+                self._preview_spline()
+            else:
+                self.preview_curve.setData([], [])
         n = len(self.clicks_t)
         self._set_status(
             f"Undo — {n} anchor(s) remaining.  "
@@ -1054,12 +1056,14 @@ class SpectClickApp(QtWidgets.QMainWindow):
         else:
             n = len(self.clicks_t)
             seg = f"  seg: {self.seg_t0:.2f}–{self.seg_t1:.2f} h"
-            if self._no_prophet:
-                keys = "[X] export  [Z] undo  [R] reset  [Q] quit"
+            if getattr(self, "_wave_only", False):
+                keys = "[F] fit  [A] accept  [W] redo  [R] reset  [Q] done (close window)"
+            elif self._no_prophet:
+                keys = "[X] export  [Z] undo  [R] reset  [Q] done (close window)"
             else:
-                keys = ("[P] re-run Prophet  [E] export prophet  "
-                        "[X] export spline  "
-                        "[Z] undo  [W] wave-fit  [R] reset  [Q] quit")
+                keys = ("[E] accept auto-trace  "
+                        "[X] export clicked trace  "
+                        "[Z] undo  [R] reset  [Q] done (close window)")
             msg = f"[{self.name}] {n} click(s){seg}   {keys}"
         self.status_label.setText(msg)
 
@@ -1250,7 +1254,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self._set_status(
             f"[{self.name}] WAVE-FIT: T={T_s/60:.1f} min  A={abs(A_fit):.3f} Hz  "
             f"phi={phi_fit:.2f} rad   "
-            f"[A]=accept  [W]=redo  [Q]=quit")
+            f"[W]=redo  [Q]=done")
         print(f"  Wave-fit candidate: T={T_s/60:.1f} min, A={abs(A_fit):.3f} Hz, "
               f"phi={phi_fit:.3f} rad — press A to accept, W to redo")
         # Draw wave-fit overlay on spectrogram
@@ -1353,15 +1357,18 @@ class SpectClickApp(QtWidgets.QMainWindow):
 
 
     def _install_shortcuts(self):
-        for key, cb in [("X", self._export_spline_csv),
-                        ("E", self._export_prophet_csv),
-                        ("P", self._run_prophet_preview),
-                        ("W", self._wave_fit_start),
-                        ("F", self._wave_fit_execute),
-                        ("A", self._wave_fit_accept),
-                        ("Z", self._undo_last_click),
-                        ("R", self._reset_clicks), ("C", self._clear_all),
-                        ("Q", self.close)]:
+        keys = [("X", self._export_spline_csv),
+                ("E", self._export_prophet_csv),
+                ("P", self._run_prophet_preview),
+                ("Z", self._undo_last_click),
+                ("R", self._reset_clicks), ("C", self._clear_all),
+                ("Q", self.close)]
+        # Wave-fit keys only in --wave-only mode
+        if getattr(self, "_wave_only", False):
+            keys.extend([("W", self._wave_fit_start),
+                         ("F", self._wave_fit_execute),
+                         ("A", self._wave_fit_accept)])
+        for key, cb in keys:
             sc = QtWidgets.QShortcut(QtGui.QKeySequence(key), self, cb)
             sc.setContext(QtCore.Qt.ApplicationShortcut)
 
@@ -1492,6 +1499,13 @@ def main():
         print(f'  Event JSON: {args.event_json} (will update on X export)')
     if getattr(args, "wave_only", False):
         win._wave_only = True
+        # Bind wave-fit keys (not done in __init__ because _wave_only was False)
+        from PyQt5 import QtWidgets as _QtW, QtGui as _QtG, QtCore as _QtC2
+        for key, cb in [("W", win._wave_fit_start),
+                        ("F", win._wave_fit_execute),
+                        ("A", win._wave_fit_accept)]:
+            sc = _QtW.QShortcut(_QtG.QKeySequence(key), win, cb)
+            sc.setContext(_QtC2.Qt.ApplicationShortcut)
         from PyQt5 import QtCore as _QtC
         _QtC.QTimer.singleShot(600, win._wave_fit_start)
     win.show()

@@ -380,6 +380,122 @@ def save_state(state_file, state):
     print(f"  State saved: {state_file}")
 
 
+def show_resume_menu(state, state_file):
+    """Show interactive resume menu when state exists.
+
+    Returns the (possibly modified) state dict.
+    """
+    stations = state.get("stations", [])
+    method = state.get("extraction_method", "?")
+    stn_names = [s["name"] for s in stations]
+
+    print(f"\n  Saved state found ({len(stations)} stations, method={method}):")
+    print()
+
+    # Show per-station progress
+    steps = {
+        "fullday":  "Step 2 (spectrogram)",
+        "window":   "Step 3 (window)",
+        "zoom":     "Step 4 (zoom)",
+        "spline":   "Step 6 (extraction)",
+        "wave":     "Step 6 (wave-fit)",
+        "capt":     "Step 6 (CAPT)",
+        "capt_seed":"Step 6a (CAPT seed)",
+        "fft":      "Step 6 (fft)",
+        "autocorr": "Step 6 (autocorr)",
+        "cwt":      "Step 6 (cwt)",
+    }
+    for stn in stations:
+        name = stn["name"]
+        key = name.lower()
+        done = []
+        for suffix, label in steps.items():
+            if f"{key}_{suffix}" in state:
+                done.append(label)
+        if done:
+            # Deduplicate
+            done = list(dict.fromkeys(done))
+            print(f"    {name:<14s} {', '.join(done)}")
+        else:
+            print(f"    {name:<14s} (not started)")
+
+    print()
+    print("  Resume options:")
+    print("    1. Continue from where you left off (default)")
+    print("    2. Redo extraction for a specific station")
+    print("    3. Redo ALL extractions (keep spectrograms + windows)")
+    print("    4. Redo from window selection (keep spectrograms only)")
+    print("    5. Start completely fresh")
+    choice = input("  Choose [1]: ").strip() or "1"
+
+    if choice == "1":
+        return state
+
+    elif choice == "2":
+        print(f"  Stations: {', '.join(stn_names)}")
+        stn_name = input("  Which station to redo? ").strip()
+        key = stn_name.lower()
+        # Clear all extraction keys for that station
+        extraction_suffixes = ["spline", "wave", "capt", "capt_seed",
+                                "fft", "autocorr", "cwt"]
+        removed = []
+        for suffix in extraction_suffixes:
+            k = f"{key}_{suffix}"
+            if k in state:
+                del state[k]
+                removed.append(k)
+        if removed:
+            print(f"  Cleared: {', '.join(removed)}")
+        else:
+            print(f"  No extraction state found for {stn_name}")
+        save_state(state_file, state)
+        return state
+
+    elif choice == "3":
+        # Clear all extraction keys for all stations
+        extraction_suffixes = ["spline", "wave", "capt", "capt_seed",
+                                "fft", "autocorr", "cwt"]
+        removed = []
+        for stn in stations:
+            key = stn["name"].lower()
+            for suffix in extraction_suffixes:
+                k = f"{key}_{suffix}"
+                if k in state:
+                    del state[k]
+                    removed.append(k)
+        # Also clear extraction method so user can re-choose
+        state.pop("extraction_method", None)
+        print(f"  Cleared {len(removed)} extraction key(s) — will re-extract all stations")
+        save_state(state_file, state)
+        return state
+
+    elif choice == "4":
+        # Clear window + extraction keys for all stations
+        clear_suffixes = ["window", "zoom_window", "zoom",
+                          "spline", "wave", "capt", "capt_seed",
+                          "fft", "autocorr", "cwt"]
+        removed = []
+        for stn in stations:
+            key = stn["name"].lower()
+            for suffix in clear_suffixes:
+                k = f"{key}_{suffix}"
+                if k in state:
+                    del state[k]
+                    removed.append(k)
+        state.pop("extraction_method", None)
+        print(f"  Cleared {len(removed)} key(s) — will redo windows + extraction")
+        save_state(state_file, state)
+        return state
+
+    elif choice == "5":
+        state = {}
+        save_state(state_file, state)
+        print("  State cleared — starting fresh")
+        return state
+
+    return state
+
+
 def get_date_from_drf(drf_dir):
     """Get recording date from DRF."""
     try:
@@ -402,6 +518,8 @@ def run_workflow(args):
     event_dir = Path(args.event_dir).resolve()
     state_file = event_dir / "tid_workflow_state.json"
     state = load_state(state_file) if args.resume else {}
+    if state and args.resume:
+        state = show_resume_menu(state, state_file)
 
     # Start console logging
     from datetime import datetime, timezone
@@ -680,17 +798,17 @@ def run_workflow(args):
             if wave_key not in state:
                 while True:
                     print(f"")
-                    print(f"  ┌──────────────────────────────────────────────────┐")
-                    print(f"  │  [Step 6] Wave-fit extraction for {name:<14s}  │")
-                    print(f"  │                                                  │")
-                    print(f"  │  1. Click 3+ points along the TID oscillation    │")
-                    print(f"  │     (peaks and troughs of the wave)              │")
-                    print(f"  │  2. Press F to fit a sinusoid                    │")
-                    print(f"  │  3. Press A to accept the fit                    │")
-                    print(f"  │  4. Press Q to close                             │")
-                    print(f"  │                                                  │")
-                    print(f"  │  Keys: W=start  F=fit  A=accept  R=reset  Q=quit │")
-                    print(f"  └──────────────────────────────────────────────────┘")
+                    print(f"  ┌───────────────────────────────────────────────────────┐")
+                    print(f"  │  [Step 6] Wave-fit extraction for {name:<14s}      │")
+                    print(f"  │                                                       │")
+                    print(f"  │  1. Click 3+ points along the TID oscillation         │")
+                    print(f"  │     (peaks and troughs of the wave)                   │")
+                    print(f"  │  2. Press F to fit and save                           │")
+                    print(f"  │  3. If fit looks good → press Q to close              │")
+                    print(f"  │     If not → press W to redo, adjust clicks, F again  │")
+                    print(f"  │                                                       │")
+                    print(f"  │  Keys: F=fit+save  W=redo  Q=done (close window)      │")
+                    print(f"  └───────────────────────────────────────────────────────┘")
                     run([
                         "python3", tool("tid_spect_click.py"),
                         "--spectrogram", str(zoom_clean_png),
@@ -701,7 +819,7 @@ def run_workflow(args):
                     ])
                     if wave_csv.exists():
                         break
-                    print(f"  ⚠️  No wave-fit CSV saved (did you press A to accept?)")
+                    print(f"  ⚠️  No wave-fit CSV saved (did you press F to fit?)")
                     retry = input(f"  Retry wave-fit for {name}? [Y/n/skip]: ").strip().lower()
                     if retry == "n" or retry == "skip":
                         print(f"  Skipping {name}")
@@ -725,24 +843,21 @@ def run_workflow(args):
                 while True:
                     if method == "cwt-prophet":
                         print(f"")
-                        print(f"  ┌──────────────────────────────────────────────────────┐")
-                        print(f"  │  [Step 6] Anchor-guided cwt-prophet for {name:<10s}  │")
-                        print(f"  │                                                      │")
-                        print(f"  │  Pass 0 runs automatically (green trace)             │")
-                        print(f"  │                                                      │")
-                        print(f"  │  If trace looks good:                                │")
-                        print(f"  │    → Press E to export prophet CSV                   │")
-                        print(f"  │                                                      │")
-                        print(f"  │  If trace has excursions:                             │")
-                        print(f"  │    1. Click anchor points where Prophet went wrong    │")
-                        print(f"  │    2. Press P to re-run Prophet with anchors          │")
-                        print(f"  │    3. Repeat until trace is correct                   │")
-                        print(f"  │    4. Press E to export prophet CSV                   │")
-                        print(f"  │       (or X to export raw spline)                     │")
-                        print(f"  │                                                      │")
-                        print(f"  │  Keys: P=re-run  E=export prophet  X=export spline   │")
-                        print(f"  │        Z=undo  R=reset  Q=quit          │")
-                        print(f"  └──────────────────────────────────────────────────────┘")
+                        print(f"  ┌──────────────────────────────────────────────────────────┐")
+                        print(f"  │  [Step 6] Doppler extraction for {name:<14s}          │")
+                        print(f"  │                                                          │")
+                        print(f"  │  Auto-trace shown (green/yellow).                        │")
+                        print(f"  │                                                          │")
+                        print(f"  │  If trace follows the carrier well:                      │")
+                        print(f"  │    → Press E to accept and export                        │")
+                        print(f"  │                                                          │")
+                        print(f"  │  If trace does NOT follow the carrier:                   │")
+                        print(f"  │    1. Click along the carrier from left to right          │")
+                        print(f"  │    2. Press X to export your trace                       │")
+                        print(f"  │                                                          │")
+                        print(f"  │  Keys: E=accept auto-trace  X=export clicked trace       │")
+                        print(f"  │        Z=undo last click  R=reset  Q=done (close window)                │")
+                        print(f"  └──────────────────────────────────────────────────────────┘")
                     else:  # sgolay-ridge
                         print(f"")
                         print(f"  ┌──────────────────────────────────────────────────────┐")
