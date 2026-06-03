@@ -824,7 +824,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
             ts = _dt.datetime.now().strftime("%H:%M:%S")
             self._set_status(
                 f"[{ts}] Pass {self._prophet_pass} — {n} anchor(s).  "
-                f"Click F-region carrier to add anchors  P=re-run Prophet  X=export  W=wave-fit  R=reset  Q=quit")
+                f"Click F-region carrier to add anchors  P=re-run  E=export prophet  X=export spline  Z=undo  R=reset  Q=quit")
         except Exception as _e:
             self._set_status(f"Prophet overlay failed: {_e}")
 
@@ -988,7 +988,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
             self._refresh_scatter()
             n_anchors = len(pairs)
             self._set_status(
-                f"Exported: {out.name}  ({n_anchors} anchors, {len(df)} rows) — W=wave-fit  Q to quit")
+                f"Exported: {out.name}  ({n_anchors} anchors, {len(df)} rows)  Q to quit")
             print(f"Spline CSV exported: {out}")
             self._save_event_json(str(out), "spline")
 
@@ -1061,7 +1061,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
             else:
                 keys = ("[P] re-run Prophet  [E] export prophet  "
                         "[X] export spline  "
-                        "[Z] undo  [W] wave-fit  [R] reset  [Q] quit")
+                        "[Z] undo  [R] reset  [Q] quit")
             msg = f"[{self.name}] {n} click(s){seg}   {keys}"
         self.status_label.setText(msg)
 
