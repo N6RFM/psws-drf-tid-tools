@@ -134,7 +134,7 @@ python3 drf_spectrogram.py ./n6rfm --subchannel 0 \
     --window n6rfm_fullday_window.json \
     --ylim=-5,5 --dpi 150 --callsign N6RFM
 
-# 5a. Anchor-guided cwt-prophet extraction (recommended)
+# 5a. Anchor-guided cwt-prophet extraction (suggest try first)
 #     Pass 0 auto-runs. Click anchors where Prophet went wrong.
 #     W=wave-fit  Z=undo  R=reset  Q=quit
 python3 tid_spect_click.py --spectrogram n6rfm_zoom.png \
@@ -146,7 +146,12 @@ python3 tid_spect_click.py --spectrogram n6rfm_zoom.png \
 python3 tid_spect_click.py --spectrogram n6rfm_zoom.png \
     --name N6RFM --seg-start 0.0 --seg-end 2.0 --wave-only
 
-# 5c. Automated extraction (clean stations, no GUI needed)
+# 5c. Automated extraction — autocorr (useful for clean traces)
+python3 drf_to_doppler.py ./n6rfm --subchannel 0 \
+    --start 2026-01-19T00:00:00 --end 2026-01-19T02:00:00 \
+    --decim-seconds 60 --method autocorr --output n6rfm_autocorr_tid.csv
+
+# 5d. Automated extraction — fft (fastest, basic)
 python3 drf_to_doppler.py ./n6rfm --subchannel 0 \
     --start 2026-01-19T00:00:00 --end 2026-01-19T02:00:00 \
     --decim-seconds 60 --method fft --output n6rfm_fft_tid.csv
@@ -171,12 +176,12 @@ Four methods are available, in order of recommended preference:
 
 | Method | Tool | User input | Best for |
 |--------|------|-----------|----------|
-| **Anchor-guided cwt-prophet** (recommended) | tid_spect_click.py | E=accept auto-trace, or click carrier + X | All events, especially E-region contamination |
+| **Anchor-guided cwt-prophet** | tid_spect_click.py | E=accept auto-trace, or click carrier + X | All events, especially E-region contamination |
 | **Wave-fit** | tid_spect_click.py --wave-only | Click cycle points + F to fit | Clean signals with ≥1.5 visible cycles |
 | **Autocorr** | drf_to_doppler.py --method autocorr | None | Clean signals, G3ZIL validation |
 | **FFT** | drf_to_doppler.py --method fft | None | Clean signals, fast survey |
 
-**Anchor-guided cwt-prophet** (recommended): Pass 0 auto-runs
+**Anchor-guided cwt-prophet** : Pass 0 auto-runs
 CWT+Prophet on open; the user clicks anchor points only where Prophet
 tracked the wrong feature, then presses **P** to re-run Prophet with
 anchors as constraints. Press **E** to export the smooth prophet CSV.
