@@ -1,3 +1,58 @@
+## v2.4.0 — 2026-06-02
+
+### Breaking changes
+
+- **Removed `capt_extract.py`** — experimental CAPT method removed.
+  Did not reliably track displaced carriers; anchor-guided cwt-prophet
+  is the correct approach for all contaminated stations.
+- **Removed sgolay-ridge, FFT, CAPT from `tid_workflow.py` menu** —
+  four extraction methods remain: cwt-prophet (recommended), autocorr,
+  cwt, wave-fit.
+- **Simplified extraction workflow** — Prophet gets one shot. If good,
+  press E. If not, click the carrier and press X. No more P=re-run
+  anchor workflow.
+
+### New features
+
+- **Interactive resume menu** (`--resume`): shows per-station progress
+  with options to redo specific station, all extractions, windows, or
+  start fresh.
+- **Persistent station coordinates cache** (`station_coords.json`):
+  lat/lon saved in event directory, persists across workflow runs.
+  No need to re-enter coordinates on fresh start.
+- **Console output logging**: full workflow session saved to
+  `<event_dir>/runs/<timestamp>_workflow_console.log`.
+- **Run logs to event data directory**: `tid_doa.py` run logs now
+  written to `<event_data_dir>/runs/` (derived from station CSV
+  paths), not the repo directory. Extraction method summary line
+  added to run log output.
+- **Context-specific key bindings**: status bar shows only relevant
+  keys based on mode (cwt-prophet vs --no-prophet vs --wave-only).
+- **`--no-prophet` flag**: skips Pass 0 auto-run for pure spline
+  clicking.
+
+### Extraction workflow changes
+
+- **E key** = accept auto-trace (prophet Pass 0)
+- **X key** = export clicked trace (spline through user clicks)
+- **W/F/A keys** only available in `--wave-only` mode
+- Wave-fit: F=fit+save, W=redo, Q=done
+- P key still functional but removed from status messages and
+  instruction boxes (prophet one-shot philosophy)
+- Clear instruction boxes for all extraction methods in
+  `tid_workflow.py` before GUI launch
+- Retry loops when no CSV saved (all interactive methods)
+- DOA CSV priority: selected method first (was always spline first)
+
+### Documentation
+
+- All docs updated for simplified workflow, four extraction methods,
+  removal of CAPT/sgolay-ridge/FFT from workflow menu
+- README, MANUAL_TUTORIAL, WORKFLOW_TUTORIAL, METHODOLOGY, COOKBOOK,
+  TROUBLESHOOTING, ASSESSING_RESULTS all consistent
+
+---
+
 ## v2.3.51 — 2026-06-01
 
 ### New features
