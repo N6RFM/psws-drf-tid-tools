@@ -773,11 +773,11 @@ class SpectClickApp(QtWidgets.QMainWindow):
         n_clicks = len(self.clicks_t)
         if n_clicks == 0:
             self._set_status(
-                "Pass 0: running Prophet automatically... "
-                "Click excursions to add anchors, P to re-run, X to export, R to reset, Q to quit")
+                "Pass 0: running auto-trace... "
+                "E=accept auto-trace  X=export clicked trace  Z=undo  R=reset  Q=quit")
         else:
             self._set_status(
-                f"Re-running Prophet with {n_clicks} anchor(s)...")
+                f"Re-running with {n_clicks} anchor(s)...")
         self._prophet_done = False
 
         def _run():
