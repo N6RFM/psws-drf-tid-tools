@@ -856,7 +856,7 @@ def run_workflow(args):
                         print(f"  │    2. Press X to export your trace                       │")
                         print(f"  │                                                          │")
                         print(f"  │  Keys: E=accept auto-trace  X=export clicked trace       │")
-                        print(f"  │        Z=undo last click  R=reset  Q=close (no export)                │")
+                        print(f"  │        Z=undo last click  R=reset  Q=done (close window)                │")
                         print(f"  └──────────────────────────────────────────────────────────┘")
                     else:  # sgolay-ridge
                         print(f"")
