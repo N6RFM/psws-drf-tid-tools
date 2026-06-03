@@ -113,7 +113,7 @@ python3 drf_spectrogram.py ./n6rfm \
 
 ## Step 5 -- Doppler extraction
 
-### Option A: anchor-guided cwt-prophet extraction (recommended)
+### Option A: anchor-guided cwt-prophet extraction
 
 Launch the interactive click tool:
 
