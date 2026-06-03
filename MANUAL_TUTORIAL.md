@@ -132,12 +132,11 @@ python3 tid_spect_click.py \
 the matching station entry in the event JSON is updated with the
 file path and method, making the extraction reproducible.
 
-**Pass 0 (automatic):** On open, cwt-prophet runs automatically and
-shows a green trace overlay. Inspect it.
+**Auto-trace:** On open, cwt-prophet runs automatically and shows
+a trace overlay. Inspect it — does it follow the carrier?
 
-**Key bindings (shown in status bar):**
+**Key bindings:**
 
-    Click   Add anchor point on carrier (black dot)
     E       Accept auto-trace and export
     X       Export clicked trace (spline through your clicks)
     Z       Undo last click
@@ -146,33 +145,23 @@ shows a green trace overlay. Inspect it.
     Q       Done (close window)
 
 **Workflow:**
-1. Inspect Pass 0 trace (green overlay) — this is the cwt-prophet
-   automatic extraction
-2. If good: press **E** to export prophet CSV (0 clicks needed)
-3. If excursions: click anchor points on the carrier where Prophet
-   went wrong (2+ clicks) — live spline preview updates after each click
-4. Press **P** to re-run Prophet with your anchors as hard constraints
-   — Prophet re-fits the carrier, constrained to pass through your
-   anchor points. This is the key step: the result is a smooth,
-   physically motivated trace, not a raw spline through clicks.
-5. Inspect the new prophet overlay — add more anchors and press P
-   again if needed. Press Z to undo a misplaced click.
-6. When satisfied: press **E** to export the anchor-guided prophet CSV
-7. Or press **X** to export the raw PCHIP spline through clicks only
-   (without Prophet smoothing — use when Prophet cannot fit the signal)
+1. Inspect the auto-trace — does it follow the carrier?
+2. If yes: press **E** to accept and export (done)
+3. If no: click along the carrier from left to right (as many
+   points as needed to define the correct trace)
+4. Press **X** to export your clicked trace
+5. Press **Q** to close
 
 Output:
-- E key: `n6rfm_prophet_tid.csv` (recommended — smooth, prophet-guided)
-- X key: `n6rfm_spline_tid.csv` (raw spline through clicks)
+- E key: `n6rfm_prophet_tid.csv` (auto-trace accepted)
+- X key: `n6rfm_spline_tid.csv` (user-clicked trace)
 
-**Why anchor-guided cwt-prophet?** Prophet provides a smooth,
-physically motivated carrier estimate. The user's anchor clicks
-correct only the regions where Prophet fails (E-region contamination,
-wrong-peak lock). Most of the trace is Prophet's work — the user
-only intervenes where needed. This gives a better result than raw
-spline clicking because Prophet uses the full spectral context, not
-just the clicked points. The number of anchor clicks is a station
-quality metric — clean stations need 0 clicks.
+**Why this approach?** The auto-trace (cwt-prophet) uses spectral
+context and time-series continuity to produce a smooth carrier
+estimate. On clean stations it works well and E gives a fast,
+reproducible result. On contaminated stations the auto-trace may
+lock onto the wrong feature — in that case, click the correct
+carrier directly and export with X.
 
 **E vs X:** prefer E (prophet) when Prophet follows the carrier well
 after anchoring. Use X (raw spline) only when the carrier is too
