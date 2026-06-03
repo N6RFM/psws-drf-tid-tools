@@ -426,3 +426,50 @@ Canonical Jan 2026 result remains prophet (304 m/s, 0/5 flags).
 2. Gwyn email — Jan 2026 results + CAPT status
 3. find_event_stations.py — better 4th station
 4. CAPT tuning slider tool (interactive parameter exploration)
+
+---
+## 51. v2.4.0 release — simplified workflow + cleanup — 2026-06-02
+
+### Summary
+Major UX overhaul of the extraction workflow. Prophet gets one shot
+(E=accept or click+X). Removed CAPT, sgolay-ridge, FFT from workflow
+menu. Added resume menu, coords cache, console logging.
+
+### Removed
+- capt_extract.py and all CAPT references (code, docs, examples)
+- S key (CAPT seed) from tid_spect_click.py
+- sgolay-ridge, FFT, CAPT from tid_workflow.py extraction menu
+- P=re-run from all status messages and instruction boxes
+
+### Added
+- Interactive resume menu (--resume): per-station progress, redo options
+- station_coords.json: persistent lat/lon cache in event directory
+- ConsoleLogger: full session output to <event_dir>/runs/
+- Run logs to event data dir (not repo dir)
+- Context-specific key bindings (cwt-prophet vs no-prophet vs wave-only)
+- --no-prophet flag for pure spline clicking
+- Wave-fit keys (W/F/A) only in --wave-only mode
+- Clear instruction boxes for all extraction methods
+- Retry loops for all interactive extractions
+
+### Extraction workflow (simplified)
+1. Auto-trace shown (Prophet Pass 0)
+2. Good → E (accept and export)
+3. Not good → click carrier from left to right → X (export spline)
+4. Wave-fit: F=fit+save, W=redo, Q=done
+
+### Four extraction methods in workflow menu
+1. cwt-prophet (anchor-guided — recommended)
+2. autocorr (automated, G3ZIL method)
+3. cwt (automated, CWT multi-peak)
+4. wave-fit (sine fit to clicked cycle points)
+
+FFT, sgolay-ridge still available via CLI (drf_to_doppler.py --method)
+but removed from the guided workflow.
+
+### Open items
+1. Run CAPT concepts on May 2024 Gwyn event (if revisited)
+2. Gwyn email — results + workflow status
+3. find_event_stations.py — better 4th station
+4. Test resume menu on real workflow run
+5. Merge to main via PR
