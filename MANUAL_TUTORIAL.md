@@ -254,35 +254,6 @@ If periods differ significantly, use spline extraction instead.
 
 ---
 
-
-### Option D: sgolay-ridge extraction (legacy)
-
-Sgolay-ridge is the precursor to cwt-prophet spline extraction. The
-user defines a frequency corridor on the spectrogram; a Savitzky-Golay
-ridge-finder tracks the carrier only within that corridor.
-
-```bash
-python3 drf_to_doppler.py ./n6rfm \
-    --subchannel 0 \
-    --start 2026-01-19T00:00:00 \
-    --end   2026-01-19T02:00:00 \
-    --decim-seconds 60 \
-    --method sgolay-ridge \
-    --output n6rfm_sgolay_tid.csv
-```
-
-Requires a corridor JSON (from tid_spect_click.py anchor clicks).
-Superseded by the spline extraction workflow (Option A) which gives
-equivalent results with a simpler interface. Still available for
-comparison and for users familiar with the corridor approach.
-
-**When sgolay-ridge helps:** contaminated carriers where the user
-wants to constrain the search to a specific frequency band without
-clicking every point. Gives good results when the corridor is placed
-correctly; quality depends entirely on corridor definition.
-
----
-
 ## Step 6 -- Repeat for all stations
 
 Repeat Steps 2-5 for AA6BD, AC0G/ND, and W7LUX.
@@ -326,8 +297,6 @@ receiver coordinates (not pre-computed IPP midpoints).
 
 **`max_lag_seconds`:** set to ~1/3 of expected TID period to prevent
 period aliasing. Override on the command line with `--max-lag MIN`.
-
-
 
 ---
 
@@ -387,7 +356,6 @@ python3 tid_map.py --config event.json --output map.png \
 | Method | Speed | From | Notes |
 |--------|-------|------|-------|
 | spline/cwt-prophet | 239 m/s | 30° NNE | Best result (0/5 flags) |
-| sgolay-ridge | 218-257 m/s | 35-37° NNE | Comparable |
 | fft | ~281 m/s | ~33° NNE | Automated, 3/5 flags |
 | autocorr | similar to fft | — | G3ZIL method |
 | Peak-time direct | ~281 m/s | ~33 deg | Independent cross-check |
