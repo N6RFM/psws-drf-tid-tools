@@ -220,6 +220,8 @@ usage examples, and required parameters.
 - **[`MANUAL_TUTORIAL.md`](MANUAL_TUTORIAL.md)** — step-by-step manual
   pipeline for users who want full control over each tool.
 - **[`CHANGELOG.md`](CHANGELOG.md)** — version history.
+- **[`docs/ASSESSING_RESULTS.md`](docs/ASSESSING_RESULTS.md)** — understanding and validating DOA results.
+- **[`docs/EXTERNAL_EVALUATION.md`](docs/EXTERNAL_EVALUATION.md)** — external space weather evaluation tools.
 - **[`CONTRIBUTORS.md`](CONTRIBUTORS.md)** — N6RFM and G3ZIL.
 
 ---
