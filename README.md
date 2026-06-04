@@ -351,9 +351,8 @@ automatically (look for "Cite this repository" in the sidebar), or:
 
 ## Acknowledgments
 
-- Gwyn Griffiths (G3ZIL) for co-development of the autocorr extractor,
-  collaborative analysis of the Jan 2026 and May 2024 LSTID events,
-  and extensive assessment of sign conventions and lag interpretation
+- Gwyn Griffiths (G3ZIL) for development of the autocorr TID extractor parameters,
+  and collaborative analysis of the Jan 2026 and May 2024 LSTID events, and interpretations.
 - The HamSCI / PSWS infrastructure developers https://hamsci.org/
 - Bill Engelke (AB4EJ), University of Alabama, for the original DRF
   processing and spectrogram plotting code
