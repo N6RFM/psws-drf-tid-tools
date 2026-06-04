@@ -215,14 +215,14 @@ usage examples, and required parameters.
 
 ## Documentation
 
-- **[`WORKFLOW_TUTORIAL.md`](WORKFLOW_TUTORIAL.md)** — complete guided
-  workflow walkthrough using `tid_workflow.py`. **Start here.**
+- **[`ASSESSING_RESULTS.md`](docs/ASSESSING_RESULTS.md)** — understanding and validating DOA results.
+- **[`CHANGELOG.md`](CHANGELOG.md)** — version history.
+- **[`CONTRIBUTORS.md`](CONTRIBUTORS.md)** — N6RFM and G3ZIL.
+- **[`EXTERNAL_EVALUATION.md`](docs/EXTERNAL_EVALUATION.md)** — external space weather evaluation tools.
 - **[`MANUAL_TUTORIAL.md`](MANUAL_TUTORIAL.md)** — step-by-step manual
   pipeline for users who want full control over each tool.
-- **[`CHANGELOG.md`](CHANGELOG.md)** — version history.
-- **[`docs/ASSESSING_RESULTS.md`](docs/ASSESSING_RESULTS.md)** — understanding and validating DOA results.
-- **[`docs/EXTERNAL_EVALUATION.md`](docs/EXTERNAL_EVALUATION.md)** — external space weather evaluation tools.
-- **[`CONTRIBUTORS.md`](CONTRIBUTORS.md)** — N6RFM and G3ZIL.
+- **[`WORKFLOW_TUTORIAL.md`](WORKFLOW_TUTORIAL.md)** — complete guided
+  workflow walkthrough using `tid_workflow.py`. **Start here.**
 
 ---
 
