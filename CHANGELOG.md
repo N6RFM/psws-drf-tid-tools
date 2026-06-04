@@ -1,3 +1,33 @@
+## v2.4.1 — 2026-06-03
+
+### UX improvements
+
+- **Prophet one-shot workflow**: auto-trace shown on open. If good → E.
+  If not → click carrier → X. No more P=re-run anchor workflow.
+- **W/F/A keys only in --wave-only mode**: prevents accidental wave-fit
+  activation during cwt-prophet extraction.
+- **No live spline preview in cwt-prophet mode**: Prophet trace stays
+  visible while clicking. Preview only in --no-prophet mode.
+- **Wave-fit simplified**: F=fit+save, W=redo, Q=done.
+- **Status bar cleanup**: removed P=re-run, W=wave-fit from cwt-prophet
+  status messages. Q=done (close window) throughout.
+- **Clear instruction boxes**: all extraction methods show step-by-step
+  instructions in the console before GUI launch.
+
+### Documentation
+
+- Created `docs/EXTERNAL_EVALUATION.md` (moved from README).
+- Added ASSESSING_RESULTS.md and EXTERNAL_EVALUATION.md to Documentation
+  section (alphabetical listing).
+- Removed sgolay-ridge sections from both tutorials.
+- Updated all key binding references across all docs.
+- Updated Madrigal example with all required arguments.
+- Evaluation output dir: `<event_dir>/runs/external_evaluations/`.
+- Canonical DOA values: 304 m/s from 10° NNE throughout.
+- PROJECT_STATE sections 1-35 backfilled from git history.
+
+---
+
 ## v2.4.0 — 2026-06-02
 
 ### Breaking changes
