@@ -92,7 +92,7 @@ Example: `~/Downloads/tid_event_20260119/runs/external_evaluations/`
 For LSTID events with ~60 min period, set `--max-lag 20` (minutes)
 to prevent alias peak lock. See `docs/ASSESSING_RESULTS.md` for details.
 
-## Further resources
+## Additional Resources
 
 - SuperMAG: https://supermag.jhuapl.edu/indices/
 - SuperDARN: http://vt.superdarn.org
