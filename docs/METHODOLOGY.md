@@ -367,7 +367,7 @@ when the peak `r` looks acceptable:
   propagation, where the paths' midpoint geometry no longer
   describes a single common wavefront. This is the curve-level
   manifestation of the single-hop limitation stated in
-  `ASSESSING_RESULTS.md` (§1, assumption 3; §7).
+  `EXAMINING_RESULTS.md` (§1, assumption 3; §7).
 
 The practical point: the coefficient and the curve answer different
 questions. `r` (and `r²`) says how much shared structure exists at
