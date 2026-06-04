@@ -695,3 +695,27 @@ but removed from the guided workflow.
 3. find_event_stations.py — better 4th station
 4. Test resume menu on real workflow run
 5. Merge to main via PR
+
+---
+## 52. v2.4.1 — doc/UX fixes — 2026-06-03
+
+### UX
+- Prophet one-shot: E=accept, X=click trace (no P=re-run)
+- W/F/A only in --wave-only; no live preview in cwt-prophet
+- Wave-fit: F=fit+save, W=redo, Q=done
+- Clear instruction boxes for all methods
+- Status bar cleanup throughout
+
+### Docs
+- docs/EXTERNAL_EVALUATION.md created (moved from README)
+- Sgolay-ridge removed from both tutorials
+- Madrigal example: all required args shown
+- Eval output: <event_dir>/runs/external_evaluations/
+- PROJECT_STATE 1-35 backfilled from git history
+- All docs consistent with simplified workflow
+
+### Open items
+1. Gwyn email — results + workflow status
+2. find_event_stations.py — better 4th station
+3. May 2024 Gwyn event analysis
+4. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
