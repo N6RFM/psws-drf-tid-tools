@@ -198,60 +198,11 @@ wrong-feature lock on moderate contamination. Tuning: `--track-band`,
 **tid_doa.py:** `--drop NAME` excludes a station by name (repeatable,
 case-insensitive). Avoids editing the event JSON for robustness testing.
 
-**External evaluation:**
-After obtaining a DOA result, corroborate it with independent space
-weather data using the evaluation tools:
+**External evaluation:** After obtaining a DOA result, corroborate it
+with independent space weather data. See
+[docs/EXTERNAL_EVALUATION.md](docs/EXTERNAL_EVALUATION.md) for tools,
+usage examples, and required parameters.
 
-```bash
-# 1. Kp + AE + GloTEC automated evaluation
-python3 evaluate_external.py \
-    --date 2026-01-19 \
-    --event-start 2026-01-19T00:00:00Z \
-    --event-end   2026-01-19T01:15:00Z \
-    --speed-m-s 304 --azimuth-from 10 \
-    --glotec-dir ~/Downloads/glotec_2026_01_19 \
-    --output-dir <event_dir>/runs/external_evaluations
-
-# 2. AE index only
-python3 fetch_ae_index.py \
-    --date 2026-01-19 \
-    --event-start 2026-01-19T00:00:00Z \
-    --event-end   2026-01-19T01:15:00Z \
-    --speed-m-s 304 --output-dir <event_dir>/runs/external_evaluations
-
-# 3. GloTEC analysis (download tar.gz from NOAA NCEI first)
-#    https://www.ngdc.noaa.gov/stp/iono/ustec/
-python3 fetch_glotec.py \
-    --glotec-dir ~/Downloads/glotec_2026_01_19 \
-    --date 2026-01-19 \
-    --event-start 2026-01-19T00:00:00Z \
-    --event-end   2026-01-19T01:15:00Z \
-    --output-dir <event_dir>/runs/external_evaluations
-
-# 4. Madrigal GPS TEC cross-correlation (requires station coords + user info)
-python3 fetch_madrigal_tec.py \
-    --date 2026-01-19 \
-    --event-start 2026-01-19T00:00:00Z \
-    --event-end   2026-01-19T01:15:00Z \
-    --stations N6RFM,-100.93,36.87 AA6BD,-94.70,38.29 W7LUX,-108.50,37.94 \
-    --user-name "Your Name" \
-    --user-email "your@email.com" \
-    --user-affiliation "Amateur Radio" \
-    --doa-speed 304 --doa-azimuth-from 10 \
-    --output-dir <event_dir>/runs/external_evaluations
-```
-
-Madrigal queries MIT Haystack GPS TEC data (cedar.openmadrigal.org,
-no account required) and cross-correlates detrended TEC perturbations
-across station pairs for independent lag/direction verification.
-`--stations` takes NAME,LON,LAT triples for each receiver station.
-`--user-*` fields are required by the Madrigal API (free, no approval).
-
-See `docs/COOKBOOK.md` for full details on external evaluation.
-
-**xcorr aliasing note:** for LSTID events with ~60 min period, set
-`--max-lag 20` (minutes) to prevent alias peak lock. See
-`ASSESSING_RESULTS.md` for details.
 
 See `MANUAL_TUTORIAL.md` for the full extraction method comparison
 and `docs/METHODOLOGY.md` for the mathematical details of each method.
