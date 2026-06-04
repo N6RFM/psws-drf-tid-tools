@@ -86,7 +86,7 @@ python3 find_event_stations.py \
 
 Download DRF data for the top candidates from https://pswsnetwork.eng.ua.edu/
 
-### Recommended: guided workflow (new in v2.0)
+### Recommended: guided workflow
 
 ```bash
 python3 tid_workflow.py \
