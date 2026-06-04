@@ -90,7 +90,7 @@ Example: `~/Downloads/tid_event_20260119/runs/external_evaluations/`
 ## xcorr aliasing note
 
 For LSTID events with ~60 min period, set `--max-lag 20` (minutes)
-to prevent alias peak lock. See `docs/ASSESSING_RESULTS.md` for details.
+to prevent alias peak lock. See `docs/EXAMINING_RESULTS.md` for details.
 
 ## Additional Resources
 
