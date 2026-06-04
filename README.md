@@ -198,14 +198,18 @@ wrong-feature lock on moderate contamination. Tuning: `--track-band`,
 **tid_doa.py:** `--drop NAME` excludes a station by name (repeatable,
 case-insensitive). Avoids editing the event JSON for robustness testing.
 
-**External evaluation:** After obtaining a DOA result, corroborate it
+See `MANUAL_TUTORIAL.md` for the full extraction method comparison
+and `docs/METHODOLOGY.md` for the mathematical details of each method.
+
+## External Evaluation Tools
+
+After obtaining a DOA result, you may corroborate it
 with independent space weather data. See
 [docs/EXTERNAL_EVALUATION.md](docs/EXTERNAL_EVALUATION.md) for tools,
 usage examples, and required parameters.
 
 
-See `MANUAL_TUTORIAL.md` for the full extraction method comparison
-and `docs/METHODOLOGY.md` for the mathematical details of each method.
+
 
 ---
 
