@@ -253,7 +253,8 @@ psws-drf-tid-tools/
 ├── fetch_madrigal_tec.py        Madrigal GPS TEC retrieval + xcorr
 │
 ├── docs/
-│   ├── ASSESSING_RESULTS.md         technical basis for DOA estimates
+│   ├── EXAMINING_RESULTS.md         examining DOA estimates
+│   ├── EXTERNAL_EVALUATION.md       external space weather evaluation tools
 │   ├── COOKBOOK.md                  task-oriented recipes
 │   ├── EXTERNAL_RESULTS_EVALUATION.md  external space weather tools
 │   ├── METHODOLOGY.md               signal processing details
