@@ -752,3 +752,17 @@ but removed from the guided workflow.
 2. find_event_stations.py — better 4th station for Jan 2026
 3. May 2024 Gwyn event analysis
 4. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+
+---
+## 54. EXTERNAL_EVALUATION.md numbering fix — 2026-06-05
+
+### Change
+- Added missing ## 1. Full evaluation (evaluate_external.py) heading
+- Sections now correctly numbered 1-3
+- Merged via PR fix/external-eval-numbering → main, synced all branches
+
+### Open items
+1. Gwyn email — Jan 2026 results + workflow status
+2. find_event_stations.py — better 4th station for Jan 2026
+3. May 2024 Gwyn event analysis
+4. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
