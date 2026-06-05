@@ -11,7 +11,6 @@ manual browser-based sources, and the Jan 2026 event as a worked example.
 
 > **Quick reference:** See `docs/COOKBOOK.md` — 'How do I verify my DOA result is physically real?' for the two-step direction/speed verification guide.
 
-
 A DOA result (phase speed and azimuth) from `tid_doa.py` is an internal
 consistency estimate — it tells you whether the pairwise time lags are
 consistent with a single plane wave, but it cannot confirm the result is
@@ -25,7 +24,6 @@ are not derived from the HF Doppler recordings.
 | Kp index | Geomagnetic storm context | Speed, direction |
 | AE/SME index | Substorm onset timing | Speed, direction |
 | Peak succession | Propagation direction | Speed magnitude |
-| GloTEC TEC maps | Storm-time context | TID speed/direction at std res |
 | GPS TEC (IONEX) | Wavefront speed + direction | Requires auth |
 | Ionosondes (foF2) | Period, amplitude | US data gap since 2023 |
 | SuperDARN | Spatial ionospheric structure | Browser only |
@@ -35,9 +33,7 @@ are not derived from the HF Doppler recordings.
 ## Automated Tools
 
 Four scripts automate the retrieval and analysis of external data:
-- `evaluate_external.py` — Kp + AE + GloTEC combined report
 - `fetch_ae_index.py` — AE index only
-- `fetch_glotec.py` — GloTEC TEC anomaly analysis
 - `fetch_madrigal_tec.py` — Madrigal GPS TEC retrieval + TID xcorr
 
 Requirements: `pip install requests matplotlib numpy Pillow madrigalWeb`
@@ -47,7 +43,6 @@ Requirements: `pip install requests matplotlib numpy Pillow madrigalWeb`
 ### evaluate_external.py — combined evaluation report
 
 The primary evaluation tool. Fetches Kp, AE, and optionally analyses
-GloTEC maps in one run.
 
 ```bash
 python3 evaluate_external.py \
@@ -56,7 +51,6 @@ python3 evaluate_external.py \
     --event-end   2026-01-19T01:15:00Z \
     --speed-m-s 239 \
     --azimuth-from 30 \
-    --glotec-dir ~/Downloads/glotec_2026_01_19 \
     --output-dir ./evaluation
 ```
 
@@ -69,7 +63,6 @@ python3 evaluate_external.py \
 | `--event-end` | Event window end (ISO 8601 UTC) |
 | `--speed-m-s` | DOA phase speed in m/s |
 | `--azimuth-from` | Wave coming FROM azimuth (degrees true) |
-| `--glotec-dir` | Path to extracted GloTEC directory (optional) |
 | `--output-dir` | Output directory (default: current dir) |
 | `--skip-ae` | Skip AE fetch if WDC Kyoto unavailable |
 
@@ -79,9 +72,6 @@ python3 evaluate_external.py \
 |------|-------------|
 | `kp_plot.png` | Kp index with event window and predicted substorm onset |
 | `ae_plot.png` | AE index full day + zoom |
-| `glotec_event_montage.png` | CONUS anomaly maps spanning event window |
-| `glotec_before_after.png` | Before / during / after comparison |
-| `glotec_diff.png` | Pixel difference: event end − event start |
 | `evaluation_report.txt` | Full text summary of all findings |
 
 **Travel time logic:**
@@ -131,80 +121,6 @@ AEALAOAU    260119E00AE QUICKLK       73    70    70 ...
 December 2024 onwards via the `data_dir` repository. For earlier dates
 use the provisional or final AE archive at
 https://wdc.kugi.kyoto-u.ac.jp/aedir/index.html
-
----
-
-### fetch_glotec.py — GloTEC TEC anomaly analysis
-
-Analyses GloTEC CONUS anomaly maps from a downloaded daily archive.
-
-**Step 1 — download the archive:**
-1. Browse to https://www.ngdc.noaa.gov/stp/iono/ustec/
-2. Click "Download Data", search for your event date
-3. Download `glotec_YYYY_MM_DD.tar.gz` (~270 MB per day)
-4. Extract: `tar xzf glotec_YYYY_MM_DD.tar.gz`
-
-**Step 2 — run analysis:**
-```bash
-python3 fetch_glotec.py \
-    --glotec-dir ~/Downloads/glotec_2026_01_19 \
-    --date 2026-01-19 \
-    --event-start 2026-01-19T00:00:00Z \
-    --event-end   2026-01-19T01:15:00Z \
-    --output-dir ./evaluation
-```
-
-**Arguments:**
-
-| Argument | Description |
-|----------|-------------|
-| `--glotec-dir` | Path to extracted GloTEC directory |
-| `--date` | Event date YYYY-MM-DD |
-| `--event-start` | Event window start |
-| `--event-end` | Event window end |
-| `--product` | GloTEC product type (default: `anomcus`) |
-| `--output-dir` | Output directory |
-
-**Product types in GloTEC archive:**
-
-| Code | Description | Best for |
-|------|-------------|----------|
-| `anomcus` | CONUS TEC anomaly (diff from 30-day median) | TID detection |
-| `anomna` | North America TEC anomaly | Wider spatial context |
-| `anomaly` | Global TEC anomaly | Global storm context |
-| `100asm` | CONUS absolute TEC | Background level |
-| `100na` | North America absolute TEC | Background level |
-| `ray` | CONUS ray paths | Data coverage check |
-
-**Colour scale:**
-- Orange/brown = positive anomaly (TEC above 30-day median)
-- Purple/blue = negative anomaly (TEC below 30-day median)
-- Scale: approximately ±30 TECU
-
-**Outputs:** `glotec_products.txt`, `glotec_event_montage.png`,
-`glotec_before_after.png`, `glotec_diff.png`, `glotec_na_montage.png`
-
-**TID detectability at GloTEC resolution:**
-
-GloTEC's assimilation grid is ~2° (~200 km). An LSTID at 239 m/s with
-~70 min period has wavelength ≈ 1000 km — in principle resolvable.
-However, in the presence of a geomagnetic storm (Kp > 3) the broad
-storm-time TEC enhancement (+15 TECU) dominates and masks the TID
-amplitude (~1-2 TECU). The wavefront appears as a broad enhancement
-retreating northward as the storm decays, not as discrete stripes.
-
-For direct wavefront tracking at higher resolution, use the MIT Haystack
-GPS TEC data in the Madrigal database (see below).
-
----
-
-### fetch_madrigal_tec.py — Madrigal GPS TEC retrieval and TID xcorr
-
-See `docs/EXTERNAL_RESULTS_EVALUATION.md` for full argument reference.
-The Jan 2026 command and results are in the Worked Example section below.
-
-Requirements: `pip install madrigalWeb`
-No account needed — Madrigal uses open access (name/email only).
 
 ---
 
@@ -262,69 +178,6 @@ show spatial structure but require registration.
 
 ## GPS TEC — Speed and Direction Verification
 
-### GloTEC (automated, no auth)
-
-As above — useful for storm context but insufficient resolution for
-individual LSTID wavefront tracking.
-
-### IONEX files (requires NASA Earthdata auth)
-
-IONEX (IONosphere map EXchange) files contain global TEC maps at
-2-hour cadence on a 2.5° × 5° grid. Multiple analysis centres produce
-them daily; JPL and CODE are the most commonly used.
-
-**Register (free):** https://urs.earthdata.nasa.gov/
-
-**Download after registering:**
-```bash
-echo "machine urs.earthdata.nasa.gov login USER password PASS" >> ~/.netrc
-chmod 600 ~/.netrc
-
-# JPL IONEX for Jan 19 2026 (DOY 019)
-curl -n -L -O \
-  "https://cddis.nasa.gov/archive/gnss/products/ionex/2026/019/jplg0190.26i.gz"
-gunzip jplg0190.26i.gz
-```
-
-**File naming:** `{centre}g{DOY}0.{YY}i.gz`
-- `jplg` = JPL, `codg` = CODE, `igsg` = IGS combined
-- DOY = day of year (3 digits), YY = 2-digit year
-
-**Parse with Python:**
-```python
-import numpy as np
-
-# IONEX grid: lat 87.5 to -87.5 step -2.5, lon -180 to 180 step 5
-lats = np.arange(87.5, -90, -2.5)
-lons = np.arange(-180, 185, 5)
-
-# Read TEC maps (values in 0.1 TECU, 9999 = missing)
-# Each map block starts with 'START OF TEC MAP'
-# Values follow in rows of up to 16 integers per line
-# Divide by 10 for TECU
-```
-
-### Madrigal GPS TEC (MIT Haystack)
-
-The Madrigal database has higher-resolution GPS TEC (line-of-sight)
-that can resolve individual TID wavefronts.
-
-**Access:** https://cedar.openmadrigal.org/
-
-```python
-import madrigalWeb.madrigalWeb as mad
-m = mad.MadrigalData("https://cedar.openmadrigal.org/")
-exps = m.getExperiments(8000,           # instrument: GPS TEC
-                        2026, 1, 19, 0, 0, 0,
-                        2026, 1, 19, 23, 59, 59)
-```
-
-**Note:** Jan 2026 data IS ingested and confirmed available (May 2026).
-GPS TEC typically appears within 2-4 weeks. Use `fetch_madrigal_tec.py`
-for automated retrieval — see `docs/EXTERNAL_RESULTS_EVALUATION.md`.
-
----
-
 ## Ionosondes
 
 Ionosondes measure foF2 (F-region critical frequency) every 15 minutes.
@@ -354,7 +207,6 @@ python3 evaluate_external.py \
     --event-start 2026-01-19T00:00:00Z \
     --event-end   2026-01-19T01:15:00Z \
     --speed-m-s 239 --azimuth-from 30 \
-    --glotec-dir ~/Downloads/glotec_2026_01_19 \
     --output-dir examples/tid_event_20260119/evaluation
 ```
 
@@ -383,11 +235,8 @@ AE 300–500 nT during event window indicates active auroral electrojet —
 the TID is being actively driven during the measurement window. The rapid
 drop after 02:00 UTC is consistent with the Kp decline to 0.7.
 
-**GloTEC CONUS anomaly:**
-
 Large positive anomaly (+10 to +20 TECU) over northern CONUS during
 event window — storm-time F-region enhancement consistent with Kp=3.3.
-TID wavefront not resolvable at GloTEC resolution due to dominant
 storm-time signal. Anomaly retreats northward between 00:05 and 01:05
 UTC as storm decays.
 
@@ -416,10 +265,6 @@ examples/tid_event_20260119/evaluation/
     kp_plot.png
     ae_plot.png
     ae_index_20260119.png
-    glotec_event_montage.png
-    glotec_before_after.png
-    glotec_diff.png
-    glotec_anomaly_montage.png
     evaluation_report.txt
 ```
 
@@ -440,7 +285,6 @@ Speed (239 m/s) is not yet independently verified. The next steps are:
 |--------|-----|------|-----------|
 | Kp index | https://kp.gfz-potsdam.de/app/json/ | None | ✓ evaluate_external.py |
 | AE index | https://wdc.kugi.kyoto-u.ac.jp/ae_realtime/ | None | ✓ evaluate_external.py |
-| GloTEC | https://www.ngdc.noaa.gov/stp/iono/ustec/ | None | ✓ fetch_glotec.py |
 | SuperMAG | https://supermag.jhuapl.edu/indices/ | None | Browser only |
 | SuperDARN | http://vt.superdarn.org | None | Browser only |
 | IONEX/CDDIS | https://cddis.nasa.gov/archive/gnss/products/ionex/ | NASA Earthdata | Pending |
