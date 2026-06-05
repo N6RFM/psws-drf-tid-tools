@@ -18,6 +18,8 @@ direction, wavelength, and speed of TIDs over large regions.
 | `fetch_ae_index.py` | AE index (WDC Kyoto) | Substorm activity at event time |
 | `fetch_madrigal_tec.py` | GPS TEC (MIT Haystack Madrigal) | Independent TID lag/direction |
 
+
+## 1. Full evaluation (evaluate_external.py)
 ```bash
 python3 evaluate_external.py \
     --date 2026-01-19 \
