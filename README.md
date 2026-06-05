@@ -12,8 +12,6 @@ navigation, radio communications, and satellite operations.
 
 ## IMPORTANT CAVEAT
 
-There are numerous ways to extract TID information from DRF data and/or spectrograms.
-
 The goals of this toolset are 1) allow citizen scientists a means to explore TIDs and
 2) obtain estimates of TID propagation speed and direction. The extraction tools available
 here serve as place holders until more refined and accurate TID extraction tools become
@@ -208,9 +206,6 @@ with independent space weather data. See
 [docs/EXTERNAL_EVALUATION.md](docs/EXTERNAL_EVALUATION.md) for tools,
 usage examples, and required parameters.
 
-
-
-
 ---
 
 ## Documentation
@@ -309,8 +304,7 @@ automatically (look for "Cite this repository" in the sidebar), or:
 
 ## Acknowledgments
 
-- Gwyn Griffiths (G3ZIL) for development of the autocorr TID extractor parameters,
-  and collaborative analysis of the Jan 2026 and May 2024 LSTID events, and interpretations.
+- Gwyn Griffiths (G3ZIL) for development of the autocorr TID extractor parameters, helping analyze the Jan 2026 and May 2024 LSTID events and being a great mentor.
 - The HamSCI / PSWS infrastructure developers https://hamsci.org/
 - Bill Engelke (AB4EJ), University of Alabama, for the original DRF
   processing and spectrogram plotting code
