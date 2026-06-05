@@ -766,3 +766,22 @@ but removed from the guided workflow.
 2. find_event_stations.py — better 4th station for Jan 2026
 3. May 2024 Gwyn event analysis
 4. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+
+---
+## 55. Kp/AE narrative + fetch_kp_index.py — 2026-06-05
+
+### Added
+- fetch_kp_index.py: Kp retrieval from GFZ Potsdam, bar chart with
+  storm thresholds (Kp 3, Kp 5), event window, stats box
+- EXTERNAL_EVALUATION.md: Geomagnetic Indices section (Kp/AE narrative)
+  inserted before Tools table
+- EXTERNAL_EVALUATION.md: Kp added to Tools table
+- EXTERNAL_EVALUATION.md: ## 4. Kp index section with usage example
+- EXTERNAL_EVALUATION.md: Madrigal GNSS TEC narrative added to ## 3.
+- Merged via PRs #215, #216 → main, all branches synced
+
+### Open items
+1. Gwyn email — Jan 2026 results + workflow status
+2. find_event_stations.py — better 4th station for Jan 2026
+3. May 2024 Gwyn event analysis
+4. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
