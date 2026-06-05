@@ -1,8 +1,15 @@
 # External Evaluation
 
-After obtaining a DOA result from `tid_doa.py`, corroborate it with
+After obtaining a DOA result from `tid_doa.py`, users are encouraged to corroborate it with
 independent space weather data using the evaluation tools. All outputs
 should be saved to `<event_dir>/runs/external_evaluations/`.
+
+For example, HF signals refract or reflect from the ionosphere, so HF measurements are extremely
+sensitive to small changes in layer height, gradients, and propagation path length.
+
+Conversely, GNSS signals pass through the ionosphere and measure changes in total electron
+content (TEC) along the path, making GNSS excellent for mapping the spatial structure,
+direction, wavelength, and speed of TIDs over large regions.
 
 ## Tools
 

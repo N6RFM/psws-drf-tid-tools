@@ -12,14 +12,17 @@ navigation, radio communications, and satellite operations.
 
 ## IMPORTANT CAVEAT
 
-There are numerous ways to extract TID information from DRF data and/or spectrograms.
+The goals of this toolset are 1) allow citizen scientists using members of the HAMSci Grape DRF family a means to explore TIDs and
+2) obtain general estimates of TID propagation speed and direction. The extraction tools available
+here serve as place holders until more refined and accurate HF TID extraction and analysis tools become
+available.  Please consider this work experimental in nature. 
 
-The goals of this toolset are 1) allow citizen scientists a means to explore TIDs and
-2) obtain estimates of TID propagation speed and direction. The extraction tools available
-here serve as place holders until more refined and accurate TID extraction tools become
-available and integrated into this toolset. In short, results obtained may not be accurate.
-At this time, consider this work experimental in nature. Several user selectable options
-for TID extraction are included.
+Users are encouraged to compare their HF based results to those obtained using other
+complementary tools.  Geomagnetic indices like the Kp index and and the Auroral Electrojet Index may help
+identify whether the disturbance is likely a quiet-time MSTID or a storm-driven auroral LSTID.
+Also, GNSS TEC data from CEDAR Madrigal Database provides spatial wave structure, propagation
+direction, wavelength, and speed estimates. This toolset also includes scripts to help obtain those 
+types of information for comparative purposes. 
 
 ## What this toolkit does
 
@@ -208,9 +211,6 @@ with independent space weather data. See
 [docs/EXTERNAL_EVALUATION.md](docs/EXTERNAL_EVALUATION.md) for tools,
 usage examples, and required parameters.
 
-
-
-
 ---
 
 ## Documentation
@@ -309,16 +309,16 @@ automatically (look for "Cite this repository" in the sidebar), or:
 
 ## Acknowledgments
 
-- Gwyn Griffiths (G3ZIL) for development of the autocorr TID extractor parameters,
-  and collaborative analysis of the Jan 2026 and May 2024 LSTID events, and interpretations.
-- The HamSCI / PSWS infrastructure developers https://hamsci.org/
-- Bill Engelke (AB4EJ), University of Alabama, for the original DRF
-  processing and spectrogram plotting code
-  https://github.com/HamSCI/DRF_processing
-- MIT Haystack Observatory for the Digital RF format
-  https://github.com/MITHaystack/digital_rf
-- The operators of every Grape and WSPRDaemon DRF station whose data
-  made this analysis possible
+- Gwyn Griffiths (G3ZIL) for development of the autocorr TID extractor parameters, helping me to analyze TID events and being a great mentor/Elmer/friend.
+- All of the the HamSCI / PSWS infrastructure developers who continue to advance the vision of Dr. Nathaniel Frissell (W2NAF),University of Scranton.  [https://hamsci.org]
+- John Gibbons (N8OBJ), Case Western Reserve University, for designing the Grape 1 receiver and it's progeny. [https://www.youtube.com/watch?v=y7w0dLhCfZI]
+- Rob Robinett (AI6VN) for developing of the WSPRDaemon software package and webiste. [https://www.wsprdaemon.org/]
+- Phil Karn, (KA9Q) for the KA9Q Radio software package, enabling the RX-888 (and other SDRs) to perform accurate and reliable data collection.[https://github.com/ka9q/ka9q-radio]
+- Bill Engelke (AB4EJ), University of Alabama, for the original DRF processing and spectrogram plotting code, as well as database support/
+  [https://github.com/HamSCI/DRF_processing].
+- Phil Ericson (W1PJE) and the MIT Haystack Observatory staff for the Digital RF format and the Madrigal GNSS toolset, which is part of the observatory's global GNSS receiver network.
+  [https://github.com/MITHaystack/digital_rf], [http://millstonehill.haystack.mit.edu/]
+- The operators of every Grape and WSPRDaemon DRF station whose data makes these analysis possible!
 
 The toolkit was developed collaboratively with Anthropic's Claude AI.
 
