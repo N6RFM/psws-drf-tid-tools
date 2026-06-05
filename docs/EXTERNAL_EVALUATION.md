@@ -72,11 +72,11 @@ the most complete picture.
 
 | Tool | Data source | What it checks |
 |------|-------------|----------------|
-| `fetch_ae_index.py` | AE index (WDC Kyoto) | Substorm activity at event time |
+| `evaluate_external.py` | Kp + AE (GFZ Potsdam / WDC Kyoto) | Storm level and substorm activity |
 | `fetch_madrigal_tec.py` | GPS TEC (MIT Haystack Madrigal) | Independent TID lag/direction |
 
 
-## 1. Full evaluation (evaluate_external.py)
+## 1. Combined Kp and AE (evaluate_external.py)
 
 ```bash
 python3 evaluate_external.py \
@@ -87,21 +87,7 @@ python3 evaluate_external.py \
     --output-dir <event_dir>/runs/external_evaluations
 ```
 
-## 2. AE index only
-
-```bash
-python3 fetch_ae_index.py \
-    --date 2026-01-19 \
-    --event-start 2026-01-19T00:00:00Z \
-    --event-end   2026-01-19T01:15:00Z \
-    --speed-m-s 304 \
-    --output-dir <event_dir>/runs/external_evaluations
-```
-
-Fetches 1-minute AE from WDC Kyoto. Plots full day + zoom with event
-window and predicted substorm onset marker.
-
-## 3. Madrigal GPS TEC cross-correlation
+## 2. Madrigal GPS TEC cross-correlation
 
 GNSS TEC data from the CEDAR Madrigal Database provides the wide-area spatial coverage
 that HF Doppler alone cannot. HF measurements are highly sensitive to ionospheric
@@ -141,21 +127,6 @@ python3 fetch_madrigal_tec.py \
 - `--user-name`, `--user-email`, `--user-affiliation`: required by
   the Madrigal API (free, no approval needed)
 - `--doa-speed`, `--doa-azimuth-from`: your DOA result for comparison
-
-## 4. Kp index
-
-```bash
-python3 fetch_kp_index.py \
-    --date 2026-01-19 \
-    --event-start 2026-01-19T00:00:00Z \
-    --event-end   2026-01-19T01:15:00Z \
-    --output-dir <event_dir>/runs/external_evaluations
-```
-
-Fetches 3-hour Kp from GFZ Potsdam. Plots full day bar chart with
-storm threshold lines (Kp 3, Kp 5) and event window shaded.
-Stats box shows event condition (quiet/unsettled/storm), event max/mean Kp,
-and day max Kp.
 
 ## Output directory
 
