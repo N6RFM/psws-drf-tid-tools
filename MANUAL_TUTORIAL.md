@@ -215,7 +215,7 @@ any station where the auto-trace doesn't follow the carrier.
 
 ### Option C: wave-fit extraction (--wave-only)
 
-Use when the TID shows at least 1.5 clear cycles in the window
+Use when the TID shows at least 0.5 cycles (1.5 recommended) in the window
 and you want to fit a sine wave directly to the carrier:
 
 ```bash
