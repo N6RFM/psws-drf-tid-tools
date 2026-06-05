@@ -146,3 +146,9 @@ to prevent alias peak lock. See `docs/ASSESSING_RESULTS.md` for details.
 - SuperDARN: http://vt.superdarn.org
 - NASA Earthdata: https://urs.earthdata.nasa.gov/
 - See `docs/COOKBOOK.md` for task-oriented recipes
+
+## Advanced Evaluation
+
+For deeper methodology — peak succession checks, GPS TEC geometry,
+SuperDARN RTI, IONEX download, and a full data sources table — see
+`docs/ADVANCED_EVALUATION.md`.

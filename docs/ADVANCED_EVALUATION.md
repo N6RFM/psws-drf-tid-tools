@@ -3,7 +3,7 @@
 This document describes how to independently evaluate a TID
 direction-of-arrival (DOA) result using publicly available space weather
 data sources. For a worked example using the Jan 2026 event, see
-`examples/EXTERNAL_RESULTS_EVALUATION.md`.
+`examples/ADVANCED_EVALUATION.md`.
 
 ---
 
@@ -404,5 +404,5 @@ This is a model-free directional check requiring no external data.
 
 ---
 
-*See `examples/EXTERNAL_RESULTS_EVALUATION.md` for a worked example
+*See `examples/ADVANCED_EVALUATION.md` for a worked example
 using the Jan 2026 LSTID event (239 m/s from 30° NNE).*
