@@ -785,3 +785,25 @@ but removed from the guided workflow.
 2. find_event_stations.py — better 4th station for Jan 2026
 3. May 2024 Gwyn event analysis
 4. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+
+---
+## 56. EXTERNAL_EVALUATION.md cleanup — 2026-06-05
+
+### Changes
+- Simplified to 2 numbered sections (was 4)
+- ## 1. renamed: "Full evaluation" → "Combined Kp and AE (evaluate_external.py)"
+- ## 2. AE index only — removed (redundant with ## 1.)
+- ## 3. Kp index standalone — removed (redundant with ## 1.)
+- Tools table: fetch_kp_index.py + fetch_ae_index.py removed,
+  evaluate_external.py added
+- Merged via PR #217 → main, all branches synced
+
+### Note
+fetch_kp_index.py and fetch_ae_index.py remain in repo as CLI tools
+but are not featured in the guided workflow docs.
+
+### Open items
+1. Gwyn email — Jan 2026 results + workflow status
+2. find_event_stations.py — better 4th station for Jan 2026
+3. May 2024 Gwyn event analysis
+4. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
