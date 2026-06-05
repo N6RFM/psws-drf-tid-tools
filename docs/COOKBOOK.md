@@ -123,7 +123,6 @@ python3 drf_to_doppler.py ./ac0g_nd \
 
 ---
 
-
 ### How do I use the autocorr extraction method?
 
 Use `--method autocorr` for the lag-1 complex autocorrelation estimator
@@ -219,7 +218,6 @@ Output: `station_wave_tid.csv`
 all stations. If periods differ significantly, consider using spline
 extraction instead.
 
-
 ---
 
 ## How do I evaluate my DOA result against independent data?
@@ -236,12 +234,8 @@ python3 evaluate_external.py \
     --event-start 2026-01-19T00:00:00Z \
     --event-end   2026-01-19T01:15:00Z \
     --speed-m-s 304 --azimuth-from 10 \
-    --glotec-dir ~/Downloads/glotec_2026_01_19 \
     --output-dir <event_dir>/runs/external_evaluations
 ```
-
-Outputs: `kp_plot.png`, `ae_plot.png`, `glotec_event_montage.png`,
-`glotec_before_after.png`, `glotec_diff.png`, `evaluation_report.txt`
 
 ### AE index only
 
@@ -257,73 +251,6 @@ python3 fetch_ae_index.py \
 Fetches 1-minute AE from WDC Kyoto. Plots full day + zoom with event
 window and predicted substorm onset marker (travel time = distance /
 speed). Saves `ae_YYYYMMDD.png` and `ae_YYYYMMDD.csv`.
-
-### GloTEC analysis
-
-GloTEC is NOAA's GPS TEC assimilation product at 10-minute cadence.
-Download the daily tar.gz first:
-
-1. Browse to https://www.ngdc.noaa.gov/stp/iono/ustec/
-2. Search for your event date, download `glotec_YYYY_MM_DD.tar.gz`
-3. `tar xzf glotec_YYYY_MM_DD.tar.gz`
-4. Run:
-
-```bash
-python3 fetch_glotec.py \
-    --glotec-dir ~/Downloads/glotec_2026_01_19 \
-    --date 2026-01-19 \
-    --event-start 2026-01-19T00:00:00Z \
-    --event-end   2026-01-19T01:15:00Z \
-    --output-dir <event_dir>/runs/external_evaluations
-```
-
-Outputs: event montage, before/after comparison, diff map, product list.
-
-The most useful product is `anomcus` (CONUS TEC anomaly — difference
-from 30-day median). Orange = positive anomaly, purple = negative.
-A TID wavefront appears as diagonal stripes, but at ~2° resolution
-large LSTIDs may not be resolvable if a storm-time enhancement is present.
-
-### What each source verifies
-
-| Source | Verifies | Does NOT verify |
-|--------|----------|-----------------|
-| Kp index | Geomagnetic context, storm timing | Speed, direction |
-| AE index | Substorm onset timing | Speed, direction |
-| GloTEC | Storm-time TEC context | TID speed/direction at std res |
-| Peak succession | Propagation direction | Speed magnitude |
-| GPS TEC (IONEX) | Wavefront speed + direction | Needs NASA Earthdata auth |
-
-### Manual evaluation sources (browser only)
-
-- **SuperMAG SME**: https://supermag.jhuapl.edu/indices/
-  Select SME index, look for spike 3-4h before event window
-
-- **SuperDARN RTI**: http://vt.superdarn.org
-  Use Fort Hays East (FHE) or Blackstone (BKS) for mid-latitude US
-  Look for ground scatter boundary moving equatorward
-
-- **GIRO ionosondes**: https://giro.uml.edu/ionoweb/
-  Note: US NEXION stations not available after 2023
-
-### Speed verification (requires NASA Earthdata account)
-
-Register free at https://urs.earthdata.nasa.gov/ then:
-
-```bash
-# Download IONEX file for event date
-echo "machine urs.earthdata.nasa.gov login USER password PASS" >> ~/.netrc
-chmod 600 ~/.netrc
-curl -n -L -O \
-  "https://cddis.nasa.gov/archive/gnss/products/ionex/2026/019/jplg0190.26i.gz"
-gunzip jplg0190.26i.gz
-# Parse IONEX for TEC at station locations (2-hour cadence, 2.5°×5° grid)
-```
-
-
-
----
-
 
 ## How do I verify my DOA result is physically real?
 
@@ -397,7 +324,6 @@ along-baseline speed = true speed / cos(angle between wave and baseline)
 | Direction | Peak succession (tid_doa.py output) | None — internal |
 | Speed | fetch_madrigal_tec.py xcorr | Madrigal GPS TEC (free) |
 | Geomagnetic context | evaluate_external.py | Kp (GFZ), AE (Kyoto) |
-| Storm-time TEC | fetch_glotec.py | NOAA GloTEC (~270 MB) |
 
 See `docs/EXTERNAL_RESULTS_EVALUATION.md` for full methodology and
 `examples/EXTERNAL_RESULTS_EVALUATION.md` for the Jan 2026 worked example.
@@ -503,7 +429,6 @@ green).
 frequency resolution.)
 
 ---
-
 
 ---
 
@@ -765,7 +690,6 @@ should be committed.
 | `tid_doa.py` correlations < 0.4 across all pairs | Wrong analysis window | Look at spectrograms; pick a cleaner window |
 | `tid_doa.py` one lag at the edge of max_lag_s | Pair too noisy or wrong cycle | Reduce `max_lag_seconds` or `--drop` that station |
 | `tid_map.py` says "install cartopy" | Optional dep missing | `pip install cartopy` for nicer maps |
-
 
 ## Recipe: drop a station from DOA
 

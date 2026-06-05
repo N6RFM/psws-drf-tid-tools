@@ -66,21 +66,14 @@ Generated:     2026-05-30
   Output: ae_plot.png, ae_index_20260119.png
 
 ────────────────────────────────────────────────────────────────────────
-4. GloTEC CONUS ANOMALY  (NOAA NCEI)
 ────────────────────────────────────────────────────────────────────────
   Source:  https://www.ngdc.noaa.gov/stp/iono/ustec/
-  Tool:    fetch_glotec.py (automated, after manual download)
-  File:    glotec_2026_01_19.tar.gz (270 MB)
   Product: anomcus (CONUS TEC anomaly, diff from 30-day median)
   Files:   144 PNG images at 10-minute cadence
 
   Large-scale positive TEC anomaly (+10 to +20 TECU, orange) over
   northern CONUS — storm-time F-region enhancement consistent with
-  Kp=3.3. TID wavefront NOT resolvable at GloTEC resolution (~2°
   grid) due to dominant storm-time signal.
-
-  Outputs: glotec_event_montage.png, glotec_before_after.png,
-           glotec_diff.png, glotec_anomaly_montage.png
 
 ────────────────────────────────────────────────────────────────────────
 5. IONEX GPS TEC  (NASA CDDIS)
@@ -157,7 +150,6 @@ Generated:     2026-05-30
     ✓ Direction — GPS TEC AA6BD→W7LUX lag sign consistent with NNE
     ✓ Geomagnetic context — Kp 3.3–3.7, substorm timing consistent
     ✓ AE activity — 300–500 nT during event, active auroral driving
-    ✓ Storm-time TEC enhancement — GloTEC consistent with Kp=3.3
 
   What remains uncertain:
     ? Speed magnitude (239 m/s) — GPS TEC implies ~423 m/s

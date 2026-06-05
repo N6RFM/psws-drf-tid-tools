@@ -251,7 +251,6 @@ psws-drf-tid-tools/
 ├── tid_map.py                  array geometry map
 ├── evaluate_external.py        external space weather evaluation
 ├── fetch_ae_index.py           fetch + plot AE index (WDC Kyoto)
-├── fetch_glotec.py             analyse GloTEC TEC anomaly maps
 ├── fetch_madrigal_tec.py        Madrigal GPS TEC retrieval + xcorr
 │
 ├── docs/

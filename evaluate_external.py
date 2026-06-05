@@ -9,7 +9,6 @@ results using three automated sources plus guidance for manual sources.
 AUTOMATED (no auth required):
   1. Kp index       — GFZ Potsdam JSON API
   2. AE/SME index   — WDC Kyoto real-time repository
-  3. GloTEC anomaly — NOAA NCEI archive (download tar.gz first)
 
 MANUAL (browser access):
   4. SuperMAG SME   — https://supermag.jhuapl.edu/indices/
@@ -25,27 +24,18 @@ Usage:
       --speed-m-s 239 --azimuth-from 30 \\
       --output-dir ./evaluation
 
-  # Full — include GloTEC analysis:
   python3 evaluate_external.py \\
       --date 2026-01-19 \\
       --event-start 2026-01-19T00:00:00Z \\
       --event-end   2026-01-19T01:15:00Z \\
       --speed-m-s 239 --azimuth-from 30 \\
-      --glotec-dir ~/Downloads/glotec_2026_01_19 \\
       --output-dir ./evaluation
 
-  # Download GloTEC data first:
   # 1. Browse to https://www.ngdc.noaa.gov/stp/iono/ustec/
-  # 2. Search for date, download glotec_YYYY_MM_DD.tar.gz
-  # 3. tar xzf glotec_YYYY_MM_DD.tar.gz
-  # 4. Pass the extracted directory to --glotec-dir
 
 Outputs:
   kp_plot.png              Kp index with event window + travel time marker
   ae_plot.png              AE index (if available) with event window
-  glotec_event_montage.png GloTEC CONUS anomaly maps during event window
-  glotec_before_after.png  GloTEC before/during/after comparison
-  glotec_diff.png          Difference map showing TEC change over event
   evaluation_report.txt    Full text summary of all findings
 
 Requirements:
@@ -76,7 +66,6 @@ import numpy as np
 import requests
 from PIL import Image
 
-
 # ── Constants ─────────────────────────────────────────────────────────────
 
 VERSION = "1.0.0"
@@ -85,22 +74,18 @@ AURORAL_LAT     = 65.0   # degrees N
 
 REPORT_WIDTH = 70
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────
 
 def hr(char='─', width=REPORT_WIDTH):
     return char * width
 
-
 def section(title):
     return f"\n{hr()}\n{title}\n{hr()}"
-
 
 def wrap(text, indent=2):
     prefix = ' ' * indent
     return textwrap.fill(text, width=REPORT_WIDTH - indent,
                          initial_indent=prefix, subsequent_indent=prefix)
-
 
 # ── 1. Kp index ───────────────────────────────────────────────────────────
 
@@ -126,7 +111,6 @@ def fetch_kp(date_str, lookback_hours=12, lookahead_hours=30):
     kp = data['Kp']
     print(f"OK ({len(kp)} values)")
     return times, kp
-
 
 def plot_kp(times, kp, ev_start, ev_end, speed_m_s, azimuth, out_path):
     """Plot Kp with event window and predicted substorm onset."""
@@ -180,7 +164,6 @@ def plot_kp(times, kp, ev_start, ev_end, speed_m_s, azimuth, out_path):
     plt.close()
     print(f"    → {out_path.name}")
 
-
 # ── 2. AE index ───────────────────────────────────────────────────────────
 
 def fetch_ae(date_str):
@@ -204,7 +187,6 @@ def fetch_ae(date_str):
 
     print(f"OK ({len(ae)} minutes)")
     return ae
-
 
 def plot_ae(ae_vals, date_str, ev_start, ev_end, speed_m_s, azimuth, out_path):
     """Plot AE with event window and predicted onset."""
@@ -270,221 +252,6 @@ def plot_ae(ae_vals, date_str, ev_start, ev_end, speed_m_s, azimuth, out_path):
         'day_max_h':   float(np.argmax(ae_vals) / 60),
     }
 
-
-# ── 3. GloTEC analysis ────────────────────────────────────────────────────
-
-def load_glotec_files(glotec_dir, date_str, product='anomcus'):
-    """Load all GloTEC files of given product type."""
-    d   = pathlib.Path(glotec_dir)
-    pat = f"glotec_{product}_urt_{date_str.replace('-','')}T*.png"
-    files = sorted(d.glob(pat))
-    print(f"  GloTEC {product}: {len(files)} files")
-    return files
-
-
-def parse_glotec_time(fpath, date_str):
-    """Extract UTC time from GloTEC filename."""
-    m = re.search(r'T(\d{6})\.png$', str(fpath))
-    if not m:
-        return None
-    ts = m.group(1)
-    dt = datetime.datetime.strptime(
-        f"{date_str.replace('-','')}T{ts}", "%Y%m%dT%H%M%S").replace(
-        tzinfo=datetime.timezone.utc)
-    return dt
-
-
-def plot_glotec_event_montage(glotec_dir, date_str, ev_start, ev_end, out_path):
-    """Plot GloTEC CONUS anomaly maps spanning event window."""
-    files = load_glotec_files(glotec_dir, date_str, 'anomcus')
-    if not files:
-        print("  No anomcus files found")
-        return False
-
-    # Select files: 10 min before to 20 min after event
-    t0 = ev_start - datetime.timedelta(minutes=10)
-    t1 = ev_end   + datetime.timedelta(minutes=20)
-    sel = [(parse_glotec_time(f, date_str), f)
-           for f in files
-           if parse_glotec_time(f, date_str) and
-           t0 <= parse_glotec_time(f, date_str) <= t1]
-
-    if not sel:
-        print("  No files in event window")
-        return False
-
-    n    = len(sel)
-    cols = min(4, n)
-    rows = math.ceil(n / cols)
-    fig, axes = plt.subplots(rows, cols, figsize=(5.5*cols, 4.5*rows + 1.2))
-    axes = np.array(axes).reshape(rows, cols)
-
-    for i, (ft, f) in enumerate(sel):
-        r, c = divmod(i, cols)
-        ax   = axes[r, c]
-        img  = mpimg.imread(str(f))
-        ax.imshow(img)
-        in_window = ev_start <= ft <= ev_end
-        color = 'green' if in_window else 'gray'
-        label = ft.strftime('%H:%M UTC')
-        if in_window:
-            label += ' ✓'
-        ax.set_title(label, fontsize=9, color=color,
-                     fontweight='bold' if in_window else 'normal')
-        ax.axis('off')
-        if in_window:
-            for spine in ['top','bottom','left','right']:
-                ax.spines[spine].set_visible(True)
-
-    for i in range(n, rows * cols):
-        r, c = divmod(i, cols)
-        axes[r, c].axis('off')
-
-    plt.suptitle(
-        f"GloTEC CONUS TEC Anomaly (diff from 30-day median)\n"
-        f"{date_str}  |  Green labels = within event window "
-        f"({ev_start.strftime('%H:%M')}–{ev_end.strftime('%H:%M')} UTC)\n"
-        f"Orange = positive anomaly (TEC above median)  |  "
-        f"Purple = negative anomaly  |  Source: NOAA NCEI",
-        fontsize=9)
-    plt.tight_layout()
-    plt.savefig(str(out_path), dpi=120, bbox_inches='tight')
-    plt.close()
-    print(f"    → {out_path.name}")
-    return True
-
-
-def plot_glotec_before_after(glotec_dir, date_str, ev_start, ev_end, out_path):
-    """Three-panel: before / during / after event."""
-    files = load_glotec_files(glotec_dir, date_str, 'anomcus')
-    if not files:
-        return False
-
-    # Find representative frames
-    targets = {
-        'Before\n(−30 min)': ev_start - datetime.timedelta(minutes=30),
-        'During\n(mid-event)': ev_start + (ev_end - ev_start) / 2,
-        'After\n(+30 min)':  ev_end   + datetime.timedelta(minutes=30),
-    }
-
-    frames = {}
-    for label, target in targets.items():
-        best  = None
-        best_dt = None
-        for f in files:
-            ft = parse_glotec_time(f, date_str)
-            if ft is None:
-                continue
-            if best is None or abs((ft - target).total_seconds()) < \
-               abs((best_dt - target).total_seconds()):
-                best    = f
-                best_dt = ft
-        if best:
-            frames[label] = (best_dt, best)
-
-    if len(frames) < 2:
-        return False
-
-    fig, axes = plt.subplots(1, len(frames), figsize=(6*len(frames), 5.5))
-    if len(frames) == 1:
-        axes = [axes]
-
-    for ax, (label, (ft, f)) in zip(axes, frames.items()):
-        img = mpimg.imread(str(f))
-        ax.imshow(img)
-        ax.set_title(f"{label}\n{ft.strftime('%H:%M UTC')}", fontsize=10)
-        ax.axis('off')
-
-    plt.suptitle(
-        f"GloTEC CONUS TEC Anomaly — Before / During / After event\n"
-        f"{date_str}  |  Source: NOAA NCEI GloTEC product",
-        fontsize=10)
-    plt.tight_layout()
-    plt.savefig(str(out_path), dpi=130, bbox_inches='tight')
-    plt.close()
-    print(f"    → {out_path.name}")
-    return True
-
-
-def plot_glotec_diff(glotec_dir, date_str, ev_start, ev_end, out_path):
-    """Difference map: first frame vs last frame of event window."""
-    files = load_glotec_files(glotec_dir, date_str, 'anomcus')
-    if not files:
-        return False
-
-    # Find closest frames to event start and end
-    def closest(target):
-        best, best_f = None, None
-        for f in files:
-            ft = parse_glotec_time(f, date_str)
-            if ft is None:
-                continue
-            if best is None or abs((ft-target).total_seconds()) < \
-               abs((best-target).total_seconds()):
-                best, best_f = ft, f
-        return best, best_f
-
-    t0, f0 = closest(ev_start)
-    t1, f1 = closest(ev_end)
-
-    if f0 is None or f1 is None or f0 == f1:
-        return False
-
-    img0 = np.array(Image.open(str(f0)).convert('RGB')).astype(float)
-    img1 = np.array(Image.open(str(f1)).convert('RGB')).astype(float)
-    diff = img1 - img0
-
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5.5))
-
-    axes[0].imshow(img0.astype(np.uint8))
-    axes[0].set_title(f"Event start\n{t0.strftime('%H:%M UTC')}", fontsize=10)
-    axes[0].axis('off')
-
-    axes[1].imshow(img1.astype(np.uint8))
-    axes[1].set_title(f"Event end\n{t1.strftime('%H:%M UTC')}", fontsize=10)
-    axes[1].axis('off')
-
-    # Normalise diff for display
-    diff_disp = (diff - diff.min()) / max(diff.max() - diff.min(), 1e-6)
-    axes[2].imshow(diff_disp)
-    axes[2].set_title(f"Difference (end − start)\n"
-                      f"Bright = TEC increased  |  Dark = TEC decreased",
-                      fontsize=9)
-    axes[2].axis('off')
-
-    plt.suptitle(
-        f"GloTEC CONUS Anomaly Change Over Event Window  |  {date_str}\n"
-        f"Source: NOAA NCEI GloTEC product  |  "
-        f"Note: broad storm-time changes dominate at this resolution",
-        fontsize=9)
-    plt.tight_layout()
-    plt.savefig(str(out_path), dpi=130, bbox_inches='tight')
-    plt.close()
-    print(f"    → {out_path.name}")
-    return True
-
-
-def analyse_glotec(glotec_dir, date_str, ev_start):
-    """Summarise GloTEC product statistics around event."""
-    files = load_glotec_files(glotec_dir, date_str, 'anomcus')
-    n_event = sum(1 for f in files
-                  if parse_glotec_time(f, date_str) and
-                  ev_start - datetime.timedelta(minutes=10) <=
-                  parse_glotec_time(f, date_str) <=
-                  ev_start + datetime.timedelta(hours=2))
-    all_types = set()
-    for f in pathlib.Path(glotec_dir).glob("glotec_*_urt_*.png"):
-        m = re.match(r'glotec_([^_]+_?[^_]+)_urt_', f.name)
-        if m:
-            all_types.add(m.group(1))
-    return {
-        'total_files': len(list(pathlib.Path(glotec_dir).glob("*.png"))),
-        'product_types': sorted(all_types),
-        'anomcus_files': len(files),
-        'anomcus_event': n_event,
-    }
-
-
 # ── 4. Travel time analysis ───────────────────────────────────────────────
 
 def travel_time_analysis(kp_times, kp_vals, ev_start, speed_m_s):
@@ -503,12 +270,11 @@ def travel_time_analysis(kp_times, kp_vals, ev_start, speed_m_s):
         'consistent':       peak_kp >= 2.0,
     }
 
-
 # ── 5. Evaluation report ──────────────────────────────────────────────────
 
 def write_report(out_dir, args, ev_start, ev_end,
                  kp_times, kp_vals, travel,
-                 ae_stats, glotec_stats, outputs):
+                 ae_stats, outputs):
 
     lines = [
         hr('═'),
@@ -593,55 +359,7 @@ def write_report(out_dir, args, ev_start, ev_end,
         ]
 
     lines += [
-        section("3. GloTEC CONUS ANOMALY  (NOAA NCEI)"),
-        f"  Source:  https://www.ngdc.noaa.gov/stp/iono/ustec/",
-        f"  Product: GloTEC (superseded US-TEC in 2015)",
-        f"  Format:  PNG images, 10-minute cadence",
-        f"  Download: glotec_YYYY_MM_DD.tar.gz (~270 MB per day)",
-    ]
-
-    if glotec_stats:
-        lines += [
-            "",
-            f"  Files in directory: {glotec_stats['total_files']}",
-            f"  Product types available:",
-        ]
-        for pt in glotec_stats['product_types']:
-            lines.append(f"    {pt}")
-        lines += [
-            f"  CONUS anomaly files (anomcus): {glotec_stats['anomcus_files']}",
-            f"  Files within event window:     {glotec_stats['anomcus_event']}",
-            "",
-            "  What the maps show:",
-            wrap("Large-scale positive TEC anomaly (+10 to +20 TECU, orange) "
-                 "over northern CONUS with negative anomaly (purple) in the "
-                 "southeast. This is a storm-time F-region enhancement "
-                 "consistent with Kp=3.3."),
-            "",
-            "  TID detectability:",
-            wrap("GloTEC at ~2-degree grid resolution cannot resolve "
-                 "individual LSTID wavefronts. At 239 m/s with ~70 min period, "
-                 "the wavelength is ~2400 km — comparable to the CONUS map "
-                 "extent. The TID appears as a broad enhancement retreating "
-                 "northward as the storm decays, not as resolvable stripes."),
-            "",
-            "  Outputs: glotec_event_montage.png, glotec_before_after.png,",
-            "           glotec_diff.png",
-        ]
-    else:
-        lines += [
-            "",
-            "  GloTEC directory not provided. To include GloTEC analysis:",
-            "  1. Browse to https://www.ngdc.noaa.gov/stp/iono/ustec/",
-            f"  2. Search for date {args.date}",
-            "  3. Download glotec_YYYY_MM_DD.tar.gz",
-            "  4. tar xzf glotec_YYYY_MM_DD.tar.gz",
-            f"  5. Re-run with --glotec-dir /path/to/glotec_"
-            f"{args.date.replace('-','_')}/",
-        ]
-
-    lines += [
-        section("4. PEAK SUCCESSION CHECK  (internal, no external data)"),
+section("4. PEAK SUCCESSION CHECK  (internal, no external data)"),
         "  Method:  Verify station lag ordering against predicted direction",
         "",
         "  For a wave from 30° NNE moving toward 210° SSW:",
@@ -700,7 +418,6 @@ def write_report(out_dir, args, ev_start, ev_end,
         "    ✓ Substorm timing — onset precedes event by ~{:.1f}h".format(
             travel['travel_time_h']),
         "    ✓ Peak succession — station lag order confirms NNE direction",
-        "    ✓ Storm-time TEC enhancement (GloTEC) — consistent context",
         "",
         "  What is NOT yet verified:",
         "    ✗ Speed magnitude (239 m/s) — needs ionosonde or GPS TEC",
@@ -721,7 +438,6 @@ def write_report(out_dir, args, ev_start, ev_end,
     rpt.write_text("\n".join(lines) + "\n", encoding='utf-8')
     print(f"    → {rpt.name}")
 
-
 # ── Main ──────────────────────────────────────────────────────────────────
 
 def main():
@@ -737,8 +453,6 @@ def main():
                    help="DOA phase speed in m/s")
     p.add_argument("--azimuth-from", type=float, required=True,
                    help="Wave coming FROM azimuth (degrees true)")
-    p.add_argument("--glotec-dir",   default=None,
-                   help="Path to extracted GloTEC directory")
     p.add_argument("--output-dir",   default=".",
                    help="Output directory (default: current dir)")
     p.add_argument("--skip-ae",      action="store_true",
@@ -763,7 +477,6 @@ def main():
     travel = {'travel_time_h': 0, 'expected_onset': 'unknown',
               'peak_kp_at_onset': 0, 'consistent': False}
     ae_stats = None
-    glotec_stats = None
 
     # 1. Kp
     print("Kp index:")
@@ -798,31 +511,11 @@ def main():
             print("  Re-run with --skip-ae to skip this step")
             outputs['ae'] = False
 
-    # 3. GloTEC
-    print("\nGloTEC:")
-    if args.glotec_dir:
-        glotec_stats = analyse_glotec(args.glotec_dir, args.date, ev_start)
-        print(f"  Product types: {', '.join(glotec_stats['product_types'])}")
-        ok1 = plot_glotec_event_montage(
-            args.glotec_dir, args.date, ev_start, ev_end,
-            out / "glotec_event_montage.png")
-        ok2 = plot_glotec_before_after(
-            args.glotec_dir, args.date, ev_start, ev_end,
-            out / "glotec_before_after.png")
-        ok3 = plot_glotec_diff(
-            args.glotec_dir, args.date, ev_start, ev_end,
-            out / "glotec_diff.png")
-        outputs['glotec'] = ok1 or ok2 or ok3
-    else:
-        print("  --glotec-dir not specified — skipping")
-        print("  Download from: https://www.ngdc.noaa.gov/stp/iono/ustec/")
-        outputs['glotec'] = False
-
     # Report
     print("\nEvaluation report:")
     write_report(out, args, ev_start, ev_end,
                  kp_times, kp_vals, travel,
-                 ae_stats, glotec_stats, outputs)
+                 ae_stats, outputs)
 
     # Summary
     print(f"\n{'='*55}")
@@ -836,7 +529,6 @@ def main():
     print("  Browse SuperMAG:  https://supermag.jhuapl.edu/indices/")
     print("  Browse SuperDARN: http://vt.superdarn.org")
     print(f"{'='*55}\n")
-
 
 if __name__ == "__main__":
     main()
