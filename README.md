@@ -316,7 +316,7 @@ automatically (look for "Cite this repository" in the sidebar), or:
 - Phil Karn, (KA9Q) for the KA9Q Radio software package, enabling the RX-888 (and other SDRs) to perform accurate and reliable data collection.[https://github.com/ka9q/ka9q-radio]
 - Bill Engelke (AB4EJ), University of Alabama, for the original DRF processing and spectrogram plotting code, as well as database support/
   [https://github.com/HamSCI/DRF_processing].
-- The MIT Haystack Observatory for the Digital RF format and the Madrigal GNSS toolset, which is part of the observatory's global GNSS receiver network.
+- Phil Ericson (W1PJE) and the MIT Haystack Observatory staff for the Digital RF format and the Madrigal GNSS toolset, which is part of the observatory's global GNSS receiver network.
   [https://github.com/MITHaystack/digital_rf], [http://millstonehill.haystack.mit.edu/]
 - The operators of every Grape and WSPRDaemon DRF station whose data makes these analysis possible!
 
