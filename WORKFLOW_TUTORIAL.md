@@ -97,7 +97,7 @@ and press X to export your trace.
 | Method | Best for | Requires GUI |
 |--------|----------|-------------|
 | cwt-prophet | All stations (recommended) | Yes |
-| wave-fit | Clean sinusoidal signals (≥1.5 cycles) | Yes |
+| wave-fit | Clean sinusoidal signals (≥0.5 cycles, ≥1.5 recommended) | Yes |
 | autocorr | Clean stations, automated | No |
 | cwt | Multi-peak ambiguous carriers, automated | No |
 
@@ -194,7 +194,7 @@ up and down as the TID passes.
 
 #### Option B: Wave-fit extraction (--wave-only)
 
-Use when the TID shows ≥1.5 clear cycles in the window and you want
+Use when the TID shows ≥0.5 cycles (1.5 recommended) in the window and you want
 to fit a sine wave directly to the carrier. Each station independently
 estimates its own period — handles dispersive TIDs.
 
@@ -239,7 +239,7 @@ of that bright ridge** to trace out its shape.
 Output: `<station>_wave_tid.csv`
 
 **When to use wave-fit vs spline:**
-- Wave-fit: ≥1.5 full cycles visible, coherent signal
+- Wave-fit: ≥0.5 cycles (≥1.5 recommended) visible, coherent signal
 - Spline: <1.5 cycles, E-region contamination, or noisy signal
 - If TID period differs significantly between stations,
   consider spline extraction instead
