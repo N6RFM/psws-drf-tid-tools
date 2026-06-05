@@ -175,19 +175,16 @@ python3 tid_spect_click.py \
 
 On open, cwt-prophet runs automatically (Pass 0). Key bindings:
 
-    Click   Add anchor on F-region carrier
-    P       Re-run Prophet with anchors as hard constraints
-    E       Export prophet CSV (recommended — smooth, guided trace)
-    X       Export raw spline CSV (PCHIP through clicks only)
-    W       Enter wave-fit mode (click cycle points, F to fit)
+    Click   Mark carrier point (left to right)
+    E       Accept auto-trace and export
+    X       Export clicked trace (spline through your clicks)
     Z       Undo last click
     R       Reset clicks
-    C       Clear all (clicks + calibration)
     Q       Quit
 
-**Recommended workflow:** click anchors where Prophet went wrong,
-if auto-trace looks good press E; if not, click carrier and press X.
-Use X only when the carrier is too complex for Prophet to fit.
+**Recommended workflow:** if the auto-trace looks good press E to
+accept and export. If not, click the carrier from left to right and
+press X to export your trace.
 `--event-json` auto-updates the event config on export.
 
 ### How do I use wave-fit extraction (--wave-only)?
@@ -236,21 +233,6 @@ python3 evaluate_external.py \
     --speed-m-s 304 --azimuth-from 10 \
     --output-dir <event_dir>/runs/external_evaluations
 ```
-
-### AE index only
-
-```bash
-python3 fetch_ae_index.py \
-    --date 2026-01-19 \
-    --event-start 2026-01-19T00:00:00Z \
-    --event-end   2026-01-19T01:15:00Z \
-    --speed-m-s 304 \
-    --output-dir <event_dir>/runs/external_evaluations
-```
-
-Fetches 1-minute AE from WDC Kyoto. Plots full day + zoom with event
-window and predicted substorm onset marker (travel time = distance /
-speed). Saves `ae_YYYYMMDD.png` and `ae_YYYYMMDD.csv`.
 
 ## How do I verify my DOA result is physically real?
 

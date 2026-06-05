@@ -807,3 +807,20 @@ but are not featured in the guided workflow docs.
 2. find_event_stations.py — better 4th station for Jan 2026
 3. May 2024 Gwyn event analysis
 4. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+
+---
+## 57. ADVANCED_EVALUATION.md rename — 2026-06-05
+
+### Changes
+- docs/EXTERNAL_RESULTS_EVALUATION.md → docs/ADVANCED_EVALUATION.md
+- examples/EXTERNAL_RESULTS_EVALUATION.md → examples/ADVANCED_EVALUATION.md
+- Internal references updated in ADVANCED_EVALUATION.md
+- COOKBOOK.md and README.md references updated
+- Link added from EXTERNAL_EVALUATION.md → ADVANCED_EVALUATION.md
+- Merged via PR #218 → main, all branches synced
+
+### Open items
+1. Gwyn email — Jan 2026 results + workflow status
+2. find_event_stations.py — better 4th station for Jan 2026
+3. May 2024 Gwyn event analysis
+4. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
