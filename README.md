@@ -13,11 +13,16 @@ navigation, radio communications, and satellite operations.
 ## IMPORTANT CAVEAT
 
 The goals of this toolset are 1) allow citizen scientists a means to explore TIDs and
-2) obtain estimates of TID propagation speed and direction. The extraction tools available
-here serve as place holders until more refined and accurate TID extraction tools become
-available and integrated into this toolset. In short, results obtained may not be accurate.
-At this time, consider this work experimental in nature. Several user selectable options
-for TID extraction are included.
+2) obtain general estimates of TID propagation speed and direction. The extraction tools available
+here serve as place holders until more refined and accurate HF TID extraction and analysis tools become
+available.  Please consider this work experimental in nature. 
+
+Users are advised to compare and contrast their HD based results to those obtained using other
+complementary tools.  Geomagnetic indices like the Kp index and and the Auroral Electrojet Index may help
+identify whether the disturbance is likely a quiet-time MSTID or a storm-driven auroral LSTID.
+GNSS TEC data from CEDAR Madrigal Database provides spatial wave structure, propagation
+direction, wavelength, and speed estimates. This toolset also includes scripts to help obtain those types of information for
+an event of interest. 
 
 ## What this toolkit does
 
