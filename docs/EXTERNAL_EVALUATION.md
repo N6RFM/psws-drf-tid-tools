@@ -103,7 +103,27 @@ window and predicted substorm onset marker.
 
 ## 3. Madrigal GPS TEC cross-correlation
 
-```bash
+GNSS TEC data from the CEDAR Madrigal Database provides the wide-area spatial coverage
+that HF Doppler alone cannot. HF measurements are highly sensitive to ionospheric
+disturbances but typically observe only one or a few radio paths — making it difficult
+to independently determine a TID's direction, speed, wavelength, or regional extent.
+
+Madrigal maps the disturbance across many simultaneous satellite-receiver paths, allowing
+you to see the wavefront propagate across the ionosphere and estimate:
+
+- propagation direction and DOA azimuth
+- horizontal speed and wavelength
+- regional morphology and wave extent
+- timing relationships between stations
+
+The two techniques are complementary. HF Doppler answers *when* the ionosphere changed
+along a path; GNSS TEC answers *where* the disturbance is moving. Together they greatly
+improve confidence that an HF Doppler signature is a true regional TID rather than a
+local propagation effect or multipath artifact.
+
+For storm and auroral forcing context, see the Kp and AE indices above.
+
+\`\`\`bash
 python3 fetch_madrigal_tec.py \
     --date 2026-01-19 \
     --event-start 2026-01-19T00:00:00Z \
