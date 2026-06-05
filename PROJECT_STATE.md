@@ -719,3 +719,36 @@ but removed from the guided workflow.
 2. find_event_stations.py — better 4th station
 3. May 2024 Gwyn event analysis
 4. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+
+---
+## 53. GloTEC removal + final doc cleanup — 2026-06-03
+
+### Removed
+- fetch_glotec.py deleted entirely
+- GloTEC analysis removed from evaluate_external.py (functions,
+  --glotec-dir arg, report section, main flow)
+- GloTEC references removed from all docs, examples, CONTRIBUTORS
+
+### Documentation
+- Created docs/EXTERNAL_EVALUATION.md (moved eval section from README)
+- Added ASSESSING_RESULTS.md + EXTERNAL_EVALUATION.md to README
+  Documentation section (alphabetical listing)
+- Renamed EXAMINING_RESULTS.md back to ASSESSING_RESULTS.md
+- Removed sgolay-ridge sections from both tutorials
+- Wave-fit: ≥0.5 cycles minimum, ≥1.5 recommended (was ≥1.5 required)
+- README 5c=autocorr (recommended), 5d=fft (basic)
+- Madrigal example: all required args (--stations, --user-*)
+- Eval output dir: <event_dir>/runs/external_evaluations/
+- Method comparison table: replaced fft with wave-fit
+- Workflow Option A: simplified to prophet one-shot (no P=re-run)
+
+### Branch state
+- main, research_gui, gwyn-g3zil all synced
+- All PR branches cleaned
+- v2.4.1 tag + GitHub release created
+
+### Open items
+1. Gwyn email — Jan 2026 results + workflow status
+2. find_event_stations.py — better 4th station for Jan 2026
+3. May 2024 Gwyn event analysis
+4. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
