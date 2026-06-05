@@ -1,19 +1,22 @@
 # External Evaluation
 
-After obtaining a DOA result from `tid_doa.py`, corroborate it with
+After obtaining a DOA result from `tid_doa.py`, users are encouraged to corroborate it with
 independent space weather data using the evaluation tools. All outputs
 should be saved to `<event_dir>/runs/external_evaluations/`.
+
+For example, HF signals refract or reflect from the ionosphere, so HF measurements are extremely
+sensitive to small changes in layer height, gradients, and propagation path length.
+
+Conversely, GNSS signals pass through the ionosphere and measure changes in total electron
+content (TEC) along the path, making GNSS excellent for mapping the spatial structure,
+direction, wavelength, and speed of TIDs over large regions.
 
 ## Tools
 
 | Tool | Data source | What it checks |
 |------|-------------|----------------|
-| `evaluate_external.py` | Kp (GFZ), AE (Kyoto), GloTEC (NOAA) | Full automated evaluation |
 | `fetch_ae_index.py` | AE index (WDC Kyoto) | Substorm activity at event time |
-| `fetch_glotec.py` | GloTEC TEC anomaly (NOAA NCEI) | Storm-time TEC enhancement |
 | `fetch_madrigal_tec.py` | GPS TEC (MIT Haystack Madrigal) | Independent TID lag/direction |
-
-## 1. Full automated evaluation (Kp + AE + GloTEC)
 
 ```bash
 python3 evaluate_external.py \
@@ -21,12 +24,8 @@ python3 evaluate_external.py \
     --event-start 2026-01-19T00:00:00Z \
     --event-end   2026-01-19T01:15:00Z \
     --speed-m-s 304 --azimuth-from 10 \
-    --glotec-dir ~/Downloads/glotec_2026_01_19 \
     --output-dir <event_dir>/runs/external_evaluations
 ```
-
-Outputs: `kp_plot.png`, `ae_plot.png`, `glotec_event_montage.png`,
-`glotec_before_after.png`, `glotec_diff.png`, `evaluation_report.txt`
 
 ## 2. AE index only
 
@@ -42,24 +41,7 @@ python3 fetch_ae_index.py \
 Fetches 1-minute AE from WDC Kyoto. Plots full day + zoom with event
 window and predicted substorm onset marker.
 
-## 3. GloTEC analysis
-
-Download the GloTEC tar.gz for your event date from NOAA NCEI:
-https://www.ngdc.noaa.gov/stp/iono/ustec/
-
-```bash
-python3 fetch_glotec.py \
-    --glotec-dir ~/Downloads/glotec_2026_01_19 \
-    --date 2026-01-19 \
-    --event-start 2026-01-19T00:00:00Z \
-    --event-end   2026-01-19T01:15:00Z \
-    --output-dir <event_dir>/runs/external_evaluations
-```
-
-**Note:** GloTEC ~2° resolution can mask individual LSTID wavefronts.
-For wavefront tracking use Madrigal GPS TEC (below).
-
-## 4. Madrigal GPS TEC cross-correlation
+## 3. Madrigal GPS TEC cross-correlation
 
 ```bash
 python3 fetch_madrigal_tec.py \

@@ -173,7 +173,6 @@
 
 - **COOKBOOK and EXTERNAL_RESULTS_EVALUATION: direction/speed verification guide**
   New section covering how to cross-check DOA speed and direction against
-  independent data sources (GPS TEC, AE index, GloTEC). Covers
   `fetch_madrigal_tec.py`, `fetch_ae_index.py`, and `evaluate_external.py`
   in a unified workflow.
 
@@ -221,7 +220,6 @@
 
 - **docs/EXTERNAL_RESULTS_EVALUATION.md** — new tool reference document
   covering all external evaluation tools (`evaluate_external.py`,
-  `fetch_ae_index.py`, `fetch_glotec.py`, `fetch_madrigal_tec.py`).
   Updated README and COOKBOOK with cross-references.
 - Removed stale `docs/EXTERNAL_VALIDATION.md` (superseded by
   `examples/EXTERNAL_RESULTS_EVALUATION.md`).
@@ -254,7 +252,6 @@
 
 - **validate_external.py (now evaluate_external.py) — external evaluation tool**
   Automates Kp index fetch (GFZ), AE index fetch (SuperMAG/Kyoto),
-  and GloTEC montage retrieval for a given event date. Produces a
   text report summarising geomagnetic conditions at event time.
   Usage:
   ```
@@ -262,7 +259,6 @@
   ```
 - **fetch_ae_index.py** — standalone AE index retrieval (SuperMAG API
   or Kyoto WDC fallback). Plots AE vs time with event window marked.
-- **fetch_glotec.py** — standalone GloTEC TEC anomaly retrieval
   (NOAA SWPC). Generates montage of TEC anomaly maps around event time.
 
 ### Examples
@@ -616,7 +612,6 @@ First physically validated result from psws-drf-tid-tools:
 - Restores extract_with_overlay() function definition lost during
   a merge conflict resolution.
 
-
 ## v1.6.5 — 2026-05-19
 ### drf_to_doppler.py v1.1.1: --method fft|autocorr promoted to main
 - **New feature**: `--method fft` (default) or `--method autocorr`
@@ -697,7 +692,6 @@ First physically validated result from psws-drf-tid-tools:
   unchanged. `--overlay` is optional; omitting it produces output
   identical to v1.1.1. Requires `pandas` (already in
   requirements.txt).
-
 
 ## v1.5.0 — 2026-05-17
 

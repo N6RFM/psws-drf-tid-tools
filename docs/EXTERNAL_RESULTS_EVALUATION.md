@@ -104,7 +104,6 @@ derived from the HF Doppler recordings.
 | Kp index | Geomagnetic storm context | Speed, direction |
 | AE/SME index | Substorm onset timing | Speed, direction |
 | Peak succession | Propagation direction | Speed magnitude |
-| GloTEC TEC maps | Storm-time context | TID speed/direction at standard res |
 | GPS TEC (IONEX) | Wavefront speed + direction | Requires NASA Earthdata auth |
 | Ionosondes (foF2) | Period, amplitude | US data gap since late 2023 |
 | SuperDARN | Spatial ionospheric structure | RTI = range only; fan = browser |
@@ -123,7 +122,6 @@ pip install requests matplotlib numpy Pillow
 ### evaluate_external.py — combined evaluation report
 
 The primary tool. Fetches Kp and AE automatically, and optionally
-analyses a locally downloaded GloTEC archive.
 
 ```bash
 python3 evaluate_external.py \
@@ -132,7 +130,6 @@ python3 evaluate_external.py \
     --event-end   YYYY-MM-DDTHH:MM:SSZ \
     --speed-m-s SPEED \
     --azimuth-from AZIMUTH \
-    --glotec-dir /path/to/glotec_YYYY_MM_DD \
     --output-dir ./evaluation
 ```
 
@@ -145,7 +142,6 @@ python3 evaluate_external.py \
 | `--event-end` | Yes | Event window end ISO 8601 UTC |
 | `--speed-m-s` | Yes | DOA phase speed in m/s |
 | `--azimuth-from` | Yes | Wave coming FROM azimuth (degrees true) |
-| `--glotec-dir` | No | Path to extracted GloTEC directory |
 | `--output-dir` | No | Output directory (default: current dir) |
 | `--skip-ae` | No | Skip AE fetch if WDC Kyoto unavailable |
 
@@ -155,9 +151,6 @@ python3 evaluate_external.py \
 |------|-------------|
 | `kp_plot.png` | Kp index with event window + predicted substorm onset |
 | `ae_plot.png` | AE index full day + zoom with event window |
-| `glotec_event_montage.png` | CONUS anomaly maps spanning event window |
-| `glotec_before_after.png` | Before / during / after comparison |
-| `glotec_diff.png` | Pixel difference: event end − event start |
 | `evaluation_report.txt` | Full text summary of all findings |
 
 **Travel time logic:**
@@ -206,132 +199,6 @@ AEALAOAU    YYMMDDEHH AE QUICKLK    val val val ...
 December 2024 onwards via the `data_dir` path above. For earlier dates
 use the provisional/final archive at:
 `https://wdc.kugi.kyoto-u.ac.jp/aedir/index.html`
-
----
-
-### fetch_glotec.py — GloTEC TEC anomaly analysis
-
-Analyses NOAA GloTEC CONUS anomaly maps from a locally downloaded
-daily archive.
-
-**Step 1 — download the archive:**
-1. Browse to `https://www.ngdc.noaa.gov/stp/iono/ustec/`
-2. Click "Download Data" and search for the event date
-3. Download `glotec_YYYY_MM_DD.tar.gz` (~270 MB per day)
-4. Extract: `tar xzf glotec_YYYY_MM_DD.tar.gz`
-
-**Step 2 — run analysis:**
-```bash
-python3 fetch_glotec.py \
-    --glotec-dir /path/to/glotec_YYYY_MM_DD \
-    --date YYYY-MM-DD \
-    --event-start YYYY-MM-DDTHH:MM:SSZ \
-    --event-end   YYYY-MM-DDTHH:MM:SSZ \
-    --output-dir ./evaluation
-```
-
-**Optional arguments:**
-
-| Argument | Default | Description |
-|----------|---------|-------------|
-| `--product` | `anomcus` | GloTEC product type |
-
-**Product types in GloTEC archive:**
-
-| Code | Description | Best for |
-|------|-------------|----------|
-| `anomcus` | CONUS TEC anomaly (diff from 30-day median) | TID detection |
-| `anomna` | North America TEC anomaly | Wider spatial context |
-| `anomaly` | Global TEC anomaly | Global storm context |
-| `anomalyp` | Global TEC anomaly with position error | Quality check |
-| `100asm` | CONUS absolute TEC | Background level |
-| `100asmp` | CONUS absolute TEC with position error | Quality check |
-| `100cus` | CONUS TEC (alternate projection) | Alternative view |
-| `100na` | North America absolute TEC | Background level |
-| `ray` | CONUS ray paths | Data coverage check |
-| `rayp` | CONUS ray paths with position error | Quality check |
-
-**Colour scale:**
-- Orange/brown = positive anomaly (TEC above 30-day median)
-- Purple/blue = negative anomaly (TEC below 30-day median)
-- Scale: approximately ±30 TECU
-
-**Outputs:** `glotec_products.txt`, `glotec_event_montage.png`,
-`glotec_before_after.png`, `glotec_diff.png`, `glotec_na_montage.png`
-
-**TID detectability at GloTEC resolution:**
-
-GloTEC's assimilation grid is ~2° (~200 km). For a typical LSTID at
-200-400 m/s with ~60-90 min period, the wavelength is 700-2000 km —
-in principle resolvable, but the assimilation model smoothing and
-storm-time TEC enhancements often mask TID amplitudes (~1-2 TECU).
-Higher-resolution line-of-sight TEC from MIT Haystack Madrigal is
-better for direct wavefront tracking.
-
----
-
-### fetch_madrigal_tec.py — Madrigal GPS TEC retrieval and TID xcorr
-
-The primary tool for independent speed verification. Retrieves gridded
-GPS TEC from MIT Haystack, extracts TEC at station locations, detrends
-to remove storm background, and cross-correlates all station pairs.
-No account needed — Madrigal uses open access.
-
-```bash
-pip install madrigalWeb matplotlib numpy scipy
-
-python3 fetch_madrigal_tec.py \
-    --date YYYY-MM-DD \
-    --event-start YYYY-MM-DDTHH:MM:SSZ \
-    --event-end   YYYY-MM-DDTHH:MM:SSZ \
-    --stations NAME1,LON1,LAT1 NAME2,LON2,LAT2 NAME3,LON3,LAT3 \
-    --user-name "Your Name" \
-    --user-email your@email.com \
-    --user-affiliation "Your Institution" \
-    --doa-lags S1,S2,LAG_S S1,S3,LAG_S \
-    --doa-speed SPEED_MS --doa-azimuth-from AZIMUTH \
-    --output-dir ./evaluation
-```
-
-**Arguments:**
-
-| Argument | Required | Description |
-|----------|----------|-------------|
-| `--date` | Yes | Event date YYYY-MM-DD |
-| `--event-start/end` | Yes | ISO 8601 UTC window |
-| `--stations` | Yes | NAME,LON,LAT per station (use IPP coords) |
-| `--user-name/email/affiliation` | Yes | Madrigal access credentials |
-| `--doa-lags` | No | S1,S2,lag_seconds per pair for comparison |
-| `--doa-speed` | No | True phase speed in m/s |
-| `--doa-azimuth-from` | No | Wave coming FROM azimuth (degrees true) |
-| `--lat-box` | No | ±lat degrees for station box (default 3.0) |
-| `--lon-box` | No | ±lon degrees for station box (default 4.0) |
-| `--bin-min` | No | Time bin in minutes (default 1.0) |
-| `--output-dir` | No | Output directory |
-
-**Outputs:**
-
-| File | Description |
-|------|-------------|
-| `madrigal_tec_raw.png` | Raw 1-min binned TEC at all stations |
-| `madrigal_tec_detrended.png` | Detrended TEC + primary pair xcorr |
-| `madrigal_tec_xcorr.png` | All pairwise cross-correlations |
-| `madrigal_tec_report.txt` | Full text summary with speed estimates |
-
-**How it works:**
-1. Connects to `https://cedar.openmadrigal.org/`
-2. Searches for gridded GPS TEC experiments (instrument 8000, kindat 3500)
-3. Extracts TEC via `isprint` API with spatial/temporal filters
-4. Bins to 1-min grid (mean of all GPS links in station box, min 3 links)
-5. Removes 2nd-order polynomial trend (storm background)
-6. Cross-correlates all station pairs
-7. Compares GPS TEC lags to DOA lags and computes implied true speed
-
-**Critical note on geometry:**
-The GPS TEC xcorr gives the along-baseline lag, not the true phase lag.
-When the baseline is nearly perpendicular to the wave direction (>45°),
-the along-baseline speed is much higher than the true speed. Always
-check baseline bearing vs wave direction before interpreting results.
 
 ---
 
@@ -529,7 +396,6 @@ This is a model-free directional check requiring no external data.
 |--------|-----|------|------|
 | Kp index | https://kp.gfz-potsdam.de/app/json/ | None | evaluate_external.py |
 | AE index | https://wdc.kugi.kyoto-u.ac.jp/ae_realtime/ | None | fetch_ae_index.py |
-| GloTEC | https://www.ngdc.noaa.gov/stp/iono/ustec/ | None | fetch_glotec.py |
 | SuperMAG SME | https://supermag.jhuapl.edu/indices/ | None | Browser only |
 | SuperDARN RTI | http://vt.superdarn.org | None | Browser only |
 | IONEX/CDDIS | https://cddis.nasa.gov/archive/gnss/products/ionex/ | NASA Earthdata (free) | curl + Python |
