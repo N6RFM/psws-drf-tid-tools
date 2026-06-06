@@ -748,10 +748,8 @@ but removed from the guided workflow.
 - v2.4.1 tag + GitHub release created
 
 ### Open items
-1. Gwyn email — Jan 2026 results + workflow status
-2. find_event_stations.py — better 4th station for Jan 2026
-3. May 2024 Gwyn event analysis
-4. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+1. May 2024 Gwyn event analysis
+2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
 
 ---
 ## 54. EXTERNAL_EVALUATION.md numbering fix — 2026-06-05
@@ -762,10 +760,8 @@ but removed from the guided workflow.
 - Merged via PR fix/external-eval-numbering → main, synced all branches
 
 ### Open items
-1. Gwyn email — Jan 2026 results + workflow status
-2. find_event_stations.py — better 4th station for Jan 2026
-3. May 2024 Gwyn event analysis
-4. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+1. May 2024 Gwyn event analysis
+2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
 
 ---
 ## 55. Kp/AE narrative + fetch_kp_index.py — 2026-06-05
@@ -781,10 +777,8 @@ but removed from the guided workflow.
 - Merged via PRs #215, #216 → main, all branches synced
 
 ### Open items
-1. Gwyn email — Jan 2026 results + workflow status
-2. find_event_stations.py — better 4th station for Jan 2026
-3. May 2024 Gwyn event analysis
-4. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+1. May 2024 Gwyn event analysis
+2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
 
 ---
 ## 56. EXTERNAL_EVALUATION.md cleanup — 2026-06-05
@@ -803,10 +797,8 @@ fetch_kp_index.py and fetch_ae_index.py remain in repo as CLI tools
 but are not featured in the guided workflow docs.
 
 ### Open items
-1. Gwyn email — Jan 2026 results + workflow status
-2. find_event_stations.py — better 4th station for Jan 2026
-3. May 2024 Gwyn event analysis
-4. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+1. May 2024 Gwyn event analysis
+2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
 
 ---
 ## 57. ADVANCED_EVALUATION.md rename — 2026-06-05
@@ -820,10 +812,8 @@ but are not featured in the guided workflow docs.
 - Merged via PR #218 → main, all branches synced
 
 ### Open items
-1. Gwyn email — Jan 2026 results + workflow status
-2. find_event_stations.py — better 4th station for Jan 2026
-3. May 2024 Gwyn event analysis
-4. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+1. May 2024 Gwyn event analysis
+2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
 
 ---
 ## 58. Cleanup + COOKBOOK.md v2.4.1 fixes — 2026-06-05
@@ -837,7 +827,5 @@ but are not featured in the guided workflow docs.
 - Merged via PRs #219, #220 → main, all branches synced
 
 ### Open items
-1. Gwyn email — Jan 2026 results + workflow status
-2. find_event_stations.py — better 4th station for Jan 2026
-3. May 2024 Gwyn event analysis
-4. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+1. May 2024 Gwyn event analysis
+2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
