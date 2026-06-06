@@ -824,3 +824,20 @@ but are not featured in the guided workflow docs.
 2. find_event_stations.py — better 4th station for Jan 2026
 3. May 2024 Gwyn event analysis
 4. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+
+---
+## 58. Cleanup + COOKBOOK.md v2.4.1 fixes — 2026-06-05
+
+### Changes
+- COOKBOOK.md: cwt-prophet key bindings updated (removed P, C; fixed E, X descriptions)
+- COOKBOOK.md: recommended workflow text corrected for prophet one-shot
+- COOKBOOK.md: removed standalone AE index recipe (redundant with evaluate_external.py)
+- evaluation/ and evaluation_sw/ output dirs removed from repo (May 2026 event test runs)
+- .gitignore: added evaluation/, evaluation_sw/
+- Merged via PRs #219, #220 → main, all branches synced
+
+### Open items
+1. Gwyn email — Jan 2026 results + workflow status
+2. find_event_stations.py — better 4th station for Jan 2026
+3. May 2024 Gwyn event analysis
+4. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
