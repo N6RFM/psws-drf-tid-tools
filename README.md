@@ -3,22 +3,21 @@
 **A Python pipeline for analyzing Traveling Ionospheric Disturbances (TIDs)
 from HamSCI Grape Digital RF I/Q recordings.**
 
-The goals of this toolset are 1) to provide citizen scientists using members of the HAMSci Grape DRF family another means
-to explore TIDs and 2) to obtain general estimates of TID propagation speed and direction. 
+Travelling Ionospheric Disturbance (TID) propagates over long distances, often caused by atmospheric
+or geomagnetic events. TIDs generally propagate towards the equator during storms, and can disrupt GNSS/GPS
+navigation, radio communications, and satellite operations.
+
+This toolset provide citizen scientists using receivers from the HAMSci Grape DRF family a means
+to obtain estimates of TID propagation speed and direction. 
 
 Users are encouraged to compare their HF based results to those obtained using other
-complementary tools.  Geomagnetic indices like the Kp index and and the Auroral Electrojet (AE)
-Index may help identify whether the disturbance is likely a quiet-time MSTID or a storm-driven auroral LSTID.
+complementary tools.  
+
+Geomagnetic indices like the Kp index and and the Auroral Electrojet (AE) Index may help identify
+whether the disturbance is likely a quiet-time MSTID or a storm-driven auroral LSTID.
 GNSS TEC data from CEDAR Madrigal Database provides spatial wave structure, propagation
 direction, wavelength, and speed estimates. This toolset includes scripts to help obtain those 
 types of information for comparative purposes. 
-
-## Travelling Ionospheric Disturbance (TID)
-
-A wave-like disturbance in the ionosphere that propagates over long
-distances, often caused by atmospheric or geomagnetic events. TIDs
-generally propagate towards the equator during storms, and can disrupt GNSS/GPS
-navigation, radio communications, and satellite operations.
 
 ## A Note of Caution
 
@@ -32,14 +31,15 @@ WSPRDaemon stations all recording the same WWV carrier, this toolkit
 lets you:
 
 - find which other stations were on the air during your event of interest
-- inspect a DRF recording and identify the correct subchannel for 10 MHz
+- inspect a DRF recording and identify the correct subchannel for comparative
+  analysis
 - extract Doppler-vs-time CSVs from raw I/Q using four methods:
   anchor-guided cwt-prophet (recommended), autocorr,
   CWT, or wave-fit
 - render annotated Doppler spectrograms with optional overlay of
   extracted Doppler traces for visual method assessment
-- run the complete pipeline in one guided interactive session
-- run a full multi-station direction-of-arrival (DOA) inversion
+- run the complete analysis pipeline in one guided interactive session
+- run a full multi-station direction-of-arrival (DOA) analysis
 - visualize results as stacked Doppler traces and array-geometry maps
 
 The reference event is the **X1.9 solar flare and subsequent LSTID of
@@ -315,11 +315,10 @@ automatically (look for "Cite this repository" in the sidebar), or:
 - Phil Karn, (KA9Q) for the KA9Q Radio software package, enabling the RX-888 (and other SDRs) to perform accurate and reliable data collection.[https://github.com/ka9q/ka9q-radio]
 - Bill Engelke (AB4EJ), University of Alabama, for the original DRF processing and spectrogram plotting code, as well as database support/
   [https://github.com/HamSCI/DRF_processing].
-- Phil Ericson (W1PJE) and the MIT Haystack Observatory staff for the Digital RF format and the Madrigal GNSS toolset, which is part of the observatory's global GNSS receiver network.
-  [https://github.com/MITHaystack/digital_rf], [http://millstonehill.haystack.mit.edu/]
+- Phil Ericson (W1PJE) and the MIT Haystack Observatory staff for the Digital RF format [https://github.com/MITHaystack/digital_rf] and for the Madrigal GNSS toolset, which is part of the observatory's   global GNSS receiver network [http://millstonehill.haystack.mit.edu/.
 - The operators of every Grape and WSPRDaemon DRF station whose data makes these analysis possible!
 
-The toolkit was developed collaboratively with Anthropic's Claude AI.
+This toolkit was developed collaboratively with Anthropic's Claude AI.
 
 ---
 
