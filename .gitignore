@@ -54,3 +54,5 @@ OBS*
 !research/synthetic/*.pdf
 *_wave_tid.csv
 runs/
+evaluation/
+evaluation_sw/
