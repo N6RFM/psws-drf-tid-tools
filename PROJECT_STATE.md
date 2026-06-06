@@ -752,3 +752,92 @@ but removed from the guided workflow.
 2. find_event_stations.py — better 4th station for Jan 2026
 3. May 2024 Gwyn event analysis
 4. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+
+---
+## 54. EXTERNAL_EVALUATION.md numbering fix — 2026-06-05
+
+### Change
+- Added missing ## 1. Full evaluation (evaluate_external.py) heading
+- Sections now correctly numbered 1-3
+- Merged via PR fix/external-eval-numbering → main, synced all branches
+
+### Open items
+1. Gwyn email — Jan 2026 results + workflow status
+2. find_event_stations.py — better 4th station for Jan 2026
+3. May 2024 Gwyn event analysis
+4. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+
+---
+## 55. Kp/AE narrative + fetch_kp_index.py — 2026-06-05
+
+### Added
+- fetch_kp_index.py: Kp retrieval from GFZ Potsdam, bar chart with
+  storm thresholds (Kp 3, Kp 5), event window, stats box
+- EXTERNAL_EVALUATION.md: Geomagnetic Indices section (Kp/AE narrative)
+  inserted before Tools table
+- EXTERNAL_EVALUATION.md: Kp added to Tools table
+- EXTERNAL_EVALUATION.md: ## 4. Kp index section with usage example
+- EXTERNAL_EVALUATION.md: Madrigal GNSS TEC narrative added to ## 3.
+- Merged via PRs #215, #216 → main, all branches synced
+
+### Open items
+1. Gwyn email — Jan 2026 results + workflow status
+2. find_event_stations.py — better 4th station for Jan 2026
+3. May 2024 Gwyn event analysis
+4. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+
+---
+## 56. EXTERNAL_EVALUATION.md cleanup — 2026-06-05
+
+### Changes
+- Simplified to 2 numbered sections (was 4)
+- ## 1. renamed: "Full evaluation" → "Combined Kp and AE (evaluate_external.py)"
+- ## 2. AE index only — removed (redundant with ## 1.)
+- ## 3. Kp index standalone — removed (redundant with ## 1.)
+- Tools table: fetch_kp_index.py + fetch_ae_index.py removed,
+  evaluate_external.py added
+- Merged via PR #217 → main, all branches synced
+
+### Note
+fetch_kp_index.py and fetch_ae_index.py remain in repo as CLI tools
+but are not featured in the guided workflow docs.
+
+### Open items
+1. Gwyn email — Jan 2026 results + workflow status
+2. find_event_stations.py — better 4th station for Jan 2026
+3. May 2024 Gwyn event analysis
+4. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+
+---
+## 57. ADVANCED_EVALUATION.md rename — 2026-06-05
+
+### Changes
+- docs/EXTERNAL_RESULTS_EVALUATION.md → docs/ADVANCED_EVALUATION.md
+- examples/EXTERNAL_RESULTS_EVALUATION.md → examples/ADVANCED_EVALUATION.md
+- Internal references updated in ADVANCED_EVALUATION.md
+- COOKBOOK.md and README.md references updated
+- Link added from EXTERNAL_EVALUATION.md → ADVANCED_EVALUATION.md
+- Merged via PR #218 → main, all branches synced
+
+### Open items
+1. Gwyn email — Jan 2026 results + workflow status
+2. find_event_stations.py — better 4th station for Jan 2026
+3. May 2024 Gwyn event analysis
+4. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+
+---
+## 58. Cleanup + COOKBOOK.md v2.4.1 fixes — 2026-06-05
+
+### Changes
+- COOKBOOK.md: cwt-prophet key bindings updated (removed P, C; fixed E, X descriptions)
+- COOKBOOK.md: recommended workflow text corrected for prophet one-shot
+- COOKBOOK.md: removed standalone AE index recipe (redundant with evaluate_external.py)
+- evaluation/ and evaluation_sw/ output dirs removed from repo (May 2026 event test runs)
+- .gitignore: added evaluation/, evaluation_sw/
+- Merged via PRs #219, #220 → main, all branches synced
+
+### Open items
+1. Gwyn email — Jan 2026 results + workflow status
+2. find_event_stations.py — better 4th station for Jan 2026
+3. May 2024 Gwyn event analysis
+4. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
