@@ -308,7 +308,7 @@ automatically (look for "Cite this repository" in the sidebar), or:
 
 ## Acknowledgments
 
-- Gwyn Griffiths (G3ZIL) for development of the autocorr TID extractor parameters, helping me to analyze TID events and being a great mentor/Elmer/friend.
+- Gwyn Griffiths (G3ZIL) for development of the autocorr TID extractor parameters, helping me to analyze TID events and for being a great mentor, Elmer, and friend.
 - All of the the HamSCI / PSWS infrastructure developers who continue to advance the vision of Dr. Nathaniel Frissell (W2NAF),University of Scranton.  [https://hamsci.org]
 - John Gibbons (N8OBJ), Case Western Reserve University, for designing the Grape 1 receiver and it's progeny. [https://www.youtube.com/watch?v=y7w0dLhCfZI]
 - Rob Robinett (AI6VN) for developing of the WSPRDaemon software package and webiste. [https://www.wsprdaemon.org/]
