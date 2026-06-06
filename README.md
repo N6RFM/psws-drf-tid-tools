@@ -3,26 +3,27 @@
 **A Python pipeline for analyzing Traveling Ionospheric Disturbances (TIDs)
 from HamSCI Grape Digital RF I/Q recordings.**
 
+The goals of this toolset are 1) to provide citizen scientists using members of the HAMSci Grape DRF family another means
+to explore TIDs and 2) to obtain general estimates of TID propagation speed and direction. 
+
+Users are encouraged to compare their HF based results to those obtained using other
+complementary tools.  Geomagnetic indices like the Kp index and and the Auroral Electrojet (AE)
+Index may help identify whether the disturbance is likely a quiet-time MSTID or a storm-driven auroral LSTID.
+GNSS TEC data from CEDAR Madrigal Database provides spatial wave structure, propagation
+direction, wavelength, and speed estimates. This toolset includes scripts to help obtain those 
+types of information for comparative purposes. 
+
 ## Travelling Ionospheric Disturbance (TID)
 
 A wave-like disturbance in the ionosphere that propagates over long
 distances, often caused by atmospheric or geomagnetic events. TIDs
-propagate towards the equator during storms, and can disrupt GNSS/GPS
+generally propagate towards the equator during storms, and can disrupt GNSS/GPS
 navigation, radio communications, and satellite operations.
 
-## IMPORTANT CAVEAT
+## A Note of Caution
 
-The goals of this toolset are 1) allow citizen scientists using members of the HAMSci Grape DRF family a means to explore TIDs and
-2) obtain general estimates of TID propagation speed and direction. The extraction tools available
-here serve as place holders until more refined and accurate HF TID extraction and analysis tools become
-available.  Please consider this work experimental in nature. 
-
-Users are encouraged to compare their HF based results to those obtained using other
-complementary tools.  Geomagnetic indices like the Kp index and and the Auroral Electrojet Index may help
-identify whether the disturbance is likely a quiet-time MSTID or a storm-driven auroral LSTID.
-Also, GNSS TEC data from CEDAR Madrigal Database provides spatial wave structure, propagation
-direction, wavelength, and speed estimates. This toolset also includes scripts to help obtain those 
-types of information for comparative purposes. 
+The tools available here serve as place holders until more refined and accessible HF TID extraction and analysis
+tools become available.  Results obtained may not be accurate. Please consider this work experimental in nature. 
 
 ## What this toolkit does
 
@@ -54,7 +55,6 @@ cd psws-drf-tid-tools
 pip install -r requirements.txt
 pip install -r requirements-optional.txt   # for nicer maps
 ```
-
 ### Recommended: use a virtual environment
 
 The toolkit's dependencies (particularly `digital_rf`, `cartopy`, and
