@@ -3,7 +3,7 @@
 **A Python pipeline for analyzing Traveling Ionospheric Disturbances (TIDs)
 from HamSCI Grape Digital RF I/Q recordings.**
 
-Travelling Ionospheric Disturbance (TID) propagates over long distances, often caused by atmospheric
+A Travelling Ionospheric Disturbance (TID) propagates over long distances, often caused by atmospheric
 or geomagnetic events. TIDs generally propagate towards the equator during storms, and can disrupt GNSS/GPS
 navigation, radio communications, and satellite operations.
 
