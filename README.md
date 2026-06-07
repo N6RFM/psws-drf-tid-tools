@@ -7,7 +7,7 @@ A Travelling Ionospheric Disturbance (TID) propagates over long distances, often
 or geomagnetic events. TIDs generally propagate towards the equator during storms, and can disrupt GNSS/GPS
 navigation, radio communications, and satellite operations.
 
-This toolset provide citizen scientists using receivers from the HAMSci Grape DRF family a means
+This toolset provides citizen scientists, using receivers from the HAMSci Grape DRF family, a means
 to obtain estimates of TID propagation speed and direction. 
 
 Users are encouraged to compare their HF based results to those obtained using other
