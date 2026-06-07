@@ -1,0 +1,21 @@
+name: Block research-only docs from main
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  check-research-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fail if FINDINGS.md or PROJECT_STATE.md are in the diff
+        run: |
+          if git diff --name-only origin/main...HEAD | grep -E "^(FINDINGS|PROJECT_STATE)\.md$"; then
+            echo "ERROR: FINDINGS.md and PROJECT_STATE.md are research-branch-only."
+            echo "Remove them from this PR before merging to main."
+            exit 1
+          fi
+          echo "OK: no research-only docs in this PR."
