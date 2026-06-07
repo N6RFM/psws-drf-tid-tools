@@ -307,7 +307,7 @@ along-baseline speed = true speed / cos(angle between wave and baseline)
 | Speed | fetch_madrigal_tec.py xcorr | Madrigal GPS TEC (free) |
 | Geomagnetic context | evaluate_external.py | Kp (GFZ), AE (Kyoto) |
 
-See `docs/ADVANCED_EVALUATION.md` for full methodology and
+See `docs/EXTERNAL_EVALUATION.md` for full methodology and
 `examples/ADVANCED_EVALUATION.md` for the Jan 2026 worked example.
 
 ### How do I use Madrigal GPS TEC to corroborate a DOA result?
@@ -347,7 +347,7 @@ exps = m.getExperiments(8000, YYYY, MM, DD, 0,0,0, YYYY, MM, DD, 23,59,59)
 print(f"Found {len(exps)} experiments")
 ```
 
-See `docs/ADVANCED_EVALUATION.md` for full tool reference
+See `docs/EXTERNAL_EVALUATION.md` for full tool reference
 and `examples/ADVANCED_EVALUATION.md` for the Jan 2026 results.
 
 ---
