@@ -846,3 +846,23 @@ but are not featured in the guided workflow docs.
 ### Open items
 1. May 2024 Gwyn event analysis
 2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+
+---
+## 60. v2.4.2 release — 2026-06-06
+
+### Summary
+Documentation-only release. No code changes to extraction or DOA.
+
+### Changes
+- fetch_kp_index.py added (new tool)
+- EXTERNAL_EVALUATION.md major rewrite
+- ADVANCED_EVALUATION.md renamed
+- COOKBOOK.md, MANUAL_TUTORIAL.md, WORKFLOW_TUTORIAL.md,
+  TROUBLESHOOTING.md, METHODOLOGY.md, README.md — stale
+  anchor/Prophet workflow text removed throughout
+- CI: block-research-docs GitHub Action added
+- v2.4.2 tag + GitHub release created
+
+### Open items
+1. May 2024 Gwyn event analysis
+2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
