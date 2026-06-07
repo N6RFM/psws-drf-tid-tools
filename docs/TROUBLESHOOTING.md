@@ -168,30 +168,23 @@ on the clearest cycle.
 
 ### `tid_spect_click.py` — key bindings reference
 
-Full key bindings for anchor-guided cwt-prophet mode:
+Full key bindings for cwt-prophet mode:
 
-    Click   Add anchor point on carrier
-    P       Re-run Prophet with anchors as hard constraints
-    E       Export prophet CSV (recommended)
-    X       Export raw spline CSV
-    W       Enter wave-fit mode
+    Click   Mark carrier point (left to right)
+    E       Accept auto-trace and export
+    X       Export clicked trace (spline through your clicks)
     Z       Undo last click
     R       Reset all clicks
-    C       Clear all (clicks + calibration)
     Q       Quit
-
-With `--no-prophet`: P and E are hidden (Prophet didn't run).
-Only X, S, Z, R, Q are shown.
 
 ---
 
 ### `tid_spect_click.py` — X key has no effect
 
-The tool requires at least 2 anchor clicks before X exports. If Pass 0
-gave a good trace and you want to export it without clicking, the Pass 0
-result is exported automatically when you press X with 0 clicks — but
-only if Pass 0 completed successfully. If X still does nothing, check
-the status bar at the top for an error message.
+X exports a spline through your clicked points — it requires at least
+2 clicks. If you want to export the auto-trace instead, press E.
+If X still does nothing after clicking, check the status bar at the
+top for an error message.
 
 ---
 
