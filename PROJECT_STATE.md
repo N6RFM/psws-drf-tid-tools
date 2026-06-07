@@ -883,3 +883,21 @@ Documentation-only release. No code changes to extraction or DOA.
 ### Open items
 1. May 2024 Gwyn event analysis
 2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+
+---
+## 62. README/WORKFLOW_TUTORIAL cleanup — 2026-06-07
+
+### Changes
+- WORKFLOW_TUTORIAL.md: added "Manual step-by-step" section with
+  quick command reference (steps 1-6)
+- README.md: replaced large manual code block with pointer to
+  MANUAL_TUTORIAL.md and WORKFLOW_TUTORIAL.md
+- docs/EXTERNAL_EVALUATION.md: merged ADVANCED_EVALUATION content
+  (verification strategy, peak succession, GPS TEC geometry,
+  SuperMAG, SuperDARN, IONEX, summary table)
+- docs/ADVANCED_EVALUATION.md: deleted
+- Merged via PRs → main, all branches synced
+
+### Open items
+1. May 2024 Gwyn event analysis
+2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
