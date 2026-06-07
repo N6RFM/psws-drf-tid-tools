@@ -194,7 +194,7 @@ lag/period ratio for this LSTID is ~0.38 - prefer FFT.*
 ## Step 1c: Wave-fit extraction
 
 When ≥1.5 full TID cycles are clearly visible in the spectrogram
-window, the user can fit a sine wave directly to the carrier by
+window, the user can fit a sinusoidal model to the carrier by
 clicking points along the visible cycle:
 
 ```
