@@ -75,7 +75,7 @@ When done: `deactivate`. To resume: `source .venv/bin/activate`.
 
 ## Analysis Workflow
 
-### Step 0: find companion stations
+### Before you begin — find companion stations
 
 If you only have data from your own station, discover which other
 HamSCI PSWS stations recorded the same event:
@@ -105,6 +105,7 @@ The guided workflow handles all 8 steps interactively:
 3. TID window selection (interactive)
 4. Zoomed spectrogram generation
 5. Optional window refinement
+6. Doppler extraction
 7. Extraction output and visual assessment
 8. Direction-of-arrival inversion with interactive drop-station loop
 
