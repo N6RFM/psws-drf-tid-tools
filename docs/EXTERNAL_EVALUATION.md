@@ -4,12 +4,13 @@ After obtaining a DOA result from `tid_doa.py`, users are encouraged to corrobor
 independent space weather data using the evaluation tools. All outputs
 should be saved to `<event_dir>/runs/external_evaluations/`.
 
-For example, HF signals refract or reflect from the ionosphere, so HF measurements are extremely
+HF signals refract or reflect from the ionosphere, making HF measurements extremely
 sensitive to small changes in layer height, gradients, and propagation path length.
-
-Conversely, GNSS signals pass through the ionosphere and measure changes in total electron
+GNSS signals pass through the ionosphere and measure changes in total electron
 content (TEC) along the path, making GNSS excellent for mapping the spatial structure,
 direction, wavelength, and speed of TIDs over large regions.
+
+---
 
 ## Geomagnetic Indices: Kp and AE
 
@@ -68,6 +69,65 @@ equatorward-propagating wavefronts, large TEC perturbations, and strong HF Doppl
 This is the regime where combining your DOA result with AE timing and Madrigal GPS TEC gives
 the most complete picture.
 
+---
+
+## Verification Strategy — Direction and Speed
+
+A DOA result from `tid_doa.py` is an internal consistency estimate — it tells you whether
+the pairwise time lags are consistent with a single plane wave, but it cannot confirm the
+result is physically real. Two independent checks address the two key DOA outputs.
+
+### What external data can verify
+
+| Data source | Can verify | Cannot verify |
+|-------------|------------|---------------|
+| Kp index | Geomagnetic storm context | Speed, direction |
+| AE/SME index | Substorm onset timing | Speed, direction |
+| Peak succession | Propagation direction | Speed magnitude |
+| GPS TEC (Madrigal) | Wavefront speed + direction | — |
+| GPS TEC (IONEX) | Wavefront speed + direction | Requires NASA Earthdata auth |
+| SuperDARN | Spatial ionospheric structure | RTI = range only; fan = browser |
+
+### Verifying direction — peak succession (no external data)
+
+The most reliable direction check uses only the pairwise lag table
+produced by `tid_doa.py`. No external data required.
+
+For a wave propagating toward azimuth θ, the station geometrically
+closest to the source (in the FROM direction) should show its Doppler
+peak first — it has the most negative lag relative to all other stations.
+
+**Example (Jan 2026, wave from 30° NNE):**
+
+| Pair | Lag (s) | Sign correct? |
+|------|---------|---------------|
+| AA6BD → N6RFM | +1253 | ✓ AA6BD (easternmost) leads |
+| AA6BD → W7LUX | +1481 | ✓ AA6BD leads |
+| N6RFM → W7LUX | +228  | ✓ N6RFM (more eastern) leads |
+
+All three pairs confirm NNE origin. This is a model-free directional
+verification — no inversion, no external network. If any lag sign
+disagrees with the predicted direction, suspect a 180° alias or
+wrong-peak lock. The diagnostic [4] triangle closure check in
+`tid_doa.py` flags this.
+
+### Verifying speed — GPS TEC geometry note
+
+GPS TEC xcorr measures the **along-baseline lag**, not the true phase lag:
+
+```
+along-baseline lag = true lag × cos(angle between wave and baseline)
+```
+
+When the baseline is perpendicular to the wave (angle = 90°), the
+along-baseline lag approaches 0 regardless of true speed. Use the station
+pair whose baseline is most aligned with the wave direction (angle < 45°).
+Discard pairs with angle > 60°. The primary xcorr peak at lag=0 reflects
+correlated storm-time TEC background — look for a secondary peak near the
+DOA-predicted lag.
+
+---
+
 ## Tools
 
 | Tool | Data source | What it checks |
@@ -75,6 +135,7 @@ the most complete picture.
 | `evaluate_external.py` | Kp + AE (GFZ Potsdam / WDC Kyoto) | Storm level and substorm activity |
 | `fetch_madrigal_tec.py` | GPS TEC (MIT Haystack Madrigal) | Independent TID lag/direction |
 
+---
 
 ## 1. Combined Kp and AE (evaluate_external.py)
 
@@ -86,6 +147,8 @@ python3 evaluate_external.py \
     --speed-m-s 304 --azimuth-from 10 \
     --output-dir <event_dir>/runs/external_evaluations
 ```
+
+---
 
 ## 2. Madrigal GPS TEC cross-correlation
 
@@ -109,7 +172,7 @@ local propagation effect or multipath artifact.
 
 For storm and auroral forcing context, see the Kp and AE indices above.
 
-\`\`\`bash
+```bash
 python3 fetch_madrigal_tec.py \
     --date 2026-01-19 \
     --event-start 2026-01-19T00:00:00Z \
@@ -128,6 +191,8 @@ python3 fetch_madrigal_tec.py \
   the Madrigal API (free, no approval needed)
 - `--doa-speed`, `--doa-azimuth-from`: your DOA result for comparison
 
+---
+
 ## Output directory
 
 Save all evaluation outputs to the event data directory:
@@ -140,15 +205,102 @@ Example: `~/Downloads/tid_event_20260119/runs/external_evaluations/`
 For LSTID events with ~60 min period, set `--max-lag 20` (minutes)
 to prevent alias peak lock. See `docs/ASSESSING_RESULTS.md` for details.
 
+---
+
+## Manual Evaluation Sources
+
+These require only a browser — no registration needed unless noted.
+
+### SuperMAG SME / AE index
+
+**URL:** `https://supermag.jhuapl.edu/indices/`
+
+SuperMAG SME uses hundreds of ground magnetometers and is more
+sensitive to substorm onset than Kp.
+
+**How to use:**
+1. Navigate to the URL above
+2. Under "Auroral Electrojet Indices" check **SME** and **SML**
+3. Set time range: event date − 6h through event date + 3h
+4. Click "Plot Indices"
+
+**What to look for:** SME spike ≥ 200 nT occurring ~3–4 hours before
+the event window (for a mid-latitude US array and auroral source).
+Travel time (hours) = 3300 km / speed_m_s / 3.6
+
+### SuperDARN RTI plots
+
+**URL:** `http://vt.superdarn.org`
+
+SuperDARN is an HF radar network that directly measures ionospheric
+convection. Range-Time Intensity (RTI) plots show echo strength and
+line-of-sight velocity vs range and time.
+
+**Best radars for mid-latitude US events:**
+
+| Radar | Code | Location | Coverage |
+|-------|------|----------|----------|
+| Fort Hays East | FHE | Kansas | Central US |
+| Fort Hays West | FHW | Kansas | Central US |
+| Blackstone | BKS | Virginia | US East |
+| Christmas Valley East | CVE | Oregon | Western US |
+| Christmas Valley West | CVW | Oregon | Western US |
+| Wallops Island | WAL | Virginia | US East coast |
+
+**How to use:**
+1. Go to `http://vt.superdarn.org` → Data Library → RTI Plots
+2. Select radar, date and time range covering the event
+3. Look for a dense ground scatter band (strong echoes at 1200–1700 km
+   slant range) and whether its boundary moves equatorward over time
+
+**Limitation:** RTI shows range vs time but not azimuth. Fan plots
+give direction but require registration.
+
+### IONEX GPS TEC (requires NASA Earthdata auth — free)
+
+IONEX files contain global TEC maps at 2-hour cadence on a 2.5° × 5° grid.
+
+**Register free:** `https://urs.earthdata.nasa.gov/`
+
+```bash
+echo "machine urs.earthdata.nasa.gov login USER password PASS" >> ~/.netrc
+chmod 600 ~/.netrc
+
+# JPL IONEX for Jan 19 2026 (DOY 019)
+curl -n -L \
+  "https://cddis.nasa.gov/archive/gnss/products/ionex/2026/019/JPL0OPSFIN_20260190000_01D_02H_GIM.INX.gz" \
+  -o JPL0OPSFIN_20260190000_01D_02H_GIM.INX.gz
+gunzip JPL0OPSFIN_20260190000_01D_02H_GIM.INX.gz
+
+# Browse directory for exact filename:
+# https://cddis.nasa.gov/archive/gnss/products/ionex/YYYY/DOY/
+```
+
+| Centre | Code | Notes |
+|--------|------|-------|
+| JPL | `jplg` | Recommended for CONUS |
+| CODE Bern | `codg` | Global coverage |
+| IGS combined | `igsg` | Multi-centre combination |
+
+---
+
+## Summary of Data Sources
+
+| Source | URL | Auth | Tool |
+|--------|-----|------|------|
+| Kp index | https://kp.gfz-potsdam.de/app/json/ | None | evaluate_external.py |
+| AE index | https://wdc.kugi.kyoto-u.ac.jp/ae_realtime/ | None | evaluate_external.py |
+| SuperMAG SME | https://supermag.jhuapl.edu/indices/ | None | Browser only |
+| SuperDARN RTI | http://vt.superdarn.org | None | Browser only |
+| IONEX/CDDIS | https://cddis.nasa.gov/archive/gnss/products/ionex/ | NASA Earthdata (free) | curl + Python |
+| Madrigal TEC | https://cedar.openmadrigal.org/ | None | fetch_madrigal_tec.py |
+
+---
+
 ## Additional Resources
 
 - SuperMAG: https://supermag.jhuapl.edu/indices/
 - SuperDARN: http://vt.superdarn.org
 - NASA Earthdata: https://urs.earthdata.nasa.gov/
 - See `docs/COOKBOOK.md` for task-oriented recipes
-
-## Advanced Evaluation
-
-For deeper methodology — peak succession checks, GPS TEC geometry,
-SuperDARN RTI, IONEX download, and a full data sources table — see
-`docs/ADVANCED_EVALUATION.md`.
+- See `examples/ADVANCED_EVALUATION.md` for the Jan 2026 worked example
