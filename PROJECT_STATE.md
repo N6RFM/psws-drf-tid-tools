@@ -829,3 +829,20 @@ but are not featured in the guided workflow docs.
 ### Open items
 1. May 2024 Gwyn event analysis
 2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+
+---
+## 59. Doc sweep: stale anchor/Prophet workflow text — 2026-06-06
+
+### Changes
+- MANUAL_TUTORIAL.md: Step 0 → "Before you begin", removed C key
+- WORKFLOW_TUTORIAL.md: removed C key from Step 6 Option A
+- README.md: Step 0 → "Before you begin", added missing step 6 to guided list
+- TROUBLESHOOTING.md: removed P/C keys, fixed X key section
+- METHODOLOGY.md: replaced anchor workflow description with v2.4.1 E/X workflow
+- CI: added .github/workflows/block-research-docs.yml to block
+  FINDINGS.md and PROJECT_STATE.md from main via GitHub Action
+- Merged via PRs → main, all branches synced
+
+### Open items
+1. May 2024 Gwyn event analysis
+2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
