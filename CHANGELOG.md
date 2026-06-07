@@ -1,3 +1,24 @@
+## v2.4.3 — 2026-06-07
+
+### Documentation
+- **`docs/EXTERNAL_EVALUATION.md`**: merged ADVANCED_EVALUATION.md content —
+  verification strategy, peak succession check, GPS TEC geometry note,
+  SuperMAG SME, SuperDARN RTI, IONEX download, summary table.
+- **`docs/ADVANCED_EVALUATION.md`**: deleted (content merged into EXTERNAL_EVALUATION.md).
+- **`WORKFLOW_TUTORIAL.md`**: added manual step-by-step quick reference section.
+- **`MANUAL_TUTORIAL.md`**: restructured extraction options A–D (cwt-prophet,
+  autocorr, cwt, wave-fit); removed FFT from workflow options; "sine wave"
+  replaced with "sinusoidal model" throughout.
+- **`README.md`**: simplified manual step-by-step section to pointer;
+  various acknowledgment and workflow edits.
+- "sine wave" → "sinusoidal model" in METHODOLOGY.md, COOKBOOK.md,
+  WORKFLOW_TUTORIAL.md, MANUAL_TUTORIAL.md.
+
+### CI
+- `.github/workflows/block-research-docs.yml`: GitHub Action blocks
+  FINDINGS.md and PROJECT_STATE.md from being merged to main.
+
+---
 ## v2.4.2 — 2026-06-06
 
 ### New tools
