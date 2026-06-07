@@ -225,14 +225,11 @@ lags, the anchor-guided cwt-prophet gives the most reliable results.
 
 **How it works:**
 1. On open, CWT+Prophet runs automatically (Pass 0) and displays
-   a green trace overlay — the best automated carrier estimate.
-2. The user inspects the trace and clicks anchor points where
-   Prophet tracked the wrong feature (E-region, noise spike, etc.).
-3. The user presses **P** to re-run Prophet with anchors as hard
-   constraints — Prophet re-fits, forced to pass through the
-   anchored positions. This produces a smooth, physically motivated
-   trace that follows the correct carrier.
-4. The user presses **E** to export the anchor-guided prophet CSV.
+   a trace overlay — the best automated carrier estimate.
+2. The user inspects the trace. If it follows the carrier, press
+   **E** to accept and export.
+3. If not, the user clicks along the correct carrier from left to
+   right, then presses **X** to export the clicked trace.
 
 **Why this is recommended over raw spline (X key):** Prophet uses
 the full spectral context and time-series continuity to produce a
