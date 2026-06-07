@@ -226,7 +226,7 @@ python3 drf_spectrogram.py ./n6rfm \
 ### Option D: wave-fit extraction (--wave-only)
 
 Use when the TID shows at least 0.5 cycles (1.5 recommended) in the window
-and you want to fit a sine wave directly to the carrier:
+and you want to fit a sinusoidal model to the carrier:
 
 ```bash
 python3 tid_spect_click.py \\

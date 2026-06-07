@@ -194,7 +194,7 @@ up and down as the TID passes.
 #### Option B: Wave-fit extraction (--wave-only)
 
 Use when the TID shows ≥0.5 cycles (1.5 recommended) in the window and you want
-to fit a sine wave directly to the carrier. Each station independently
+to fit a sinusoidal model to the carrier. Each station independently
 estimates its own period — handles dispersive TIDs.
 
 Open in wave-fit mode (skips Prophet entirely):
@@ -232,7 +232,7 @@ of that bright ridge** to trace out its shape.
    (brown diamond markers appear at each click)
 2. Press **F** to fit — a dialog asks what fraction of the cycle
    you marked (1=half cycle, 2=full cycle, or custom multiplier)
-3. Blue overlay shows the fitted sine wave — press **A** to accept,
+3. Blue overlay shows the fitted sinusoidal model — press **A** to accept,
    **W** to redo with new points, or **Q** to quit without saving
 
 Output: `<station>_wave_tid.csv`
