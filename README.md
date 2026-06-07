@@ -257,7 +257,7 @@ psws-drf-tid-tools/
 │   ├── ASSESSING_RESULTS.md         technical basis for DOA estimates
 │   ├── EXTERNAL_EVALUATION.md       external space weather evaluation tools
 │   ├── COOKBOOK.md                  task-oriented recipes
-│   ├── ADVANCED_EVALUATION.md  external space weather tools
+
 │   ├── METHODOLOGY.md               signal processing details
 │   └── TROUBLESHOOTING.md           failure modes and fixes
 │
