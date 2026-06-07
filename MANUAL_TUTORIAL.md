@@ -292,8 +292,9 @@ Create `event.json`:
 midpoint between each station and WWV internally. Pass actual
 receiver coordinates (not pre-computed IPP midpoints).
 
-**`max_lag_seconds`:** set to ~1/3 of expected TID period to prevent
-period aliasing. Override on the command line with `--max-lag MIN`.
+**`max_lag_seconds`:** limits the xcorr search window when `tid_doa.py` runs — set to ~1/3 of
+the expected TID period to prevent period aliasing. If omitted, the value is auto-computed
+from the largest baseline and `min_expected_speed_m_s`. Override at runtime with `--max-lag MIN`.
 
 ---
 
