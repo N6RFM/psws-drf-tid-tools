@@ -901,3 +901,22 @@ Documentation-only release. No code changes to extraction or DOA.
 ### Open items
 1. May 2024 Gwyn event analysis
 2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+
+---
+## 63. v2.4.3 release — 2026-06-07
+
+### Summary
+Documentation-only release. No code changes.
+
+### Changes
+- EXTERNAL_EVALUATION.md: merged ADVANCED_EVALUATION.md content
+- ADVANCED_EVALUATION.md: deleted
+- WORKFLOW_TUTORIAL.md: manual step-by-step section added
+- MANUAL_TUTORIAL.md: Options A-D restructured, FFT removed
+- "sine wave" → "sinusoidal model" throughout
+- CI: block-research-docs GitHub Action
+- v2.4.3 tag + GitHub release created
+
+### Open items
+1. May 2024 Gwyn event analysis
+2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
