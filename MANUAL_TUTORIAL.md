@@ -171,10 +171,8 @@ character mid-window.
 
 ---
 
-### Option B: automated extraction (autocorr / cwt)
-
-No GUI required.
-
+### Option B: autocorr (automated)
+No GUI required. Best for smooth, clean carriers.
 ```bash
 python3 drf_to_doppler.py ./n6rfm \
     --subchannel 0 \
@@ -184,12 +182,7 @@ python3 drf_to_doppler.py ./n6rfm \
     --method autocorr \
     --output n6rfm_autocorr_tid.csv
 ```
-
-Replace `autocorr` with `cwt` if preferred. These are fully
-automated — no GUI interaction needed.
-
 **Check visually:**
-
 ```bash
 python3 drf_spectrogram.py ./n6rfm \
     --subchannel 0 \
@@ -197,24 +190,40 @@ python3 drf_spectrogram.py ./n6rfm \
     --window n6rfm_fullday_window.json \
     --ylim=-5,5 --dpi 150 \
     --callsign N6RFM --grid EM12jw \
-    --overlay n6rfm_fft_tid.csv:FFT
+    --overlay n6rfm_autocorr_tid.csv:Autocorr
 ```
-
-**Which automated method to use:**
-
-| Method | Best for |
-|--------|----------|
-| fft | General purpose, default |
-| autocorr | Smooth carriers|
-| cwt | Multi-peak ambiguous carriers |
-| cwt-prophet | CWT + Prophet prediction |
-
 **Important:** automated methods pick the strongest spectral peak without
 constraint and can lock onto the wrong feature (e.g. E-region
 contamination). Use Option A (cwt-prophet) for any station where the
 auto-trace doesn't follow the carrier.
 
-### Option C: wave-fit extraction (--wave-only)
+---
+
+### Option C: cwt (automated)
+No GUI required. Best for multi-peak or ambiguous carriers.
+```bash
+python3 drf_to_doppler.py ./n6rfm \
+    --subchannel 0 \
+    --start 2026-01-19T00:00:00 \
+    --end   2026-01-19T02:00:00 \
+    --decim-seconds 60 \
+    --method cwt \
+    --output n6rfm_cwt_tid.csv
+```
+**Check visually:**
+```bash
+python3 drf_spectrogram.py ./n6rfm \
+    --subchannel 0 \
+    --output n6rfm_overlay.png \
+    --window n6rfm_fullday_window.json \
+    --ylim=-5,5 --dpi 150 \
+    --callsign N6RFM --grid EM12jw \
+    --overlay n6rfm_cwt_tid.csv:CWT
+```
+
+---
+
+### Option D: wave-fit extraction (--wave-only)
 
 Use when the TID shows at least 0.5 cycles (1.5 recommended) in the window
 and you want to fit a sine wave directly to the carrier:
