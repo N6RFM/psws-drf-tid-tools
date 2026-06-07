@@ -21,8 +21,10 @@ types of information for comparative purposes.
 
 ## A Note of Caution
 
-The tools available here serve as place holders until more refined and accessible HF TID extraction and analysis
-tools become available.  Results obtained may not be accurate. Please consider this work experimental in nature. 
+The toolkit calculations assume a planar wave, flat-earth geometry, single hop F region propagation, 
+and vertical-incidence reflection at the path midpoint relative to each receiving station. Results 
+should be considered as informed estimates.  Comparison to results from other independent space weather
+data evaluation tools is recommended.
 
 ## What this toolkit does
 
@@ -120,8 +122,7 @@ walkthrough.
 
 For full control over each step, run the pipeline directly.
 See **[`MANUAL_TUTORIAL.md`](MANUAL_TUTORIAL.md)** for the complete
-step-by-step guide, or **[`WORKFLOW_TUTORIAL.md`](WORKFLOW_TUTORIAL.md)**
-for a quick command reference.
+step-by-step guide.
 
 ---
 
