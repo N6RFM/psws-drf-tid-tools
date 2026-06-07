@@ -190,7 +190,7 @@ press X to export your trace.
 ### How do I use wave-fit extraction (--wave-only)?
 
 Use when the TID shows at least 0.5 cycles (1.5 recommended) in the window and you
-want to fit a sine wave directly to the carrier. No Prophet run needed:
+want to fit a sinusoidal model to the carrier. No Prophet run needed:
 
 ```bash
 python3 tid_spect_click.py \
@@ -203,7 +203,7 @@ python3 tid_spect_click.py \
 On open, the tool goes straight to wave-fit mode. Key bindings:
 
     Click   Mark a point on the TID cycle (brown diamond marker)
-    F       Fit sine wave to clicked points
+    F       Fit sinusoidal model to clicked points
             (dialog asks: 1=half cycle, 2=full cycle, custom multiplier)
     A       Accept candidate fit — writes final {stn}_wave_tid.csv
     W       Redo wave-fit (discards candidate, clear markers)
