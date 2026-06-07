@@ -164,7 +164,6 @@ a trace overlay. Inspect it — does it follow the carrier?
     X       Export clicked trace (spline through your clicks)
     Z       Undo last click
     R       Reset all clicks
-    C       Clear all (clicks + calibration)
     Q       Done (close window)
 
 **Workflow:**
