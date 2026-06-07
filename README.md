@@ -138,8 +138,8 @@ python3 drf_spectrogram.py ./n6rfm --subchannel 0 \
     --ylim=-5,5 --dpi 150 --callsign N6RFM
 
 # 5a. Anchor-guided cwt-prophet extraction (suggest try first)
-#     Pass 0 auto-runs. Click anchors where Prophet went wrong.
-#     W=wave-fit  Z=undo  R=reset  Q=quit
+#     Pass 0 auto-runs. E=accept auto-trace, X=export clicked trace
+#     Z=undo  R=reset  Q=quit
 python3 tid_spect_click.py --spectrogram n6rfm_zoom.png \
     --name N6RFM --drf-dir ./n6rfm --subchannel 0 \
     --event-json event.json
@@ -185,10 +185,9 @@ Four methods are available, in order of recommended preference:
 | **FFT** | drf_to_doppler.py --method fft | None | Clean signals, fast survey |
 
 **Anchor-guided cwt-prophet** : Pass 0 auto-runs
-CWT+Prophet on open; the user clicks anchor points only where Prophet
-tracked the wrong feature, then presses **P** to re-run Prophet with
-anchors as constraints. Press **E** to export the smooth prophet CSV.
-This gives a physically motivated trace with minimal user effort.
+CWT+Prophet runs automatically on open. If the auto-trace looks good,
+press **E** to accept and export. If not, click the carrier from left
+to right and press **X** to export your clicked trace.
 
 **Key bindings** (tid_spect_click.py): E=accept auto-trace,
 X=export clicked trace, Z=undo, R=reset, Q=done.

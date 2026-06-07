@@ -31,7 +31,7 @@ tid_event_20260119/
 
 ---
 
-## Step 0 -- Find companion stations
+## Before you begin -- Find companion stations
 
 If you only have DRF data from your own station, run this first to discover
 which other HamSCI PSWS stations recorded the same event:
@@ -52,6 +52,8 @@ Download DRF data for the selected stations from:
 https://pswsnetwork.eng.ua.edu/
 
 Then proceed with Step 1 below.
+
+This step is optional if you already have DRF data from companion stations.
 
 ---
 
@@ -141,7 +143,6 @@ a trace overlay. Inspect it — does it follow the carrier?
     X       Export clicked trace (spline through your clicks)
     Z       Undo last click
     R       Reset all clicks
-    C       Clear all (clicks + calibration)
     Q       Done (close window)
 
 **Workflow:**
@@ -163,10 +164,10 @@ reproducible result. On contaminated stations the auto-trace may
 lock onto the wrong feature — in that case, click the correct
 carrier directly and export with X.
 
-**E vs X:** prefer E (prophet) when Prophet follows the carrier well
-after anchoring. Use X (raw spline) only when the carrier is too
-complex for Prophet to fit — e.g. multiple overlapping carriers, or
-a carrier that changes character mid-window.
+**E vs X:** prefer E when the auto-trace follows the carrier well.
+Use X only when the carrier is too complex for Prophet to fit —
+e.g. multiple overlapping carriers, or a carrier that changes
+character mid-window.
 
 ---
 
@@ -210,8 +211,8 @@ python3 drf_spectrogram.py ./n6rfm \
 
 **Important:** automated methods pick the strongest spectral peak without
 constraint and can lock onto the wrong feature (e.g. E-region
-contamination). Use Option A (anchor-guided cwt-prophet) for
-any station where the auto-trace doesn't follow the carrier.
+contamination). Use Option A (cwt-prophet) for any station where the
+auto-trace doesn't follow the carrier.
 
 ### Option C: wave-fit extraction (--wave-only)
 
