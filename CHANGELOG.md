@@ -1,3 +1,33 @@
+## v2.4.2 — 2026-06-06
+
+### New tools
+- **`fetch_kp_index.py`**: Kp index retrieval from GFZ Potsdam JSON API.
+  Bar chart with storm threshold lines (Kp 3, Kp 5), event window,
+  and stats box showing event condition (quiet/unsettled/storm).
+
+### Documentation
+- **`docs/EXTERNAL_EVALUATION.md`** major rewrite: added Kp/AE narrative
+  (forcing indicators, quiet vs storm-time HF signatures), Madrigal GNSS
+  TEC narrative, simplified to 2 numbered sections, updated Tools table.
+- **`docs/ADVANCED_EVALUATION.md`**: renamed from EXTERNAL_RESULTS_EVALUATION.md;
+  examples/ADVANCED_EVALUATION.md renamed to match.
+- **`docs/COOKBOOK.md`**: updated cwt-prophet key bindings for v2.4.1
+  simplified workflow; removed standalone AE index recipe.
+- **`docs/MANUAL_TUTORIAL.md`**: Step 0 renamed to "Before you begin";
+  removed stale C key and anchor workflow text.
+- **`docs/WORKFLOW_TUTORIAL.md`**: removed stale C key from Step 6;
+  added missing step 6 to guided workflow list.
+- **`docs/TROUBLESHOOTING.md`**: removed P/C keys; fixed X key section.
+- **`docs/METHODOLOGY.md`**: replaced anchor workflow description with
+  v2.4.1 E/X workflow.
+- **`README.md`**: step numbering fixes, acknowledgments expanded,
+  IMPORTANT CAVEAT updated, analysis workflow section corrected.
+
+### CI
+- Added `.github/workflows/block-research-docs.yml`: GitHub Action that
+  blocks FINDINGS.md and PROJECT_STATE.md from being merged to main.
+
+---
 ## v2.4.1 — 2026-06-03
 
 ### UX improvements
