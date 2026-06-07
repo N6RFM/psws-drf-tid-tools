@@ -355,6 +355,56 @@ interactive step. Run with `--resume` to continue from where you left off.
 
 ---
 
+## Manual step-by-step (without tid_workflow.py)
+
+For full control, or to run only part of the pipeline, each step can
+be run directly. See `MANUAL_TUTORIAL.md` for the complete walkthrough.
+
+```bash
+# 1. Inspect subchannels
+python3 drf_inspect.py --all ./n6rfm --frequency 10
+
+# 2. Full-day spectrogram
+python3 drf_spectrogram.py ./n6rfm --subchannel 0 \
+    --output n6rfm_fullday.png --start 00:00 --end 24:00 \
+    --ylim=-5,5 --dpi 100 --callsign N6RFM
+
+# 3. Select TID window interactively
+python3 tid_quicklook.py --spectrogram n6rfm_fullday.png
+
+# 4. Zoomed spectrogram
+python3 drf_spectrogram.py ./n6rfm --subchannel 0 \
+    --output n6rfm_zoom.png \
+    --window n6rfm_fullday_window.json \
+    --ylim=-5,5 --dpi 150 --callsign N6RFM
+
+# 5a. cwt-prophet extraction (recommended)
+#     Pass 0 auto-runs. E=accept auto-trace, X=export clicked trace
+python3 tid_spect_click.py --spectrogram n6rfm_zoom.png \
+    --name N6RFM --drf-dir ./n6rfm --subchannel 0 \
+    --event-json event.json
+
+# 5b. Wave-fit only (>=1.5 cycles recommended)
+python3 tid_spect_click.py --spectrogram n6rfm_zoom.png \
+    --name N6RFM --seg-start 0.0 --seg-end 2.0 --wave-only
+
+# 5c. Automated extraction — autocorr
+python3 drf_to_doppler.py ./n6rfm --subchannel 0 \
+    --start 2026-01-19T00:00:00 --end 2026-01-19T02:00:00 \
+    --decim-seconds 60 --method autocorr --output n6rfm_autocorr_tid.csv
+
+# 5d. Automated extraction — fft
+python3 drf_to_doppler.py ./n6rfm --subchannel 0 \
+    --start 2026-01-19T00:00:00 --end 2026-01-19T02:00:00 \
+    --decim-seconds 60 --method fft --output n6rfm_fft_tid.csv
+
+# 6. Run DOA
+python3 tid_doa.py event.json --max-lag 20
+python3 tid_doa.py event.json --drop AC0G_ND
+```
+
+---
+
 ## CLI reference
 
 ```
