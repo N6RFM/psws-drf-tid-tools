@@ -866,3 +866,20 @@ Documentation-only release. No code changes to extraction or DOA.
 ### Open items
 1. May 2024 Gwyn event analysis
 2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+
+---
+## 61. Merge ADVANCED_EVALUATION into EXTERNAL_EVALUATION — 2026-06-07
+
+### Changes
+- docs/ADVANCED_EVALUATION.md deleted
+- docs/EXTERNAL_EVALUATION.md expanded with: verification strategy,
+  peak succession check, GPS TEC geometry note, what external data
+  can verify table, SuperMAG SME, SuperDARN RTI, IONEX, summary table
+- docs/COOKBOOK.md: updated refs from ADVANCED to EXTERNAL_EVALUATION.md
+- README.md: removed ADVANCED_EVALUATION.md from file tree
+- examples/ADVANCED_EVALUATION.md retained as Jan 2026 worked example
+- Merged via PR → main, all branches synced
+
+### Open items
+1. May 2024 Gwyn event analysis
+2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
