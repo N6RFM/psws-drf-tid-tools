@@ -1,3 +1,19 @@
+## v2.4.4 — 2026-06-08
+
+### Documentation
+- **`docs/METHODOLOGY.md`**: added full waveform cross-correlation explanation.
+- **`docs/EXTERNAL_EVALUATION.md`**: added HamSCI LSTID Detection (## 2.),
+  fixed section numbering (1–3), updated Tools table, expanded intro to
+  include amateur radio spot data as a third independent data source.
+- **`README.md`**: added HamSCI PSWS Spectrogram Atlas link; various edits.
+- **`MANUAL_TUTORIAL.md`**: restructured extraction Options A–D; added
+  tid_doa_config.py instructions to Step 7; clarified max_lag_seconds;
+  added DRF directory structure.
+- **`WORKFLOW_TUTORIAL.md`**: added manual step-by-step quick reference;
+  added DRF directory structure.
+- "sinusoidal model" wording throughout all docs.
+
+---
 ## v2.4.3 — 2026-06-07
 
 ### Documentation
