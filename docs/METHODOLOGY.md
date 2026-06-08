@@ -8,9 +8,9 @@ practical "how to use it" guidance, see the [workflow tutorial](../WORKFLOW_TUTO
 
 ## The physical setup
 
-A HamSCI Grape DRF station receives the time-signal carrier, e.g., WWV from Fort
+A HamSCI Grape DRF station receives a time-signal carrier on the HF bands, e.g., WWV from Fort
 Collins, CO, on one or more standard frequencies (2.5, 5, 10, 15, 20,
-25 MHz). The transmitter is fixed in space and time; the carrier is
+25 MHz). The time signal transmitter is fixed in space and time; the carrier is
 extraordinarily stable (10⁻¹² level). Any apparent Doppler shift seen
 at the receiver is therefore caused by motion in the **ionospheric
 reflection point** — the F-region patch that bounced the signal from
