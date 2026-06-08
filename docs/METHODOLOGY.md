@@ -253,6 +253,14 @@ See `WORKFLOW_TUTORIAL.md` Step 6 (Option A) for the full workflow.
 ## Step 2: Cross-correlation
 
 For two Doppler series `x[n]` and `y[n]` (resampled to common cadence
+The lag between station pairs is estimated by full waveform cross-correlation —
+every point in the extracted Doppler segment contributes to the estimate. This is
+deliberately chosen over single-feature measurements (zero crossings, peaks, troughs)
+because it integrates out noise on any individual point and produces a statistically
+robust lag from the whole wave packet. The only assumption is that the waveform shape
+is similar between stations — a reasonable approximation for quasi-monochromatic TIDs
+over the baselines used.
+
 `dt`, mean-subtracted), the cross-correlation as a function of lag is:
 
 ```
