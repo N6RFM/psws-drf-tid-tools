@@ -56,17 +56,19 @@ https://pswsnetwork.eng.ua.edu/
 After downloading and unzipping from https://pswsnetwork.eng.ua.edu/,
 organize your data like this:
 
-    tid_event_20260119/       <- your event directory (name it anything)
-    |-- n6rfm/                <- one folder per station (use callsign)
-    |   `-- ch0/              <- DRF channel folder (must be named ch0)
-    |       |-- rf@1778...h5  <- HDF5 DRF data files
-    |       `-- rf@1778...h5
-    |-- aa6bd/
-    |   `-- ch0/
-    |       `-- rf@...h5
-    `-- w7lux/
-        `-- ch0/
-            `-- rf@...h5
+```
+tid_event_20260119/       <- your event directory (name it anything)
+|-- n6rfm/                <- one folder per station (use callsign)
+|   `-- ch0/              <- DRF channel folder (must be named ch0)
+|       |-- rf@1778...h5  <- HDF5 DRF data files
+|       `-- rf@1778...h5
+|-- aa6bd/
+|   `-- ch0/
+|       `-- rf@...h5
+`-- w7lux/
+    `-- ch0/
+        `-- rf@...h5
+```
 
 The station folder name (e.g. `n6rfm`) is used as the station identifier
 throughout the workflow. Keep it lowercase and matching the callsign.
