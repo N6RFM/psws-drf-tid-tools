@@ -150,6 +150,23 @@ python3 evaluate_external.py \
 
 ---
 
+### HamSCI LSTID Detection (automated, spot-based)
+
+The [hamsci_LSTID_detection](https://github.com/HamSCI/hamsci_LSTID_detection) toolkit
+(HamSCI NASA SWO2R Team) provides an independent automated method for detecting LSTIDs
+from amateur radio spot data — RBN, PSKReporter, and WSPRNet — stored in Madrigal HDF5
+format. Rather than measuring Doppler shift along individual propagation paths, it bins
+millions of spots into range-time heatmaps and detects the moving edge of the ionospheric
+reflection region using sinusoidal fitting.
+
+This is complementary to HF Doppler DOA analysis: where psws-drf-tid-tools measures
+precise phase delays between a small number of dedicated receivers,
+hamsci_LSTID_detection detects the gross spatial signature of an LSTID across the entire
+amateur radio network. Agreement between the two methods — timing, period, and propagation
+direction — is strong corroboration that a detected event is a real large-scale wave.
+
+---
+
 ## 2. Madrigal GPS TEC cross-correlation
 
 GNSS TEC data from the CEDAR Madrigal Database provides the wide-area spatial coverage
