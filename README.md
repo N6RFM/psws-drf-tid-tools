@@ -170,6 +170,13 @@ usage examples, and required parameters.
 
 ## Documentation
 
+For background on interpreting HamSCI PSWS Doppler spectrograms in general —
+ionospheric features, propagation modes, solar events, and artifacts — see the
+**[HamSCI PSWS Spectrogram Atlas](https://spectrogram-docs.readthedocs.io/en/latest/index.html)**.
+This toolkit focuses specifically on one feature from that atlas: Travelling
+Ionospheric Disturbances (TIDs) and their direction-of-arrival analysis.
+
+
 - **[`ASSESSING_RESULTS.md`](docs/ASSESSING_RESULTS.md)** — understanding and validating DOA results.
 - **[`CHANGELOG.md`](CHANGELOG.md)** — version history.
 - **[`CONTRIBUTORS.md`](CONTRIBUTORS.md)** — N6RFM and G3ZIL.
