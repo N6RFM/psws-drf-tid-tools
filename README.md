@@ -271,12 +271,12 @@ automatically (look for "Cite this repository" in the sidebar), or:
 ## Acknowledgments
 
 - Gwyn Griffiths (G3ZIL) for development of the autocorr TID extractor parameters, helping me to analyze TID events and for being a great mentor, Elmer, and friend.
-- All of the the HamSCI / PSWS infrastructure developers who continue to advance the vision of Dr. Nathaniel Frissell (W2NAF),University of Scranton.  [https://hamsci.org]
+- Nathaniel Frissell (W2NAF),University of Scranton, the visionary and founder of HamSCI, the Ham Radio Science Citizen Investigation initiative. [https://hamsci.org]
 - John Gibbons (N8OBJ), Case Western Reserve University, for designing the Grape 1 receiver and it's progeny. [https://www.youtube.com/watch?v=y7w0dLhCfZI]
 - Rob Robinett (AI6VN) for developing of the WSPRDaemon software package and webiste. [https://www.wsprdaemon.org/]
 - Phil Karn, (KA9Q) for the KA9Q Radio software package, enabling the RX-888 (and other SDRs) to perform accurate and reliable data collection.[https://github.com/ka9q/ka9q-radio]
 - Bill Engelke (AB4EJ), University of Alabama, Chief Architect of the HamSCi PSWS Central Database System and for DRF data spectrogram plotting code, [https://github.com/HamSCI/DRF_processing].
-- Phil Ericson (W1PJE, Observatory Director) and the MIT Haystack Observatory staff for the Digital RF format [https://github.com/MITHaystack/digital_rf] and for the Madrigal GNSS toolset, which is part of the observatory's global GNSS receiver network [http://millstonehill.haystack.mit.edu/.
+- Phil Ericson (W1PJE), Observatory Director) and the MIT Haystack Observatory staff for the Digital RF format [https://github.com/MITHaystack/digital_rf] and for the Madrigal toolsets, which are part   of the observatory's global receiver network [http://millstonehill.haystack.mit.edu/.
 - The operators of every Grape and WSPRDaemon DRF station whose data makes these analysis possible!
 
 This toolkit was developed collaboratively with Anthropic's Claude AI.
