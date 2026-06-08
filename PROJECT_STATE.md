@@ -937,3 +937,22 @@ Documentation-only release. No code changes.
 ### Open items
 1. May 2024 Gwyn event analysis
 2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+
+---
+## 65. v2.4.4 release — 2026-06-08
+
+### Changes
+- METHODOLOGY.md: full waveform cross-correlation explanation added
+- README.md: HamSCI PSWS Spectrogram Atlas link added to Documentation;
+  various edits
+- EXTERNAL_EVALUATION.md: HamSCI LSTID Detection section (## 2.),
+  numbering fixed (1-3), Tools table updated, intro expanded
+- MANUAL_TUTORIAL.md: Options A-D, Step 7 tid_doa_config.py,
+  max_lag_seconds clarified, DRF directory structure added
+- WORKFLOW_TUTORIAL.md: manual step-by-step added, DRF structure added
+- METHODOLOGY.md: two minor edits
+- "sinusoidal model" wording throughout
+
+### Open items
+1. May 2024 Gwyn event analysis
+2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
