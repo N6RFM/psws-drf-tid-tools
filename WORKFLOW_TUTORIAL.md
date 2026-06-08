@@ -8,16 +8,18 @@ step so you can resume if interrupted, and runs the DOA automatically.
 
 - DRF data directories for each station, organized as follows:
 
-    tid_event_20260119/       <- event directory passed to --event-dir
-    |-- n6rfm/                <- one folder per station (callsign)
-    |   `-- ch0/              <- DRF channel folder (do not rename)
-    |       `-- rf@...h5      <- HDF5 DRF data files
-    |-- aa6bd/
-    |   `-- ch0/
-    |       `-- rf@...h5
-    `-- w7lux/
-        `-- ch0/
-            `-- rf@...h5
+```
+tid_event_20260119/       <- event directory passed to --event-dir
+|-- n6rfm/                <- one folder per station (callsign)
+|   `-- ch0/              <- DRF channel folder (do not rename)
+|       `-- rf@...h5      <- HDF5 DRF data files
+|-- aa6bd/
+|   `-- ch0/
+|       `-- rf@...h5
+`-- w7lux/
+    `-- ch0/
+        `-- rf@...h5
+```
 
 
 - Python packages installed: `pip install -r requirements.txt`
