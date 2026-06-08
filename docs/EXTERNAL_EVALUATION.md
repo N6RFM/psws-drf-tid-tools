@@ -8,7 +8,9 @@ HF signals refract or reflect from the ionosphere, making HF measurements extrem
 sensitive to small changes in layer height, gradients, and propagation path length.
 GNSS signals pass through the ionosphere and measure changes in total electron
 content (TEC) along the path, making GNSS excellent for mapping the spatial structure,
-direction, wavelength, and speed of TIDs over large regions.
+direction, wavelength, and speed of TIDs over large regions. Amateur radio spot data
+(RBN, PSKReporter, WSPRNet) provides a third independent view — the gross spatial
+signature of an LSTID across the entire amateur radio network.
 
 ---
 
@@ -134,6 +136,7 @@ DOA-predicted lag.
 |------|-------------|----------------|
 | `evaluate_external.py` | Kp + AE (GFZ Potsdam / WDC Kyoto) | Storm level and substorm activity |
 | `fetch_madrigal_tec.py` | GPS TEC (MIT Haystack Madrigal) | Independent TID lag/direction |
+| [hamsci_LSTID_detection](https://github.com/HamSCI/hamsci_LSTID_detection) | Amateur radio spots (Madrigal) | Independent LSTID detection across network |
 
 ---
 
@@ -150,7 +153,7 @@ python3 evaluate_external.py \
 
 ---
 
-### HamSCI LSTID Detection (automated, spot-based)
+## 2. HamSCI LSTID Detection (automated, spot-based)
 
 The [hamsci_LSTID_detection](https://github.com/HamSCI/hamsci_LSTID_detection) toolkit
 (HamSCI NASA SWO2R Team) provides an independent automated method for detecting LSTIDs
@@ -167,7 +170,7 @@ direction — is strong corroboration that a detected event is a real large-scal
 
 ---
 
-## 2. Madrigal GPS TEC cross-correlation
+## 3. Madrigal GPS TEC cross-correlation
 
 GNSS TEC data from the CEDAR Madrigal Database provides the wide-area spatial coverage
 that HF Doppler alone cannot. HF measurements are highly sensitive to ionospheric
