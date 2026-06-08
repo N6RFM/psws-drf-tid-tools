@@ -920,3 +920,20 @@ Documentation-only release. No code changes.
 ### Open items
 1. May 2024 Gwyn event analysis
 2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+
+---
+## 64. MANUAL_TUTORIAL + WORKFLOW_TUTORIAL doc improvements — 2026-06-07
+
+### Changes
+- MANUAL_TUTORIAL.md: Options A-D restructured (cwt-prophet, autocorr,
+  cwt, wave-fit); FFT removed from workflow options
+- MANUAL_TUTORIAL.md: Step 7 — added tid_doa_config.py instructions
+- MANUAL_TUTORIAL.md: max_lag_seconds behavior clarified
+- MANUAL_TUTORIAL.md + WORKFLOW_TUTORIAL.md: DRF directory structure
+  added with fenced code blocks for correct GitHub rendering
+- "sine wave" → "sinusoidal model" throughout all docs
+- All stale local branches deleted
+
+### Open items
+1. May 2024 Gwyn event analysis
+2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
