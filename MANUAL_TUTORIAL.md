@@ -83,7 +83,7 @@ This step is optional if you already have DRF data from companion stations.
 
 ## Step 1 -- Inspect the DRF recording
 
-Verify what subchannels are available and which contains WWV 10 MHz.
+Verify what subchannels are available and which contains the frequency of interest, e.g., WWV 10 MHz.
 
 ```bash
 python3 drf_inspect.py --all ./n6rfm --frequency 10
