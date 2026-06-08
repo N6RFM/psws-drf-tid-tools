@@ -264,7 +264,21 @@ Repeat Steps 2-5 for AA6BD, AC0G/ND, and W7LUX.
 
 ## Step 7 -- Build DOA event config
 
-Create `event.json`:
+Use `tid_doa_config.py` to build `event.json` interactively:
+
+```bash
+python3 tid_doa_config.py --output event.json --scan .
+```
+
+`--scan .` auto-discovers CSVs and DRF dirs in the current directory,
+pre-fills station coordinates from DRF metadata, and prompts for
+anything missing. For non-interactive use:
+
+```bash
+python3 tid_doa_config.py --output event.json --scan . --auto
+```
+
+The resulting `event.json` looks like this (Jan 2026 example):
 
 ```json
 {
