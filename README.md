@@ -143,21 +143,6 @@ Four methods are available, in order of recommended preference:
 | **Autocorr** | drf_to_doppler.py --method autocorr | None | Clean signals|
 | **FFT** | drf_to_doppler.py --method fft | None | Clean signals, fast survey |
 
-**Anchor-guided cwt-prophet** : Pass 0 auto-runs
-CWT+Prophet runs automatically on open. If the auto-trace looks good,
-press **E** to accept and export. If not, click the carrier from left
-to right and press **X** to export your clicked trace.
-
-**Key bindings** (tid_spect_click.py): E=accept auto-trace,
-X=export clicked trace, Z=undo, R=reset, Q=done.
-`--event-json event.json` auto-updates the event config on export.
-
-constrains the FFT search to ±band around the prediction — immune to
-wrong-feature lock on moderate contamination. Tuning: `--track-band`,
-`--proc-noise`, `--max-step`. Not effective on broad/diffuse carriers.
-
-**tid_doa.py:** `--drop NAME` excludes a station by name (repeatable,
-case-insensitive). Avoids editing the event JSON for robustness testing.
 
 See `MANUAL_TUTORIAL.md` for the full extraction method comparison
 and `docs/METHODOLOGY.md` for the mathematical details of each method.
