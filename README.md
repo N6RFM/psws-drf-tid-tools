@@ -114,10 +114,6 @@ The guided workflow handles all 8 steps interactively:
 7. Extraction output and visual assessment
 8. Direction-of-arrival inversion with interactive drop-station loop
 
-State is saved after each step — use `--resume` to continue an
-interrupted session. `--max-lag` limits the xcorr search to prevent
-period aliasing (recommended: ~1/3 of expected TID period).
-
 See **[`WORKFLOW_TUTORIAL.md`](WORKFLOW_TUTORIAL.md)** for a complete
 walkthrough.
 
