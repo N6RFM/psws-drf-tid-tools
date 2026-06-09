@@ -110,9 +110,7 @@ reflection region using sinusoidal fitting.
 
 This is complementary to HF Doppler DOA analysis: where psws-drf-tid-tools measures phase delays
 between a small number of dedicated receivers, hamsci_LSTID_detection detects the gross spatial
-signature of an LSTID across the entire amateur radio network. Agreement between the two methods
-— timing, period, and propagation direction — is strong corroboration that a detected event is a
-real large-scale wave.
+signature of an LSTID across the entire amateur radio network. A
 
 ---
 
