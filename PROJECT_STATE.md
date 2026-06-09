@@ -956,3 +956,18 @@ Documentation-only release. No code changes.
 ### Open items
 1. May 2024 Gwyn event analysis
 2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+
+---
+## 66. v2.4.5 release — 2026-06-09
+
+### Summary
+Documentation cleanup release. No code changes.
+
+### Changes
+- EXTERNAL_EVALUATION.md: removed off-topic content, minor edits
+- README.md: various edits and cleanup
+- v2.4.5 tag + GitHub release created
+
+### Open items
+1. May 2024 Gwyn event analysis
+2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
