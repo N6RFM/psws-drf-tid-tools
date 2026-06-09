@@ -2,7 +2,7 @@
 
 After obtaining a DOA result from `tid_doa.py`, users are encouraged to corroborate it with
 independent space weather data using the evaluation tools. All outputs
-should be saved to `<event_dir>/runs/external_evaluations/`.
+may be saved to `<event_dir>/runs/external_evaluations/`.
 
 HF signals refract or reflect from the ionosphere, making HF TID measurements involving a limited 
 number of stations extremely sensitive to small changes in layer height, gradients, and propagation path length.  
@@ -75,51 +75,7 @@ the most complete picture.
 
 ---
 
-## Verification Strategy — Direction and Speed
 
-A DOA result from `tid_doa.py` is an internal consistency estimate — it tells you whether
-the pairwise time lags are consistent with a single plane wave, but it cannot confirm the
-result is physically real. Two independent checks address the two key DOA outputs.
-
-### Verifying direction — peak succession (no external data)
-
-The direction check uses only the pairwise lag table
-produced by `tid_doa.py`. No external data required.
-
-For a wave propagating toward azimuth θ, the station geometrically
-closest to the source (in the FROM direction) should show its Doppler
-peak first — it has the most negative lag relative to all other stations.
-
-**Example (Jan 2026, wave from 30° NNE):**
-
-| Pair | Lag (s) | Sign correct? |
-|------|---------|---------------|
-| AA6BD → N6RFM | +1253 | ✓ AA6BD (easternmost) leads |
-| AA6BD → W7LUX | +1481 | ✓ AA6BD leads |
-| N6RFM → W7LUX | +228  | ✓ N6RFM (more eastern) leads |
-
-All three pairs confirm NNE origin. This is a model-free directional
-verification — no inversion, no external network. If any lag sign
-disagrees with the predicted direction, suspect a 180° alias or
-wrong-peak lock. The diagnostic [4] triangle closure check in
-`tid_doa.py` flags this.
-
-### Verifying speed — GPS TEC geometry note
-
-GPS TEC xcorr measures the **along-baseline lag**, not the true phase lag:
-
-```
-along-baseline lag = true lag × cos(angle between wave and baseline)
-```
-
-When the baseline is perpendicular to the wave (angle = 90°), the
-along-baseline lag approaches 0 regardless of true speed. Use the station
-pair whose baseline is most aligned with the wave direction (angle < 45°).
-Discard pairs with angle > 60°. The primary xcorr peak at lag=0 reflects
-correlated storm-time TEC background — look for a secondary peak near the
-DOA-predicted lag.
-
----
 
 ## Tools
 
@@ -127,7 +83,7 @@ DOA-predicted lag.
 |------|-------------|----------------|
 | `evaluate_external.py` | Kp + AE (GFZ Potsdam / WDC Kyoto) | Storm level and substorm activity |
 | [hamsci_LSTID_detection](https://github.com/HamSCI/hamsci_LSTID_detection) | Amateur radio spots (Madrigal) | Independent LSTID detection across network |
-| `fetch_madrigal_tec.py` | GPS TEC (MIT Haystack Madrigal) | Independent TID lag/direction |
+| `fetch_madrigal_tec.py` | GNSS TEC (MIT Haystack Madrigal) | Independent TID lag/direction |
 
 ---
 
@@ -141,7 +97,6 @@ python3 evaluate_external.py \
     --speed-m-s 304 --azimuth-from 10 \
     --output-dir <event_dir>/runs/external_evaluations
 ```
-
 ---
 
 ## 2. HamSCI LSTID Detection
@@ -204,21 +159,7 @@ python3 fetch_madrigal_tec.py \
 
 ---
 
-## Output directory
-
-Save all evaluation outputs to the event data directory:
-`<event_dir>/runs/external_evaluations/`
-
-Example: `~/Downloads/tid_event_20260119/runs/external_evaluations/`
-
-## xcorr aliasing note
-
-For LSTID events with ~60 min period, set `--max-lag 20` (minutes)
-to prevent alias peak lock. See `docs/ASSESSING_RESULTS.md` for details.
-
----
-
-## Manual Evaluation Sources
+## Some Other Manual Evaluation Sources
 
 These require only a browser — no registration needed unless noted.
 
@@ -295,23 +236,8 @@ gunzip JPL0OPSFIN_20260190000_01D_02H_GIM.INX.gz
 
 ---
 
-## Summary of Data Sources
-
-| Source | URL | Auth | Tool |
-|--------|-----|------|------|
-| Kp index | https://kp.gfz-potsdam.de/app/json/ | None | evaluate_external.py |
-| AE index | https://wdc.kugi.kyoto-u.ac.jp/ae_realtime/ | None | evaluate_external.py |
-| SuperMAG SME | https://supermag.jhuapl.edu/indices/ | None | Browser only |
-| SuperDARN RTI | http://vt.superdarn.org | None | Browser only |
-| IONEX/CDDIS | https://cddis.nasa.gov/archive/gnss/products/ionex/ | NASA Earthdata (free) | curl + Python |
-| Madrigal TEC | https://cedar.openmadrigal.org/ | None | fetch_madrigal_tec.py |
-
----
-
 ## Additional Resources
 
 - SuperMAG: https://supermag.jhuapl.edu/indices/
 - SuperDARN: http://vt.superdarn.org
 - NASA Earthdata: https://urs.earthdata.nasa.gov/
-- See `docs/COOKBOOK.md` for task-oriented recipes
-- See `examples/ADVANCED_EVALUATION.md` for the Jan 2026 worked example
