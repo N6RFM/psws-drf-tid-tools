@@ -1,3 +1,11 @@
+## v2.4.5 — 2026-06-09
+
+### Documentation
+- **`docs/EXTERNAL_EVALUATION.md`**: removed content unrelated to
+  external evaluation tools; minor edits.
+- **`README.md`**: various edits and cleanup.
+
+---
 ## v2.4.4 — 2026-06-08
 
 ### Documentation
