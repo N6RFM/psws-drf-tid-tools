@@ -4,13 +4,15 @@ After obtaining a DOA result from `tid_doa.py`, users are encouraged to corrobor
 independent space weather data using the evaluation tools. All outputs
 should be saved to `<event_dir>/runs/external_evaluations/`.
 
-HF signals refract or reflect from the ionosphere, making HF measurements extremely
-sensitive to small changes in layer height, gradients, and propagation path length.
+HF signals refract or reflect from the ionosphere, making HF TID measurements involving a limited 
+number of stations extremely sensitive to small changes in layer height, gradients, and propagation path length.  
+
+Amateur radio spot data (RBN, PSKReporter, WSPRNet) provides an independent view using a much larger dataset
+— the gross spatial signature of an LSTID across the entire amateur radio network. 
+
 GNSS signals pass through the ionosphere and measure changes in total electron
-content (TEC) along the path, making GNSS excellent for mapping the spatial structure,
-direction, wavelength, and speed of TIDs over large regions. Amateur radio spot data
-(RBN, PSKReporter, WSPRNet) provides a third independent view — the gross spatial
-signature of an LSTID across the entire amateur radio network.
+content (TEC) along the path, making GNSS highly valuable for mapping the spatial structure,
+direction, wavelength, and speed of TIDs over large regions. 
 
 ---
 
@@ -79,20 +81,9 @@ A DOA result from `tid_doa.py` is an internal consistency estimate — it tells 
 the pairwise time lags are consistent with a single plane wave, but it cannot confirm the
 result is physically real. Two independent checks address the two key DOA outputs.
 
-### What external data can verify
-
-| Data source | Can verify | Cannot verify |
-|-------------|------------|---------------|
-| Kp index | Geomagnetic storm context | Speed, direction |
-| AE/SME index | Substorm onset timing | Speed, direction |
-| Peak succession | Propagation direction | Speed magnitude |
-| GPS TEC (Madrigal) | Wavefront speed + direction | — |
-| GPS TEC (IONEX) | Wavefront speed + direction | Requires NASA Earthdata auth |
-| SuperDARN | Spatial ionospheric structure | RTI = range only; fan = browser |
-
 ### Verifying direction — peak succession (no external data)
 
-The most reliable direction check uses only the pairwise lag table
+The direction check uses only the pairwise lag table
 produced by `tid_doa.py`. No external data required.
 
 For a wave propagating toward azimuth θ, the station geometrically
@@ -135,8 +126,8 @@ DOA-predicted lag.
 | Tool | Data source | What it checks |
 |------|-------------|----------------|
 | `evaluate_external.py` | Kp + AE (GFZ Potsdam / WDC Kyoto) | Storm level and substorm activity |
-| `fetch_madrigal_tec.py` | GPS TEC (MIT Haystack Madrigal) | Independent TID lag/direction |
 | [hamsci_LSTID_detection](https://github.com/HamSCI/hamsci_LSTID_detection) | Amateur radio spots (Madrigal) | Independent LSTID detection across network |
+| `fetch_madrigal_tec.py` | GPS TEC (MIT Haystack Madrigal) | Independent TID lag/direction |
 
 ---
 
@@ -153,7 +144,7 @@ python3 evaluate_external.py \
 
 ---
 
-## 2. HamSCI LSTID Detection (automated, spot-based)
+## 2. HamSCI LSTID Detection
 
 The [hamsci_LSTID_detection](https://github.com/HamSCI/hamsci_LSTID_detection) toolkit
 (HamSCI NASA SWO2R Team) provides an independent automated method for detecting LSTIDs
@@ -162,11 +153,11 @@ format. Rather than measuring Doppler shift along individual propagation paths, 
 millions of spots into range-time heatmaps and detects the moving edge of the ionospheric
 reflection region using sinusoidal fitting.
 
-This is complementary to HF Doppler DOA analysis: where psws-drf-tid-tools measures
-precise phase delays between a small number of dedicated receivers,
-hamsci_LSTID_detection detects the gross spatial signature of an LSTID across the entire
-amateur radio network. Agreement between the two methods — timing, period, and propagation
-direction — is strong corroboration that a detected event is a real large-scale wave.
+This is complementary to HF Doppler DOA analysis: where psws-drf-tid-tools measures phase delays
+between a small number of dedicated receivers, hamsci_LSTID_detection detects the gross spatial
+signature of an LSTID across the entire amateur radio network. Agreement between the two methods
+— timing, period, and propagation direction — is strong corroboration that a detected event is a
+real large-scale wave.
 
 ---
 
