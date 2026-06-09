@@ -27,8 +27,7 @@ types of information for comparative purposes.
 
 The toolkit calculations assume a planar wave, flat-earth geometry, single hop F region propagation, 
 and vertical-incidence reflection at the path midpoint relative to each receiving station. Results 
-should be considered as informed estimates.  Comparison to results from other independent space weather
-data evaluation tools is recommended.
+should be considered as informed estimates.
 
 ## What this toolkit does
 
