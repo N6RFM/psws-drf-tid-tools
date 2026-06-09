@@ -10,12 +10,16 @@ navigation, radio communications, and satellite operations.
 This toolset provides citizen scientists, using receivers from the HAMSci Grape DRF family, a means
 to obtain estimates of TID propagation speed and direction. 
 
-Users are encouraged to compare their HF based results to those obtained using other
+Users are well advised to compare their HF based results to those obtained using other
 complementary tools.  
 
-Geomagnetic indices like the Kp index and and the Auroral Electrojet (AE) Index may help identify
+* Geomagnetic indices like the Kp index and and the Auroral Electrojet (AE) Index may help identify
 whether the disturbance is likely a quiet-time MSTID or a storm-driven auroral LSTID.
-GNSS TEC data from CEDAR Madrigal Database provides spatial wave structure, propagation
+
+* The hamsci_LSTID_detection toolkit (https://github.com/HamSCI/hamsci_LSTID_detection) provides an independent automated method
+for detecting LSTIDs from amateur radio spot data — RBN, PSKReporter, and WSPRNet.
+
+* GNSS TEC data from CEDAR Madrigal Database provides spatial wave structure, propagation
 direction, wavelength, and speed estimates. This toolset includes scripts to help obtain those 
 types of information for comparative purposes. 
 
