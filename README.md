@@ -210,7 +210,6 @@ psws-drf-tid-tools/
 └── examples/
     ├── README.md               event descriptions and data access
     ├── event_20260119.json     Jan 2026 4-station DOA config
-    ├── event_20240517.json     May 2024 3-station DOA config
     ├── event_20260119_doa_report.pdf  full DOA analysis report
     └── tid_event_20260119/     extracted CSVs, spectrograms, run logs
 ```
