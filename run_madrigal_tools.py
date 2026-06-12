@@ -94,11 +94,10 @@ def load_event_json(event_dir: Path) -> dict:
 
 
 def get_event_date(ev: dict) -> datetime:
-    if "date" in ev:
-        return datetime.fromisoformat(ev["date"])
-    if "start" in ev:
-        return datetime.fromisoformat(ev["start"])
-    raise KeyError('tid_workflow_event.json must contain "date" or "start"')
+    for key in ("event_start_utc", "date", "start"):
+        if key in ev:
+            return datetime.fromisoformat(ev[key])
+    raise KeyError('tid_workflow_event.json must contain "event_start_utc", "date", or "start"')
 
 
 # ---------------------------------------------------------------------------
@@ -119,10 +118,11 @@ def run_gnss_tec(args, event_dir: Path, ev_path: Path, user: dict):
         sys.executable, str(script),
         "--config", str(ev_path),
         "--output-dir", str(out_dir),
-        "--user-fullname", user["user_fullname"],
+        "--user-name", user["user_fullname"],
         "--user-email", user["user_email"],
-        "--user-affiliation", user["user_affiliation"],
+        "--user-affiliation", user["user_affiliation"] or "Independent",
     ]
+    
     print(f"[run_madrigal_tools] Running GNSS TEC tool -> {out_dir}")
     print(f"[run_madrigal_tools]   {' '.join(cmd)}")
     if not args.dry_run:
