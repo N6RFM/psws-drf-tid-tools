@@ -545,6 +545,11 @@ def run_workflow(args):
             print(f"  Using {len(drf_dirs)} station(s) (filtered by --stations):")
         else:
             print(f"  Found {len(drf_dirs)} station(s):")
+
+        # Put the user's own station first, if specified
+        if args.my_station:
+            my = args.my_station.strip().lower()
+            drf_dirs.sort(key=lambda d: 0 if d.name.lower() == my else 1)
         for d in drf_dirs:
             print(f"    {d.name}")
 
@@ -1222,6 +1227,9 @@ def _parse_args():
     )
     p.add_argument("--stations", default=None, metavar="A,B,C",
                    help="Comma-separated station names to use (default: all found)")
+    p.add_argument("--my-station", default=None, metavar="NAME",
+                   help="Station to process first (e.g. your own callsign). "
+                        "Useful for setting the TID window on a familiar trace first.")
     p.add_argument("--event-dir", required=True, metavar="DIR",
                    help="Directory containing DRF station subdirectories")
     p.add_argument("--resume", action="store_true",
