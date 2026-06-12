@@ -84,6 +84,40 @@ the most complete picture.
 | `evaluate_external.py` | Kp + AE (GFZ Potsdam / WDC Kyoto) | Storm level and substorm activity |
 | [hamsci_LSTID_detection](https://github.com/HamSCI/hamsci_LSTID_detection) | Amateur radio spots (Madrigal) | Independent LSTID detection across network |
 | `fetch_madrigal_tec.py` | GNSS TEC (MIT Haystack Madrigal) | Independent TID lag/direction |
+| `run_madrigal_tools.py` | Wraps both Madrigal tools | One-step setup + run, saves to `<event_dir>/gnss_tec/` and `<event_dir>/lstid/` |
+
+---
+
+## 0. Combined wrapper (recommended starting point)
+
+`run_madrigal_tools.py` provides one-time shared setup for both Madrigal
+tools and runs either or both, saving results directly into the event
+directory.
+
+**Setup (one time):**
+
+```bash
+python3 run_madrigal_tools.py --setup
+```
+
+Saves your name/email/affiliation to `~/.config/psws/madrigal_user.json`
+for reuse by both tools.
+
+**Run:**
+
+```bash
+# Both GNSS TEC and HF LSTID detection
+python3 run_madrigal_tools.py --event <event_dir> --tool both --download
+
+# Just GNSS TEC -> <event_dir>/gnss_tec/
+python3 run_madrigal_tools.py --event <event_dir> --tool gnss
+
+# Just HF LSTID detection -> <event_dir>/lstid/
+python3 run_madrigal_tools.py --event <event_dir> --tool lstid --download
+```
+
+`--download` fetches missing HF spot HDF5 for the LSTID tool. Use
+`--dry-run` to preview the commands without executing them.
 
 ---
 
@@ -104,13 +138,58 @@ python3 evaluate_external.py \
 The [hamsci_LSTID_detection](https://github.com/HamSCI/hamsci_LSTID_detection) toolkit
 (HamSCI NASA SWO2R Team) provides an independent automated method for detecting LSTIDs
 from amateur radio spot data — RBN, PSKReporter, and WSPRNet — stored in Madrigal HDF5
-format. Rather than measuring Doppler shift along individual propagation paths, it bins
-millions of spots into range-time heatmaps and detects the moving edge of the ionospheric
-reflection region using sinusoidal fitting.
+format (instrument 8308). Rather than measuring Doppler shift along individual propagation
+paths, it bins millions of spots into range-time heatmaps and detects the moving edge of
+the ionospheric reflection region using sinusoidal fitting.
 
-This is complementary to HF Doppler DOA analysis: where psws-drf-tid-tools measures phase delays
-between a small number of dedicated receivers, hamsci_LSTID_detection detects the gross spatial
-signature of an LSTID across the entire amateur radio network. A
+This is complementary to HF Doppler DOA analysis: where psws-drf-tid-tools measures phase
+delays between a small number of dedicated receivers, hamsci_LSTID_detection detects the
+gross spatial signature of an LSTID across the entire amateur radio network.
+
+**Setup (one time):**
+
+```bash
+git clone https://github.com/HamSCI/hamsci_LSTID_detection.git ~/hamsci_LSTID_detection
+cd ~/hamsci_LSTID_detection
+pip install -e .
+```
+
+On CPUs without AVX2/FMA/BMI (some older or virtualized machines), the
+`polars` dependency will crash with `SIGILL`. Fix by installing the
+compatibility runtime:
+
+```bash
+pip uninstall -y polars polars-runtime-32
+pip install 'polars[rtcompat]'
+```
+
+**Run (via the combined wrapper, recommended):**
+
+```bash
+python3 run_madrigal_tools.py --event <event_dir> --tool lstid --download
+```
+
+This downloads `rsd{YYYY-MM-DD}.01.hdf5` for the event date (if missing),
+patches a single-day config, runs the detection pipeline, and copies the
+plots and summary CSV into `<event_dir>/lstid/`.
+
+**Check data availability first** — like GPS TEC, HF spot HDF5 files
+(instrument 8308) have an upload latency, often several weeks:
+
+```bash
+globalDownload.py --verbose \
+  --url=http://cedar.openmadrigal.org \
+  --outputDir=/tmp \
+  --user_fullname="Your Name" \
+  --user_email="your@email.com" \
+  --user_affiliation="Amateur Radio" \
+  --format=hdf5 \
+  --startDate="MM/DD/YYYY" --endDate="MM/DD/YYYY" \
+  --inst=8308
+```
+
+If this prints `No files selected with these arguments`, the data isn't
+published yet — check back later.
 
 ---
 
