@@ -430,6 +430,9 @@ Required:
 
 Options:
   --stations A,B,C      Comma-separated station names (default: all found)
+  --my-station NAME     Process this station first in Step 3 (e.g. your
+                        own callsign), so the TID window is set on a
+                        familiar trace first
   --resume              Resume from saved state
   --max-lag MIN         Max xcorr lag in minutes (default: auto)
                         Recommended: ~1/3 of expected TID period
