@@ -1007,3 +1007,23 @@ Documentation cleanup release. No code changes.
 3. June 6 2026 event: best DOA result 533 m/s @ 137° (JJMP, KV0S_MO,
    AC0G_ND, N6RFM_5, 1 flag); Madrigal TEC verification pending
    data availability (check again late June/early July)
+
+---
+## 69. v2.5.0 release — 2026-06-11
+
+### Summary
+Feature + doc release.
+
+### Changes
+- fetch_madrigal_tec.py: --config support
+- tid_workflow.py: --my-station support
+- METHODOLOGY.md, EXTERNAL_EVALUATION.md, README.md, WORKFLOW_TUTORIAL.md
+  doc improvements
+- v2.5.0 tag + GitHub release created
+
+### Open items
+1. May 2024 Gwyn event analysis
+2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+3. June 6 2026 event: best DOA result 533 m/s @ 137° (JJMP, KV0S_MO,
+   AC0G_ND, N6RFM_5, 1 flag); Madrigal TEC verification pending
+   data availability (check again late June/early July)
