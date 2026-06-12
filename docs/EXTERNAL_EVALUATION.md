@@ -136,12 +136,25 @@ local propagation effect or multipath artifact.
 
 For storm and auroral forcing context, see the Kp and AE indices above.
 
+**Check data availability first** (Madrigal GPS TEC has a 2-4 week
+upload latency). Replace `YYYY, MM, DD` with your event date:
+
+```bash
+python3 -c "
+import madrigalWeb.madrigalWeb as mw
+m = mw.MadrigalData('https://cedar.openmadrigal.org/')
+exps = m.getExperiments(8000, YYYY, MM, DD, 0, 0, 0, YYYY, MM, DD, 23, 59, 59)
+for e in exps:
+    print(e.name, e.startyear, e.startmonth, e.startday)
+"
+```
+
+If this returns nothing for your event date, the GPS TEC data isn't
+available yet — check back in a few weeks.
+
 ```bash
 python3 fetch_madrigal_tec.py \
-    --date 2026-01-19 \
-    --event-start 2026-01-19T00:00:00Z \
-    --event-end   2026-01-19T01:15:00Z \
-    --stations N6RFM,-100.93,36.87 AA6BD,-94.70,38.29 W7LUX,-108.50,37.94 \
+    --config <event_dir>/tid_workflow_event.json \
     --user-name "Your Name" \
     --user-email "your@email.com" \
     --user-affiliation "Amateur Radio" \
@@ -150,7 +163,10 @@ python3 fetch_madrigal_tec.py \
 ```
 
 **Required arguments:**
-- `--stations`: NAME,LON,LAT triples for each receiver station
+- `--config`: path to `tid_workflow_event.json` (auto-fills date,
+  event window, and station coordinates); alternatively provide
+  `--date`, `--event-start`, `--event-end`, and `--stations`
+  (NAME,LON,LAT triples) manually
 - `--user-name`, `--user-email`, `--user-affiliation`: required by
   the Madrigal API (free, no approval needed)
 - `--doa-speed`, `--doa-azimuth-from`: your DOA result for comparison
