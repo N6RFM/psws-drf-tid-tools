@@ -1,3 +1,24 @@
+## v2.5.0 — 2026-06-11
+
+### Added
+- **`fetch_madrigal_tec.py`**: new `--config FILE` option auto-fills
+  `--date`, `--event-start`, `--event-end`, and `--stations` from
+  `tid_workflow_event.json`. Explicit CLI args still override.
+- **`tid_workflow.py`**: new `--my-station NAME` option processes the
+  named station first in Step 3 (window selection), so the TID window
+  is set on a familiar trace first.
+
+### Documentation
+- **`docs/METHODOLOGY.md`**: added full waveform cross-correlation
+  explanation.
+- **`docs/EXTERNAL_EVALUATION.md`**: added HamSCI LSTID Detection
+  section (## 2.), fixed numbering, updated Tools table and intro to
+  include amateur radio spot data; added Madrigal data-availability
+  check command and `--config` usage example.
+- **`README.md`**: added HamSCI PSWS Spectrogram Atlas link.
+- **`WORKFLOW_TUTORIAL.md`**: documented `--my-station` in CLI reference.
+
+---
 ## v2.4.5 — 2026-06-09
 
 ### Documentation
