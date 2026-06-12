@@ -88,7 +88,19 @@ the most complete picture.
 
 ---
 
-## 0. Combined wrapper (recommended starting point)
+## 1. Combined Kp and AE (evaluate_external.py)
+
+```bash
+python3 evaluate_external.py \
+    --date 2026-01-19 \
+    --event-start 2026-01-19T00:00:00Z \
+    --event-end   2026-01-19T01:15:00Z \
+    --speed-m-s 304 --azimuth-from 10 \
+    --output-dir <event_dir>/runs/external_evaluations
+```
+---
+
+## 2. Combined wrapper (recommended starting point)
 
 `run_madrigal_tools.py` provides one-time shared setup for both Madrigal
 tools and runs either or both, saving results directly into the event
@@ -121,19 +133,7 @@ python3 run_madrigal_tools.py --event <event_dir> --tool lstid --download
 
 ---
 
-## 1. Combined Kp and AE (evaluate_external.py)
-
-```bash
-python3 evaluate_external.py \
-    --date 2026-01-19 \
-    --event-start 2026-01-19T00:00:00Z \
-    --event-end   2026-01-19T01:15:00Z \
-    --speed-m-s 304 --azimuth-from 10 \
-    --output-dir <event_dir>/runs/external_evaluations
-```
----
-
-## 2. HamSCI LSTID Detection
+## 3. HamSCI LSTID Detection
 
 The [hamsci_LSTID_detection](https://github.com/HamSCI/hamsci_LSTID_detection) toolkit
 (HamSCI NASA SWO2R Team) provides an independent automated method for detecting LSTIDs
@@ -193,7 +193,7 @@ published yet — check back later.
 
 ---
 
-## 3. Madrigal GPS TEC cross-correlation
+## 4. Madrigal GPS TEC cross-correlation
 
 GNSS TEC data from the CEDAR Madrigal Database provides the wide-area spatial coverage
 that HF Doppler alone cannot. HF measurements are highly sensitive to ionospheric
