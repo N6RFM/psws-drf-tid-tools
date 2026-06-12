@@ -100,7 +100,7 @@ python3 evaluate_external.py \
 ```
 ---
 
-## 2. Combined wrapper (recommended starting point)
+## 2. Combined wrapper for LSTID Detection and GPS TEC cross-correlation evaluation tools (recommended starting point); see sections 3 and 4 below for more details
 
 `run_madrigal_tools.py` provides one-time shared setup for both Madrigal
 tools and runs either or both, saving results directly into the event
