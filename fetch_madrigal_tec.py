@@ -502,10 +502,15 @@ def parse_args():
         description="Retrieve and analyse Madrigal GPS TEC for TID corroboration",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__)
-    p.add_argument("--date", required=True, help="Event date YYYY-MM-DD")
-    p.add_argument("--event-start", required=True, help="ISO 8601 UTC")
-    p.add_argument("--event-end",   required=True, help="ISO 8601 UTC")
-    p.add_argument("--stations", required=True, nargs="+",
+    p.add_argument("--config", default=None,
+                   help="Path to tid_workflow_event.json or event.json — "
+                        "auto-fills --date, --event-start, --event-end, "
+                        "and --stations from the event config. "
+                        "Explicit CLI args override config values.")
+    p.add_argument("--date", default=None, help="Event date YYYY-MM-DD")
+    p.add_argument("--event-start", default=None, help="ISO 8601 UTC")
+    p.add_argument("--event-end",   default=None, help="ISO 8601 UTC")
+    p.add_argument("--stations", nargs="+", default=None,
                    metavar="NAME,LON,LAT",
                    help="Station list e.g. N6RFM,-97.21,32.94")
     p.add_argument("--user-name",        required=True)
@@ -533,6 +538,39 @@ def parse_args():
 
 def main():
     args = parse_args()
+
+    # Load from --config if provided, filling in any unset arguments
+    if args.config:
+        import json as _json
+        cfg_path = pathlib.Path(args.config)
+        with open(cfg_path) as f:
+            cfg = _json.load(f)
+
+        if args.event_start is None and "event_start_utc" in cfg:
+            args.event_start = cfg["event_start_utc"]
+        if args.event_end is None and "event_end_utc" in cfg:
+            args.event_end = cfg["event_end_utc"]
+        if args.date is None and args.event_start:
+            args.date = args.event_start[:10]
+        if args.stations is None and "stations" in cfg:
+            args.stations = [
+                f"{s['name']},{s['lon']},{s['lat']}"
+                for s in cfg["stations"]
+                if "lat" in s and "lon" in s
+            ]
+
+    # Validate required fields (either from --config or CLI)
+    missing = [name for name, val in [
+        ("--date", args.date),
+        ("--event-start", args.event_start),
+        ("--event-end", args.event_end),
+        ("--stations", args.stations),
+    ] if val is None]
+    if missing:
+        raise SystemExit(
+            f"Missing required argument(s): {', '.join(missing)}. "
+            f"Provide them on the command line or via --config."
+        )
 
     out = pathlib.Path(args.output_dir)
     out.mkdir(parents=True, exist_ok=True)
