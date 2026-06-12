@@ -971,3 +971,20 @@ Documentation cleanup release. No code changes.
 ### Open items
 1. May 2024 Gwyn event analysis
 2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+
+---
+## 67. fetch_madrigal_tec.py --config support — 2026-06-11
+
+### Changes
+- fetch_madrigal_tec.py: added --config FILE option, auto-fills
+  --date, --event-start, --event-end, --stations from
+  tid_workflow_event.json. CLI args still override config values.
+  Verified working against June 2026 event (Madrigal data not yet
+  available for that date — 2-4 week latency, expected).
+
+### Open items
+1. May 2024 Gwyn event analysis
+2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+3. June 6 2026 event: best DOA result so far is 533 m/s @ 137°
+   (JJMP, KV0S_MO, AC0G_ND, N6RFM_5, 1 flag); Madrigal TEC
+   verification pending data availability
