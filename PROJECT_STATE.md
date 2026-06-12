@@ -1027,3 +1027,35 @@ Feature + doc release.
 3. June 6 2026 event: best DOA result 533 m/s @ 137° (JJMP, KV0S_MO,
    AC0G_ND, N6RFM_5, 1 flag); Madrigal TEC verification pending
    data availability (check again late June/early July)
+## 70. Combined Madrigal wrapper + EXTERNAL_EVALUATION restructure — 2026-06-12
+### Changes
+- New script run_madrigal_tools.py: combined wrapper for the two
+  Madrigal-based external evaluation tools (fetch_madrigal_tec.py for
+  GNSS TEC, hamsci_LSTID_detection for HF LSTID detection).
+  - --setup: one-time shared Madrigal user info, saved to
+    ~/.config/psws/madrigal_user.json, reused by both tools
+  - --event <event_dir> --tool gnss|lstid|both [--download] [--dry-run]
+  - GNSS TEC output -> <event_dir>/gnss_tec/
+  - HF LSTID plots/summary -> <event_dir>/lstid/
+- docs/EXTERNAL_EVALUATION.md: added new "Combined wrapper" section
+  (placed after Kp/AE, before the individual Madrigal tool sections;
+  sections renumbered accordingly), expanded HamSCI LSTID Detection
+  section with setup/run instructions and the polars[rtcompat] fix
+  for CPUs lacking AVX2/FMA/BMI (SIGILL crash otherwise).
+- Verified end-to-end on June 6 2026 event:
+  - GNSS TEC: now available and working (fetch_madrigal_tec.py ran
+    successfully, report + plots generated)
+  - HF LSTID: pipeline runs cleanly after polars[rtcompat] fix;
+    Madrigal instrument 8308 (HF spots) has no data for 2026-06 yet
+    (confirmed via globalDownload.py — 2025 dates work fine)
+### Open items
+1. May 2024 Gwyn event analysis
+2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+3. June 6 2026 event: best DOA result 533 m/s @ 137° (JJMP, KV0S_MO,
+   AC0G_ND, N6RFM_5, 1 flag); GNSS TEC now retrieved (see
+   gnss_tec/madrigal_tec_report.txt) — review cross-correlation
+   results against DOA. HF LSTID (Madrigal inst 8308) still has no
+   June 2026 data — retry late June/early July alongside any further
+   TEC follow-up.
+---
+
