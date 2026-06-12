@@ -988,3 +988,22 @@ Documentation cleanup release. No code changes.
 3. June 6 2026 event: best DOA result so far is 533 m/s @ 137°
    (JJMP, KV0S_MO, AC0G_ND, N6RFM_5, 1 flag); Madrigal TEC
    verification pending data availability
+
+---
+## 68. Madrigal availability check + --my-station — 2026-06-11
+
+### Changes
+- docs/EXTERNAL_EVALUATION.md: added Madrigal data-availability check
+  command (getExperiments) and updated usage example to --config
+- tid_workflow.py: added --my-station NAME option to process the
+  user's own station first in Step 3 (window selection)
+- WORKFLOW_TUTORIAL.md: documented --my-station in CLI reference
+- Confirmed Madrigal GPS TEC data available through 2026-06-04 only
+  (June 6 event TEC verification still pending)
+
+### Open items
+1. May 2024 Gwyn event analysis
+2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+3. June 6 2026 event: best DOA result 533 m/s @ 137° (JJMP, KV0S_MO,
+   AC0G_ND, N6RFM_5, 1 flag); Madrigal TEC verification pending
+   data availability (check again late June/early July)
