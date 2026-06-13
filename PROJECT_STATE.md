@@ -1058,4 +1058,47 @@ Feature + doc release.
    June 2026 data — retry late June/early July alongside any further
    TEC follow-up.
 ---
+## 71. Madrigal HF spot data gap (2026) + GNSS TEC review — 2026-06-12
+### Changes
+- GNSS TEC review for June 6 2026 event (533 m/s @ 137°, 1/5 flags):
+  cross-correlation lags across the 4-station tetrad are internally
+  inconsistent for a single plane wave (e.g. JJMP->N6RFM_5 = +40 min
+  vs JJMP->KV0S_MO + KV0S_MO->N6RFM_5 = -35 min). This corroborates
+  the DOA tool's own flagged residual — likely multi-wave
+  superposition rather than a single coherent LSTID.
+- GNSS TEC review for Jan 19 2026 event (195 m/s @ 9°, reference
+  event in fetch_madrigal_tec.py docs): AA6BD->N6RFM baseline gives
+  GPS TEC lag 60 min -> true phase speed ~95 m/s, same order of
+  magnitude as DOA (195 m/s) but off by ~2x. AA6BD->W7LUX and
+  N6RFM->W7LUX both show lag=0 (likely storm-background, per the
+  tool's own caveat) -- inconclusive. Weak-to-moderate corroboration
+  overall.
+- **Madrigal HF spot data gap discovered**: instrument 8308
+  (RBN/PSKReporter/WSPRNet spots, used by hamsci_LSTID_detection) has
+  NO experiments uploaded for any date in 2026 so far (checked
+  2026-01-01 through 2026-06-06; Nov-Dec 2025 uploads are present and
+  complete except one gap on 2025-12-10). This is NOT a 2-4 week
+  latency issue -- it's a 5+ month gap starting ~2026-01-01.
+  - Confirmed via: `globalDownload.py ... --inst=8308` for
+    01/01/2026-01/14/2026 returns zero "Analyzed exp" lines.
+  - Effect: hamsci_LSTID_detection (and run_madrigal_tools.py --tool
+    lstid) cannot currently produce results for any 2026 event --
+    pipeline runs cleanly but always reports "No HDF5 files found".
+  - This is independent of the local polars[rtcompat] fix (§70),
+    which remains correct/needed.
+  - Likely worth flagging to HamSCI/hamsci_LSTID_detection
+    maintainers, as it affects their tool generally, not just this
+    wrapper.
+### Open items
+1. May 2024 Gwyn event analysis
+2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+3. June 6 2026 event: best DOA result 533 m/s @ 137° (JJMP, KV0S_MO,
+   AC0G_ND, N6RFM_5, 1 flag); GNSS TEC retrieved but internally
+   inconsistent across baselines -- consistent with multi-wave
+   superposition already flagged by the DOA tool. HF LSTID unusable
+   until Madrigal inst 8308 resumes 2026 uploads (see above).
+4. Madrigal inst 8308 (HF spots) has no 2026 data as of 2026-06-12 --
+   periodically recheck (`globalDownload.py --inst=8308`) and/or
+   report the gap upstream to HamSCI.
+---
 
