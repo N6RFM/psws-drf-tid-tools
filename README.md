@@ -143,6 +143,8 @@ Four methods are available, in order of recommended preference:
 See `MANUAL_TUTORIAL.md` for the full extraction method comparison
 and `docs/METHODOLOGY.md` for the mathematical details of each method.
 
+---
+
 ## External Evaluation Tools
 
 After obtaining a DOA result, you may corroborate it
@@ -261,9 +263,7 @@ automatically (look for "Cite this repository" in the sidebar), or:
 - Bill Engelke (AB4EJ), University of Alabama, Chief Architect of the HamSCi PSWS Central Database System and for DRF data spectrogram plotting code, [https://github.com/HamSCI/DRF_processing].
 - Phil Ericson (W1PJE), Observatory Director) and the MIT Haystack Observatory staff for the Digital RF format [https://github.com/MITHaystack/digital_rf] and for the Madrigal toolsets, which are part   of the observatory's global receiver network [http://millstonehill.haystack.mit.edu/.
 - The operators of every Grape and WSPRDaemon DRF station whose data makes these analysis possible!
-
-This toolkit was developed collaboratively with Anthropic's Claude AI.
-
+  
 ---
 
 ## Contact
