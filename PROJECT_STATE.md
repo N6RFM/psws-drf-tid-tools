@@ -1102,3 +1102,35 @@ Feature + doc release.
    report the gap upstream to HamSCI.
 ---
 
+## 72. Reference event search — 2026-06-16
+
+### Goal
+Identify a well-studied LSTID event for which all three data sources
+exist simultaneously:
+- Grape HF Doppler (PSWS network, available from late 2019 onward)
+- Madrigal inst 8308 (HF spots: RBN/PSKReporter/WSPRNet, available
+  through end of 2025)
+- Madrigal inst 8000 (GNSS TEC, typically 2-4 week latency)
+
+### Rationale
+Need a ground-truth event with independently agreed direction and speed
+to validate the toolkit end-to-end. The Nov 3 2017 event (Frissell et al.
+2022 GRL, ~163°, ~1200 km/hr) predates the Grape network. The usable
+window is late 2019 through end of 2025.
+
+### Primary candidate
+May 10-12 2024 Mother's Day storm (G5, most intense storm since 2003).
+- Heavily studied in the literature with agreed equatorward LSTID
+- Grape network well-deployed by May 2024
+- Madrigal inst 8308 should have 2024 data
+- Madrigal inst 8000 GNSS TEC available
+- Need: confirm Madrigal availability for both instruments, identify
+  a clean single-LSTID window within the storm
+
+### Open items
+1. May 2024 Gwyn event analysis
+2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+3. June 6 2026 event follow-up (see §71)
+4. Madrigal inst 8308 2026 data gap — recheck periodically
+5. Reference event: check Madrigal inst 8308 + 8000 availability
+   for May 10-12 2024; identify clean LSTID window
