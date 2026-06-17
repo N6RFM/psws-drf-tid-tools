@@ -1134,3 +1134,25 @@ May 10-12 2024 Mother's Day storm (G5, most intense storm since 2003).
 4. Madrigal inst 8308 2026 data gap — recheck periodically
 5. Reference event: check Madrigal inst 8308 + 8000 availability
    for May 10-12 2024; identify clean LSTID window
+## 73. Reference event confirmed — 2026-06-16
+
+### Result
+May 10-12 2024 Mother's Day storm confirmed as reference event.
+All three data sources verified present:
+- Madrigal inst 8308 (HF spots): 3 experiments, May 10/11/12
+  ids: 100012134, 100012063, 100012089
+- Madrigal inst 8000 (GNSS TEC): 4 experiments, May 9/10/11/12
+  ids: 100011063, 100011154, 100011008 + May 12
+- Grape HF: network well-deployed by May 2024 (Gwyn has processed data)
+
+### Next step
+Identify a clean single-LSTID window within the storm for which
+Grape DOA, Madrigal HF LSTID detection, and Madrigal GNSS TEC
+cross-correlation all agree on direction and speed.
+Gwyn's processed May 2024 data is the starting point (see §7).
+
+### Open items
+1. May 2024 reference event analysis (this item)
+2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+3. June 6 2026 event follow-up (see §71)
+4. Madrigal inst 8308 2026 data gap — recheck periodically
