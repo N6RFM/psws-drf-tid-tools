@@ -1158,77 +1158,7 @@ Gwyn's processed May 2024 data is the starting point (see §7).
 4. Madrigal inst 8308 2026 data gap — recheck periodically
 
 ---
-## 70. Period-resolved multi-station DOA investigation — 2026-06-12
-
-### Summary
-Investigated extending tid_doa.py's broadband cross-correlation DOA
-to a period-resolved method, inspired by Crowley & Rodrigues (2012),
-"Characteristics of traveling ionospheric disturbances observed by
-the TIDDBIT sounder," Radio Science 47, RS0L22,
-doi:10.1029/2011RS004959. TIDDBIT performs cross-spectral analysis in
-sliding windows to get TID speed/direction/wavelength AS A FUNCTION
-OF PERIOD, rather than one broadband estimate per event.
-
-### What was tried (POC script, not merged — see archive note below)
-1. Single station pair, single-segment CSD (phase lag vs period,
-   coherence trivially 1.0) — confirmed mathematically consistent
-   with tid_doa.py's broadband lag, decomposed by Fourier period.
-   No new diagnostic information by itself.
-2. Multi-station (3 stations, Jan 2026 event), Welch-averaged CSD/
-   coherence per period bin, period-specific DOA inversion reusing
-   tid_doa.py's lstsq slowness-vector geometry. RESULT: coherence
-   uniformly low (<0.25) at ALL periods, including the validated
-   60-90 min TID band — because Welch averaging needs multiple wave
-   cycles within the window to be meaningful, and our ~1-2 hour
-   event windows contain fewer than 2 cycles of an LSTID-period wave.
-3. Multi-station, chunk-consistency check (3 non-overlapping ~44-min
-   sub-windows, single-segment CSD per chunk, no coherence filter,
-   reliability via cross-chunk agreement instead). RESULT: chunks
-   resolve only periods shorter than the chunk length itself
-   (11-45 min), well below the actual ~60-90 min TID period, so none
-   of the chunks see the real wave — results scatter (300-3000 m/s,
-   azimuth swings 160-350 deg) with no convergence near the known
-   broadband result (239 m/s @ 30 deg).
-
-### Core finding (NEEDS FURTHER INVESTIGATION, not rejected)
-Single-event windows (~1-2 hours, sized to one TID passage) do not
-contain enough wave cycles to support genuine period-resolved DOA
-by either Welch coherence or chunk-consistency. The TIDDBIT method
-works because the sounder runs continuously for a full campaign
-(hours-to-days), giving many cycles to slide a window through.
-Applying it to our retrospective single-event analysis is an
-information-theoretic mismatch as currently scoped, not a tuning
-problem.
-
-### Possible directions for further investigation
-- Apply the method to multi-day continuous DRF capture instead of a
-  single TID event window (different data collection mode than
-  current toolkit default)
-- Investigate whether overlapping (not non-overlapping) chunks with
-  heavy smoothing could extract more cycles from the same window
-- Consider parametric/model-based period estimation (e.g. matching
-  pursuit, Prony's method) instead of FFT-based CSD, which may need
-  fewer cycles to resolve a single dominant period
-- Revisit if/when longer continuous multi-station DRF datasets
-  become available (e.g. a full storm period spanning many hours)
-
-### Artifacts
-- POC script (3 iterations) not merged into repo — exploratory only,
-  kept in chat history / outputs, not committed to research_gui or
-  main. Re-derive from this PROJECT_STATE entry if revisiting.
-
-### Open items
-1. May 2024 Gwyn event analysis
-2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
-3. June 6 2026 event: best DOA result 533 m/s @ 137° (JJMP, KV0S_MO,
-   AC0G_ND, N6RFM_5, 1 flag); Madrigal TEC verification pending
-   data availability (check again late June/early July)
-4. Period-resolved multi-station DOA (TIDDBIT-style) — needs longer
-   continuous multi-station datasets or a different estimation
-   method; see §70 for what was tried
-
----
-## 70. Period-resolved multi-station DOA investigation — 2026-06-12
+## 74. Period-resolved multi-station DOA investigation — 2026-06-12
 
 ### Summary
 Investigated extending tid_doa.py's broadband cross-correlation DOA
@@ -1303,3 +1233,72 @@ problem, and not something a different dataset choice fixes, since
 4. Period-resolved multi-station DOA (TIDDBIT-style) — needs a
    different estimation approach suited to 1-2 cycle windows; see
    §70 for what was tried and possible directions
+
+---
+## 75. Jan 2026 reference value correction + residual-subtraction validation — 2026-06-12 (2026-06-20 session)
+
+### Correction
+§74 (and earlier chat-session notes) cited "239 m/s @ 30°" as the
+Jan 2026 reference DOA result. This is WRONG — per §46/§47, 239 m/s
+was found non-reproducible from exported CSVs as far back as
+2026-05-31. The canonical, reproducible result is:
+
+  **304.3 m/s, wave from 10.3° (true bearing), MSTID**
+  3 stations: N6RFM, AA6BD, W7LUX (cwt-prophet extraction,
+  AC0G_ND dropped — SNR fades after ~01:18 UTC)
+  All 5 diagnostics pass. Config: examples/event_20260119.json
+  (station list filtered to drop AC0G_ND).
+
+  Re-verified today: `python3 tid_doa.py` on this 3-station config
+  reproduces 304.3 m/s @ 10.3° exactly.
+
+Note: examples/event_20260119.json's "_comment" field still says
+"239 m/s from 30° NNE" — this is stale and should be corrected to
+304 m/s / 10° in a follow-up doc fix.
+
+### Residual-subtraction method — validated negative control
+Built a second POC (tid_doa_residual.py, separate from the §74
+period-resolution attempts) implementing the matching-pursuit /
+iterative-subtraction approach suggested as a follow-up direction in
+§74: fit a single sinusoid per station via nonlinear least squares,
+subtract it, re-run the same broadband cross-correlation DOA on the
+residual. If a coherent second wave exists, the residual DOA should
+show reasonable correlation (>0.4) and a physically plausible speed;
+if not, low correlation / unphysical speed is expected.
+
+Run against the CORRECT canonical 3-station Jan 2026 dataset
+(N6RFM, AA6BD, W7LUX, cwt-prophet, AC0G_ND dropped):
+  - Step 1 (raw, top-peak-only): 298.6 m/s @ 10.1° — matches the
+    canonical 304.3 m/s @ 10.3° to ~2% (small difference expected:
+    this POC uses top-correlation-peak only, not solve_doa's full
+    triangle-closure peak selection)
+  - Step 4 (residual after single-wave subtraction): 555.4 m/s @
+    333.8°, mean|corr|=0.191 (well below 0.4), RMS lag residual
+    100% of mean — NO coherent second wave found
+
+RESULT: clean negative control. The method correctly finds nothing
+in a known single-wave event (Jan 2026 passes all 5 tid_doa.py
+diagnostics, RMS residual only 0.4-2.8% depending on extraction
+method) rather than manufacturing a spurious second wave. This
+validates the method is safe to try on the June 6 2026 event, which
+DID show a high (41%) plane-wave RMS residual and is a natural
+candidate for "is this actually two superimposed waves."
+
+### Artifacts
+- tid_doa_residual.py — not yet committed to repo (exploratory POC,
+  untracked in working tree). Validated against Jan 2026 control.
+  Next step: run unmodified against June 6 2026 event
+  (JJMP/KV0S_MO/AC0G_ND/N6RFM_5, 533 m/s @ 137°, 41% RMS residual)
+  to test for a real second wave.
+- tid_doa_spectral.py — superseded by tid_doa_residual.py; kept only
+  for the negative-result documentation in §74. Not committed.
+
+### Open items
+1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+2. June 6 2026 event: best DOA result 533 m/s @ 137° (JJMP, KV0S_MO,
+   AC0G_ND, N6RFM_5, 1 flag, 41% RMS residual); Madrigal TEC
+   verification pending data availability (check late June/early July)
+3. Run validated tid_doa_residual.py against June 6 2026 event to
+   test whether the 41% RMS residual reflects a real second wave
+4. Fix stale "239 m/s from 30° NNE" comment in
+   examples/event_20260119.json (-> 304 m/s / 10°)
