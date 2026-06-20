@@ -1226,3 +1226,80 @@ problem.
 4. Period-resolved multi-station DOA (TIDDBIT-style) — needs longer
    continuous multi-station datasets or a different estimation
    method; see §70 for what was tried
+
+---
+## 70. Period-resolved multi-station DOA investigation — 2026-06-12
+
+### Summary
+Investigated extending tid_doa.py's broadband cross-correlation DOA
+to a period-resolved method, inspired by Crowley & Rodrigues (2012),
+"Characteristics of traveling ionospheric disturbances observed by
+the TIDDBIT sounder," Radio Science 47, RS0L22,
+doi:10.1029/2011RS004959. TIDDBIT performs cross-spectral analysis in
+sliding windows to get TID speed/direction/wavelength AS A FUNCTION
+OF PERIOD, rather than one broadband estimate per event.
+
+### What was tried (POC script, not merged — see archive note below)
+1. Single station pair, single-segment CSD (phase lag vs period,
+   coherence trivially 1.0) — confirmed mathematically consistent
+   with tid_doa.py's broadband lag, decomposed by Fourier period.
+   No new diagnostic information by itself.
+2. Multi-station (3 stations, Jan 2026 event), Welch-averaged CSD/
+   coherence per period bin, period-specific DOA inversion reusing
+   tid_doa.py's lstsq slowness-vector geometry. RESULT: coherence
+   uniformly low (<0.25) at ALL periods, including the validated
+   60-90 min TID band — because Welch averaging needs multiple wave
+   cycles within the window to be meaningful, and our typical
+   2-3 hour event windows contain fewer than 2 cycles of an
+   LSTID-period wave.
+3. Multi-station, chunk-consistency check (3 non-overlapping ~44-min
+   sub-windows, single-segment CSD per chunk, no coherence filter,
+   reliability via cross-chunk agreement instead). RESULT: chunks
+   resolve only periods shorter than the chunk length itself
+   (11-45 min), well below the actual ~60-90 min TID period, so none
+   of the chunks see the real wave — results scatter (300-3000 m/s,
+   azimuth swings 160-350 deg) with no convergence near the known
+   broadband result (239 m/s @ 30 deg).
+
+### Core finding (NEEDS FURTHER INVESTIGATION, not rejected)
+Our standard input is a single ~2-3 hour TID passage (1-2 wave
+cycles at LSTID periods) — this is the expected and normal data
+shape for HamSCI PSWS event capture, not a limitation to work around
+by sourcing longer data. Both FFT-based period-resolution approaches
+tried (Welch coherence, chunk consistency) need several independent
+wave cycles to produce a reliable period axis, which a single 2-3
+hour passage structurally cannot provide. The mismatch is between
+the TIDDBIT method's data regime (continuous multi-hour-to-day
+sounder campaigns) and ours (one passage per event) — not a tuning
+problem, and not something a different dataset choice fixes, since
+2-3 hour single-passage events are exactly the intended use case.
+
+### Possible directions for further investigation
+- Parametric/model-based period estimation (e.g. matching pursuit,
+  Prony's method, or a small number of competing sinusoidal-model
+  fits) that may extract more than one period from a single 1-2
+  cycle window without needing FFT-style averaging
+- Investigate whether the existing wave-fit (--wave-only) extraction,
+  applied separately to different candidate period bands per
+  station, could substitute for spectral decomposition
+- Bayesian/multi-model approach: fit competing single- and dual-wave
+  models to the broadband lags directly (already-flagged high RMS
+  residual events, like June 6 2026, are the natural test case) and
+  compare evidence, rather than trying to resolve a period axis
+- Revisit FFT/Welch-based period resolution only if a future
+  continuous multi-hour capture mode is added to the toolkit
+
+### Artifacts
+- POC script (3 iterations) not merged into repo — exploratory only,
+  kept in chat history / outputs, not committed to research_gui or
+  main. Re-derive from this PROJECT_STATE entry if revisiting.
+
+### Open items
+1. May 2024 Gwyn event analysis
+2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+3. June 6 2026 event: best DOA result 533 m/s @ 137° (JJMP, KV0S_MO,
+   AC0G_ND, N6RFM_5, 1 flag); Madrigal TEC verification pending
+   data availability (check again late June/early July)
+4. Period-resolved multi-station DOA (TIDDBIT-style) — needs a
+   different estimation approach suited to 1-2 cycle windows; see
+   §70 for what was tried and possible directions
