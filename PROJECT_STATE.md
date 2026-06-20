@@ -1102,3 +1102,127 @@ Feature + doc release.
    report the gap upstream to HamSCI.
 ---
 
+## 72. Reference event search — 2026-06-16
+
+### Goal
+Identify a well-studied LSTID event for which all three data sources
+exist simultaneously:
+- Grape HF Doppler (PSWS network, available from late 2019 onward)
+- Madrigal inst 8308 (HF spots: RBN/PSKReporter/WSPRNet, available
+  through end of 2025)
+- Madrigal inst 8000 (GNSS TEC, typically 2-4 week latency)
+
+### Rationale
+Need a ground-truth event with independently agreed direction and speed
+to validate the toolkit end-to-end. The Nov 3 2017 event (Frissell et al.
+2022 GRL, ~163°, ~1200 km/hr) predates the Grape network. The usable
+window is late 2019 through end of 2025.
+
+### Primary candidate
+May 10-12 2024 Mother's Day storm (G5, most intense storm since 2003).
+- Heavily studied in the literature with agreed equatorward LSTID
+- Grape network well-deployed by May 2024
+- Madrigal inst 8308 should have 2024 data
+- Madrigal inst 8000 GNSS TEC available
+- Need: confirm Madrigal availability for both instruments, identify
+  a clean single-LSTID window within the storm
+
+### Open items
+1. May 2024 Gwyn event analysis
+2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+3. June 6 2026 event follow-up (see §71)
+4. Madrigal inst 8308 2026 data gap — recheck periodically
+5. Reference event: check Madrigal inst 8308 + 8000 availability
+   for May 10-12 2024; identify clean LSTID window
+## 73. Reference event confirmed — 2026-06-16
+
+### Result
+May 10-12 2024 Mother's Day storm confirmed as reference event.
+All three data sources verified present:
+- Madrigal inst 8308 (HF spots): 3 experiments, May 10/11/12
+  ids: 100012134, 100012063, 100012089
+- Madrigal inst 8000 (GNSS TEC): 4 experiments, May 9/10/11/12
+  ids: 100011063, 100011154, 100011008 + May 12
+- Grape HF: network well-deployed by May 2024 (Gwyn has processed data)
+
+### Next step
+Identify a clean single-LSTID window within the storm for which
+Grape DOA, Madrigal HF LSTID detection, and Madrigal GNSS TEC
+cross-correlation all agree on direction and speed.
+Gwyn's processed May 2024 data is the starting point (see §7).
+
+### Open items
+1. May 2024 reference event analysis (this item)
+2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+3. June 6 2026 event follow-up (see §71)
+4. Madrigal inst 8308 2026 data gap — recheck periodically
+
+---
+## 70. Period-resolved multi-station DOA investigation — 2026-06-12
+
+### Summary
+Investigated extending tid_doa.py's broadband cross-correlation DOA
+to a period-resolved method, inspired by Crowley & Rodrigues (2012),
+"Characteristics of traveling ionospheric disturbances observed by
+the TIDDBIT sounder," Radio Science 47, RS0L22,
+doi:10.1029/2011RS004959. TIDDBIT performs cross-spectral analysis in
+sliding windows to get TID speed/direction/wavelength AS A FUNCTION
+OF PERIOD, rather than one broadband estimate per event.
+
+### What was tried (POC script, not merged — see archive note below)
+1. Single station pair, single-segment CSD (phase lag vs period,
+   coherence trivially 1.0) — confirmed mathematically consistent
+   with tid_doa.py's broadband lag, decomposed by Fourier period.
+   No new diagnostic information by itself.
+2. Multi-station (3 stations, Jan 2026 event), Welch-averaged CSD/
+   coherence per period bin, period-specific DOA inversion reusing
+   tid_doa.py's lstsq slowness-vector geometry. RESULT: coherence
+   uniformly low (<0.25) at ALL periods, including the validated
+   60-90 min TID band — because Welch averaging needs multiple wave
+   cycles within the window to be meaningful, and our ~1-2 hour
+   event windows contain fewer than 2 cycles of an LSTID-period wave.
+3. Multi-station, chunk-consistency check (3 non-overlapping ~44-min
+   sub-windows, single-segment CSD per chunk, no coherence filter,
+   reliability via cross-chunk agreement instead). RESULT: chunks
+   resolve only periods shorter than the chunk length itself
+   (11-45 min), well below the actual ~60-90 min TID period, so none
+   of the chunks see the real wave — results scatter (300-3000 m/s,
+   azimuth swings 160-350 deg) with no convergence near the known
+   broadband result (239 m/s @ 30 deg).
+
+### Core finding (NEEDS FURTHER INVESTIGATION, not rejected)
+Single-event windows (~1-2 hours, sized to one TID passage) do not
+contain enough wave cycles to support genuine period-resolved DOA
+by either Welch coherence or chunk-consistency. The TIDDBIT method
+works because the sounder runs continuously for a full campaign
+(hours-to-days), giving many cycles to slide a window through.
+Applying it to our retrospective single-event analysis is an
+information-theoretic mismatch as currently scoped, not a tuning
+problem.
+
+### Possible directions for further investigation
+- Apply the method to multi-day continuous DRF capture instead of a
+  single TID event window (different data collection mode than
+  current toolkit default)
+- Investigate whether overlapping (not non-overlapping) chunks with
+  heavy smoothing could extract more cycles from the same window
+- Consider parametric/model-based period estimation (e.g. matching
+  pursuit, Prony's method) instead of FFT-based CSD, which may need
+  fewer cycles to resolve a single dominant period
+- Revisit if/when longer continuous multi-station DRF datasets
+  become available (e.g. a full storm period spanning many hours)
+
+### Artifacts
+- POC script (3 iterations) not merged into repo — exploratory only,
+  kept in chat history / outputs, not committed to research_gui or
+  main. Re-derive from this PROJECT_STATE entry if revisiting.
+
+### Open items
+1. May 2024 Gwyn event analysis
+2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+3. June 6 2026 event: best DOA result 533 m/s @ 137° (JJMP, KV0S_MO,
+   AC0G_ND, N6RFM_5, 1 flag); Madrigal TEC verification pending
+   data availability (check again late June/early July)
+4. Period-resolved multi-station DOA (TIDDBIT-style) — needs longer
+   continuous multi-station datasets or a different estimation
+   method; see §70 for what was tried
