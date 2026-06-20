@@ -1302,3 +1302,77 @@ candidate for "is this actually two superimposed waves."
    test whether the 41% RMS residual reflects a real second wave
 4. Fix stale "239 m/s from 30° NNE" comment in
    examples/event_20260119.json (-> 304 m/s / 10°)
+
+---
+## 76. tid_doa_residual.py: residual-magnitude guard + first real finding — 2026-06-12 (2026-06-20 session)
+
+### Changes
+- Added a residual-magnitude guard to tid_doa_residual.py: computes
+  residual RMS as a fraction of raw signal RMS per station after the
+  single-wave subtraction (RESIDUAL_RATIO_MIN = 0.15). If any/all
+  stations fall below this threshold, the residual DOA step is
+  SKIPPED rather than reporting a misleading result.
+- Rationale: first June 6 2026 test run (pre-guard) produced a
+  769 m/s @ 15° "residual DOA" result that on inspection was a pure
+  artifact — the single-wave fit had absorbed 98-99.6% of the signal
+  at every station (visually confirmed: fit and raw traces nearly
+  identical in the plot), so the residual was fit-noise, not a real
+  second wave. The resulting cross-correlation hit max_lag_s edges
+  on 3/6 pairs (classic noise-correlation symptom) and the other 3
+  pairs collapsed to suspiciously perfect zero-lag correlations
+  (0.978-0.981) — correlated numerical noise, not a physical wave.
+
+### Validation (with guard active)
+- Jan 2026 control (canonical 304 m/s @ 10° NNE 3-station event,
+  passes all 5 tid_doa.py diagnostics): residual ratios 0.41-0.61
+  (well above threshold) -> guard correctly LETS this through ->
+  residual DOA still returns low correlation (0.322, below the 0.4
+  interpretation threshold) -> correctly reports NO second wave.
+  Confirms the guard is not over-aggressive; it passes legitimate
+  residuals through to the existing interpretation logic.
+- June 6 2026 event (4 stations: JJMP, KV0S_MO, AC0G_ND, N6RFM_5,
+  41% original RMS lag residual flagged by tid_doa.py): residual
+  ratios 0.4-1.8% (far below threshold) on ALL 4 stations -> guard
+  correctly SKIPS the residual DOA step.
+
+### Finding: June 6 2026 event is NOT explained by a second wave
+The 41% plane-wave RMS residual flagged by tid_doa.py for this event
+is NOT caused by a detectable second coherent wave -- all 4 stations
+are well-described by a single sinusoid (residual after subtraction
+is 0.4-1.8% of signal, i.e. essentially pure single-wave). More
+likely explanations for the residual, given this result:
+  - Per-station single-wave fit periods vary 62.8-70.4 min across
+    the 4 stations (~6% spread) despite nominally observing the
+    same wave -- this alone, via extraction-method noise rather
+    than a second physical wave, could produce a lag pattern that
+    doesn't fit a perfect plane wave.
+  - AC0G_ND data quality / geometry: already flagged in earlier
+    drop-station testing as the weakest-correlation station
+    (worst pairwise corr in multiple combinations); its inclusion
+    breaks the otherwise consistent positive-lag pattern among
+    JJMP/KV0S_MO/N6RFM_5.
+  - Possible non-planar (curved) wavefront across this station
+    geometry rather than a true second wave.
+
+### Artifacts
+- tid_doa_residual.py — committed to research_gui (this commit).
+  Standalone diagnostic tool, NOT yet wired into tid_workflow.py or
+  tid_doa.py. Run manually: edit the CONFIG block (EVENT_JSON,
+  MAX_LAG_S, OUTPUT_DIR) and execute directly.
+- tid_doa_spectral.py — deleted (3 iterations, all superseded; full
+  negative-result writeup already in §74. Re-derive from §74 if ever
+  revisiting the Welch/chunk-consistency angle).
+
+### Open items
+1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+2. June 6 2026 event: best DOA result 533 m/s @ 137° (JJMP, KV0S_MO,
+   AC0G_ND, N6RFM_5, 1 flag, 41% RMS residual -- now understood as
+   NOT a second wave, see §76); Madrigal TEC verification pending
+   data availability (check late June/early July)
+3. Investigate June 6 per-station period spread (62.8-70.4 min) as
+   the likely residual cause, rather than re-testing for a second
+   wave further
+4. Fix stale "239 m/s from 30° NNE" comment in
+   examples/event_20260119.json (-> 304 m/s / 10°)
+5. Consider wiring tid_doa_residual.py into tid_workflow.py as an
+   optional diagnostic step when RMS lag residual is flagged high
