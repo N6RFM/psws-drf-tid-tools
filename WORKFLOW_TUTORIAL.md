@@ -47,8 +47,23 @@ The tool queries the PSWS network portal, scores candidates by geometry
 **Tips:**
 - Pick 3-5 stations from different azimuth quadrants for best DOA geometry
 - For LSTID studies, add `--min-path-km 900` to exclude nearby stations
-- Download DRF data for the top candidates from https://pswsnetwork.eng.ua.edu/
 - Verify SNR and continuity for your event window before committing
+
+**Download the data:**
+
+```bash
+python3 download_companions.py --date 2026-01-19 \
+    --stations N6RFM AA6BD W7LUX AC0G_ND
+```
+
+This downloads and organizes each station automatically into the
+`<station>/ch0/...` layout `tid_workflow.py` expects (see Prerequisites
+above) — no manual unzipping or renaming needed. Omit `--frequency`
+if your companion list might include multi-subchannel rx888/WSPRDaemon
+stations (see `docs/COOKBOOK.md` for why). Alternatively, download
+manually from https://pswsnetwork.eng.ua.edu/ and organize it yourself
+to match the Prerequisites layout — see `MANUAL_TUTORIAL.md` for the
+manual steps.
 
 ---
 

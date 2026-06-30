@@ -51,6 +51,108 @@ That is the default. The script filters by filename pattern
 
 ---
 
+## Downloading companion station data
+
+Once you have a shortlist of station nicknames from
+`find_event_stations.py`, you need their raw DRF data on disk,
+organized as `<station>/ch0/...` (the layout `drf_inspect.py`,
+`drf_to_doppler.py`, and `tid_workflow.py` all expect).
+
+### How do I download companion stations automatically?
+
+```bash
+python3 download_companions.py --date 2026-01-19 \
+    --stations AA6BD W7LUX AC0G_ND
+```
+
+Or read the list from a file (one nickname per line — paste straight
+from `find_event_stations.py`'s "Station" column; `#` comments and
+blank lines are ignored):
+
+```bash
+python3 download_companions.py --date 2026-01-19 \
+    --stations-file companions.txt
+```
+
+This resolves each nickname to a public PSWS Station ID, calls the
+PSWS download API, extracts the result, and moves it into
+`<station>/ch0/...`. It writes `download_manifest.json` recording what
+was pulled, from where, and when.
+
+**Multi-word nicknames** (some PSWS stations register with names like
+`"KE9SA Grape DRF S48"`) need quoting on the command line:
+
+```bash
+--stations "KE9SA Grape DRF S48"
+```
+
+`--stations-file` handles these correctly without quoting since each
+line is read whole.
+
+### How do I download a multi-day span?
+
+```bash
+python3 download_companions.py --start-date 2026-01-18 \
+    --end-date 2026-01-20 --stations AA6BD
+```
+
+### How do I preview what will be downloaded without using a request?
+
+```bash
+python3 download_companions.py --date 2026-01-19 \
+    --stations AA6BD W7LUX --dry-run
+```
+
+Resolves and prints station IDs only; makes no calls to the download
+API.
+
+### Should I pass `--frequency` to filter the download?
+
+**Be careful with this for mixed companion lists.** The PSWS API's
+`frequency` parameter does an exact-string match against the
+observation's center-frequency field. Single-channel Grape v1.x
+stations store one value there (e.g. `"10.000"`) and match fine.
+Multi-subchannel rx888/WSPRDaemon stations store a comma-separated
+list (e.g. `"10.000 MHz, 5.000 MHz, ..."`), which a bare `10` will
+**not** match — the API silently reports "no matching observations"
+for a station that actually has your target frequency.
+
+Since you usually can't tell which companions are multi-subchannel
+ahead of time, the safest default is to **omit `--frequency` from the
+download step entirely** and let `drf_inspect.py --frequency 10`
+identify the right `--subchannel` per station afterward. Omitting it
+just means multi-subchannel stations download their full file (often
+~3 GB instead of ~30-50 MB) rather than being silently dropped.
+
+### Why did I get folders like `<station>_20260126` I didn't ask for?
+
+The PSWS download API's date-range matching isn't perfectly
+consistent across station/instrument types — some stations return
+exactly the day requested, others can return an adjacent day too. By
+default `download_companions.py` discards any day outside your
+requested `--date`/`--start-date`..`--end-date` range automatically, so
+this shouldn't normally happen. If you explicitly want every day the
+API returns (e.g. for a multi-day survey), pass `--keep-extra-days`;
+each extra day is then saved as its own folder named by its actual
+recording date (`<station>_<YYYYMMDD>`) rather than an ambiguous
+numeric suffix.
+
+### How do I avoid re-downloading a station I already have?
+
+By default an existing `<station>/` folder is left alone and skipped
+(with a message). Use `--overwrite` to replace it.
+
+### How do I download manually instead, from the PSWS web UI?
+
+See `MANUAL_TUTORIAL.md` for the full manual download walkthrough.
+Briefly: filter https://pswsnetwork.eng.ua.edu/observations/observation_list/
+by station nickname and UTC date, click the `OBS<date>T<time>` link to
+zip and download, then unzip and rename the result to `<station>/`
+(lowercase, matching the callsign) so it matches what the rest of the
+pipeline expects.
+
+---
+
 ## DRF inspection
 
 ### How do I check which subchannel is 10 MHz on a multi-subchannel station?
@@ -66,6 +168,12 @@ Look for the row marked `*** YES ***` in the subchannel table.
 ```bash
 python3 drf_inspect.py --all . --frequency 10
 ```
+
+Run this after `download_companions.py` (or a manual download) to get
+a ready-to-use `--subchannel N` for every station folder in one pass —
+single-channel Grapes are always `0`, but rx888/WSPRDaemon stations
+vary per station (e.g. one station's 10 MHz subchannel might be index
+4, another's index 5).
 
 ### How do I just read the metadata without identifying a frequency?
 
@@ -652,12 +760,20 @@ It stores the list of PSWS stations and their metadata so
 `find_event_stations.py` doesn't re-fetch them every run. Refreshed
 weekly automatically; force a refresh by deleting the file.
 
+### What does `.psws_station_id_cache.json` do?
+
+The companion cache file used by `download_companions.py`. It maps
+station nickname → public PSWS Station ID (e.g. `"S000028"`), which is
+a different identifier than the internal numeric ID
+`.psws_station_cache.json` uses. Also refreshed weekly; force a refresh
+with `--no-cache`.
+
 ### What about generated files? Should I commit them?
 
 No. The `.gitignore` excludes `*.csv`, `*.png` (except in `docs/`),
-`*.pdf` (except in `docs/` and `examples/`), `*.h5`, and `OBS*`
-directories. Only source code, example configs, and example data
-should be committed.
+`*.pdf` (except in `docs/` and `examples/`), `*.h5`, `OBS*`
+directories, `download_manifest.json`, and `.downloads/`. Only source
+code, example configs, and example data should be committed.
 
 ---
 
@@ -672,6 +788,9 @@ should be committed.
 | `tid_doa.py` correlations < 0.4 across all pairs | Wrong analysis window | Look at spectrograms; pick a cleaner window |
 | `tid_doa.py` one lag at the edge of max_lag_s | Pair too noisy or wrong cycle | Reduce `max_lag_seconds` or `--drop` that station |
 | `tid_map.py` says "install cartopy" | Optional dep missing | `pip install cartopy` for nicer maps |
+| `download_companions.py` reports "no matching observations" for a station that has data on the PSWS site | `--frequency` exact-string-matches; multi-subchannel rx888/WSPRDaemon stations store frequency as a list | Omit `--frequency` from the download step; use `drf_inspect.py --frequency` afterward |
+| `download_companions.py` returns an unexpected extra day of data | PSWS download API's date matching is inconsistent across station types | Default behavior already discards out-of-range days; pass `--keep-extra-days` only if you want them |
+| Multi-word station nickname only partly resolves | Shell splits unquoted `--stations` on spaces | Quote it (`--stations "KE9SA Grape DRF S48"`) or use `--stations-file` |
 
 ## Recipe: drop a station from DOA
 
