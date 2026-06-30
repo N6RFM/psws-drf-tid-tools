@@ -92,7 +92,19 @@ python3 find_event_stations.py \
     --my-call N6RFM
 ```
 
-Download DRF data for the top candidates from https://pswsnetwork.eng.ua.edu/
+Download DRF data for the top candidates from https://pswsnetwork.eng.ua.edu/,
+or automate this step with `download_companions.py`:
+
+```bash
+python3 download_companions.py --date 2026-01-19 \
+    --stations N6RFM AA6BD W7LUX AC0G_ND
+```
+
+This resolves each station nickname to its PSWS Station ID, downloads
+its DRF data via the PSWS download API, and organizes it into the
+`<station>/ch0/...` layout the rest of the pipeline expects. See
+`docs/COOKBOOK.md` for the full option list, or `MANUAL_TUTORIAL.md`
+for the manual download steps if you'd rather use the web UI directly.
 
 ### Recommended: guided workflow
 
@@ -194,6 +206,7 @@ psws-drf-tid-tools/
 ├── drf_to_doppler.py           Doppler extraction (autocorr/cwt/fft)
 ├── drf_inspect.py              verify DRF metadata + subchannel
 ├── find_event_stations.py      companion-station discovery
+├── download_companions.py      automated companion-station download + organize
 ├── tid_doa.py                  multi-station DOA inversion (--drop to exclude stations)
 ├── tid_stack_plot.py           stacked Doppler comparison
 ├── tid_map.py                  array geometry map
@@ -226,7 +239,7 @@ Core (required):
 - Python 3.10 or newer
 - `digital_rf` 2.6+ (MIT Haystack Observatory)
 - `numpy`, `scipy`, `pandas`, `matplotlib`
-- `requests`, `beautifulsoup4` (for `find_event_stations.py`)
+- `requests`, `beautifulsoup4` (for `find_event_stations.py` and `download_companions.py`)
 - `PyQt5`, `pyqtgraph`, `Pillow` (for interactive GUI tools)
 
 Optional:
