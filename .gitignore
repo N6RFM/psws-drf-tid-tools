@@ -56,3 +56,8 @@ OBS*
 runs/
 evaluation/
 evaluation_sw/
+
+# download_companions.py outputs
+.psws_station_id_cache.json
+download_manifest.json
+.downloads/
