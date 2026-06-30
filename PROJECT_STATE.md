@@ -1376,3 +1376,92 @@ likely explanations for the residual, given this result:
    examples/event_20260119.json (-> 304 m/s / 10°)
 5. Consider wiring tid_doa_residual.py into tid_workflow.py as an
    optional diagnostic step when RMS lag residual is flagged high
+
+---
+## 77. download_companions.py — automated companion-station download — 2026-06-30
+
+Added `download_companions.py`: resolves companion station nicknames
+(from `find_event_stations.py`'s shortlist) to public PSWS Station IDs,
+downloads each via the PSWS network's documented download API
+(`pswsnetwork.eng.ua.edu/observations/downloadapi/`, station_id +
+date range, no auth required), and organizes the result into the
+`<station>/ch0/...` layout `drf_inspect.py`, `drf_to_doppler.py`, and
+`tid_workflow.py` all expect — replacing the previously fully-manual
+download-and-unzip step. Writes `download_manifest.json` for data
+provenance (station, PSWS ID, date range, frequency filter, download
+timestamp).
+
+Two PSWS API quirks discovered and worked around during development:
+
+1. **Date-range matching is inconsistent across station/instrument
+   types.** Requesting `start_date == end_date` for a single day
+   returns nothing for some stations (their recorded start timestamp
+   is a few seconds after midnight, apparently excluded by the API's
+   comparison against `end_date`'s implicit midnight) but works fine
+   for others. Worked around by always requesting `end_date + 1 day`,
+   then filtering the result back down to exactly the requested range
+   client-side — some stations return the extra day anyway even with
+   the +1 offset, depending on instrument type (observed concretely
+   with AC0G_ND and W7LUX both over-returning an adjacent day where
+   single-channel Grape v1 stations did not).
+2. **The `frequency` filter parameter does an exact-string match**
+   against the observation's center-frequency field, same underlying
+   issue `find_event_stations.py` already works around for its own
+   frequency matching. Multi-subchannel rx888/WSPRDaemon stations
+   store this field as a comma-separated list (e.g. "10.000 MHz,
+   5.000 MHz, ..."), so a bare frequency value silently excludes
+   valid multi-subchannel observations rather than erroring. The
+   script warns loudly when `--frequency` is passed and the cookbook
+   recipe recommends omitting it for any companion list that might
+   include such stations, relying on `drf_inspect.py --frequency`
+   afterward to identify the correct `--subchannel` per station
+   instead.
+
+Other fixes during development: multi-word station nicknames (some
+PSWS stations register names like "KE9SA Grape DRF S48") needed
+explicit handling in both `--stations` (shell quoting) and
+`--stations-file` (an earlier version truncated multi-word lines to
+their first token when stripping trailing comments — fixed to only
+strip an actual ` # comment` suffix).
+
+Documentation updated to introduce the script as the recommended path
+alongside the existing manual PSWS web-UI instructions: `README.md`
+("Before you begin" section + file tree + dependencies),
+`MANUAL_TUTORIAL.md` (new "Automated download" subsection ahead of
+the existing manual steps), `WORKFLOW_TUTORIAL.md` ("Finding companion
+stations" section), and `docs/COOKBOOK.md` (new "Downloading companion
+station data" section with task-oriented recipes, plus three new rows
+in the Quick gotchas reference table and a `.psws_station_id_cache.json`
+cache-file entry). `.gitignore` updated to exclude the script's
+generated files (`.psws_station_id_cache.json`, `download_manifest.json`,
+`.downloads/`).
+
+Landed on `main` via PR #274 (`8825856`); `.gitignore` follow-up also
+on `main` (`39197a1`); both propagated to `gwyn-g3zil`. Initial attempt
+to land the matching `§70` duplicate/renumbering fix on `research_gui`
+(see §74's history) hit a branch-mixup during cherry-picking and was
+aborted cleanly without effect — `research_gui`'s own independent fix
+for that duplicate (already reflected in this file's current §70-§76
+numbering) and this `download_companions.py` entry were applied
+directly to this file instead, to avoid clobbering work done on this
+branch since the script was first drafted.
+
+### Open items
+1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+2. June 6 2026 event: best DOA result 533 m/s @ 137° (JJMP, KV0S_MO,
+   AC0G_ND, N6RFM_5, 1 flag, 41% RMS residual -- now understood as
+   NOT a second wave, see §76); Madrigal TEC verification pending
+   data availability (check late June/early July)
+3. Investigate June 6 per-station period spread (62.8-70.4 min) as
+   the likely residual cause, rather than re-testing for a second
+   wave further
+4. Fix stale "239 m/s from 30° NNE" comment in
+   examples/event_20260119.json (-> 304 m/s / 10°)
+5. Consider wiring tid_doa_residual.py into tid_workflow.py as an
+   optional diagnostic step when RMS lag residual is flagged high
+6. `download_companions.py` has not yet been run end-to-end through
+   `research_gui`'s GUI tooling (`tid_workflow.py` / `tid_spect_click.py`)
+   on a real event to confirm no additional directory-layout
+   assumptions beyond plain `<station>/ch0/...` — worth doing before
+   relying on it for the next event analysis on this branch
+
