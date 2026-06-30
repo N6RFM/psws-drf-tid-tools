@@ -48,13 +48,54 @@ This queries the PSWS portal and returns a ranked list of candidate stations
 scored by baseline geometry, path length, and SNR. Choose 3-5 stations from
 different azimuth quadrants for best DOA geometry.
 
+### Automated download (recommended)
+
+```bash
+python3 download_companions.py --date 2026-01-19 \
+    --stations N6RFM AA6BD W7LUX AC0G_ND
+```
+
+or from a file (one station nickname per line — paste straight from
+`find_event_stations.py`'s output):
+
+```bash
+python3 download_companions.py --date 2026-01-19 \
+    --stations-file companions.txt
+```
+
+This resolves each nickname to its PSWS Station ID, downloads via the
+PSWS network's download API, extracts the result, and organizes it
+into the `<station>/ch0/...` layout shown below automatically —
+including renaming/lowercasing the folder to match the station
+identifier convention. It writes `download_manifest.json` recording
+what was pulled, from where, and when. Run with `--help` for the full
+option list (multi-day ranges, `--keep-extra-days`, `--overwrite`,
+etc.), or see `docs/COOKBOOK.md` for task-oriented recipes.
+
+A couple of things worth knowing:
+
+- **Don't pass `--frequency` for mixed companion lists.** It does an
+  exact-string match against PSWS's center-frequency field, which
+  silently excludes multi-subchannel rx888/WSPRDaemon stations (their
+  frequency is stored as a comma-separated list, not a single value).
+  Omit it and let Step 1's `drf_inspect.py --frequency` identify the
+  right `--subchannel` per station afterward instead.
+- Multi-word station nicknames (e.g. registered as `"KE9SA Grape DRF
+  S48"`) need quoting on the command line, or use `--stations-file`
+  which handles them without quoting.
+
+### Manual download
+
+If you'd rather use the PSWS web UI directly:
+
 Download DRF data for the selected stations from:
-https://pswsnetwork.eng.ua.edu/
+https://pswsnetwork.eng.ua.edu/observations/observation_list/
 
 **Expected directory structure:**
 
-After downloading and unzipping from https://pswsnetwork.eng.ua.edu/,
-organize your data like this:
+`download_companions.py` creates this automatically. If downloading
+manually from https://pswsnetwork.eng.ua.edu/, unzip each station's
+download and organize it like this:
 
 ```
 tid_event_20260119/       <- your event directory (name it anything)
