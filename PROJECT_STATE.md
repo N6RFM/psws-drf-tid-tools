@@ -1158,77 +1158,7 @@ Gwyn's processed May 2024 data is the starting point (see §7).
 4. Madrigal inst 8308 2026 data gap — recheck periodically
 
 ---
-## 70. Period-resolved multi-station DOA investigation — 2026-06-12
-
-### Summary
-Investigated extending tid_doa.py's broadband cross-correlation DOA
-to a period-resolved method, inspired by Crowley & Rodrigues (2012),
-"Characteristics of traveling ionospheric disturbances observed by
-the TIDDBIT sounder," Radio Science 47, RS0L22,
-doi:10.1029/2011RS004959. TIDDBIT performs cross-spectral analysis in
-sliding windows to get TID speed/direction/wavelength AS A FUNCTION
-OF PERIOD, rather than one broadband estimate per event.
-
-### What was tried (POC script, not merged — see archive note below)
-1. Single station pair, single-segment CSD (phase lag vs period,
-   coherence trivially 1.0) — confirmed mathematically consistent
-   with tid_doa.py's broadband lag, decomposed by Fourier period.
-   No new diagnostic information by itself.
-2. Multi-station (3 stations, Jan 2026 event), Welch-averaged CSD/
-   coherence per period bin, period-specific DOA inversion reusing
-   tid_doa.py's lstsq slowness-vector geometry. RESULT: coherence
-   uniformly low (<0.25) at ALL periods, including the validated
-   60-90 min TID band — because Welch averaging needs multiple wave
-   cycles within the window to be meaningful, and our ~1-2 hour
-   event windows contain fewer than 2 cycles of an LSTID-period wave.
-3. Multi-station, chunk-consistency check (3 non-overlapping ~44-min
-   sub-windows, single-segment CSD per chunk, no coherence filter,
-   reliability via cross-chunk agreement instead). RESULT: chunks
-   resolve only periods shorter than the chunk length itself
-   (11-45 min), well below the actual ~60-90 min TID period, so none
-   of the chunks see the real wave — results scatter (300-3000 m/s,
-   azimuth swings 160-350 deg) with no convergence near the known
-   broadband result (239 m/s @ 30 deg).
-
-### Core finding (NEEDS FURTHER INVESTIGATION, not rejected)
-Single-event windows (~1-2 hours, sized to one TID passage) do not
-contain enough wave cycles to support genuine period-resolved DOA
-by either Welch coherence or chunk-consistency. The TIDDBIT method
-works because the sounder runs continuously for a full campaign
-(hours-to-days), giving many cycles to slide a window through.
-Applying it to our retrospective single-event analysis is an
-information-theoretic mismatch as currently scoped, not a tuning
-problem.
-
-### Possible directions for further investigation
-- Apply the method to multi-day continuous DRF capture instead of a
-  single TID event window (different data collection mode than
-  current toolkit default)
-- Investigate whether overlapping (not non-overlapping) chunks with
-  heavy smoothing could extract more cycles from the same window
-- Consider parametric/model-based period estimation (e.g. matching
-  pursuit, Prony's method) instead of FFT-based CSD, which may need
-  fewer cycles to resolve a single dominant period
-- Revisit if/when longer continuous multi-station DRF datasets
-  become available (e.g. a full storm period spanning many hours)
-
-### Artifacts
-- POC script (3 iterations) not merged into repo — exploratory only,
-  kept in chat history / outputs, not committed to research_gui or
-  main. Re-derive from this PROJECT_STATE entry if revisiting.
-
-### Open items
-1. May 2024 Gwyn event analysis
-2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
-3. June 6 2026 event: best DOA result 533 m/s @ 137° (JJMP, KV0S_MO,
-   AC0G_ND, N6RFM_5, 1 flag); Madrigal TEC verification pending
-   data availability (check again late June/early July)
-4. Period-resolved multi-station DOA (TIDDBIT-style) — needs longer
-   continuous multi-station datasets or a different estimation
-   method; see §70 for what was tried
-
----
-## 70. Period-resolved multi-station DOA investigation — 2026-06-12
+## 74. Period-resolved multi-station DOA investigation — 2026-06-12
 
 ### Summary
 Investigated extending tid_doa.py's broadband cross-correlation DOA
@@ -1302,4 +1232,92 @@ problem, and not something a different dataset choice fixes, since
    data availability (check again late June/early July)
 4. Period-resolved multi-station DOA (TIDDBIT-style) — needs a
    different estimation approach suited to 1-2 cycle windows; see
-   §70 for what was tried and possible directions
+   §74 for what was tried and possible directions
+
+---
+## 75. download_companions.py — automated companion-station download — 2026-06-30
+
+Added `download_companions.py`: resolves companion station nicknames
+(from `find_event_stations.py`'s shortlist) to public PSWS Station IDs,
+downloads each via the PSWS network's documented download API
+(`pswsnetwork.eng.ua.edu/observations/downloadapi/`, station_id +
+date range, no auth required), and organizes the result into the
+`<station>/ch0/...` layout `drf_inspect.py`, `drf_to_doppler.py`, and
+`tid_workflow.py` all expect — replacing the previously fully-manual
+download-and-unzip step. Writes `download_manifest.json` for data
+provenance (station, PSWS ID, date range, frequency filter, download
+timestamp).
+
+Two PSWS API quirks discovered and worked around during development:
+
+1. **Date-range matching is inconsistent across station/instrument
+   types.** Requesting `start_date == end_date` for a single day
+   returns nothing for some stations (their recorded start timestamp
+   is a few seconds after midnight, apparently excluded by the API's
+   comparison against `end_date`'s implicit midnight) but works fine
+   for others. Worked around by always requesting `end_date + 1 day`,
+   then filtering the result back down to exactly the requested range
+   client-side — some stations return the extra day anyway even with
+   the +1 offset, depending on instrument type (observed concretely
+   with AC0G_ND and W7LUX both over-returning an adjacent day where
+   single-channel Grape v1 stations did not).
+2. **The `frequency` filter parameter does an exact-string match**
+   against the observation's center-frequency field, same underlying
+   issue `find_event_stations.py` already works around for its own
+   frequency matching. Multi-subchannel rx888/WSPRDaemon stations
+   store this field as a comma-separated list (e.g. "10.000 MHz,
+   5.000 MHz, ..."), so a bare frequency value silently excludes
+   valid multi-subchannel observations rather than erroring. The
+   script warns loudly when `--frequency` is passed and the cookbook
+   recipe recommends omitting it for any companion list that might
+   include such stations, relying on `drf_inspect.py --frequency`
+   afterward to identify the correct `--subchannel` per station
+   instead.
+
+Other fixes during development: multi-word station nicknames (some
+PSWS stations register names like "KE9SA Grape DRF S48") needed
+explicit handling in both `--stations` (shell quoting) and
+`--stations-file` (an earlier version truncated multi-word lines to
+their first token when stripping trailing comments — fixed to only
+strip an actual ` # comment` suffix).
+
+Documentation updated to introduce the script as the recommended path
+alongside the existing manual PSWS web-UI instructions: `README.md`
+("Before you begin" section + file tree + dependencies),
+`MANUAL_TUTORIAL.md` (new "Automated download" subsection ahead of
+the existing manual steps), `WORKFLOW_TUTORIAL.md` ("Finding companion
+stations" section), and `docs/COOKBOOK.md` (new "Downloading companion
+station data" section with task-oriented recipes, plus three new rows
+in the Quick gotchas reference table and a `.psws_station_id_cache.json`
+cache-file entry). `.gitignore` updated to exclude the script's
+generated files (`.psws_station_id_cache.json`, `download_manifest.json`,
+`.downloads/`).
+
+Landed on `main` via PR #274 (`8825856`), cherry-picked clean to
+`research_gui` (`06261e4`) and `gwyn-g3zil` (`859719d`); `.gitignore`
+follow-up landed on `main` (`39197a1`) and propagated the same way.
+Script verified byte-identical across all three branches post-merge.
+
+### Open items
+1. May 2024 Gwyn event analysis
+2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+3. June 6 2026 event: best DOA result 533 m/s @ 137° (JJMP, KV0S_MO,
+   AC0G_ND, N6RFM_5, 1 flag); Madrigal TEC verification pending
+   data availability (check again late June/early July)
+4. Period-resolved multi-station DOA (TIDDBIT-style) — needs a
+   different estimation approach suited to 1-2 cycle windows; see
+   §74 for what was tried and possible directions
+5. `download_companions.py` has not yet been run end-to-end through
+   `research_gui`'s GUI tooling (`tid_workflow.py` / `tid_spect_click.py`)
+   on a real event to confirm no additional directory-layout
+   assumptions beyond plain `<station>/ch0/...` — worth doing before
+   relying on it for the next event analysis on this branch
+6. Pre-existing duplicate entry (originally both copies mislabeled
+   §70, now correctly renumbered §74) found and resolved same day:
+   the earlier copy concluded longer continuous DRF capture might be
+   needed; the second, kept copy revises that to "not something a
+   different dataset choice fixes," since 2-3 hour single-passage
+   events are the intended use case. Superseded first copy removed,
+   surviving copy renumbered from its collision with §70 (the
+   unrelated "Combined Madrigal wrapper" entry).
+
