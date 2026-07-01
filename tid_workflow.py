@@ -559,13 +559,14 @@ def run_workflow(args):
             date_str = input("  Enter event date (YYYY-MM-DD): ").strip()
         print(f"  Event date: {date_str}")
 
-        # Probe subchannels and get coords for each station
-        stations = []
-        for drf_dir_s in drf_dirs:
+        def _confirm_subchannel(drf_dir_s):
+            """Step 1 body for one station: probe subchannels, generate
+            thumbnails, confirm subchannel, resolve coords. Returns a
+            station dict (same shape stations[] has always used)."""
             name = drf_dir_s.name.upper()
             print(f"\n  Station: {name}")
+            print(f"    [Step 1] Subchannel confirmation for {name}...")
 
-            # Probe subchannels
             print(f"    Probing subchannels...")
             subs = probe_subchannels(drf_dir_s, date_str, args.tx_freq_mhz)
             print(f"    Top subchannels by SNR:")
@@ -574,8 +575,7 @@ def run_workflow(args):
                 marker = " ← WWV 10 MHz" if freq and abs(freq/1e6 - 10.0) < 0.01 else ""
                 print(f"      subchannel {sub}: {snr:.1f} dB{freq_str}{marker}")
 
-            # Generate thumbnails for ALL stations — user always visually confirms
-            if True:  # always generate, even single-channel
+            if len(subs) > 1:
                 thumb_dir = event_dir / f'{name.lower()}_subchannels'
                 thumb_dir.mkdir(exist_ok=True)
                 print(f'    Generating subchannel thumbnails...')
@@ -587,15 +587,18 @@ def run_workflow(args):
                             drf_dir_s,
                             '--subchannel', str(sub_i),
                             '--output', str(thumb),
-                            '--start', '17:00', '--end', '21:00',
+                            '--start', '00:00', '--end', '24:00',
                             '--ylim=-5,5', '--dpi', '60',
                             '--callsign', name,
-                        ], capture_output=True)
+                        ])
                     freq_str = f' {freq_i/1e6:.3f} MHz' if freq_i else ''
                     print(f'      sub{sub_i:02d}.png — subchannel {sub_i}{freq_str} SNR={snr_i:.1f} dB')
                 print(f'    Open thumbnails in: {thumb_dir}')
                 print(f'    Look for clear carrier near 0 Hz = WWV 10 MHz')
-            # Auto-suggest based on freq metadata if available
+            else:
+                print(f'    Single subchannel — skipping thumbnail preview '
+                      f'(Step 2\'s full-day spectrogram covers this)')
+
             best_sub, reason = best_subchannel(subs, args.tx_freq_mhz)
             if best_sub is not None:
                 print(f'    Suggested: subchannel {best_sub} ({reason})')
@@ -612,22 +615,18 @@ def run_workflow(args):
                     break
                 except ValueError:
                     print('    Please enter a number')
-            # Get coords
+
             rx_lat, rx_lon = get_station_coords(name, drf_dir_s, event_dir=event_dir)
 
-            # Compute IPP midpoint
-            # Look up grid square
             grid_sq = "?"
             for k, (la, lo, gr) in KNOWN_STATIONS.items():
                 if k in name.upper() or name.upper() in k:
                     grid_sq = gr
                     break
-            ipp_lat, ipp_lon = midpoint(
-                rx_lat, rx_lon, args.tx_lat, args.tx_lon
-            )
+            ipp_lat, ipp_lon = midpoint(rx_lat, rx_lon, args.tx_lat, args.tx_lon)
             print(f"    IPP midpoint: {ipp_lat:.4f}N, {abs(ipp_lon):.4f}{'W' if ipp_lon < 0 else 'E'}")
 
-            stations.append({
+            return {
                 "name": name,
                 "drf_dir": str(drf_dir_s),
                 "subchannel": subchannel,
@@ -637,7 +636,109 @@ def run_workflow(args):
                 "ipp_lon": ipp_lon,
                 "grid": grid_sq,
                 "date_str": date_str,
-            })
+            }
+
+        def _fullday_and_window(stn):
+            """Step 2 (full-day spectrogram) + Step 3 (window selection,
+            with the 'apply to remaining' propagation offer) for one
+            already-subchannel-confirmed station. Mirrors the same state
+            keys / file paths the Steps 2-9 loop later expects, so when
+            that loop reaches this station it will find everything
+            already done and just skip straight past it."""
+            name = stn["name"]
+            drf_dir_s = stn["drf_dir"]
+            sub = stn["subchannel"]
+            stn_key = name.lower()
+            fullday_png = event_dir / f"{stn_key}_fullday.png"
+            window_json = event_dir / f"{stn_key}_fullday_window.json"
+
+            print(f"\n{'─'*60}")
+            print(f"Station: {name}  (subchannel {sub})")
+            print(f"{'─'*60}")
+
+            if f"{stn_key}_fullday" not in state:
+                print(f"\n[Step 2] Full-day spectrogram for {name}...")
+                r = run([
+                    "python3", tool("drf_spectrogram.py"),
+                    drf_dir_s,
+                    "--subchannel", str(sub),
+                    "--output", str(fullday_png),
+                    "--start", "00:00", "--end", "24:00",
+                    "--ylim=-5,5", "--dpi", "100",
+                    "--callsign", name,
+                    "--grid", stn.get("grid", "?"),
+                ])
+                if r.returncode != 0:
+                    print(f"  ERROR: spectrogram failed for {name}")
+                    return
+                state[f"{stn_key}_fullday"] = str(fullday_png)
+                save_state(state_file, state)
+
+            if f"{stn_key}_window" not in state:
+                print(f"\n[Step 3] Select TID window for {name}...")
+                print("  → Drag yellow region to bracket the TID, press S to save, Q to quit")
+                run(["python3", tool("tid_quicklook.py"),
+                     "--spectrogram", str(fullday_png)])
+                if not window_json.exists():
+                    print(f"  WARNING: No window saved for {name} — skipping")
+                    return
+                with open(window_json) as f:
+                    wj = json.load(f)
+                state[f"{stn_key}_window"] = wj
+                state[f"{stn_key}_zoom_window"] = wj
+                save_state(state_file, state)
+
+                # Offer to apply this window to every OTHER requested
+                # station up front, by name -- they don't need to have
+                # gone through Step 1 yet for this to work, since we're
+                # only pre-seeding state[] here, not full station dicts.
+                other_names = [d.name.upper() for d in drf_dirs
+                               if d.name.upper() != name]
+                remaining = [n for n in other_names
+                             if f"{n.lower()}_window" not in state]
+                if remaining:
+                    ans = input(f"  Apply {h_to_hhmm(wj['t_start_utc_hours'])}–"
+                                f"{h_to_hhmm(wj['t_end_utc_hours'])} to all "
+                                f"remaining stations? [y/N]: ").strip().lower()
+                    if ans == "y":
+                        for rn in remaining:
+                            rk = rn.lower()
+                            state[f"{rk}_window"] = wj
+                            state[f"{rk}_zoom_window"] = wj
+                            rk_win_json = event_dir / f"{rk}_fullday_window.json"
+                            with open(rk_win_json, "w") as _f:
+                                json.dump(wj, _f, indent=2)
+                        save_state(state_file, state)
+                        print(f"  Applied to: {remaining}")
+
+        # Keystone fast-path: if --my-station is set, take that station
+        # all the way through subchannel confirmation, full-day
+        # spectrogram, AND window selection before any other station is
+        # even probed for its subchannel. This is what makes the
+        # keystone's own full-day view (not anyone else's) the thing
+        # you're actually looking at when you pick the TID window.
+        stations = []
+        remaining_dirs = list(drf_dirs)
+        if args.my_station:
+            my = args.my_station.strip().lower()
+            keystone_dir = next((d for d in remaining_dirs
+                                  if d.name.lower() == my), None)
+            if keystone_dir is not None:
+                remaining_dirs.remove(keystone_dir)
+                keystone_stn = _confirm_subchannel(keystone_dir)
+                stations.append(keystone_stn)
+                _fullday_and_window(keystone_stn)
+            else:
+                print(f"  WARNING: --my-station '{args.my_station}' not "
+                      f"found among discovered stations — proceeding "
+                      f"without a keystone fast-path.")
+
+        # Remaining stations: subchannel confirmation only, same as
+        # before. Their full-day spectrogram + window selection (or the
+        # propagated window from the keystone, if you said yes above)
+        # happens later in the Steps 2-9 loop, per station, in order.
+        for drf_dir_s in remaining_dirs:
+            stations.append(_confirm_subchannel(drf_dir_s))
 
         state["stations"] = stations
         state["date_str"] = date_str
@@ -1063,14 +1164,19 @@ def run_workflow(args):
     for stn in stations:
         stn_key = stn["name"].lower()
         # Build candidate list with SELECTED METHOD FIRST
+        prophet_path = event_dir / f"{stn_key}_prophet_tid.csv"
+        spline_path = event_dir / f"{stn_key}_spline_tid.csv"
         all_csvs = {
-            "spline":       event_dir / f"{stn_key}_spline_tid.csv",
+            "spline":       spline_path,
             "sgolay-ridge": event_dir / f"{stn_key}_sgolay_tid.csv",
             "fft":          event_dir / f"{stn_key}_fft_tid.csv",
             "autocorr":     event_dir / f"{stn_key}_autocorr_tid.csv",
             "cwt":          event_dir / f"{stn_key}_cwt_tid.csv",
             "wave-fit":     event_dir / f"{stn_key}_wave_tid.csv",
-            "cwt-prophet":  event_dir / f"{stn_key}_spline_tid.csv",
+            # E-key export (prophet_tid.csv) is the documented/preferred
+            # action when the auto-trace looks good -- check for it
+            # first, falling back to the X-key spline export.
+            "cwt-prophet":  prophet_path if prophet_path.exists() else spline_path,
         }
         # Priority: selected method > spline > others
         candidates = [(all_csvs.get(method, ""), method)]

@@ -218,6 +218,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self._wave_only = False
         self._no_prophet = False
         self._wave_candidate = None
+        self._wave_final_path = None
         self._wave_clicks_t = []
         self._wave_clicks_d = []
         self._prophet_csv   = None
@@ -1244,17 +1245,21 @@ class SpectClickApp(QtWidgets.QMainWindow):
             "snr_db":        50.0,
         })
 
-        # Save
+        # Save as a CANDIDATE, not the final output. It only becomes the
+        # real <station>_wave_tid.csv on explicit accept (A key), or as
+        # a safety net when the window closes with a pending candidate
+        # (see closeEvent) -- never silently from F alone.
         out_stem = stem.replace("_tid_zoom_clean", "")
-        out_path = parent / f"{out_stem}_wave_tid.csv"
+        out_path = parent / f"{out_stem}_wave_tid_candidate.csv"
         out_df.to_csv(out_path, index=False)
 
         self._wave_done = True
         self._wave_candidate = out_path
+        self._wave_final_path = parent / f"{out_stem}_wave_tid.csv"
         self._set_status(
             f"[{self.name}] WAVE-FIT: T={T_s/60:.1f} min  A={abs(A_fit):.3f} Hz  "
             f"phi={phi_fit:.2f} rad   "
-            f"[W]=redo  [Q]=done")
+            f"[A]=accept  [W]=redo  [Q]=done (auto-accepts if pending)")
         print(f"  Wave-fit candidate: T={T_s/60:.1f} min, A={abs(A_fit):.3f} Hz, "
               f"phi={phi_fit:.3f} rad — press A to accept, W to redo")
         # Draw wave-fit overlay on spectrogram
@@ -1264,18 +1269,29 @@ class SpectClickApp(QtWidgets.QMainWindow):
         except Exception:
             pass
 
+    def _wave_fit_finalize(self, auto=False):
+        """Copy the pending candidate CSV to its real <station>_wave_tid.csv
+        path. Shared by explicit accept (A key) and the closeEvent
+        safety net (auto=True, when the window closes with a candidate
+        still pending)."""
+        if not getattr(self, "_wave_done", False) or not self._wave_candidate:
+            return None
+        candidate = self._wave_candidate
+        final = self._wave_final_path
+        import shutil as _shutil_wf
+        _shutil_wf.copyfile(candidate, final)
+        self._wave_candidate = None
+        tag = "auto-accepted on close" if auto else "Accepted"
+        self._set_status(f"[{self.name}] WAVE-FIT {tag} → {final.name}")
+        print(f"  {tag}: {final}")
+        return final
+
     def _wave_fit_accept(self):
         """A key: accept the current wave-fit candidate as final output."""
-        if not getattr(self, "_wave_done", False) or not self._wave_candidate:
+        final = self._wave_fit_finalize(auto=False)
+        if final is None:
             self._set_status(
                 f"[{self.name}] No wave-fit candidate to accept — run W+F first")
-            return
-        final = self._wave_candidate
-        self._wave_candidate = None
-        self._set_status(
-            f"[{self.name}] WAVE-FIT accepted → {final.name}  "
-            f"[W]=redo  [Q]=quit")
-        print(f"  Accepted: {final}")
 
     # ------------------------------------------------------------------
     # Shortcuts
@@ -1355,6 +1371,17 @@ class SpectClickApp(QtWidgets.QMainWindow):
         print(f"  [event JSON] updated {ej_path.name}: "
               f"{self.name} file={file_val!r} method={method!r}")
 
+
+    def closeEvent(self, event):
+        """Safety net: if a wave-fit candidate is still pending
+        (F was pressed but A never was) when the window closes -- by
+        any means, not just the Q shortcut -- auto-accept it rather
+        than silently losing it. Explicitly pressing A first still
+        works exactly as before; this only fires for whatever's left
+        unaccepted at close time."""
+        if getattr(self, "_wave_only", False) and getattr(self, "_wave_candidate", None):
+            self._wave_fit_finalize(auto=True)
+        super().closeEvent(event)
 
     def _install_shortcuts(self):
         keys = [("X", self._export_spline_csv),
