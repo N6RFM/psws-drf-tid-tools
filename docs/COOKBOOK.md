@@ -58,6 +58,45 @@ Once you have a shortlist of station nicknames from
 organized as `<station>/ch0/...` (the layout `drf_inspect.py`,
 `drf_to_doppler.py`, and `tid_workflow.py` all expect).
 
+### Why does this step use a different PSWS access method than station discovery?
+
+`find_event_stations.py` and `download_companions.py` talk to PSWS in
+two different ways, and that's intentional rather than an
+inconsistency worth "fixing":
+
+- **`find_event_stations.py` scrapes the HTML observation-list and
+  station-directory pages** (`requests` + `BeautifulSoup`), because
+  its job is *discovery* — scanning potentially dozens of stations
+  across many pages of history to figure out which ones have relevant
+  data and how good their geometry is. The HTML table rows expose the
+  metadata this needs for free: filename (for DRF-vs-CSV
+  classification), the raw center-frequency text (for the
+  "contains"-match workaround), and instrument-name strings.
+- **`download_companions.py` calls the documented `downloadapi`
+  endpoint** (`station_id` + date range → zip), because by this point
+  you already know exactly which stations and which date you want —
+  there's nothing left to discover, just data to fetch.
+
+Using `downloadapi` for discovery too would mean downloading a full
+zip (often ~3 GB for multi-subchannel rx888/WSPRDaemon stations) for
+every candidate just to check whether it's worth recommending — a bad
+trade against scraping a metadata-only HTML row, and one that would
+burn through the shared 100-requests/day rate limit before
+`download_companions.py` even gets to the stations you actually
+selected. `downloadapi` also doesn't expose the raw metadata fields
+(filename pattern, center-frequency text, instrument name) that
+`find_event_stations.py`'s classification and scoring logic depends
+on — you'd only get those by opening the downloaded file.
+
+One consequence: the two scripts use different PSWS ID namespaces.
+`find_event_stations.py` resolves nicknames via the numeric
+observation-form dropdown value (e.g. `95`), cached in
+`.psws_station_cache.json`. `download_companions.py` needs the
+separate public `S000095`-style ID `downloadapi` expects, cached
+separately in `.psws_station_id_cache.json`. They're not
+interchangeable — this is why `download_companions.py` maintains its
+own cache rather than reusing `find_event_stations.py`'s.
+
 ### How do I download companion stations automatically?
 
 ```bash
