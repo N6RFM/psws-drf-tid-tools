@@ -1465,3 +1465,176 @@ branch since the script was first drafted.
    assumptions beyond plain `<station>/ch0/...` — worth doing before
    relying on it for the next event analysis on this branch
 
+---
+## 78. First real end-to-end tid_workflow.py run — 4 bugs found and
+    fixed, 2026-06-25 event DOA result — 2026-07-01
+
+Ran `download_companions.py` + `tid_workflow.py` end-to-end on a real
+event for the first time (closing open item 6 of §77), on
+`n6rfm_5,aa6bd,w7lux,ac0g_nd,wa9tkk` for 2026-06-25. This surfaced four
+real bugs, none cosmetic — each one changed which data ended up
+feeding the DOA solve.
+
+### Bugs found and fixed
+
+1. **`tid_workflow.py`: `--resume` with stale state silently ignores
+   `--stations`/`--my-station`.** If `tid_workflow_state.json` already
+   exists (e.g. from an earlier run with a wrong station list) and
+   `--resume` is passed, the station list is loaded straight from the
+   cached state — the CLI flags are never even read for that branch.
+   Reproduced with a sandbox test harness driving the real
+   `run_workflow()` function under a fake `digital_rf` stub: confirmed
+   a corrected `--stations`/`--my-station` pair is completely ignored
+   when stale state is present, with no warning printed. Fix: none
+   applied to the logic itself (working as coded, just a footgun) —
+   documented the correct recovery (delete `tid_workflow_state.json`
+   before changing `--stations`).
+
+2. **`tid_workflow.py`: keystone station's own full-day view wasn't
+   shown before window selection.** Step 1 (subchannel confirmation)
+   ran for *every* station before Step 2 (full-day spectrogram) or
+   Step 3 (window selection) ran for *any* station — so even with
+   `--my-station` correctly sorting the keystone first for subchannel
+   confirmation, its actual TID-window-picking GUI didn't open until
+   every other station's subchannel had also been confirmed. Fixed by
+   pulling the `--my-station` keystone out into a self-contained
+   fast-path that runs subchannel confirm → full-day spectrogram →
+   window selection (with the "apply to remaining" propagation offer)
+   completely before any other station is touched. Verified via sandbox
+   test comparing print-order across both branches; Steps 4-9 left
+   untouched (same state keys/file paths), so `--resume` compatibility
+   preserved.
+
+3. **`tid_workflow.py`: subchannel thumbnails silently duplicated
+   Step 2's work for single-subchannel stations.** After widening the
+   thumbnail window from a hardcoded 17:00-21:00 slice to the full day
+   (to fix confusion about which "window" was real), single-subchannel
+   stations were rendering the *exact same* full-day spectrogram twice
+   — once as a low-dpi "thumbnail" nobody needed (only one subchannel
+   exists, nothing to compare), once for real in Step 2. Also found
+   the thumbnail subprocess call used `capture_output=True`, silently
+   swallowing `drf_spectrogram.py`'s progress dots for the whole
+   (now full-day-length) render, which looked exactly like a hang.
+   Fixed both: skip thumbnail generation entirely when a station has
+   only one subchannel; stopped suppressing subprocess output so
+   progress dots stream live for stations that do need thumbnails
+   (multi-subchannel, e.g. AC0G_ND's 9).
+
+4. **`tid_spect_click.py`: wave-fit's "accept" (`A` key) never
+   actually gated anything.** `F` (compute fit) wrote directly to the
+   *final* `<station>_wave_tid.csv` path; `A` just printed "Accepted:"
+   and cleared an internal reference — it never wrote, renamed, or
+   moved a file. So pressing `F` alone was already enough for
+   `tid_workflow.py`'s `if wave_csv.exists()` check to treat the
+   station as done, whether or not the fit was ever reviewed or
+   accepted. Confirmed via a real-code test (stubbed PyQt5/pyqtgraph,
+   called the actual bound methods directly, no reproduction): `F`
+   alone produced the final file; `A` was a no-op on disk. Fixed with
+   a candidate/final split — `F` now writes to
+   `<station>_wave_tid_candidate.csv`; `A` copies it to the real path;
+   a new `closeEvent()` override auto-finalizes any pending candidate
+   when the window closes by any means (not just `Q`), so a forgotten
+   accept no longer silently discards work but also no longer silently
+   commits an unreviewed one. Status text also fixed to mention `[A]`
+   (previously only ever showed `[W]=redo [Q]=done`, so a user
+   watching just the GUI window had no way to know `A` did anything —
+   only the terminal print mentioned it).
+
+5. **`tid_workflow.py` Step 8: `cwt-prophet` file lookup only ever
+   checked for the `X`-key export (`_spline_tid.csv`), never the
+   `E`-key export (`_prophet_tid.csv`)** — even though `E` (accept
+   auto-trace) is the documented, recommended action when the trace
+   looks good. A station extracted via `E` would be silently invisible
+   to DOA (or worse, silently fall back to a stale file from a
+   different method that happened to still exist on disk). Fixed:
+   Step 8 now checks for `_prophet_tid.csv` first, falling back to
+   `_spline_tid.csv`, matching the same preference Step 6's own
+   interactive loop already used internally.
+
+None of these fixes are committed to any branch yet — `download_companions.py`
+went through the full PR/cherry-pick process across `main`/`research_gui`/
+`gwyn-g3zil` earlier; these four fixes have only been applied locally
+so far on this machine.
+
+### AA6BD data-quality finding
+
+`AA6BD`'s wave-fit CSV had been silently accepted via bug 4 above (no
+`Accepted:` line ever printed for it, unlike every other station).
+Re-extracted five separate times across two different methods while
+chasing this:
+
+| Attempt | Method | corr w/ AC0G_ND | corr w/ other |
+|---|---|---|---|
+| 1 (unaccepted, bug) | wave-fit | — | 0.194 (N6RFM_5) |
+| 2 (accepted, T=51.7min) | wave-fit | 0.692 | 0.930 (N6RFM_5) |
+| 3 (accepted, T=40.8min) | wave-fit | 0.358 | 0.187 (N6RFM_5) |
+| 4 (careless export) | cwt-prophet | 0.412 | 0.410 (WA9TKK) |
+| 5 (careful, reviewed auto-trace) | cwt-prophet | 0.326 | 0.323 (WA9TKK) |
+
+Wave-fit's T (period) swung 70.8 → 51.7 → 40.8 min across attempts on
+the *same underlying data* — wave-fit reconstructs an idealized
+`A·sin(2π/T·t+φ)` from a handful of clicks, extrapolated across the
+full ~3-hour window, so period ambiguity from sparse/inconsistent
+clicking directly explains the swinging correlations in attempts 1-3.
+Attempt 5 is the important one: cwt-prophet's Pass 0 is algorithmic,
+not click-dependent, and a genuinely-reviewed accept still only
+correlates at 0.32-0.33. Conclusion: this is very likely a real
+AC0G_ND↔WA9TKK-vs-AA6BD signal-quality difference for this specific
+window, not an extraction-technique problem. AA6BD dropped from the
+final analysis on this basis, not just diagnostic-flag-chasing.
+
+Contrast: `AC0G_ND↔WA9TKK` correlation was 0.987-0.989 in every single
+attempt regardless of what happened to AA6BD or the extraction method
+used elsewhere — strong evidence those two stations' data is clean.
+
+### Result: 2026-06-25 event
+
+| Metric | Value |
+|--------|-------|
+| Phase speed | 416 m/s |
+| Coming from | 302° (WNW) |
+| Heading toward | 122° (ESE) |
+| Classification | LSTID |
+| Stations | N6RFM_5, AC0G_ND, WA9TKK (AA6BD dropped: data quality, see above; W7LUX dropped: consistently weak 0.06-0.17 corr in every combination tested) |
+| Window | 2026-06-25 04:09-07:13 UTC |
+| Flags | 0/5 |
+| Command | `python3 tid_doa.py tid_workflow_event.json --max-lag 30 --drop W7LUX` |
+
+Reproducibility check: this exact result (415.8 m/s, 302.4°, to the
+decimal) came back identically whether W7LUX was included in the
+config and then dropped via `--drop`, or never added at all —
+confirmed by running both ways.
+
+### Artifacts
+- Event directory: `~/Downloads/tid_event_20260625/` (station data,
+  spectrograms, wave-fit CSVs, run logs)
+- `tid_workflow_event.json` in that directory reflects the final
+  3-station config (AA6BD removed, W7LUX never re-added after the
+  `--drop` comparison)
+- `ke9sa_grape_drf_s48` was downloaded but never used in this event —
+  a separate, still-unresolved hang in its subchannel-thumbnail
+  generation (`drf_spectrogram.py` subprocess) blocked it early on and
+  was never revisited
+
+### Open items
+1. Commit the four `tid_workflow.py`/`tid_spect_click.py` fixes above
+   to `research_gui` (and `main`/`gwyn-g3zil` if they should carry
+   them too) — same PR/cherry-pick process used for
+   `download_companions.py`
+2. `ke9sa_grape_drf_s48`'s `drf_spectrogram.py` hang during subchannel
+   thumbnail generation — never diagnosed, station excluded from this
+   event entirely as a workaround
+3. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+4. June 6 2026 event: best DOA result 533 m/s @ 137° (JJMP, KV0S_MO,
+   AC0G_ND, N6RFM_5, 1 flag, 41% RMS residual -- now understood as
+   NOT a second wave, see §76); Madrigal TEC verification pending
+   data availability (check late June/early July)
+5. Investigate June 6 per-station period spread (62.8-70.4 min) as
+   the likely residual cause, rather than re-testing for a second
+   wave further
+6. Fix stale "239 m/s from 30° NNE" comment in
+   examples/event_20260119.json (-> 304 m/s / 10°)
+7. Consider wiring tid_doa_residual.py into tid_workflow.py as an
+   optional diagnostic step when RMS lag residual is flagged high
+
+
