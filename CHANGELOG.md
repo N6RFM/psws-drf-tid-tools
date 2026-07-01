@@ -1,3 +1,46 @@
+## v2.6.0 — 2026-06-30
+### Added
+- **`download_companions.py`**: new tool that automates downloading
+  companion station DRF data (identified by `find_event_stations.py`)
+  via the PSWS network's documented download API, organizing it into
+  the `<station>/ch0/...` layout the rest of the pipeline expects.
+  Resolves station nicknames to PSWS Station IDs, discards calendar
+  days outside the requested date range that the API sometimes
+  over-returns, and writes `download_manifest.json` for data
+  provenance.
+### Fixed
+- **`tid_workflow.py`**: `--my-station` now completes subchannel
+  confirmation, full-day spectrogram, *and* window selection for the
+  keystone station before any other station is touched — previously
+  only subchannel-confirmation order was affected, so the keystone's
+  own TID-window GUI didn't open until every other station's
+  subchannel had already been confirmed.
+- **`tid_workflow.py`**: subchannel thumbnail generation now skipped
+  for single-subchannel stations, since it was silently duplicating
+  Step 2's full-day render; thumbnail window widened to the full day
+  for stations that do have multiple subchannels, and progress output
+  is no longer suppressed during generation.
+- **`tid_workflow.py`**: Step 8 DOA file-discovery for the
+  `cwt-prophet` method now checks for the `E`-key export
+  (`_prophet_tid.csv`) before falling back to the `X`-key export
+  (`_spline_tid.csv`) — previously only the latter was checked,
+  silently excluding any station extracted via `E` (accept auto-trace,
+  the documented recommended action).
+- **`tid_spect_click.py`**: wave-fit's `A` (accept) key now actually
+  gates whether a fit becomes the final `<station>_wave_tid.csv` —
+  previously `F` (compute fit) wrote directly to the final path and
+  `A` had no effect on disk, so an unreviewed fit could silently reach
+  downstream DOA analysis. Closing the window now auto-accepts any
+  still-pending candidate as a safety net rather than discarding it.
+### Documentation
+- **`README.md`**, **`MANUAL_TUTORIAL.md`**, **`WORKFLOW_TUTORIAL.md`**,
+  **`docs/COOKBOOK.md`**: documented `download_companions.py` as the
+  recommended automated companion-station download path, alongside
+  the existing manual PSWS web-UI steps.
+- **`.gitignore`**: added `download_companions.py`'s generated files
+  (`.psws_station_id_cache.json`, `download_manifest.json`,
+  `.downloads/`).
+---
 ## v2.5.0 — 2026-06-11
 
 ### Added
