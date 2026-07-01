@@ -1617,10 +1617,9 @@ confirmed by running both ways.
   was never revisited
 
 ### Open items
-1. Commit the four `tid_workflow.py`/`tid_spect_click.py` fixes above
+1. ~~Commit the four `tid_workflow.py`/`tid_spect_click.py` fixes above
    to `research_gui` (and `main`/`gwyn-g3zil` if they should carry
-   them too) — same PR/cherry-pick process used for
-   `download_companions.py`
+   them too)~~ — DONE, see §79 (PR #278/#279/#280, all three branches)
 2. `ke9sa_grape_drf_s48`'s `drf_spectrogram.py` hang during subchannel
    thumbnail generation — never diagnosed, station excluded from this
    event entirely as a workaround
@@ -1636,5 +1635,55 @@ confirmed by running both ways.
    examples/event_20260119.json (-> 304 m/s / 10°)
 7. Consider wiring tid_doa_residual.py into tid_workflow.py as an
    optional diagnostic step when RMS lag residual is flagged high
+
+---
+## 79. v2.6.0 released — 2026-06-30
+
+Shipped `main` as v2.6.0, tag on commit `92d42df`
+(`https://github.com/N6RFM/psws-drf-tid-tools/releases/tag/v2.6.0`).
+Contents: `download_companions.py` (new tool, §77) and the four
+`tid_workflow.py`/`tid_spect_click.py` bug fixes (§78), plus earlier
+Madrigal wrapper work (PRs #269-273, `run_madrigal_tools.py` +
+EXTERNAL_EVALUATION.md restructuring, not otherwise logged in this
+file) that had already merged to `main` since v2.5.0.
+
+Two mistakes made and corrected while cutting this release, worth a
+note in case the pattern recurs:
+
+1. The bug-fix cherry-pick to `main` (§78) was rejected by a
+   repository rule blocking direct pushes to `main` — same rule
+   already known from `download_companions.py` (§77) — required
+   routing through a branch + PR (#279) instead of a direct push,
+   even though the content was just a cherry-picked commit.
+2. The release-notes commit (`CHANGELOG.md` + `README.md` version
+   bump) was first branched from `gwyn-g3zil` by mistake (working
+   directory was still on that branch from the prior step) rather
+   than `main`. This was caught by checking `git log <branch> -3`
+   *before* merging -- the mis-based branch's log showed
+   `gwyn-g3zil` ancestry, not `main`'s -- and by noticing the
+   `v2.6.0` tag, once pushed, pointed at a commit lacking the
+   changelog entry it was supposed to represent. Fixed by deleting
+   the tag, cherry-picking just the release commit onto a fresh
+   `main`-based branch, re-merging (PR #280), and re-tagging only
+   after confirming `git log main -1` showed the correct commit at
+   the tip. General lesson: verify a tag's target commit actually
+   contains what it's supposed to before pushing it, not just that
+   the PR merged without visible error.
+
+Release notes led with a short human summary rather than a raw PR
+list, and explicitly disclosed the Madrigal wrapper work as
+undescribed (author has no record of what `run_madrigal_tools.py`
+does beyond its PR titles) rather than silently omitting it or
+guessing at a description.
+
+### Open items
+1. `release-v2.6.0` (abandoned, wrong base) and
+   `cherry-pick-tid-workflow-fixes`/`release-v2.6.0-fix` (merged)
+   branches need deleting, locally and on origin
+2. `run_madrigal_tools.py` (PRs #269-273) has never been logged in
+   this file with an actual description of what it does -- worth a
+   proper entry if/when revisited, rather than the placeholder
+   acknowledgment in the v2.6.0 release notes
+
 
 
