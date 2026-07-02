@@ -1687,3 +1687,47 @@ guessing at a description.
 
 
 
+
+---
+## 77. Four improvements — 2026-07-02
+
+### Changes
+- examples/event_20260119.json: fixed stale "_comment" field
+  (239 m/s -> 304 m/s / 10 deg NNE, per §47/§75)
+- tid_workflow.py: max_lag_seconds now always saved in
+  tid_workflow_event.json (auto-computed when --max-lag not given),
+  fixing reproducibility gap where re-running from JSON used a
+  different lag window than the interactive session
+- tid_doa.py: added [6] Extraction period spread diagnostic to
+  format_diagnostics() — reads fitted period_s from station CSVs
+  (wave-fit exports this), reports spread across stations, flags
+  if spread > 15% as a likely cause of elevated RMS lag residual
+- docs/ASSESSING_RESULTS.md §4.2: added reference to
+  tid_doa_residual.py as a diagnostic tool for high RMS residuals
+
+### Open items
+1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+2. June 6 2026 event: best DOA result 533 m/s @ 137°; Madrigal TEC
+   verification pending (check late July)
+3. Consider wiring tid_doa_residual.py into tid_workflow.py as an
+   optional automatic step when flag [2] fires
+
+---
+## 77. Four improvements -- 2026-07-02
+
+### Changes
+- examples/event_20260119.json: fixed stale comment field
+  (239 m/s -> 304 m/s / 10 deg NNE, per SS47/SS75)
+- tid_workflow.py: max_lag_seconds now always saved in
+  tid_workflow_event.json (auto-computed when --max-lag not given),
+  fixing reproducibility gap
+- tid_doa.py: added [6] Extraction period spread diagnostic to
+  format_diagnostics() -- reads fitted period_s from station CSVs,
+  flags spread > 15% as likely cause of elevated RMS lag residual
+- docs/ASSESSING_RESULTS.md SS4.2: added reference to
+  tid_doa_residual.py for high RMS residuals
+
+### Open items
+1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+2. June 6 2026 event: 533 m/s @ 137 deg; Madrigal TEC pending (July)
+3. Consider wiring tid_doa_residual.py into tid_workflow.py
