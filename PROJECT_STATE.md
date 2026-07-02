@@ -1232,10 +1232,153 @@ problem, and not something a different dataset choice fixes, since
    data availability (check again late June/early July)
 4. Period-resolved multi-station DOA (TIDDBIT-style) — needs a
    different estimation approach suited to 1-2 cycle windows; see
-   §74 for what was tried and possible directions
+   §70 for what was tried and possible directions
 
 ---
-## 75. download_companions.py — automated companion-station download — 2026-06-30
+## 75. Jan 2026 reference value correction + residual-subtraction validation — 2026-06-12 (2026-06-20 session)
+
+### Correction
+§74 (and earlier chat-session notes) cited "239 m/s @ 30°" as the
+Jan 2026 reference DOA result. This is WRONG — per §46/§47, 239 m/s
+was found non-reproducible from exported CSVs as far back as
+2026-05-31. The canonical, reproducible result is:
+
+  **304.3 m/s, wave from 10.3° (true bearing), MSTID**
+  3 stations: N6RFM, AA6BD, W7LUX (cwt-prophet extraction,
+  AC0G_ND dropped — SNR fades after ~01:18 UTC)
+  All 5 diagnostics pass. Config: examples/event_20260119.json
+  (station list filtered to drop AC0G_ND).
+
+  Re-verified today: `python3 tid_doa.py` on this 3-station config
+  reproduces 304.3 m/s @ 10.3° exactly.
+
+Note: examples/event_20260119.json's "_comment" field still says
+"239 m/s from 30° NNE" — this is stale and should be corrected to
+304 m/s / 10° in a follow-up doc fix.
+
+### Residual-subtraction method — validated negative control
+Built a second POC (tid_doa_residual.py, separate from the §74
+period-resolution attempts) implementing the matching-pursuit /
+iterative-subtraction approach suggested as a follow-up direction in
+§74: fit a single sinusoid per station via nonlinear least squares,
+subtract it, re-run the same broadband cross-correlation DOA on the
+residual. If a coherent second wave exists, the residual DOA should
+show reasonable correlation (>0.4) and a physically plausible speed;
+if not, low correlation / unphysical speed is expected.
+
+Run against the CORRECT canonical 3-station Jan 2026 dataset
+(N6RFM, AA6BD, W7LUX, cwt-prophet, AC0G_ND dropped):
+  - Step 1 (raw, top-peak-only): 298.6 m/s @ 10.1° — matches the
+    canonical 304.3 m/s @ 10.3° to ~2% (small difference expected:
+    this POC uses top-correlation-peak only, not solve_doa's full
+    triangle-closure peak selection)
+  - Step 4 (residual after single-wave subtraction): 555.4 m/s @
+    333.8°, mean|corr|=0.191 (well below 0.4), RMS lag residual
+    100% of mean — NO coherent second wave found
+
+RESULT: clean negative control. The method correctly finds nothing
+in a known single-wave event (Jan 2026 passes all 5 tid_doa.py
+diagnostics, RMS residual only 0.4-2.8% depending on extraction
+method) rather than manufacturing a spurious second wave. This
+validates the method is safe to try on the June 6 2026 event, which
+DID show a high (41%) plane-wave RMS residual and is a natural
+candidate for "is this actually two superimposed waves."
+
+### Artifacts
+- tid_doa_residual.py — not yet committed to repo (exploratory POC,
+  untracked in working tree). Validated against Jan 2026 control.
+  Next step: run unmodified against June 6 2026 event
+  (JJMP/KV0S_MO/AC0G_ND/N6RFM_5, 533 m/s @ 137°, 41% RMS residual)
+  to test for a real second wave.
+- tid_doa_spectral.py — superseded by tid_doa_residual.py; kept only
+  for the negative-result documentation in §74. Not committed.
+
+### Open items
+1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+2. June 6 2026 event: best DOA result 533 m/s @ 137° (JJMP, KV0S_MO,
+   AC0G_ND, N6RFM_5, 1 flag, 41% RMS residual); Madrigal TEC
+   verification pending data availability (check late June/early July)
+3. Run validated tid_doa_residual.py against June 6 2026 event to
+   test whether the 41% RMS residual reflects a real second wave
+4. Fix stale "239 m/s from 30° NNE" comment in
+   examples/event_20260119.json (-> 304 m/s / 10°)
+
+---
+## 76. tid_doa_residual.py: residual-magnitude guard + first real finding — 2026-06-12 (2026-06-20 session)
+
+### Changes
+- Added a residual-magnitude guard to tid_doa_residual.py: computes
+  residual RMS as a fraction of raw signal RMS per station after the
+  single-wave subtraction (RESIDUAL_RATIO_MIN = 0.15). If any/all
+  stations fall below this threshold, the residual DOA step is
+  SKIPPED rather than reporting a misleading result.
+- Rationale: first June 6 2026 test run (pre-guard) produced a
+  769 m/s @ 15° "residual DOA" result that on inspection was a pure
+  artifact — the single-wave fit had absorbed 98-99.6% of the signal
+  at every station (visually confirmed: fit and raw traces nearly
+  identical in the plot), so the residual was fit-noise, not a real
+  second wave. The resulting cross-correlation hit max_lag_s edges
+  on 3/6 pairs (classic noise-correlation symptom) and the other 3
+  pairs collapsed to suspiciously perfect zero-lag correlations
+  (0.978-0.981) — correlated numerical noise, not a physical wave.
+
+### Validation (with guard active)
+- Jan 2026 control (canonical 304 m/s @ 10° NNE 3-station event,
+  passes all 5 tid_doa.py diagnostics): residual ratios 0.41-0.61
+  (well above threshold) -> guard correctly LETS this through ->
+  residual DOA still returns low correlation (0.322, below the 0.4
+  interpretation threshold) -> correctly reports NO second wave.
+  Confirms the guard is not over-aggressive; it passes legitimate
+  residuals through to the existing interpretation logic.
+- June 6 2026 event (4 stations: JJMP, KV0S_MO, AC0G_ND, N6RFM_5,
+  41% original RMS lag residual flagged by tid_doa.py): residual
+  ratios 0.4-1.8% (far below threshold) on ALL 4 stations -> guard
+  correctly SKIPS the residual DOA step.
+
+### Finding: June 6 2026 event is NOT explained by a second wave
+The 41% plane-wave RMS residual flagged by tid_doa.py for this event
+is NOT caused by a detectable second coherent wave -- all 4 stations
+are well-described by a single sinusoid (residual after subtraction
+is 0.4-1.8% of signal, i.e. essentially pure single-wave). More
+likely explanations for the residual, given this result:
+  - Per-station single-wave fit periods vary 62.8-70.4 min across
+    the 4 stations (~6% spread) despite nominally observing the
+    same wave -- this alone, via extraction-method noise rather
+    than a second physical wave, could produce a lag pattern that
+    doesn't fit a perfect plane wave.
+  - AC0G_ND data quality / geometry: already flagged in earlier
+    drop-station testing as the weakest-correlation station
+    (worst pairwise corr in multiple combinations); its inclusion
+    breaks the otherwise consistent positive-lag pattern among
+    JJMP/KV0S_MO/N6RFM_5.
+  - Possible non-planar (curved) wavefront across this station
+    geometry rather than a true second wave.
+
+### Artifacts
+- tid_doa_residual.py — committed to research_gui (this commit).
+  Standalone diagnostic tool, NOT yet wired into tid_workflow.py or
+  tid_doa.py. Run manually: edit the CONFIG block (EVENT_JSON,
+  MAX_LAG_S, OUTPUT_DIR) and execute directly.
+- tid_doa_spectral.py — deleted (3 iterations, all superseded; full
+  negative-result writeup already in §74. Re-derive from §74 if ever
+  revisiting the Welch/chunk-consistency angle).
+
+### Open items
+1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+2. June 6 2026 event: best DOA result 533 m/s @ 137° (JJMP, KV0S_MO,
+   AC0G_ND, N6RFM_5, 1 flag, 41% RMS residual -- now understood as
+   NOT a second wave, see §76); Madrigal TEC verification pending
+   data availability (check late June/early July)
+3. Investigate June 6 per-station period spread (62.8-70.4 min) as
+   the likely residual cause, rather than re-testing for a second
+   wave further
+4. Fix stale "239 m/s from 30° NNE" comment in
+   examples/event_20260119.json (-> 304 m/s / 10°)
+5. Consider wiring tid_doa_residual.py into tid_workflow.py as an
+   optional diagnostic step when RMS lag residual is flagged high
+
+---
+## 77. download_companions.py — automated companion-station download — 2026-06-30
 
 Added `download_companions.py`: resolves companion station nicknames
 (from `find_event_stations.py`'s shortlist) to public PSWS Station IDs,
@@ -1293,31 +1436,298 @@ cache-file entry). `.gitignore` updated to exclude the script's
 generated files (`.psws_station_id_cache.json`, `download_manifest.json`,
 `.downloads/`).
 
-Landed on `main` via PR #274 (`8825856`), cherry-picked clean to
-`research_gui` (`06261e4`) and `gwyn-g3zil` (`859719d`); `.gitignore`
-follow-up landed on `main` (`39197a1`) and propagated the same way.
-Script verified byte-identical across all three branches post-merge.
+Landed on `main` via PR #274 (`8825856`); `.gitignore` follow-up also
+on `main` (`39197a1`); both propagated to `gwyn-g3zil`. Initial attempt
+to land the matching `§70` duplicate/renumbering fix on `research_gui`
+(see §74's history) hit a branch-mixup during cherry-picking and was
+aborted cleanly without effect — `research_gui`'s own independent fix
+for that duplicate (already reflected in this file's current §70-§76
+numbering) and this `download_companions.py` entry were applied
+directly to this file instead, to avoid clobbering work done on this
+branch since the script was first drafted.
 
 ### Open items
-1. May 2024 Gwyn event analysis
-2. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
-3. June 6 2026 event: best DOA result 533 m/s @ 137° (JJMP, KV0S_MO,
-   AC0G_ND, N6RFM_5, 1 flag); Madrigal TEC verification pending
-   data availability (check again late June/early July)
-4. Period-resolved multi-station DOA (TIDDBIT-style) — needs a
-   different estimation approach suited to 1-2 cycle windows; see
-   §74 for what was tried and possible directions
-5. `download_companions.py` has not yet been run end-to-end through
+1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+2. June 6 2026 event: best DOA result 533 m/s @ 137° (JJMP, KV0S_MO,
+   AC0G_ND, N6RFM_5, 1 flag, 41% RMS residual -- now understood as
+   NOT a second wave, see §76); Madrigal TEC verification pending
+   data availability (check late June/early July)
+3. Investigate June 6 per-station period spread (62.8-70.4 min) as
+   the likely residual cause, rather than re-testing for a second
+   wave further
+4. Fix stale "239 m/s from 30° NNE" comment in
+   examples/event_20260119.json (-> 304 m/s / 10°)
+5. Consider wiring tid_doa_residual.py into tid_workflow.py as an
+   optional diagnostic step when RMS lag residual is flagged high
+6. `download_companions.py` has not yet been run end-to-end through
    `research_gui`'s GUI tooling (`tid_workflow.py` / `tid_spect_click.py`)
    on a real event to confirm no additional directory-layout
    assumptions beyond plain `<station>/ch0/...` — worth doing before
    relying on it for the next event analysis on this branch
-6. Pre-existing duplicate entry (originally both copies mislabeled
-   §70, now correctly renumbered §74) found and resolved same day:
-   the earlier copy concluded longer continuous DRF capture might be
-   needed; the second, kept copy revises that to "not something a
-   different dataset choice fixes," since 2-3 hour single-passage
-   events are the intended use case. Superseded first copy removed,
-   surviving copy renumbered from its collision with §70 (the
-   unrelated "Combined Madrigal wrapper" entry).
 
+---
+## 78. First real end-to-end tid_workflow.py run — 4 bugs found and
+    fixed, 2026-06-25 event DOA result — 2026-07-01
+
+Ran `download_companions.py` + `tid_workflow.py` end-to-end on a real
+event for the first time (closing open item 6 of §77), on
+`n6rfm_5,aa6bd,w7lux,ac0g_nd,wa9tkk` for 2026-06-25. This surfaced four
+real bugs, none cosmetic — each one changed which data ended up
+feeding the DOA solve.
+
+### Bugs found and fixed
+
+1. **`tid_workflow.py`: `--resume` with stale state silently ignores
+   `--stations`/`--my-station`.** If `tid_workflow_state.json` already
+   exists (e.g. from an earlier run with a wrong station list) and
+   `--resume` is passed, the station list is loaded straight from the
+   cached state — the CLI flags are never even read for that branch.
+   Reproduced with a sandbox test harness driving the real
+   `run_workflow()` function under a fake `digital_rf` stub: confirmed
+   a corrected `--stations`/`--my-station` pair is completely ignored
+   when stale state is present, with no warning printed. Fix: none
+   applied to the logic itself (working as coded, just a footgun) —
+   documented the correct recovery (delete `tid_workflow_state.json`
+   before changing `--stations`).
+
+2. **`tid_workflow.py`: keystone station's own full-day view wasn't
+   shown before window selection.** Step 1 (subchannel confirmation)
+   ran for *every* station before Step 2 (full-day spectrogram) or
+   Step 3 (window selection) ran for *any* station — so even with
+   `--my-station` correctly sorting the keystone first for subchannel
+   confirmation, its actual TID-window-picking GUI didn't open until
+   every other station's subchannel had also been confirmed. Fixed by
+   pulling the `--my-station` keystone out into a self-contained
+   fast-path that runs subchannel confirm → full-day spectrogram →
+   window selection (with the "apply to remaining" propagation offer)
+   completely before any other station is touched. Verified via sandbox
+   test comparing print-order across both branches; Steps 4-9 left
+   untouched (same state keys/file paths), so `--resume` compatibility
+   preserved.
+
+3. **`tid_workflow.py`: subchannel thumbnails silently duplicated
+   Step 2's work for single-subchannel stations.** After widening the
+   thumbnail window from a hardcoded 17:00-21:00 slice to the full day
+   (to fix confusion about which "window" was real), single-subchannel
+   stations were rendering the *exact same* full-day spectrogram twice
+   — once as a low-dpi "thumbnail" nobody needed (only one subchannel
+   exists, nothing to compare), once for real in Step 2. Also found
+   the thumbnail subprocess call used `capture_output=True`, silently
+   swallowing `drf_spectrogram.py`'s progress dots for the whole
+   (now full-day-length) render, which looked exactly like a hang.
+   Fixed both: skip thumbnail generation entirely when a station has
+   only one subchannel; stopped suppressing subprocess output so
+   progress dots stream live for stations that do need thumbnails
+   (multi-subchannel, e.g. AC0G_ND's 9).
+
+4. **`tid_spect_click.py`: wave-fit's "accept" (`A` key) never
+   actually gated anything.** `F` (compute fit) wrote directly to the
+   *final* `<station>_wave_tid.csv` path; `A` just printed "Accepted:"
+   and cleared an internal reference — it never wrote, renamed, or
+   moved a file. So pressing `F` alone was already enough for
+   `tid_workflow.py`'s `if wave_csv.exists()` check to treat the
+   station as done, whether or not the fit was ever reviewed or
+   accepted. Confirmed via a real-code test (stubbed PyQt5/pyqtgraph,
+   called the actual bound methods directly, no reproduction): `F`
+   alone produced the final file; `A` was a no-op on disk. Fixed with
+   a candidate/final split — `F` now writes to
+   `<station>_wave_tid_candidate.csv`; `A` copies it to the real path;
+   a new `closeEvent()` override auto-finalizes any pending candidate
+   when the window closes by any means (not just `Q`), so a forgotten
+   accept no longer silently discards work but also no longer silently
+   commits an unreviewed one. Status text also fixed to mention `[A]`
+   (previously only ever showed `[W]=redo [Q]=done`, so a user
+   watching just the GUI window had no way to know `A` did anything —
+   only the terminal print mentioned it).
+
+5. **`tid_workflow.py` Step 8: `cwt-prophet` file lookup only ever
+   checked for the `X`-key export (`_spline_tid.csv`), never the
+   `E`-key export (`_prophet_tid.csv`)** — even though `E` (accept
+   auto-trace) is the documented, recommended action when the trace
+   looks good. A station extracted via `E` would be silently invisible
+   to DOA (or worse, silently fall back to a stale file from a
+   different method that happened to still exist on disk). Fixed:
+   Step 8 now checks for `_prophet_tid.csv` first, falling back to
+   `_spline_tid.csv`, matching the same preference Step 6's own
+   interactive loop already used internally.
+
+None of these fixes are committed to any branch yet — `download_companions.py`
+went through the full PR/cherry-pick process across `main`/`research_gui`/
+`gwyn-g3zil` earlier; these four fixes have only been applied locally
+so far on this machine.
+
+### AA6BD data-quality finding
+
+`AA6BD`'s wave-fit CSV had been silently accepted via bug 4 above (no
+`Accepted:` line ever printed for it, unlike every other station).
+Re-extracted five separate times across two different methods while
+chasing this:
+
+| Attempt | Method | corr w/ AC0G_ND | corr w/ other |
+|---|---|---|---|
+| 1 (unaccepted, bug) | wave-fit | — | 0.194 (N6RFM_5) |
+| 2 (accepted, T=51.7min) | wave-fit | 0.692 | 0.930 (N6RFM_5) |
+| 3 (accepted, T=40.8min) | wave-fit | 0.358 | 0.187 (N6RFM_5) |
+| 4 (careless export) | cwt-prophet | 0.412 | 0.410 (WA9TKK) |
+| 5 (careful, reviewed auto-trace) | cwt-prophet | 0.326 | 0.323 (WA9TKK) |
+
+Wave-fit's T (period) swung 70.8 → 51.7 → 40.8 min across attempts on
+the *same underlying data* — wave-fit reconstructs an idealized
+`A·sin(2π/T·t+φ)` from a handful of clicks, extrapolated across the
+full ~3-hour window, so period ambiguity from sparse/inconsistent
+clicking directly explains the swinging correlations in attempts 1-3.
+Attempt 5 is the important one: cwt-prophet's Pass 0 is algorithmic,
+not click-dependent, and a genuinely-reviewed accept still only
+correlates at 0.32-0.33. Conclusion: this is very likely a real
+AC0G_ND↔WA9TKK-vs-AA6BD signal-quality difference for this specific
+window, not an extraction-technique problem. AA6BD dropped from the
+final analysis on this basis, not just diagnostic-flag-chasing.
+
+Contrast: `AC0G_ND↔WA9TKK` correlation was 0.987-0.989 in every single
+attempt regardless of what happened to AA6BD or the extraction method
+used elsewhere — strong evidence those two stations' data is clean.
+
+### Result: 2026-06-25 event
+
+| Metric | Value |
+|--------|-------|
+| Phase speed | 416 m/s |
+| Coming from | 302° (WNW) |
+| Heading toward | 122° (ESE) |
+| Classification | LSTID |
+| Stations | N6RFM_5, AC0G_ND, WA9TKK (AA6BD dropped: data quality, see above; W7LUX dropped: consistently weak 0.06-0.17 corr in every combination tested) |
+| Window | 2026-06-25 04:09-07:13 UTC |
+| Flags | 0/5 |
+| Command | `python3 tid_doa.py tid_workflow_event.json --max-lag 30 --drop W7LUX` |
+
+Reproducibility check: this exact result (415.8 m/s, 302.4°, to the
+decimal) came back identically whether W7LUX was included in the
+config and then dropped via `--drop`, or never added at all —
+confirmed by running both ways.
+
+### Artifacts
+- Event directory: `~/Downloads/tid_event_20260625/` (station data,
+  spectrograms, wave-fit CSVs, run logs)
+- `tid_workflow_event.json` in that directory reflects the final
+  3-station config (AA6BD removed, W7LUX never re-added after the
+  `--drop` comparison)
+- `ke9sa_grape_drf_s48` was downloaded but never used in this event —
+  a separate, still-unresolved hang in its subchannel-thumbnail
+  generation (`drf_spectrogram.py` subprocess) blocked it early on and
+  was never revisited
+
+### Open items
+1. ~~Commit the four `tid_workflow.py`/`tid_spect_click.py` fixes above
+   to `research_gui` (and `main`/`gwyn-g3zil` if they should carry
+   them too)~~ — DONE, see §79 (PR #278/#279/#280, all three branches)
+2. `ke9sa_grape_drf_s48`'s `drf_spectrogram.py` hang during subchannel
+   thumbnail generation — never diagnosed, station excluded from this
+   event entirely as a workaround
+3. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+4. June 6 2026 event: best DOA result 533 m/s @ 137° (JJMP, KV0S_MO,
+   AC0G_ND, N6RFM_5, 1 flag, 41% RMS residual -- now understood as
+   NOT a second wave, see §76); Madrigal TEC verification pending
+   data availability (check late June/early July)
+5. Investigate June 6 per-station period spread (62.8-70.4 min) as
+   the likely residual cause, rather than re-testing for a second
+   wave further
+6. Fix stale "239 m/s from 30° NNE" comment in
+   examples/event_20260119.json (-> 304 m/s / 10°)
+7. Consider wiring tid_doa_residual.py into tid_workflow.py as an
+   optional diagnostic step when RMS lag residual is flagged high
+
+---
+## 79. v2.6.0 released — 2026-06-30
+
+Shipped `main` as v2.6.0, tag on commit `92d42df`
+(`https://github.com/N6RFM/psws-drf-tid-tools/releases/tag/v2.6.0`).
+Contents: `download_companions.py` (new tool, §77) and the four
+`tid_workflow.py`/`tid_spect_click.py` bug fixes (§78), plus earlier
+Madrigal wrapper work (PRs #269-273, `run_madrigal_tools.py` +
+EXTERNAL_EVALUATION.md restructuring, not otherwise logged in this
+file) that had already merged to `main` since v2.5.0.
+
+Two mistakes made and corrected while cutting this release, worth a
+note in case the pattern recurs:
+
+1. The bug-fix cherry-pick to `main` (§78) was rejected by a
+   repository rule blocking direct pushes to `main` — same rule
+   already known from `download_companions.py` (§77) — required
+   routing through a branch + PR (#279) instead of a direct push,
+   even though the content was just a cherry-picked commit.
+2. The release-notes commit (`CHANGELOG.md` + `README.md` version
+   bump) was first branched from `gwyn-g3zil` by mistake (working
+   directory was still on that branch from the prior step) rather
+   than `main`. This was caught by checking `git log <branch> -3`
+   *before* merging -- the mis-based branch's log showed
+   `gwyn-g3zil` ancestry, not `main`'s -- and by noticing the
+   `v2.6.0` tag, once pushed, pointed at a commit lacking the
+   changelog entry it was supposed to represent. Fixed by deleting
+   the tag, cherry-picking just the release commit onto a fresh
+   `main`-based branch, re-merging (PR #280), and re-tagging only
+   after confirming `git log main -1` showed the correct commit at
+   the tip. General lesson: verify a tag's target commit actually
+   contains what it's supposed to before pushing it, not just that
+   the PR merged without visible error.
+
+Release notes led with a short human summary rather than a raw PR
+list, and explicitly disclosed the Madrigal wrapper work as
+undescribed (author has no record of what `run_madrigal_tools.py`
+does beyond its PR titles) rather than silently omitting it or
+guessing at a description.
+
+### Open items
+1. `release-v2.6.0` (abandoned, wrong base) and
+   `cherry-pick-tid-workflow-fixes`/`release-v2.6.0-fix` (merged)
+   branches need deleting, locally and on origin
+2. `run_madrigal_tools.py` (PRs #269-273) has never been logged in
+   this file with an actual description of what it does -- worth a
+   proper entry if/when revisited, rather than the placeholder
+   acknowledgment in the v2.6.0 release notes
+
+
+
+
+---
+## 77. Four improvements — 2026-07-02
+
+### Changes
+- examples/event_20260119.json: fixed stale "_comment" field
+  (239 m/s -> 304 m/s / 10 deg NNE, per §47/§75)
+- tid_workflow.py: max_lag_seconds now always saved in
+  tid_workflow_event.json (auto-computed when --max-lag not given),
+  fixing reproducibility gap where re-running from JSON used a
+  different lag window than the interactive session
+- tid_doa.py: added [6] Extraction period spread diagnostic to
+  format_diagnostics() — reads fitted period_s from station CSVs
+  (wave-fit exports this), reports spread across stations, flags
+  if spread > 15% as a likely cause of elevated RMS lag residual
+- docs/ASSESSING_RESULTS.md §4.2: added reference to
+  tid_doa_residual.py as a diagnostic tool for high RMS residuals
+
+### Open items
+1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+2. June 6 2026 event: best DOA result 533 m/s @ 137°; Madrigal TEC
+   verification pending (check late July)
+3. Consider wiring tid_doa_residual.py into tid_workflow.py as an
+   optional automatic step when flag [2] fires
+
+---
+## 77. Four improvements -- 2026-07-02
+
+### Changes
+- examples/event_20260119.json: fixed stale comment field
+  (239 m/s -> 304 m/s / 10 deg NNE, per SS47/SS75)
+- tid_workflow.py: max_lag_seconds now always saved in
+  tid_workflow_event.json (auto-computed when --max-lag not given),
+  fixing reproducibility gap
+- tid_doa.py: added [6] Extraction period spread diagnostic to
+  format_diagnostics() -- reads fitted period_s from station CSVs,
+  flags spread > 15% as likely cause of elevated RMS lag residual
+- docs/ASSESSING_RESULTS.md SS4.2: added reference to
+  tid_doa_residual.py for high RMS residuals
+
+### Open items
+1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+2. June 6 2026 event: 533 m/s @ 137 deg; Madrigal TEC pending (July)
+3. Consider wiring tid_doa_residual.py into tid_workflow.py
