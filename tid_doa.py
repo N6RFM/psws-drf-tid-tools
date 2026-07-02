@@ -1043,7 +1043,26 @@ def run(config):
             _mask = (_freqs > 0) & (1.0/_freqs >= 300) & (1.0/_freqs <= 7200)
             if not _mask.any():
                 continue
-            _peak_freq = _freqs[_mask][np.argmax(_fft[_mask])]
+            _peak_idx = np.argmax(_fft[_mask])
+            _peak_freq = _freqs[_mask][_peak_idx]
+            _peak_power = _fft[_mask][_peak_idx]
+            # Subharmonic guard: if the candidate peak looks like a
+            # harmonic (its period is < half the window length), check
+            # whether the subharmonic (2x the period) has >= 80% of
+            # its power. If so, the fundamental is at the longer period.
+            _window_s = _n * dt_s
+            _candidate_period = 1.0 / _peak_freq
+            if _candidate_period < _window_s / 2.0:
+                _sub_freq = _peak_freq / 2.0
+                _sub_mask = (_freqs > 0) & (1.0/_freqs >= 300) & (1.0/_freqs <= 7200)
+                _sub_freqs = _freqs[_sub_mask]
+                _sub_fft = _fft[_sub_mask]
+                if len(_sub_freqs) > 0:
+                    _nearest_idx = int(np.argmin(np.abs(_sub_freqs - _sub_freq)))
+                    _sub_power = _sub_fft[_nearest_idx]
+                    if _sub_power >= 0.8 * _peak_power:
+                        # Subharmonic is nearly as strong -- prefer it
+                        _peak_freq = _sub_freqs[_nearest_idx]
             _station_periods.append((_s.name, 1.0 / _peak_freq))
         except Exception:
             pass
