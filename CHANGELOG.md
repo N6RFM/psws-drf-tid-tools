@@ -1,3 +1,20 @@
+## v2.6.2 -- 2026-07-02
+
+### Fixed
+- **`tid_doa.py`**: period spread diagnostic [6] now uses FFT of the
+  already-loaded Doppler series (works for all extraction methods:
+  wave-fit, autocorr, cwt, cwt-prophet) instead of reading a
+  non-existent period_s CSV column.
+- **`tid_doa.py`**: added subharmonic guard to FFT period estimation
+  -- when the FFT peak looks like a harmonic (period < half the window
+  length), checks if the subharmonic has >= 80% of its power and if
+  so uses the longer (fundamental) period instead. Fixes spurious
+  spread flags caused by harmonic detection on ~2-cycle windows.
+- **`tid_workflow.py`**: max_lag_seconds auto-computation now uses
+  proper great-circle midpoints (matching tid_doa.py exactly) instead
+  of a simplified lat/lon average.
+
+---
 ## v2.6.1 -- 2026-07-02
 
 ### Fixed
