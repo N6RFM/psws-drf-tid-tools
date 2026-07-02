@@ -1731,3 +1731,22 @@ guessing at a description.
 1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
 2. June 6 2026 event: 533 m/s @ 137 deg; Madrigal TEC pending (July)
 3. Consider wiring tid_doa_residual.py into tid_workflow.py
+
+---
+## 78. v2.6.2 -- period spread and midpoint fixes -- 2026-07-02
+
+### Changes
+- tid_doa.py [6] period spread: now uses FFT of loaded Doppler series
+  (all extraction methods) instead of non-existent period_s CSV column
+- tid_doa.py: subharmonic guard added -- when FFT peak period < half
+  the window length, checks if subharmonic has >= 80% power and if so
+  uses the longer (fundamental) period. Fixes W7LUX 33 min -> 67 min
+  on Jan 2026 event (harmonic detection on ~2-cycle window).
+- tid_workflow.py: max_lag_seconds auto-computation uses proper
+  great-circle midpoints, matching tid_doa.py exactly.
+- v2.6.2 tagged and GitHub release published.
+
+### Open items
+1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+2. June 6 2026 event: 533 m/s @ 137 deg; Madrigal TEC pending (July)
+3. Consider wiring tid_doa_residual.py into tid_workflow.py
