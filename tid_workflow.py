@@ -1251,9 +1251,41 @@ def run_workflow(args):
         "min_expected_speed_m_s": 100,
         "stations": completed,
     }
+    # Always persist max_lag_seconds so re-running from the saved JSON
+    # uses the same lag window as the interactive session. When --max-lag
+    # is not given, the auto-computed value from tid_doa.py is used, but
+    # that value is not yet available here -- so we store the auto-computed
+    # bound: largest_baseline_km * 1000 / min_expected_speed_m_s.
     if args.max_lag is not None:
         event_config["max_lag_seconds"] = args.max_lag * 60
         print(f"  max_lag_seconds: {args.max_lag * 60:.0f} s ({args.max_lag:.0f} min)")
+    else:
+        # Reproduce tid_doa.py's auto-computation so the value is explicit
+        import math as _math
+        def _hav_km(la1, lo1, la2, lo2):
+            R = 6371.0
+            f1, f2 = _math.radians(la1), _math.radians(la2)
+            df = _math.radians(la2 - la1)
+            dl = _math.radians(lo2 - lo1)
+            a = (_math.sin(df/2)**2 +
+                 _math.cos(f1)*_math.cos(f2)*_math.sin(dl/2)**2)
+            return 2 * R * _math.asin(_math.sqrt(a))
+        WWV_LAT, WWV_LON = 40.6776, -105.0405
+        mids = []
+        for _s in completed:
+            _lat, _lon = _s["lat"], _s["lon"]
+            _mlat = (_lat + WWV_LAT) / 2
+            _mlon = (_lon + WWV_LON) / 2
+            mids.append((_mlat, _mlon))
+        max_bl = 0.0
+        for _i in range(len(mids)):
+            for _j in range(_i+1, len(mids)):
+                max_bl = max(max_bl, _hav_km(*mids[_i], *mids[_j]))
+        min_spd = event_config.get("min_expected_speed_m_s", 100.0)
+        auto_lag = max_bl * 1000.0 / min_spd
+        event_config["max_lag_seconds"] = round(auto_lag)
+        print(f"  max_lag_seconds: {auto_lag:.0f} s (auto, "
+              f"largest baseline {max_bl:.0f} km / {min_spd:.0f} m/s)")
     config_path = event_dir / "tid_workflow_event.json"
     with open(config_path, "w") as f:
         json.dump(event_config, f, indent=2)
