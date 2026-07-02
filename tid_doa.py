@@ -774,6 +774,43 @@ def format_diagnostics(result):
         L.append("     This result merits scrutiny before use; see the")
         L.append("     flagged items above.")
     L.append("")
+    # [6] Per-station extraction period spread (informational, not flagged)
+    # Reads fitted period from the station CSV's 'period_s' column if
+    # present (wave-fit exports it). If periods diverge across stations
+    # while the single-wave model fits well internally, this is a sign
+    # that extraction noise — not a second wave — is the likely cause
+    # of any elevated RMS lag residual.
+    station_periods = []
+    for p_cfg in result.get("_station_cfgs", []):
+        try:
+            import pandas as _pd
+            df = _pd.read_csv(p_cfg["file"])
+            cols = [c.lower() for c in df.columns]
+            df.columns = cols
+            if "period_s" in cols:
+                period_s = float(df["period_s"].dropna().median())
+                station_periods.append((p_cfg["name"], period_s))
+        except Exception:
+            pass
+    if len(station_periods) >= 2:
+        pvals = [ps for _, ps in station_periods]
+        pmin, pmax = min(pvals), max(pvals)
+        spread_pct = 100 * (pmax - pmin) / ((pmin + pmax) / 2)
+        L.append("[6] Extraction period spread (informational)")
+        for nm, ps in station_periods:
+            L.append(f"    {nm}: {ps/60:.1f} min")
+        L.append(f"    Spread: {spread_pct:.1f}%  "
+                 f"(min {pmin/60:.1f} min, max {pmax/60:.1f} min)")
+        if spread_pct > 15:
+            L.append("    >> Spread > 15%: period variability across stations")
+            L.append("       may explain elevated plane-wave RMS residual")
+            L.append("       without requiring a second wave.")
+            L.append("       Consider re-extracting with a tighter analysis")
+            L.append("       window centred on the clearest wave cycles.")
+        else:
+            L.append("    Period spread within 15% -- consistent with a")
+            L.append("    single wave observed at all stations.")
+        L.append("")
     L.append("Reminder: these are internal consistency checks. They")
     L.append("cannot confirm the result is physically real -- cross-")
     L.append("checking against an independent method or a hand-analysed")

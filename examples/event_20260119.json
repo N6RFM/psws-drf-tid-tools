@@ -1,5 +1,5 @@
 {
-  "_comment": "4-station DOA config for 19 Jan 2026 TID event. Best result: 239 m/s from 30\u00b0 NNE (1/5 flags). AC0G_ND SNR fades after ~01:18 UTC, so window ends at 01:15.",
+  "_comment": "4-station DOA config for 19 Jan 2026 TID event. Canonical reproducible result (3 stations: N6RFM, AA6BD, W7LUX, drop AC0G_ND \u2014 SNR fades after ~01:18 UTC): 304 m/s from 10 deg NNE (0/5 flags, cwt-prophet extraction). 4-station all-up result is unreliable (4/5 flags). Window ends at 01:15 due to AC0G_ND fade. See PROJECT_STATE \u00a747/\u00a775 for reproducibility history.",
   "event_start_utc": "2026-01-19T00:00:00Z",
   "event_end_utc": "2026-01-19T01:15:00Z",
   "resample_seconds": 60,
