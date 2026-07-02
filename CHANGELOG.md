@@ -1,3 +1,21 @@
+## v2.6.1 -- 2026-07-02
+
+### Fixed
+- **`examples/event_20260119.json`**: corrected stale comment field
+  (239 m/s -> 304 m/s from 10 deg NNE, per PROJECT_STATE SS47/SS75).
+- **`tid_workflow.py`**: max_lag_seconds now always written to
+  tid_workflow_event.json -- previously only saved when --max-lag was
+  passed explicitly, causing a silent reproducibility gap.
+
+### Added
+- **`tid_doa.py`**: new [6] Extraction period spread informational
+  diagnostic in format_diagnostics() -- reads fitted period_s from
+  each station CSV (wave-fit exports this), flags spread > 15% as a
+  likely contributor to elevated plane-wave RMS residual.
+- **`docs/ASSESSING_RESULTS.md`** SS4.2: added reference to
+  tid_doa_residual.py as a diagnostic tool for high RMS residuals.
+
+---
 ## v2.5.0 — 2026-06-11
 
 ### Added
