@@ -1271,16 +1271,34 @@ def run_workflow(args):
                  _math.cos(f1)*_math.cos(f2)*_math.sin(dl/2)**2)
             return 2 * R * _math.asin(_math.sqrt(a))
         WWV_LAT, WWV_LON = 40.6776, -105.0405
+        import math as _math
+        def _gc_mid(la1, lo1, la2, lo2):
+            """Great-circle midpoint -- matches tid_doa.great_circle_midpoint."""
+            f1, f2 = _math.radians(la1), _math.radians(la2)
+            l1, l2 = _math.radians(lo1), _math.radians(lo2)
+            Bx = _math.cos(f2) * _math.cos(l2 - l1)
+            By = _math.cos(f2) * _math.sin(l2 - l1)
+            mlat = _math.degrees(_math.atan2(
+                _math.sin(f1) + _math.sin(f2),
+                _math.sqrt((_math.cos(f1) + Bx)**2 + By**2)))
+            mlon = _math.degrees(l1 + _math.atan2(By, _math.cos(f1) + Bx))
+            return mlat, mlon
+        def _hav_km2(la1, lo1, la2, lo2):
+            R = 6371.0
+            f1, f2 = _math.radians(la1), _math.radians(la2)
+            df = _math.radians(la2 - la1)
+            dl = _math.radians(lo2 - lo1)
+            a = (_math.sin(df/2)**2 +
+                 _math.cos(f1)*_math.cos(f2)*_math.sin(dl/2)**2)
+            return 2 * R * _math.asin(_math.sqrt(a))
         mids = []
         for _s in completed:
             _lat, _lon = _s["lat"], _s["lon"]
-            _mlat = (_lat + WWV_LAT) / 2
-            _mlon = (_lon + WWV_LON) / 2
-            mids.append((_mlat, _mlon))
+            mids.append(_gc_mid(WWV_LAT, WWV_LON, _lat, _lon))
         max_bl = 0.0
         for _i in range(len(mids)):
             for _j in range(_i+1, len(mids)):
-                max_bl = max(max_bl, _hav_km(*mids[_i], *mids[_j]))
+                max_bl = max(max_bl, _hav_km2(*mids[_i], *mids[_j]))
         min_spd = event_config.get("min_expected_speed_m_s", 100.0)
         auto_lag = max_bl * 1000.0 / min_spd
         event_config["max_lag_seconds"] = round(auto_lag)
