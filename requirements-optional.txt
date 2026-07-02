@@ -12,3 +12,16 @@ cartopy>=0.21
 # require separate installation steps on some platforms.
 # See: https://facebook.github.io/prophet/docs/installation.html
 prophet>=1.1
+
+# Used by hf_int.py's Lomb-Scargle periodogram (Step 2, TID period
+# detection) for a proper false-alarm-probability significance test.
+# Without astropy, hf_int.py still runs, falling back to scipy's
+# signal.lombscargle with an approximate power-threshold heuristic
+# instead of a real statistical confidence check.
+astropy>=5.0
+
+# Required by fetch_madrigal_tec.py (GPS TEC cross-correlation for
+# independent DOA corroboration) — hard requirement for that script
+# specifically, not a soft fallback; it exits immediately if missing.
+# Not needed for the core extraction/DOA pipeline.
+madrigalWeb>=3.2
