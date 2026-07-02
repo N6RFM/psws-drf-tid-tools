@@ -648,8 +648,12 @@ def _triangle_closures(pairs):
     return out
 
 
-def format_diagnostics(result):
-    """Return (text_block, n_flagged). Observational; never a verdict."""
+def format_diagnostics(result, station_periods=None):
+    """Return (text_block, n_flagged). Observational; never a verdict.
+    station_periods: optional list of (name, period_s) tuples computed
+    from FFT of each station's Doppler series by run(). When supplied,
+    a [6] Extraction period spread section is appended.
+    """
     L = []
     flagged = 0
     L.append("=== RESULT DIAGNOSTICS ===")
@@ -774,36 +778,27 @@ def format_diagnostics(result):
         L.append("     This result merits scrutiny before use; see the")
         L.append("     flagged items above.")
     L.append("")
-    # [6] Per-station extraction period spread (informational, not flagged)
-    # Reads fitted period from the station CSV's 'period_s' column if
-    # present (wave-fit exports it). If periods diverge across stations
-    # while the single-wave model fits well internally, this is a sign
-    # that extraction noise — not a second wave — is the likely cause
-    # of any elevated RMS lag residual.
-    station_periods = []
-    for p_cfg in result.get("_station_cfgs", []):
-        try:
-            import pandas as _pd
-            df = _pd.read_csv(p_cfg["file"])
-            cols = [c.lower() for c in df.columns]
-            df.columns = cols
-            if "period_s" in cols:
-                period_s = float(df["period_s"].dropna().median())
-                station_periods.append((p_cfg["name"], period_s))
-        except Exception:
-            pass
-    if len(station_periods) >= 2:
+    # [6] Per-station dominant period spread (informational)
+    # Estimated from FFT of each station's Doppler series inside run(),
+    # then passed in here. Works for all extraction methods (wave-fit,
+    # autocorr, cwt, cwt-prophet) since they all produce a Doppler
+    # time series. If periods diverge across stations while the single-
+    # wave model fits well internally (low plane-wave residual), this
+    # suggests extraction noise is the likely cause of any elevated
+    # residual, rather than a second superimposed wave.
+    if station_periods and len(station_periods) >= 2:
         pvals = [ps for _, ps in station_periods]
         pmin, pmax = min(pvals), max(pvals)
-        spread_pct = 100 * (pmax - pmin) / ((pmin + pmax) / 2)
-        L.append("[6] Extraction period spread (informational)")
+        pmid = (pmin + pmax) / 2
+        spread_pct = 100 * (pmax - pmin) / pmid if pmid > 0 else 0.0
+        L.append("[6] Dominant period spread (informational, FFT-based)")
         for nm, ps in station_periods:
             L.append(f"    {nm}: {ps/60:.1f} min")
         L.append(f"    Spread: {spread_pct:.1f}%  "
                  f"(min {pmin/60:.1f} min, max {pmax/60:.1f} min)")
         if spread_pct > 15:
             L.append("    >> Spread > 15%: period variability across stations")
-            L.append("       may explain elevated plane-wave RMS residual")
+            L.append("       may explain an elevated plane-wave RMS residual")
             L.append("       without requiring a second wave.")
             L.append("       Consider re-extracting with a tighter analysis")
             L.append("       window centred on the clearest wave cycles.")
@@ -1032,9 +1027,33 @@ def run(config):
     else:
         print("  -> Speed outside typical TID range; check filter band and lags.")
 
+    # Compute dominant period per station from FFT of Doppler series.
+    # This works for all extraction methods and is passed to
+    # format_diagnostics() for the [6] period spread diagnostic.
+    _station_periods = []
+    for _s in stations:
+        try:
+            _d = _s.doppler - np.mean(_s.doppler)
+            _n = len(_d)
+            if _n < 8:
+                continue
+            _fft = np.abs(np.fft.rfft(_d))
+            _freqs = np.fft.rfftfreq(_n, d=dt_s)
+            # Restrict to TID period band (5 min to 2 hours)
+            _mask = (_freqs > 0) & (1.0/_freqs >= 300) & (1.0/_freqs <= 7200)
+            if not _mask.any():
+                continue
+            _peak_freq = _freqs[_mask][np.argmax(_fft[_mask])]
+            _station_periods.append((_s.name, 1.0 / _peak_freq))
+        except Exception:
+            pass
+
     diag_text = ""
     if not globals().get("_NO_DIAGNOSTICS", False):
-        diag_text, _nflag = format_diagnostics(result)
+        diag_text, _nflag = format_diagnostics(
+            result,
+            station_periods=_station_periods if len(_station_periods) >= 2
+            else None)
         print()
         print(diag_text)
 
