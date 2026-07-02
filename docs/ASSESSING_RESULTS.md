@@ -220,6 +220,22 @@ superimposed waves. The residual does not distinguish these causes;
 it only flags that the single-wave assumption (Section 1,
 assumption 1) is in tension with the data.
 
+**Diagnostic tool:** `tid_doa_residual.py` (in the repo root)
+implements an iterative single-wave subtraction test that can
+help distinguish these causes. It fits a single sinusoid to
+each station's Doppler trace, subtracts it, and re-runs the
+broadband DOA on the residual. If the residual RMS is less than
+15% of the original signal ("residual too small" guard), the
+single-wave fit absorbed essentially all of the signal — meaning
+a second coherent wave is not detectable by this method, and the
+elevated RMS residual is more likely due to extraction-period
+variability or array geometry strain. If the residual RMS clears
+the guard and the residual DOA returns a physically plausible
+speed and reasonable pairwise correlation, that is positive
+evidence for a second superimposed wave. Edit the CONFIG block
+at the top of `tid_doa_residual.py` (EVENT_JSON, MAX_LAG_S,
+OUTPUT_DIR) and run it directly.
+
 ### 4.3 Pairwise correlation
 
 Each lag is the argmax of a normalised cross-correlation between two
