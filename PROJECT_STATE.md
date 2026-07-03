@@ -1979,3 +1979,54 @@ real events.
 3. Test cwt-prophet on synthetic nominal
 4. Run full 20-test suite with all methods including spline
 5. Consider wiring tid_doa_residual.py into tid_workflow.py
+
+---
+## 85. Enhanced synthetic signal model + 7 new test conditions -- 2026-07-03
+
+### Enhanced synthetic_signal.py (v2)
+Seven new signal enhancements beyond v1 (AWGN + simple fading):
+1. Asymmetric fading: upper/lower sideband fade independently
+2. Period chirp: TID period drifts linearly over event
+3. Two superimposed TIDs: second wave at different speed/azimuth
+4. Coloured (1/f) noise: more realistic background spectrum
+5. E-region spikes: random narrow-band burst interference
+6. Carrier frequency offset: DC bias on all stations
+7. Time-varying SNR: sinusoidal SNR modulation
+
+### 7 new test conditions (total now 27)
+test 21: two_wave -- primary 500 m/s @ 30deg + secondary 200 m/s @ 270deg
+  at 30% amplitude. autocorr: 13.6% speed error, 0.0 deg az -- PASS
+test 22: two_wave_strong -- 50% amplitude second wave. autocorr: 3.2%/3.8deg -- PASS
+test 23: period_chirp -- period drifts 60->66 min over 2h. autocorr: 19.2%/6.1deg -- PASS
+test 24: eregion -- 8 E-region spikes. autocorr: 33.4%/9.1deg -- FAIL (expected)
+test 25: coloured_noise -- 70% 1/f noise. autocorr: 5.0%/0.9deg -- PASS
+test 26: snr_fading -- SNR varies 10-30 dB. autocorr: 4.6%/1.3deg -- PASS
+test 27: carrier_offset -- +0.08 Hz DC. autocorr: 4.8%/1.0deg -- PASS
+
+### Key findings
+- Two superimposed TIDs: primary wave recoverable even at 50% amplitude
+  ratio. DOA result barely affected by second wave for autocorr.
+- E-region spikes: 33% speed error for autocorr (no spike rejection).
+  cwt-prophet expected to do better -- not yet tested.
+- Coloured noise, SNR fading, carrier offset: minimal impact on autocorr.
+  These conditions are more realistic but don't change the accuracy picture.
+- Period chirp: 19% speed error -- worst among non-alias, non-stress cases.
+
+### Full suite result: 26/27 PASS, 0 UNEXPECTED (autocorr)
+The one FAIL is eregion with autocorr -- expected stress failure.
+
+### Updated README
+synthetic_tests/README.md now includes:
+- Full ground truth table (all 27 conditions)
+- Station array definitions
+- Enhanced conditions description
+- Step-by-step usage for automated AND interactive methods
+- Pass/fail criteria table per tier
+- Key findings table
+
+### Open items
+1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+2. June 6 2026 event: 509 m/s @ 137 deg; Madrigal TEC pending (July)
+3. Test cwt-prophet on eregion condition (expected to pass)
+4. Test cwt-prophet on nominal (basic validation)
+5. Consider wiring tid_doa_residual.py into tid_workflow.py
