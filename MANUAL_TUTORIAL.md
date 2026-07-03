@@ -432,7 +432,7 @@ python3 tid_map.py --config event.json --output map.png \
 
 | Method | Speed | From | Notes |
 |--------|-------|------|-------|
-| spline/cwt-prophet | 239 m/s | 30° NNE | Best result (0/5 flags) |
+| spline/cwt-prophet | 304 m/s | 10° NNE | Best result (0/5 flags, canonical) |
 | fft | ~281 m/s | ~33° NNE | Automated, 3/5 flags |
 | autocorr | similar to fft | — | — |
 | Peak-time direct | ~281 m/s | ~33 deg | Independent cross-check |
