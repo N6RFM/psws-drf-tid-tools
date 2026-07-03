@@ -228,6 +228,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self._accepted_csv  = None  # path to last accepted baseline CSV
         self._event_json    = None  # path to event JSON for reproducibility save
         self.period_hint = period_hint   # seconds
+        self._period_hint_s = period_hint   # for wave-fit dialog
         self.transform   = transform     # AxisTransform or None
         self.cal_step    = 0 if transform is None else 4
         self.cal_pending = None          # pixel coords waiting for value input
@@ -364,10 +365,11 @@ class SpectClickApp(QtWidgets.QMainWindow):
         if self.transform and self.transform.ready:
             t_span = self.transform.ax * self.img_w  # total time width
             t_start = self.transform.bx
-            t0 = t_start + t_span * 0.25
-            t1 = t_start + t_span * 0.75
+            # Default to FULL window so wave-fit covers complete period
+            t0 = t_start
+            t1 = t_start + t_span
         else:
-            t0, t1 = 0.25, 0.75   # fractions until calibrated
+            t0, t1 = 0.0, 2.0   # fractions until calibrated
 
         if seg_start is not None: t0 = seg_start
         if seg_end   is not None: t1 = seg_end
@@ -1096,6 +1098,9 @@ class SpectClickApp(QtWidgets.QMainWindow):
         if self.cal_step < 4:
             self._set_status("Calibrate first before using wave-fit")
             return
+        # Store period hint for wave-fit dialog pre-fill
+        if not hasattr(self, '_period_hint_s'):
+            self._period_hint_s = None
         self._wave_clicks_t = []
         self._wave_clicks_d = []
         self._wave_mode = True
@@ -1147,7 +1152,19 @@ class SpectClickApp(QtWidgets.QMainWindow):
 
         # Build time grid from segment bounds — no spline CSV needed
         import pathlib as _pl_wf
-        t_out = _npw.arange(self.seg_t0, self.seg_t1 + 1/3600, 1/60)
+        # Use sidecar for full window extent if available,
+        # otherwise fall back to segment handles
+        _sidecar_path = str(self.img_path).replace(".png", "_axes.json")
+        _t_out_start = self.seg_t0
+        _t_out_end   = self.seg_t1
+        if _osw.path.exists(_sidecar_path):
+            try:
+                _sc_tmp = _jsonw.load(open(_sidecar_path))
+                _t_out_start = _sc_tmp.get("t_start_utc_hours", self.seg_t0)
+                _t_out_end   = _sc_tmp.get("t_end_utc_hours",   self.seg_t1)
+            except Exception:
+                pass
+        t_out = _npw.arange(_t_out_start, _t_out_end + 1/3600, 1/60)
         stem = _pl_wf.Path(self.img_path).stem
         parent = _pl_wf.Path(self.img_path).parent
 
@@ -1155,34 +1172,45 @@ class SpectClickApp(QtWidgets.QMainWindow):
         t_seg = click_t
         d_seg = click_d - click_d.mean()
 
-        # Ask user what fraction of the cycle they marked
+        # Ask user how many cycles they clicked across.
+        # Much clearer than asking for the period: user counts
+        # peaks-to-peaks or troughs-to-troughs in their clicks.
+        # Period = clicked_span / n_cycles.
+        _hint_s = getattr(self, '_period_hint_s', None)
+        _hint_min = _hint_s / 60.0 if _hint_s else None
+        if _hint_min and _hint_min > 0:
+            _n_guess = span_s / 60.0 / _hint_min
+            _n_guess_str = f"{_n_guess:.1f}"
+            _hint_note = (f"\n  period-hint {_hint_min:.0f} min "
+                          f"-> {_n_guess:.1f} cycles in your span")
+        else:
+            _n_guess = 1.0
+            _n_guess_str = "1.0"
+            _hint_note = ""
         from PyQt5 import QtWidgets as _QtW
         dlg = _QtW.QInputDialog()
-        dlg.setWindowTitle("Wave-fit: period")
+        dlg.setWindowTitle("Wave-fit: how many cycles?")
         dlg.setLabelText(
-            f"Marked span: {span_s/60:.1f} min\n\n"
-            "What did you mark?\n"
-            "  1 = half cycle  (trough→peak or peak→trough)  T = span × 2\n"
-            "  2 = full cycle  (trough→trough or peak→peak)  T = span × 1\n"
-            "  Or enter any multiplier (e.g. 1.5 = ⅔ cycle):\n")
-        dlg.setTextValue("1")
+            f"Your clicked span: {span_s/60:.1f} min\n\n"
+            f"How many complete TID cycles did you span?\n"
+            f"  Count peak-to-peak or trough-to-trough.\n"
+            f"  e.g. 0.5 = half cycle, 1.0 = one full, 1.5 = one and a half"
+            f"{_hint_note}\n\n"
+            f"Number of cycles:")
+        dlg.setTextValue(_n_guess_str)
         dlg.setOkButtonText("OK")
         dlg.setCancelButtonText("Cancel")
         if dlg.exec_() != _QtW.QDialog.Accepted:
             self._set_status("Wave-fit cancelled")
             return
         try:
-            multiplier = float(dlg.textValue().strip())
-            if multiplier <= 0:
-                multiplier = 1.0
+            n_cycles = float(dlg.textValue().strip())
+            if n_cycles <= 0:
+                n_cycles = max(_n_guess, 0.5)
         except ValueError:
-            multiplier = 1.0
-        T_s = span_s * multiplier * 2 if multiplier == 1 else span_s / (1.0 / (multiplier * 2) if multiplier != 1 else 0.5)
-        # Simplified: multiplier maps as follows:
-        #   1 → half cycle → T = span * 2
-        #   2 → full cycle → T = span * 1
-        #   other → T = span * (2 / multiplier)
-        T_s = span_s * 2.0 / multiplier
+            n_cycles = max(_n_guess, 0.5)
+        T_s = span_s / n_cycles
+        T_min = T_s / 60.0
         T_h = T_s / 3600.0
 
         # Fit A*sin(2π/T * t + φ) to the marked segment
