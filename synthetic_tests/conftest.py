@@ -23,7 +23,7 @@ import pathlib
 import pytest
 
 # Allow override via environment variable
-DEFAULT_METHODS = os.environ.get("PYTEST_METHODS", "autocorr,cwt").split(",")
+DEFAULT_METHODS = os.environ.get("PYTEST_METHODS", "autocorr,cwt,fft").split(",")
 DEFAULT_EVENT_ROOT = os.environ.get(
     "PYTEST_EVENT_ROOT", str(Path(__file__).parent / "events"))
 
