@@ -1,3 +1,30 @@
+## v2.6.5 -- 2026-07-03
+
+### Fixed
+- **`drf_to_doppler.py`**: removed undefined `_pre_seeded` reference in
+  `estimate_carrier_freq_cwt()` -- cwt extraction now works correctly on
+  synthetic and real DRF data.
+- **`synthetic_tests/`**: file cadence increased from 60s to 3600s (1h)
+  to reduce spectrogram boundary artifacts.
+- **`synthetic_tests/run_tests.py`**: default methods updated to
+  autocorr,cwt,fft; alias demos now labelled "no (alias)" not "no (stress)".
+- **`synthetic_tests/evaluate.py`**: alias demo note now includes azimuth
+  error value for clarity.
+- **`synthetic_tests/conftest.py`**: default pytest methods now
+  autocorr,cwt,fft (consistent with run_tests.py).
+- **`README.md`**: drf_to_doppler.py description lists all 5 automated
+  methods and notes cwt-prophet/spline require tid_spect_click.py.
+
+### Added
+- **`synthetic_tests/plot_spectrograms.py`**: generates Doppler STFT
+  spectrograms from synthetic DRF events for visual inspection. Overlays
+  true TID Doppler and extracted traces from any automated method. Uses
+  full complex FFT with fftshift for correct DC-centred display.
+- **`synthetic_tests/README.md`**: comprehensive method table (all 7
+  extraction methods, automated vs interactive), spectrogram usage,
+  updated quick start and pytest examples.
+
+---
 ## v2.6.4 -- 2026-07-03
 
 ### Added
