@@ -1775,3 +1775,70 @@ guessing at a description.
    Madrigal TEC verification pending (check July)
 3. Consider wiring tid_doa_residual.py into tid_workflow.py
 4. Clean up patch scripts from repo root
+
+---
+## 80. Synthetic test suite + SNR diagnostic + aliasing warning -- 2026-07-03
+
+### Synthetic test suite (synthetic_tests/)
+Built a complete end-to-end validation framework generating synthetic DRF
+I/Q recordings with known TID parameters (speed, azimuth, period,
+amplitude, noise type) and running the full pipeline against them.
+
+Architecture:
+- synthetic_signal.py: TID I/Q signal model, AWGN + realistic noise
+- synthetic_drf.py: digital_rf DRF writer, generates HDF5 station dirs
+- test_conditions.py: 20 representative test conditions + array defs
+- run_tests.py: automated batch runner (no GUI required)
+- evaluate.py: tiered pass/fail logic (alias demos, stress, normal)
+- conftest.py + test_pipeline.py: pytest CI integration
+- events/: generated DRF data (gitignored, ~500MB, regenerated on demand)
+
+Key design decisions:
+- DRF files live in synthetic_tests/events/ (persistent, gitignored)
+- Phase convention: phase_rad = -2*pi*lag_s/period_s (positive lag =
+  wave arrives later = phase behind)
+- max_lag_seconds set from ground truth (1.15x true max pairwise lag)
+  bounded by 0.49*T to prevent aliasing solving itself accidentally
+- AE projection matches tid_doa.py exactly (same formula)
+
+### 20 test conditions
+13 expect_pass=True (all alias-safe):
+  nominal, fast_tid, slow_tid_south, az_south, az_northwest,
+  period_60_compact, period_120, period_180, weak_signal, strong_signal,
+  high_snr, low_snr, realistic_noise, realistic_low_snr, mixed_4stn
+7 expect_pass=False:
+  slow_tid_alias, az_east_alias (alias demos -- confirm wrong azimuth)
+  wide_array_alias (alias demo)
+  very_low_snr, stress_worst (stress -- confirm large errors/flags)
+
+### Key synthetic validation findings
+1. Period aliasing (lag > T/2): NOT a code bug, physical constraint.
+   E-W array at 60-min period: alias-safe only for speeds >= 500 m/s.
+   New [!] Aliasing risk diagnostic added to tid_doa.py.
+2. Very low SNR (5 dB): doesn't trigger original 5 flags. New [7] SNR
+   diagnostic added -- reads snr_db from CSV, warns <15dB, flags <8dB.
+3. Realistic noise -> 15-20% speed uncertainty (dominant error source
+   for real events).
+4. 180-min sub-cycle period works better than expected (0.3% error on
+   nominal case) -- cross-correlation of slow trends still recovers lags.
+5. High-speed TIDs (800 m/s): ~15% quantization error at 60s cadence.
+
+### Nominal test result (verified on Bob's machine)
+523.8 m/s @ 29.0 deg vs truth 500 m/s @ 30.0 deg
+speed_err=4.8%, az_err=1.0 deg -> PASS
+
+### Repo changes (v2.6.4)
+- tid_doa.py: [7] SNR diagnostic, [!] aliasing warning
+- docs/ASSESSING_RESULTS.md: SS3.3 synthetic validation, SS5.1 table
+  updated, SS5.5 closing note, SS7 aliasing + SNR limitations
+- docs/METHODOLOGY.md: empirical accuracy estimates from synthetic tests
+- synthetic_tests/: full test suite committed to research_gui/gwyn-g3zil
+  (not on main -- research-only tool)
+- v2.6.4 tagged and GitHub release published
+
+### Open items
+1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+2. June 6 2026 event: 509 m/s @ 137 deg (AE-corrected); Madrigal TEC
+   pending (check July)
+3. Run full 20-test suite (currently only nominal verified on Bob's machine)
+4. Consider wiring tid_doa_residual.py into tid_workflow.py
