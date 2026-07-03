@@ -105,10 +105,23 @@ def evaluate(speed_m_s, az_from_deg, n_flags, ground_truth):
     is_manual = method in MANUAL_METHODS
     # High-speed TIDs have larger quantization error at 60s cadence
     speed_factor = 1.5 if true_speed >= 600 else 1.0
+    # Special cases with known interference
+    notes = ground_truth.get("notes", "")
+    is_two_wave = "two_wave" in ground_truth.get("test_name", "")
+    is_chirp = "chirp" in ground_truth.get("test_name", "")
     if is_manual:
         # Manual methods: wider thresholds regardless of SNR/noise
         spd_thresh, az_thresh = round(25 * speed_factor), 15
         tier = "manual"
+    elif is_two_wave:
+        # Two-wave superposition: primary wave recoverable but with
+        # slightly higher speed error due to interference
+        spd_thresh, az_thresh = round(18 * speed_factor), 5
+        tier = "two_wave"
+    elif is_chirp:
+        # Period chirp: extraction degrades due to varying period
+        spd_thresh, az_thresh = round(22 * speed_factor), 8
+        tier = "chirp"
     elif snr_db >= 30 and noise_type == "awgn":
         spd_thresh, az_thresh = round(15 * speed_factor), 3
         tier = "clean"

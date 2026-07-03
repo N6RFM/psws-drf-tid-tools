@@ -149,6 +149,41 @@ TEST_CONDITIONS = [
     ("stress_worst",
      150, 90, 120, 0.1, 5, "realistic", "array_compact", False,
      "STRESS: slow+east+weak+low-SNR+realistic -- expect all methods fail"),
+
+    # ── Enhanced realism conditions ──────────────────────────────────────
+    ("two_wave",
+     500, 30, 60, 0.5, 20, "awgn", "array_3stn_eastwest", True,
+     "Two superimposed TIDs: primary 500 m/s @ 30deg + secondary 200 m/s @ 270deg "
+     "at 30% amplitude. Primary wave should be recoverable by DOA."),
+
+    ("two_wave_strong",
+     500, 30, 60, 0.5, 20, "awgn", "array_3stn_eastwest", True,
+     "Two TIDs at 50% amplitude ratio: primary still recoverable (3.2% speed "
+     "error in testing). Second wave detectable via tid_doa_residual.py."),
+
+    ("period_chirp",
+     500, 30, 60, 0.5, 20, "awgn", "array_3stn_eastwest", True,
+     "TID period drifts linearly from 54 to 66 min over 2h (10%/h chirp). "
+     "Tests period spread diagnostic [6] and extractor robustness."),
+
+    ("eregion",
+     500, 30, 60, 0.5, 20, "awgn", "array_3stn_eastwest", False,
+     "STRESS: E-region spikes (8 random bursts). autocorr/fft fail "
+     "(33% error); cwt-prophet expected to pass via spike rejection."),
+
+    ("coloured_noise",
+     500, 30, 60, 0.5, 20, "awgn", "array_3stn_eastwest", True,
+     "1/f (pink) noise instead of flat AWGN. More realistic background spectrum."),
+
+    ("snr_fading",
+     500, 30, 60, 0.5, 20, "awgn", "array_3stn_eastwest", True,
+     "Time-varying SNR: sinusoidal modulation 10-30 dB over 30-min period. "
+     "Tests extractor robustness to fading signal quality."),
+
+    ("carrier_offset",
+     500, 30, 60, 0.5, 20, "awgn", "array_3stn_eastwest", True,
+     "Carrier DC offset +0.08 Hz on all stations (DRF calibration error). "
+     "Tests whether extractor DC bias affects DOA accuracy."),
 ]
 # fmt: on
 

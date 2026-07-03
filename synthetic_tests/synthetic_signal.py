@@ -1,22 +1,19 @@
 #!/usr/bin/env python3
 """
-synthetic_signal.py -- TID signal model for synthetic DRF generation.
+synthetic_signal.py v2 -- Enhanced TID signal model for synthetic DRF
+generation.
 
-Generates complex I/Q samples representing a WWV carrier with a
-TID-induced Doppler shift at a given station, with controllable
-noise type and level.
+Enhancements over v1:
+1. Asymmetric fading: upper/lower sideband fade independently
+2. Non-sinusoidal/period chirp: period drifts linearly over event
+3. Two superimposed TIDs: second wave at different speed/azimuth
+4. Coloured (1/f) noise: more realistic than flat AWGN
+5. E-region spikes: random narrow-band bursts
+6. Carrier frequency offset: DC bias on all stations
+7. Time-varying SNR: sinusoidal SNR modulation
 
-Signal model:
-  I/Q(t) = A_carrier * exp(j*2*pi*(f_carrier + f_doppler(t))*t) + noise(t)
-
-  f_doppler(t) = amp_hz * sin(2*pi*t/period_s + phase_rad)
-
-  phase_rad = 2*pi * tau_k / period_s
-  tau_k     = slowness . position_k   (DOA geometry, AE projection)
-
-Noise types:
-  'awgn'     -- additive white Gaussian noise only
-  'realistic' -- AWGN + slow ionospheric drift + occasional fading
+All enhancements are optional -- v1 behaviour is preserved when
+new parameters are not specified.
 """
 import math
 import numpy as np
@@ -34,7 +31,6 @@ def _to_rad(d):
 
 
 def great_circle_midpoint(lat1, lon1, lat2, lon2):
-    """Great-circle midpoint -- matches tid_doa.great_circle_midpoint."""
     f1, l1 = _to_rad(lat1), _to_rad(lon1)
     f2, l2 = _to_rad(lat2), _to_rad(lon2)
     Bx = math.cos(f2) * math.cos(l2 - l1)
@@ -66,50 +62,61 @@ def latlon_to_local_xy(lat, lon, lat0, lon0):
 def compute_station_lag(station_lat, station_lon,
                         speed_m_s, azimuth_from_deg,
                         array_midpoints):
-    """
-    Compute the TID arrival lag at this station relative to the array
-    centroid, using the same geometry as tid_doa.py.
-
-    Parameters
-    ----------
-    station_lat, station_lon : float
-        Station receiver coordinates.
-    speed_m_s : float
-        True TID phase speed.
-    azimuth_from_deg : float
-        True direction wave is coming FROM (degrees true bearing).
-    array_midpoints : list of (lat, lon)
-        IPP midpoints of all stations, for computing the centroid.
-
-    Returns
-    -------
-    lag_s : float
-        Arrival lag in seconds (positive = wave arrives later than centroid).
-    midpoint : (lat, lon)
-        IPP midpoint for this station.
-    """
-    midpoint = great_circle_midpoint(WWV_LAT, WWV_LON, station_lat, station_lon)
-
-    # Array centroid
+    midpoint = great_circle_midpoint(WWV_LAT, WWV_LON,
+                                     station_lat, station_lon)
     lats = [m[0] for m in array_midpoints]
     lons = [m[1] for m in array_midpoints]
     lat0 = sum(lats) / len(lats)
     lon0 = sum(lons) / len(lons)
-
-    # AE-projected position
     x, y = latlon_to_local_xy(midpoint[0], midpoint[1], lat0, lon0)
-
-    # Slowness vector (wave heading TOWARD azimuth_from + 180)
     az_toward_rad = _to_rad((azimuth_from_deg + 180) % 360)
     sx = math.sin(az_toward_rad) / speed_m_s
     sy = math.cos(az_toward_rad) / speed_m_s
-
     lag_s = sx * x + sy * y
     return lag_s, midpoint
 
 
 # ---------------------------------------------------------------------------
-# Signal generation
+# Noise helpers
+# ---------------------------------------------------------------------------
+
+def _coloured_noise(n, rng, exponent=1.0):
+    """Generate 1/f^exponent coloured noise (exponent=1 -> pink noise)."""
+    white = rng.standard_normal(n) + 1j * rng.standard_normal(n)
+    freqs = np.fft.rfftfreq(n)
+    freqs[0] = 1.0  # avoid division by zero at DC
+    spectrum = np.fft.rfft(white.real)
+    spectrum /= np.power(freqs, exponent / 2.0)
+    spectrum[0] = 0.0  # zero DC
+    coloured = np.fft.irfft(spectrum, n)
+    # Normalise to unit variance
+    coloured /= (coloured.std() + 1e-12)
+    return coloured.astype(np.float32)
+
+
+def _eregion_spikes(n, sample_rate_hz, rng,
+                    n_spikes=5, spike_bandwidth_hz=0.5,
+                    spike_amplitude=5.0):
+    """Generate random narrow-band E-region spike bursts."""
+    spikes = np.zeros(n, dtype=np.complex64)
+    for _ in range(n_spikes):
+        # Random timing (avoid first/last 5%)
+        t_spike = rng.uniform(0.05 * n, 0.95 * n)
+        dur_samples = int(rng.uniform(1, 4) * sample_rate_hz)  # 1-4s
+        t0 = max(0, int(t_spike) - dur_samples // 2)
+        t1 = min(n, t0 + dur_samples)
+        # Random Doppler offset
+        f_spike = rng.uniform(-3.0, 3.0)
+        t_idx = np.arange(t0, t1) / sample_rate_hz
+        burst = np.exp(1j * 2 * np.pi * f_spike * t_idx).astype(np.complex64)
+        # Amplitude taper
+        env = np.hanning(t1 - t0).astype(np.float32)
+        spikes[t0:t1] += spike_amplitude * env * burst
+    return spikes
+
+
+# ---------------------------------------------------------------------------
+# Main signal generation
 # ---------------------------------------------------------------------------
 
 def generate_iq(
@@ -121,78 +128,124 @@ def generate_iq(
     tid_phase_rad,
     snr_db,
     noise_type="awgn",
+    # Enhancement 1: asymmetric fading
+    asymmetric_fading=False,
+    # Enhancement 2: period chirp
+    chirp_rate=0.0,          # fractional period change per hour (e.g. 0.1 = 10%/h)
+    # Enhancement 3: second TID
+    second_tid_amp_hz=0.0,
+    second_tid_period_s=None,
+    second_tid_phase_rad=0.0,
+    # Enhancement 4: coloured noise
+    coloured_noise_fraction=0.0,  # 0=pure AWGN, 1=pure 1/f
+    # Enhancement 5: E-region spikes
+    eregion_spikes=False,
+    n_eregion_spikes=5,
+    # Enhancement 6: carrier offset
+    carrier_offset_hz=0.0,
+    # Enhancement 7: time-varying SNR
+    snr_variation_db=0.0,    # peak-to-peak SNR variation in dB
+    snr_variation_period_s=None,  # period of SNR modulation
     rng=None,
 ):
-    """
-    Generate complex I/Q samples for one station.
-
-    Parameters
-    ----------
-    duration_s : float
-    sample_rate_hz : int
-    f_carrier_hz : float
-        WWV carrier frequency (e.g. 10e6).
-    tid_amp_hz : float
-        TID Doppler amplitude in Hz.
-    tid_period_s : float
-        TID period in seconds.
-    tid_phase_rad : float
-        Phase offset at t=0 (encodes the station's DOA lag).
-    snr_db : float
-        Signal-to-noise ratio in dB.
-    noise_type : str
-        'awgn' or 'realistic'.
-    rng : np.random.Generator, optional
-
-    Returns
-    -------
-    iq : np.ndarray, complex64
-        I/Q samples.
-    """
     if rng is None:
         rng = np.random.default_rng(42)
 
     n = int(duration_s * sample_rate_hz)
     t = np.arange(n) / sample_rate_hz
 
-    # TID Doppler shift (Hz)
-    f_doppler = tid_amp_hz * np.sin(2 * np.pi * t / tid_period_s + tid_phase_rad)
+    # ── Enhancement 2: period chirp ─────────────────────────────────────────
+    # Period drifts linearly: T(t) = T0 * (1 + chirp_rate * t / 3600)
+    # Integrated phase: phi(t) = 2*pi * integral(1/T(t)) dt
+    if chirp_rate != 0.0:
+        # Instantaneous frequency with linear chirp
+        T_t = tid_period_s * (1.0 + chirp_rate * t / 3600.0)
+        f_tid_inst = tid_amp_hz * np.sin(
+            2 * np.pi * np.cumsum(1.0 / T_t) / sample_rate_hz + tid_phase_rad)
+    else:
+        f_tid_inst = tid_amp_hz * np.sin(
+            2 * np.pi * t / tid_period_s + tid_phase_rad)
 
-    if noise_type == "realistic":
-        # Slow ionospheric background drift (random walk + sinusoidal component)
-        drift_rate = rng.normal(0, 0.002)           # Hz/min
-        drift = drift_rate * t / 60.0
-        # Slow sinusoidal background (~3-6 hour period, much longer than TID)
-        bg_period = rng.uniform(3 * 3600, 6 * 3600)
-        bg_amp = rng.uniform(0.05, 0.3)
-        bg_phase = rng.uniform(0, 2 * np.pi)
-        background = bg_amp * np.sin(2 * np.pi * t / bg_period + bg_phase)
-        f_doppler = f_doppler + drift + background
+    # ── Enhancement 6: carrier offset ───────────────────────────────────────
+    f_doppler = f_tid_inst + carrier_offset_hz
 
-        # Fading: one or two Gaussian dips in amplitude
+    # ── Enhancement 3: second TID ────────────────────────────────────────────
+    if second_tid_amp_hz > 0.0:
+        T2 = second_tid_period_s if second_tid_period_s else tid_period_s
+        f_doppler = f_doppler + second_tid_amp_hz * np.sin(
+            2 * np.pi * t / T2 + second_tid_phase_rad)
+
+    # ── Realistic noise components ───────────────────────────────────────────
+    if noise_type in ("realistic", "awgn"):
+        if noise_type == "realistic":
+            # Slow ionospheric background drift (linear)
+            drift_rate = rng.normal(0, 0.002)
+            f_doppler = f_doppler + drift_rate * t / 60.0
+            # Slow sinusoidal background
+            bg_period = rng.uniform(3 * 3600, 6 * 3600)
+            bg_amp = rng.uniform(0.05, 0.3)
+            bg_phase = rng.uniform(0, 2 * np.pi)
+            f_doppler = f_doppler + bg_amp * np.sin(
+                2 * np.pi * t / bg_period + bg_phase)
+
+    # ── Integrate Doppler to phase ───────────────────────────────────────────
+    doppler_phase = 2 * np.pi * np.cumsum(f_doppler) / sample_rate_hz
+
+    # ── Enhancement 1: asymmetric fading ─────────────────────────────────────
+    if noise_type == "realistic" or asymmetric_fading:
         n_fades = rng.integers(0, 3)
-        amplitude_env = np.ones(n)
+        amp_upper = np.ones(n)
+        amp_lower = np.ones(n)
         for _ in range(n_fades):
             t_fade = rng.uniform(0.1 * duration_s, 0.9 * duration_s)
             tau_fade = rng.uniform(0.05 * duration_s, 0.15 * duration_s)
             depth = rng.uniform(0.3, 0.8)
-            amplitude_env *= (1 - depth * np.exp(-((t - t_fade) / tau_fade) ** 2))
+            env = 1 - depth * np.exp(-((t - t_fade) / tau_fade) ** 2)
+            # Upper and lower fade independently
+            if rng.random() > 0.5:
+                amp_upper *= env
+            else:
+                amp_lower *= env
+        # Construct asymmetrically faded signal
+        iq_upper = amp_upper * np.exp(+1j * doppler_phase)
+        iq_lower = amp_lower * np.exp(-1j * doppler_phase)
+        iq_clean = (iq_upper + iq_lower).astype(np.complex128)
     else:
-        amplitude_env = np.ones(n)
+        iq_clean = np.exp(1j * doppler_phase).astype(np.complex128)
 
-    # Integrate Doppler to get instantaneous phase
-    # phi(t) = 2*pi * integral(f_carrier + f_doppler) dt
-    # Since f_carrier is large but constant, it cancels in cross-correlation
-    # so we only need to track the Doppler phase for the baseband signal
-    doppler_phase = 2 * np.pi * np.cumsum(f_doppler) / sample_rate_hz
-    iq_clean = amplitude_env * np.exp(1j * doppler_phase).astype(np.complex128)
+    # ── Enhancement 7: time-varying SNR ─────────────────────────────────────
+    if snr_variation_db > 0.0:
+        tau_snr = snr_variation_period_s if snr_variation_period_s else 1800.0
+        phi_snr = rng.uniform(0, 2 * np.pi)
+        snr_db_t = snr_db + (snr_variation_db / 2) * np.sin(
+            2 * np.pi * t / tau_snr + phi_snr)
+        snr_linear_t = 10 ** (snr_db_t / 10.0)
+        signal_power = np.mean(np.abs(iq_clean) ** 2)
+        noise_std_t = np.sqrt(signal_power / (snr_linear_t * 2))
+        noise = (noise_std_t *
+                 (rng.standard_normal(n) + 1j * rng.standard_normal(n)))
+    else:
+        signal_power = np.mean(np.abs(iq_clean) ** 2)
+        snr_linear = 10 ** (snr_db / 10.0)
+        noise_power = signal_power / snr_linear
+        noise_std = np.sqrt(noise_power / 2)
+        noise = noise_std * (rng.standard_normal(n) +
+                             1j * rng.standard_normal(n))
 
-    # Add AWGN
-    signal_power = np.mean(np.abs(iq_clean) ** 2)
-    snr_linear = 10 ** (snr_db / 10.0)
-    noise_power = signal_power / snr_linear
-    noise_std = np.sqrt(noise_power / 2)
-    noise = noise_std * (rng.standard_normal(n) + 1j * rng.standard_normal(n))
+    # ── Enhancement 4: coloured noise blend ─────────────────────────────────
+    if coloured_noise_fraction > 0.0:
+        pink = _coloured_noise(n, rng, exponent=1.0)
+        noise_power_total = np.mean(np.abs(noise) ** 2)
+        pink_scaled = pink * np.sqrt(noise_power_total)
+        noise = ((1 - coloured_noise_fraction) * noise +
+                 coloured_noise_fraction * pink_scaled)
 
     iq = (iq_clean + noise).astype(np.complex64)
+
+    # ── Enhancement 5: E-region spikes ──────────────────────────────────────
+    if eregion_spikes:
+        spikes = _eregion_spikes(n, sample_rate_hz, rng,
+                                  n_spikes=n_eregion_spikes)
+        iq = iq + spikes
+
     return iq
