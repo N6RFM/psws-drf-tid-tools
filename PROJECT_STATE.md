@@ -1898,3 +1898,38 @@ speed_err=4.8%, az_err=1.0 deg -> PASS
 2. June 6 2026 event: 509 m/s @ 137 deg; Madrigal TEC pending (July)
 3. Run interactive methods on nominal to validate cwt-prophet/wave-fit
 4. Consider wiring tid_doa_residual.py into tid_workflow.py
+
+---
+## 83. Open item: synthetic test suite user testing -- 2026-07-03
+
+The synthetic DRF test suite (v2.6.4-v2.6.5) is functionally complete
+for automated methods (autocorr, cwt, fft, bandpass). Interactive
+methods (cwt-prophet, wave-fit/spline) have the infrastructure in place
+(--show-commands, sidecar axes.json, CSV pickup) but have NOT yet been
+tested end-to-end by a user.
+
+### Needs user testing
+1. Run --show-commands on nominal, stress_worst, realistic_noise
+2. Open tid_spect_click.py on synthetic spectrograms -- verify the
+   axis mapping is correct (sidecar plot_fraction calibration)
+3. Do cwt-prophet extraction on at least nominal and one stress case
+4. Do wave-fit extraction on at least nominal
+5. Evaluate with --methods cwt-prophet and --methods spline
+6. Compare results across all 5 automated + 2 interactive methods
+7. Check that the true TID Doppler (red dashed in spectrogram) is
+   visually useful as a guide for cwt-prophet click placement
+8. Test --show-commands on all 20 conditions (not just nominal)
+9. Verify sidecar _axes.json pixel mapping on a range of test conditions
+   (period_180 has a 6-hour window -- different t_end_utc_hours)
+
+### Known gaps to address after user testing
+- sgolay-ridge not yet in automated test suite (needs corridor JSON)
+- bandpass not yet verified across all 20 conditions
+- No comparison plot showing all methods side-by-side on one event
+- README interactive method section could show example output
+
+### Priority
+Medium -- the automated suite (20/20 passing) is the primary CI tool.
+Interactive method testing is important for validating that cwt-prophet
+and wave-fit work correctly on synthetic data before trusting them on
+real events.
