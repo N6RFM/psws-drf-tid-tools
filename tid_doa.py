@@ -262,9 +262,33 @@ def great_circle_midpoint(lat1, lon1, lat2, lon2):
 
 
 def latlon_to_local_xy(lat, lon, lat0, lon0):
-    """Equirectangular projection to local east-north meters."""
-    x = to_rad(lon - lon0) * math.cos(to_rad(lat0)) * EARTH_R_KM * 1000.0
-    y = to_rad(lat - lat0) * EARTH_R_KM * 1000.0
+    """Azimuthal equidistant projection to local east-north metres.
+
+    Maps (lat, lon) to (x_east_m, y_north_m) relative to the centroid
+    (lat0, lon0) by computing the true great-circle distance and initial
+    bearing from the centroid. Unlike the equirectangular approximation
+    this preserves great-circle distances and azimuths from the centre
+    point exactly, giving more accurate baseline vectors for the DOA
+    inversion on CONUS-scale arrays (~1000-2000 km baselines).
+    """
+    f0, l0 = to_rad(lat0), to_rad(lon0)
+    f1, l1 = to_rad(lat), to_rad(lon)
+    dl = l1 - l0
+    # Great-circle distance (radians)
+    cos_c = (math.sin(f0) * math.sin(f1) +
+             math.cos(f0) * math.cos(f1) * math.cos(dl))
+    cos_c = max(-1.0, min(1.0, cos_c))  # clamp for float safety
+    c = math.acos(cos_c)                # angular distance in radians
+    dist_m = c * EARTH_R_KM * 1000.0   # metres
+    if c < 1e-10:                       # essentially the same point
+        return 0.0, 0.0
+    # Initial bearing from centroid to point (clockwise from north)
+    sin_az = math.cos(f1) * math.sin(dl) / math.sin(c)
+    cos_az = ((math.sin(f1) - math.sin(f0) * cos_c) /
+              (math.cos(f0) * math.sin(c)))
+    az = math.atan2(sin_az, cos_az)     # radians, clockwise from N
+    x = dist_m * math.sin(az)           # east component
+    y = dist_m * math.cos(az)           # north component
     return x, y
 
 
