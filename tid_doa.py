@@ -672,7 +672,7 @@ def _triangle_closures(pairs):
     return out
 
 
-def format_diagnostics(result, station_periods=None):
+def format_diagnostics(result, station_periods=None, station_snrs=None):
     """Return (text_block, n_flagged). Observational; never a verdict.
     station_periods: optional list of (name, period_s) tuples computed
     from FFT of each station's Doppler series by run(). When supplied,
@@ -794,6 +794,66 @@ def format_diagnostics(result, station_periods=None):
         L.append("       contaminated lags rather than a real wave.")
     L.append("")
 
+    # Aliasing warning (informational, not counted in flagged)
+    # When any station-pair lag approaches T/2 (half the TID period),
+    # the cross-correlation of a sinusoidal signal is inherently
+    # ambiguous -- the correlator cannot distinguish lag=L from
+    # lag=L-T. This is a physical constraint, not a code bug.
+    _pairs = result.get("pairs", [])
+    _dom_period_s = None
+    if station_periods and len(station_periods) >= 2:
+        pvals = [ps for _, ps in station_periods]
+        _dom_period_s = sum(pvals) / len(pvals)  # mean dominant period
+    if _dom_period_s and _dom_period_s > 0 and _pairs:
+        half_period = _dom_period_s / 2.0
+        aliased_pairs = [
+            p for p in _pairs
+            if abs(p.get("lag_s", 0)) > 0.7 * half_period
+        ]
+        if aliased_pairs:
+            L.append("[!] Aliasing risk (informational)")
+            L.append(f"    Dominant TID period: {_dom_period_s/60:.1f} min "
+                     f"-> alias threshold: {half_period/60:.1f} min lag")
+            for p in aliased_pairs:
+                frac = abs(p["lag_s"]) / half_period * 100
+                L.append(f"    {p['i']} -> {p['j']}: "
+                         f"lag={p['lag_s']:+.0f}s = {frac:.0f}% of T/2")
+            L.append("    >> Lag(s) near or above T/2: the cross-correlation")
+            L.append("       may have locked a wrong-period peak (lag alias).")
+            L.append("       Verify direction with peak-succession check or")
+            L.append("       reduce the analysis window to increase apparent")
+            L.append("       wave speed (fewer cycles = shorter relative lags).")
+            L.append("")
+    # Aliasing warning (informational, not counted in flagged)
+    # When any station-pair lag approaches T/2 (half the TID period),
+    # the cross-correlation of a sinusoidal signal is inherently
+    # ambiguous -- the correlator cannot distinguish lag=L from
+    # lag=L-T. This is a physical constraint, not a code bug.
+    _pairs = result.get("pairs", [])
+    _dom_period_s = None
+    if station_periods and len(station_periods) >= 2:
+        pvals = [ps for _, ps in station_periods]
+        _dom_period_s = sum(pvals) / len(pvals)  # mean dominant period
+    if _dom_period_s and _dom_period_s > 0 and _pairs:
+        half_period = _dom_period_s / 2.0
+        aliased_pairs = [
+            p for p in _pairs
+            if abs(p.get("lag_s", 0)) > 0.7 * half_period
+        ]
+        if aliased_pairs:
+            L.append("[!] Aliasing risk (informational)")
+            L.append(f"    Dominant TID period: {_dom_period_s/60:.1f} min "
+                     f"-> alias threshold: {half_period/60:.1f} min lag")
+            for p in aliased_pairs:
+                frac = abs(p["lag_s"]) / half_period * 100
+                L.append(f"    {p['i']} -> {p['j']}: "
+                         f"lag={p['lag_s']:+.0f}s = {frac:.0f}% of T/2")
+            L.append("    >> Lag(s) near or above T/2: the cross-correlation")
+            L.append("       may have locked a wrong-period peak (lag alias).")
+            L.append("       Verify direction with peak-succession check or")
+            L.append("       reduce the analysis window to increase apparent")
+            L.append("       wave speed (fewer cycles = shorter relative lags).")
+            L.append("")
     if flagged == 0:
         L.append("  >> All five diagnostics fall within typical ranges.")
     else:
@@ -829,6 +889,82 @@ def format_diagnostics(result, station_periods=None):
         else:
             L.append("    Period spread within 15% -- consistent with a")
             L.append("    single wave observed at all stations.")
+        L.append("")
+    # [7] Per-station SNR (informational)
+    # Reads median snr_db from each station's extracted Doppler CSV.
+    # Low SNR means the Doppler trace is unreliable regardless of how
+    # consistent the cross-correlation lags appear -- the internal
+    # consistency checks (flags 1-5) cannot detect bad extractions.
+    SNR_WARN_DB = 15.0   # below this, extraction reliability is reduced
+    SNR_FLAG_DB = 8.0    # below this, lags are likely noise-driven
+    if station_snrs and len(station_snrs) >= 1:
+        L.append("[7] Per-station extraction SNR (informational)")
+        low_snr_stns = []
+        for nm, snr_db in station_snrs:
+            flag = ""
+            if snr_db < SNR_FLAG_DB:
+                flag = "  << POOR"
+                low_snr_stns.append((nm, snr_db, "poor"))
+            elif snr_db < SNR_WARN_DB:
+                flag = "  << LOW"
+                low_snr_stns.append((nm, snr_db, "low"))
+            L.append(f"    {nm}: {snr_db:.1f} dB{flag}")
+        if low_snr_stns:
+            poor = [n for n, s, c in low_snr_stns if c == "poor"]
+            low  = [n for n, s, c in low_snr_stns if c == "low"]
+            if poor:
+                L.append(f"    >> POOR SNR (< {SNR_FLAG_DB:.0f} dB) at: "
+                         f"{', '.join(poor)}.")
+                L.append("       Lag estimates for these stations are "
+                         "likely noise-driven.")
+                L.append("       The DOA result is unreliable regardless "
+                         "of the flag count above.")
+            elif low:
+                L.append(f"    >> LOW SNR (< {SNR_WARN_DB:.0f} dB) at: "
+                         f"{', '.join(low)}.")
+                L.append("       Consider re-extracting or dropping "
+                         "these stations.")
+        else:
+            L.append(f"    All stations above {SNR_WARN_DB:.0f} dB -- "
+                     "extraction quality acceptable.")
+        L.append("")
+    # [7] Per-station SNR (informational)
+    # Reads median snr_db from each station's extracted Doppler CSV.
+    # Low SNR means the Doppler trace is unreliable regardless of how
+    # consistent the cross-correlation lags appear -- the internal
+    # consistency checks (flags 1-5) cannot detect bad extractions.
+    SNR_WARN_DB = 15.0   # below this, extraction reliability is reduced
+    SNR_FLAG_DB = 8.0    # below this, lags are likely noise-driven
+    if station_snrs and len(station_snrs) >= 1:
+        L.append("[7] Per-station extraction SNR (informational)")
+        low_snr_stns = []
+        for nm, snr_db in station_snrs:
+            flag = ""
+            if snr_db < SNR_FLAG_DB:
+                flag = "  << POOR"
+                low_snr_stns.append((nm, snr_db, "poor"))
+            elif snr_db < SNR_WARN_DB:
+                flag = "  << LOW"
+                low_snr_stns.append((nm, snr_db, "low"))
+            L.append(f"    {nm}: {snr_db:.1f} dB{flag}")
+        if low_snr_stns:
+            poor = [n for n, s, c in low_snr_stns if c == "poor"]
+            low  = [n for n, s, c in low_snr_stns if c == "low"]
+            if poor:
+                L.append(f"    >> POOR SNR (< {SNR_FLAG_DB:.0f} dB) at: "
+                         f"{', '.join(poor)}.")
+                L.append("       Lag estimates for these stations are "
+                         "likely noise-driven.")
+                L.append("       The DOA result is unreliable regardless "
+                         "of the flag count above.")
+            elif low:
+                L.append(f"    >> LOW SNR (< {SNR_WARN_DB:.0f} dB) at: "
+                         f"{', '.join(low)}.")
+                L.append("       Consider re-extracting or dropping "
+                         "these stations.")
+        else:
+            L.append(f"    All stations above {SNR_WARN_DB:.0f} dB -- "
+                     "extraction quality acceptable.")
         L.append("")
     L.append("Reminder: these are internal consistency checks. They")
     L.append("cannot confirm the result is physically real -- cross-")
@@ -1091,11 +1227,26 @@ def run(config):
         except Exception:
             pass
 
+    # Compute median SNR per station from CSV snr_db column
+    _station_snrs = []
+    for _s_cfg in config.get("stations", []):
+        try:
+            _df_snr = pd.read_csv(_s_cfg["file"])
+            _scols = [c.lower() for c in _df_snr.columns]
+            _df_snr.columns = _scols
+            if "snr_db" in _scols:
+                _med_snr = float(_df_snr["snr_db"].median())
+                _station_snrs.append((_s_cfg["name"], _med_snr))
+        except Exception:
+            pass
+
     diag_text = ""
     if not globals().get("_NO_DIAGNOSTICS", False):
         diag_text, _nflag = format_diagnostics(
             result,
             station_periods=_station_periods if len(_station_periods) >= 2
+            else None,
+            station_snrs=_station_snrs if len(_station_snrs) >= 1
             else None)
         print()
         print(diag_text)

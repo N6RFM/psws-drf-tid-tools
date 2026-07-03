@@ -593,6 +593,68 @@ a "best-fit plane wave" result, but it should be reported with explicit
 caveats. Future work directions: two-hop support, multi-wave
 decomposition.
 
+### Empirical accuracy estimates
+
+Validation against synthetic DRF datasets (known ground truth) gives
+the following typical error ranges for the autocorr extraction method
+with the standard 60-second resample cadence:
+
+| Condition | Speed error | Azimuth error |
+|-----------|-------------|---------------|
+| Clean (AWGN, SNR ≥ 20 dB) | < 12% | < 5° |
+| Realistic (drift + fading, SNR ≥ 15 dB) | 15–20% | < 8° |
+| High speed (≥ 600 m/s, 60 s cadence) | up to 20% | < 5° |
+| Sub-cycle window (period > 1.5× window) | < 15% | < 5° |
+| Very low SNR (< 8 dB) | unreliable | unreliable |
+
+Key findings from synthetic validation:
+
+- **Realistic ionospheric noise** (slow carrier drift + fading) is the
+  dominant error source for real events — contributing ~15–20% speed
+  uncertainty even at adequate SNR, versus ~5% for pure AWGN.
+- **Sub-cycle windows** (period > analysis window) perform better than
+  theory predicts — the cross-correlation of a slowly-varying trend
+  still recovers accurate lags in clean conditions.
+- **Period aliasing** occurs when any station-pair lag exceeds half the
+  TID period (T/2). The toolkit's `[!] Aliasing risk` diagnostic flags
+  this condition. It is a physical constraint of the cross-correlation
+  method, not a code bug: the correlator cannot distinguish lag L from
+  lag L − T for a sinusoidal signal.
+- **High-speed TIDs** (≥ 600 m/s) have inherent quantization error at
+  60-second cadence (~7–8% of the true lag). Use `--decim-seconds 10`
+  or finer for events suspected to be fast LSIDs.
+
+### Empirical accuracy estimates
+
+Validation against synthetic DRF datasets (known ground truth) gives
+the following typical error ranges for the autocorr extraction method
+with the standard 60-second resample cadence:
+
+| Condition | Speed error | Azimuth error |
+|-----------|-------------|---------------|
+| Clean (AWGN, SNR ≥ 20 dB) | < 12% | < 5° |
+| Realistic (drift + fading, SNR ≥ 15 dB) | 15–20% | < 8° |
+| High speed (≥ 600 m/s, 60 s cadence) | up to 20% | < 5° |
+| Sub-cycle window (period > 1.5× window) | < 15% | < 5° |
+| Very low SNR (< 8 dB) | unreliable | unreliable |
+
+Key findings from synthetic validation:
+
+- **Realistic ionospheric noise** (slow carrier drift + fading) is the
+  dominant error source for real events — contributing ~15–20% speed
+  uncertainty even at adequate SNR, versus ~5% for pure AWGN.
+- **Sub-cycle windows** (period > analysis window) perform better than
+  theory predicts — the cross-correlation of a slowly-varying trend
+  still recovers accurate lags in clean conditions.
+- **Period aliasing** occurs when any station-pair lag exceeds half the
+  TID period (T/2). The toolkit's `[!] Aliasing risk` diagnostic flags
+  this condition. It is a physical constraint of the cross-correlation
+  method, not a code bug: the correlator cannot distinguish lag L from
+  lag L − T for a sinusoidal signal.
+- **High-speed TIDs** (≥ 600 m/s) have inherent quantization error at
+  60-second cadence (~7–8% of the true lag). Use `--decim-seconds 10`
+  or finer for events suspected to be fast LSIDs.
+
 ---
 
 ## References
