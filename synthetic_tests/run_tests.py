@@ -241,7 +241,8 @@ def print_summary(results):
         az_err  = f"{r.get('azimuth_error_deg','?')}°" if r.get('azimuth_error_deg') is not None else "N/A"
         flags   = str(r.get('n_flags', '?'))
         status  = "PASS" if overall else "FAIL"
-        exp_str = "yes" if expect else "no (stress)"
+        is_alias = r.get("alias_demo", False)
+        exp_str = "yes" if expect else ("no (alias)" if is_alias else "no (stress)")
         mark    = " <<UNEXPECTED" if unexpected else ""
 
         print(f"{r['test']:25} {r['method']:10} {spd_err:>10} {az_err:>8} "
@@ -258,8 +259,8 @@ def main():
                     help="Run all tests non-interactively (autocorr + cwt)")
     ap.add_argument("--test", metavar="NAME",
                     help="Run a single named test")
-    ap.add_argument("--methods", default="autocorr,cwt",
-                    help="Comma-separated extraction methods (default: autocorr,cwt)")
+    ap.add_argument("--methods", default="autocorr,cwt,fft",
+                    help="Comma-separated extraction methods (default: autocorr,cwt,fft)")
     ap.add_argument("--output-root", default=str(pathlib.Path(__file__).parent / "events"),
                     help="Root directory for generated events")
     ap.add_argument("--results-dir", default="results",
