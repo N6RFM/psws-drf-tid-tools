@@ -1750,3 +1750,28 @@ guessing at a description.
 1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
 2. June 6 2026 event: 533 m/s @ 137 deg; Madrigal TEC pending (July)
 3. Consider wiring tid_doa_residual.py into tid_workflow.py
+
+---
+## 79. v2.6.3 -- azimuthal equidistant projection + doc updates -- 2026-07-03
+
+### Changes
+- tid_doa.py: replaced equirectangular with azimuthal equidistant (AE)
+  projection in latlon_to_local_xy(). Fixes 13-20% north-component
+  error on CONUS-scale arrays for near-meridional waves.
+  Impact: Jan 2026 autocorr 195.6->224.6 m/s; June 6 532.6->509.0 m/s.
+- docs/METHODOLOGY.md: updated geographic projection section to AE,
+  removed spherical-Earth from future work (done), added [6] period
+  spread to Step 4 quality checks.
+- docs/ASSESSING_RESULTS.md: updated projection description.
+- README.md: updated Note of Caution (removed flat-earth, added AE).
+- MANUAL_TUTORIAL.md: fixed stale 239->304 m/s in comparison table.
+- Sandbox verification: all checks passed. AE math correct, 0.095m
+  self-projection residual confirmed negligible (0.00002% of baseline).
+- v2.6.3 tagged and GitHub release published.
+
+### Open items
+1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+2. June 6 2026 event: 509 m/s @ 137 deg (updated with AE projection);
+   Madrigal TEC verification pending (check July)
+3. Consider wiring tid_doa_residual.py into tid_workflow.py
+4. Clean up patch scripts from repo root
