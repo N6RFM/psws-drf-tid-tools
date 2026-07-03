@@ -1,3 +1,42 @@
+## v2.6.4 -- 2026-07-03
+
+### Added
+- **`synthetic_tests/`**: complete synthetic DRF test suite for end-to-end
+  pipeline validation against known ground truth. Generates synthetic I/Q
+  recordings with a known TID embedded, runs the full pipeline, and
+  compares recovered speed/azimuth against truth. 20 representative test
+  conditions covering speed, azimuth, period, SNR, noise type, array
+  geometry, aliasing demos, and stress cases. Supports automated batch
+  running (`run_tests.py`) and pytest CI integration (`test_pipeline.py`).
+- **`tid_doa.py` [7] SNR diagnostic**: reads median `snr_db` from each
+  station's extracted Doppler CSV and warns if SNR < 15 dB or flags if
+  < 8 dB. The five core diagnostics check lag consistency but not signal
+  quality -- a bad extraction can pass all five flags silently.
+- **`tid_doa.py` [!] Aliasing risk**: warns when any station-pair lag
+  exceeds 70% of T/2 (half the dominant TID period). Period aliasing is
+  a physical constraint of cross-correlation applied to sinusoidal signals,
+  not a code bug; this diagnostic makes it visible.
+
+### Documentation
+- **`docs/ASSESSING_RESULTS.md`**: added synthetic validation to §3.3;
+  added [7] SNR and [!] Aliasing to §5.1 threshold table; updated §5.5
+  closing note; added aliasing and SNR gap to §7 limitations.
+- **`docs/METHODOLOGY.md`**: added empirical accuracy estimates from
+  synthetic validation (speed error 5-20% depending on noise conditions,
+  sub-cycle robustness finding, aliasing constraint, quantization note).
+
+### Key findings from synthetic validation
+- Realistic ionospheric noise (drift + fading) is the dominant error
+  source: 15-20% speed uncertainty vs ~5% for pure AWGN at same SNR.
+- Sub-cycle windows (180-min period in 2-hour window) perform better
+  than theory predicts -- cross-correlation of slow trends recovers
+  accurate lags in clean conditions.
+- Period aliasing confirmed: E-W array at 60-min period, speeds < 500
+  m/s produce wrong azimuths due to lag > T/2.
+- Very low SNR (5 dB) passes all 5 core diagnostics silently -- [7]
+  SNR diagnostic addresses this gap.
+
+---
 ## v2.6.2 -- 2026-07-02
 
 ### Fixed
