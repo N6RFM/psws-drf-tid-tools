@@ -290,29 +290,71 @@ python3 drf_spectrogram.py ./n6rfm \
 
 ### Option D: wave-fit extraction (--wave-only)
 
-Use when the TID shows at least 0.5 cycles (1.5 recommended) in the window
-and you want to fit a sinusoidal model to the carrier:
+Use when the TID shows at least 1 full cycle in the window and you
+want to fit a sinusoidal model directly to the carrier. Best for
+clean signals with a clearly visible sinusoidal Doppler trace.
 
 ```bash
 python3 tid_spect_click.py \\
     --spectrogram n6rfm_zoom.png \\
     --name N6RFM \\
-    --seg-start 0.0 --seg-end 2.0 \\
+    --period-hint 3600 \\
     --wave-only
 ```
 
-1. Tool opens directly in wave-fit mode (no Prophet run)
-2. Click multiple points along the visible TID cycle
-   (brown diamond markers appear at each click)
-3. Press **F** — dialog asks what fraction of the cycle you marked
-   (1=half cycle, 2=full cycle, or custom multiplier)
-4. Blue overlay shows the fitted wave — press **A** to accept,
-   **W** to redo, or **Q** to quit without saving
+**Step-by-step:**
 
-Output: `n6rfm_wave_tid.csv`
+1. Tool opens directly in wave-fit mode. The yellow segment handles
+   span the full spectrogram window automatically — do not move them.
 
-**Note:** wave-fit DOA requires similar periods across stations.
-If periods differ significantly, use spline extraction instead.
+2. **Click along the carrier** — place 5 or more points on the bright
+   Doppler carrier band, spread across the full window:
+   - Click at **peaks** (carrier at its highest Doppler value)
+   - Click at **troughs** (carrier at its lowest Doppler value)
+   - Click at **zero crossings** if visible
+   - Span at least one full cycle (ideally two)
+   - Click as close to the centre of the carrier band as possible
+
+   Brown diamond markers appear at each click.
+
+3. Press **F** to fit. A dialog appears:
+
+   ```
+   Your clicked span: 120.0 min
+   How many complete TID cycles did you span?
+     Count peak-to-peak or trough-to-trough.
+     e.g. 0.5 = half cycle, 1.0 = one full, 1.5 = one and a half
+     period-hint 60 min -> 2.0 cycles in your span
+   Number of cycles: [2.0]
+   ```
+
+   **Count your cycles:** count how many peak-to-peak (or
+   trough-to-trough) intervals your clicks span. Enter that number.
+   If your period-hint is correct, the pre-filled value should be
+   right — just press OK.
+
+4. The blue fitted sinusoid appears across the **full window**.
+   Check that it follows the carrier band:
+   - Peaks align with the carrier peaks ✓
+   - Troughs align with the carrier troughs ✓
+   - Period looks consistent with what you see ✓
+
+   If the fit looks wrong → press **W** to redo (clicks cleared,
+   start again). If it looks good → press **A** to accept.
+
+5. Output: `n6rfm_wave_tid.csv` (written alongside the spectrogram PNG)
+
+**Tips for a good fit:**
+- Spread clicks across the full 2-hour window, not just the middle
+- Click the centre of the bright band, not the edge
+- Use at least 5 clicks — 3 is unreliable
+- If the carrier drifts slowly (ionospheric background), clicks
+  following the drift give a better fit than clicks at the
+  theoretical sinusoid position
+
+**Note:** wave-fit gives 10–20% speed uncertainty (vs ~5% for
+autocorr) because click precision affects the phase estimate.
+Use autocorr or cwt-prophet when the carrier is clean enough.
 
 ---
 
