@@ -130,19 +130,36 @@ def run_one_test(tc, method, output_root, verbose=True):
     station_cfgs = []
     csvs = {}
 
+    # Interactive methods (cwt-prophet, spline) -- look for pre-existing
+    # CSV from tid_spect_click.py rather than running extraction
+    INTERACTIVE_METHODS = {"cwt-prophet", "spline", "wave-fit"}
+
     # Extract Doppler for each station
     if verbose:
         print(f"  Extracting with method={method}...")
     for s in stations:
         stn_dir = event_dir / s["name"]
         csv_path = event_dir / f"{s['name'].lower()}_{method}.csv"
-        ok, msg = run_extraction(stn_dir, csv_path, method,
-                                  t_start_iso, t_end_iso)
-        if not ok:
+        if method in INTERACTIVE_METHODS:
+            # Don't run extraction -- user must have run tid_spect_click.py
+            if not csv_path.exists():
+                if verbose:
+                    print(f"    {s['name']}: CSV not found -- run interactively:")
+                    print(f"      python3 run_tests.py --show-commands --test {name}")
+                return {"test": name, "method": method,
+                        "overall_pass": False,
+                        "note": f"CSV not found -- run tid_spect_click.py first: "
+                                f"python3 run_tests.py --show-commands --test {name}"}
             if verbose:
-                print(f"    {s['name']}: EXTRACTION FAILED -- {msg[:80]}")
-            return {"test": name, "method": method,
-                    "overall_pass": False, "note": f"extraction failed: {msg[:80]}"}
+                print(f"    {s['name']}: using pre-existing CSV {csv_path.name}")
+        else:
+            ok, msg = run_extraction(stn_dir, csv_path, method,
+                                      t_start_iso, t_end_iso)
+            if not ok:
+                if verbose:
+                    print(f"    {s['name']}: EXTRACTION FAILED -- {msg[:80]}")
+                return {"test": name, "method": method,
+                        "overall_pass": False, "note": f"extraction failed: {msg[:80]}"}
         csvs[s["name"]] = csv_path
         station_cfgs.append({
             "name": s["name"],
@@ -241,8 +258,7 @@ def print_summary(results):
         az_err  = f"{r.get('azimuth_error_deg','?')}°" if r.get('azimuth_error_deg') is not None else "N/A"
         flags   = str(r.get('n_flags', '?'))
         status  = "PASS" if overall else "FAIL"
-        is_alias = r.get("alias_demo", False)
-        exp_str = "yes" if expect else ("no (alias)" if is_alias else "no (stress)")
+        exp_str = "yes" if expect else "no (stress)"
         mark    = " <<UNEXPECTED" if unexpected else ""
 
         print(f"{r['test']:25} {r['method']:10} {spd_err:>10} {az_err:>8} "
@@ -253,21 +269,113 @@ def print_summary(results):
     print("="*100)
 
 
+def _show_interactive_commands(test_name, output_root, results_dir):
+    """Print tid_spect_click.py commands for interactive extraction."""
+    import json as _json
+    toolkit_dir = pathlib.Path(__file__).parent.parent
+    spect_click = toolkit_dir / 'tid_spect_click.py'
+    plot_dir = pathlib.Path(__file__).parent / 'plots'
+
+    conditions = ([next(t for t in TEST_CONDITIONS if t[0] == test_name)]
+                  if test_name else TEST_CONDITIONS)
+
+    print('=== Interactive extraction commands ===')
+    print('Run these to extract with cwt-prophet or wave-fit,')
+    print('then evaluate with --methods cwt-prophet or --methods spline')
+    print()
+
+    for tc in conditions:
+        name = tc[0]
+        period_min = tc[3]
+        event_dir = pathlib.Path(output_root) / f'synthetic_{name}'
+        gt_path = event_dir / 'ground_truth.json'
+        if not gt_path.exists():
+            print(f'[{name}] not generated yet -- run:'
+                  f' python3 run_tests.py --test {name} --methods autocorr')
+            continue
+
+        gt = _json.loads(gt_path.read_text())
+        t_start = gt['event_start_utc']
+        t_end   = gt['event_end_utc']
+        # Convert to decimal hours for --tlim
+        import datetime as _dt
+        t0 = _dt.datetime.fromisoformat(t_start.replace('Z','+00:00'))
+        t1 = _dt.datetime.fromisoformat(t_end.replace('Z','+00:00'))
+        h0 = t0.hour + t0.minute/60 + t0.second/3600
+        h1 = t1.hour + t1.minute/60 + t1.second/3600
+
+        print(f'--- {name} ---')
+        print(f'  True: {gt["true_speed_m_s"]} m/s from '
+              f'{gt["true_az_from_deg"]}deg, '
+              f'{gt["true_period_min"]} min period')
+        print()
+
+        for s in gt['stations']:
+            stn = s['name']
+            drf_dir = event_dir / stn
+            png = plot_dir / name / f'{stn}_spectrogram.png'
+            if not png.exists():
+                print(f'  # Generate spectrogram first:')
+                print(f'  python3 plot_spectrograms.py --test {name}')
+                print()
+
+            out_csv_prophet = event_dir / f'{stn.lower()}_cwt-prophet.csv'
+            out_csv_spline  = event_dir / f'{stn.lower()}_spline.csv'
+
+            axes_json = png.with_name(png.stem + '_axes.json')
+            has_sidecar = axes_json.exists()
+            sidecar_note = ('  # sidecar axes.json found -- axis mapping auto'
+                            if has_sidecar else
+                            '  # NOTE: run plot_spectrograms.py first for sidecar')
+            print(f'  # {stn} -- cwt-prophet: {sidecar_note}')
+            print(f'  python3 {spect_click} \\' )
+            print(f'    --spectrogram {png} \\' )
+            print(f'    --drf-dir {drf_dir} \\' )
+            print(f'    --name {stn} \\' )
+            print(f'    --period-hint {period_min*60:.0f}')
+            print(f'  # Output: {out_csv_prophet}')
+            print()
+            print(f'  # {stn} -- wave-fit (--wave-only): {sidecar_note}')
+            print(f'  python3 {spect_click} \\' )
+            print(f'    --spectrogram {png} \\' )
+            print(f'    --drf-dir {drf_dir} \\' )
+            print(f'    --name {stn} \\' )
+            print(f'    --period-hint {period_min*60:.0f} \\' )
+            print(f'    --wave-only')
+            print(f'  # Output: {out_csv_spline}')
+            print()
+
+        print(f'  # After extraction, evaluate:')
+        print(f'  python3 run_tests.py --test {name} --methods cwt-prophet')
+        print(f'  python3 run_tests.py --test {name} --methods spline')
+        print()
+
+
 def main():
     ap = argparse.ArgumentParser(description="Run synthetic TID test suite")
     ap.add_argument("--automated", action="store_true",
                     help="Run all tests non-interactively (autocorr + cwt)")
     ap.add_argument("--test", metavar="NAME",
                     help="Run a single named test")
-    ap.add_argument("--methods", default="autocorr,cwt,fft",
-                    help="Comma-separated extraction methods (default: autocorr,cwt,fft)")
+    ap.add_argument("--methods", default="autocorr,cwt",
+                    help="Comma-separated extraction methods (default: autocorr,cwt)")
     ap.add_argument("--output-root", default=str(pathlib.Path(__file__).parent / "events"),
                     help="Root directory for generated events")
     ap.add_argument("--results-dir", default="results",
                     help="Directory for test results (default: results/)")
     ap.add_argument("--list", action="store_true",
                     help="List all test conditions and exit")
+    ap.add_argument("--show-commands", action="store_true",
+                    help="Print tid_spect_click.py commands for interactive "
+                         "extraction (cwt-prophet, spline/wave-fit) without "
+                         "running them. Run these manually, then use "
+                         "--methods cwt-prophet or --methods spline to evaluate.")
     args = ap.parse_args()
+
+    if args.show_commands:
+        _show_interactive_commands(
+            args.test, args.output_root, args.results_dir)
+        return
 
     if args.list:
         pass  # TEST_CONDITIONS already imported
