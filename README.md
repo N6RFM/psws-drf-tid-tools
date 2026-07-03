@@ -203,7 +203,8 @@ psws-drf-tid-tools/
 ├── tid_workflow.py             guided 8-step workflow (NEW in v2.0)
 ├── tid_quicklook.py            interactive TID window selector
 ├── drf_spectrogram.py          spectrograms + --overlay for visual assessment
-├── drf_to_doppler.py           Doppler extraction (autocorr/cwt/fft)
+├── drf_to_doppler.py           Doppler extraction (fft/autocorr/cwt/bandpass/sgolay-ridge;
+│                                   cwt-prophet and spline/wave-fit via tid_spect_click.py)
 ├── drf_inspect.py              verify DRF metadata + subchannel
 ├── find_event_stations.py      companion-station discovery
 ├── download_companions.py      automated companion-station download + organize

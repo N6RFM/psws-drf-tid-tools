@@ -1,1 +1,11 @@
+# Synthetic DRF event files (large HDF5, generated locally)
 events/
+
+# Spectrogram plots (generated locally)
+plots/
+
+# Test results
+results/
+__pycache__/
+*.pyc
+.pytest_cache/

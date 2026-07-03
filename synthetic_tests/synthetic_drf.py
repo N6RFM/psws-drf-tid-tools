@@ -66,7 +66,7 @@ def write_station_drf(output_dir, station, iq_samples, start_unix_s,
         str(ch_dir),
         dtype=np.complex64,
         subdir_cadence_secs=3600,
-        file_cadence_millisecs=60000,
+        file_cadence_millisecs=3600000,  # 1-hour files -- reduces spectrogram boundary artifacts
         start_global_index=start_sample,
         sample_rate_numerator=int(sample_rate_hz),
         sample_rate_denominator=1,

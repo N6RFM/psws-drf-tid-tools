@@ -64,8 +64,11 @@ def evaluate(speed_m_s, az_from_deg, n_flags, ground_truth):
             "n_flags":          n_flags,
             "overall_pass":     alias_confirmed,
             "category":         "alias_demo",
-            "note":             ("alias confirmed" if alias_confirmed
-                                 else "alias NOT triggered -- result suspiciously correct"),
+            "note":             ("alias confirmed -- azimuth error "  
+                                 f"{az_err_deg:.0f}° confirms wrong-period lag peak"
+                                 if alias_confirmed
+                                 else "CONCERN: alias NOT triggered -- "  
+                                 "result suspiciously correct for an aliased case"),
         }
 
     # -- Stress tests (expect_pass=False, not alias) -----------------------
