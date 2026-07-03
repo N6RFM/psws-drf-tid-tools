@@ -25,9 +25,11 @@ types of information for comparative purposes.
 
 ## A Note of Caution
 
-The toolkit calculations assume a planar wave, flat-earth geometry, single hop F region propagation, 
-and vertical-incidence reflection at the path midpoint relative to each receiving station. Results 
-should be considered as informed estimates.
+The toolkit calculations assume a planar wave, single-hop F-region propagation, and
+vertical-incidence reflection at the great-circle midpoint between each receiving
+station and the WWV transmitter. Station positions are projected using an azimuthal
+equidistant projection (preserving great-circle distances from the array centroid)
+for the DOA inversion. Results should be considered as informed estimates.
 
 ## What this toolkit does
 
