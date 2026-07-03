@@ -41,13 +41,15 @@ lets you:
 - inspect a DRF recording and identify the correct subchannel for comparative
   analysis
 - extract Doppler-vs-time CSVs from raw I/Q using four methods:
-  anchor-guided cwt-prophet (recommended), autocorr,
-  CWT, or wave-fit
+  anchor-guided cwt-prophet (recommended), wave-fit, autocorr,
+  and FFT peak-tracking
 - render annotated Doppler spectrograms with optional overlay of
   extracted Doppler traces for visual method assessment
 - run the complete analysis pipeline in one guided interactive session
 - run a full multi-station direction-of-arrival (DOA) analysis
 - visualize results as stacked Doppler traces and array-geometry maps
+- validate the pipeline against synthetic DRF data with known ground
+  truth using the `synthetic_tests/` suite
 
 The reference event is the **X1.9 solar flare and subsequent LSTID of
 19 January 2026**, analyzed end-to-end with this toolkit.
@@ -141,17 +143,22 @@ step-by-step guide.
 
 ## Doppler Extraction Methods
 
-`tid_spect_click.py` is the primary interactive extraction tool.
-provides experimental Kalman-filter-based extraction.
+`tid_spect_click.py` is the primary interactive extraction tool,
+providing anchor-guided cwt-prophet and wave-fit extraction with
+a visual spectrogram interface.
 
 Four methods are available, in order of recommended preference:
 
 | Method | Tool | User input | Best for |
 |--------|------|-----------|----------|
-| **Anchor-guided cwt-prophet** | tid_spect_click.py | E=accept auto-trace, or click carrier + X | All events, especially E-region contamination |
-| **Wave-fit** | tid_spect_click.py --wave-only | Click cycle points + F to fit | Clean signals with ≥1.5 visible cycles |
-| **Autocorr** | drf_to_doppler.py --method autocorr | None | Clean signals|
-| **FFT** | drf_to_doppler.py --method fft | None | Clean signals, fast survey |
+| **Anchor-guided cwt-prophet** | `tid_spect_click.py` | E=accept auto-trace, or click carrier + X | All events; handles E-region contamination |
+| **Wave-fit** | `tid_spect_click.py --wave-only` | Click cycle points + F to fit | Clean signals with ≥1.5 visible cycles |
+| **Autocorr** | `drf_to_doppler.py --method autocorr` | None (automated) | Clean signals; good general purpose |
+| **FFT peak-tracking** | `drf_to_doppler.py --method fft` | None (automated) | Fast survey; default method |
+
+`drf_to_doppler.py` also supports `cwt`, `bandpass`, and
+`sgolay-ridge` extraction — useful for special cases and
+automated validation (see `synthetic_tests/`).
 
 
 See `MANUAL_TUTORIAL.md` for the full extraction method comparison
@@ -200,28 +207,36 @@ psws-drf-tid-tools/
 ├── requirements.txt
 ├── requirements-optional.txt
 │
-├── tid_workflow.py             guided 8-step workflow (NEW in v2.0)
+├── tid_workflow.py             guided 8-step workflow
 ├── tid_quicklook.py            interactive TID window selector
-├── drf_spectrogram.py          spectrograms + --overlay for visual assessment
-├── drf_to_doppler.py           Doppler extraction (fft/autocorr/cwt/bandpass/sgolay-ridge;
-│                                   cwt-prophet and spline/wave-fit via tid_spect_click.py)
+├── tid_spect_click.py          interactive spectrogram extraction
+│                               (cwt-prophet and wave-fit; display required)
+├── drf_spectrogram.py          full-day and zoomed spectrograms
+├── drf_to_doppler.py           automated Doppler extraction
+│                               (fft, autocorr; also cwt, bandpass, sgolay-ridge)
 ├── drf_inspect.py              verify DRF metadata + subchannel
 ├── find_event_stations.py      companion-station discovery
-├── download_companions.py      automated companion-station download + organize
-├── tid_doa.py                  multi-station DOA inversion (--drop to exclude stations)
+├── download_companions.py      companion-station download + organize
+├── tid_doa.py                  multi-station DOA inversion
+├── tid_doa_residual.py         residual-subtraction second-wave diagnostic
 ├── tid_stack_plot.py           stacked Doppler comparison
 ├── tid_map.py                  array geometry map
-├── evaluate_external.py        external space weather evaluation
+├── run_madrigal_tools.py       combined Madrigal TEC + LSTID wrapper
 ├── fetch_ae_index.py           fetch + plot AE index (WDC Kyoto)
-├── fetch_madrigal_tec.py        Madrigal GPS TEC retrieval + xcorr
+├── fetch_madrigal_tec.py       Madrigal GPS TEC retrieval + xcorr
 │
 ├── docs/
-│   ├── ASSESSING_RESULTS.md         technical basis for DOA estimates
-│   ├── EXTERNAL_EVALUATION.md       external space weather evaluation tools
-│   ├── COOKBOOK.md                  task-oriented recipes
-
-│   ├── METHODOLOGY.md               signal processing details
-│   └── TROUBLESHOOTING.md           failure modes and fixes
+│   ├── ASSESSING_RESULTS.md    understanding and validating DOA results
+│   ├── EXTERNAL_EVALUATION.md  external space weather evaluation tools
+│   ├── COOKBOOK.md             task-oriented recipes
+│   ├── METHODOLOGY.md          signal processing details
+│   └── TROUBLESHOOTING.md      failure modes and fixes
+│
+├── synthetic_tests/            end-to-end validation suite (known ground truth)
+│   ├── README.md               suite documentation and usage
+│   ├── run_tests.py            automated batch runner
+│   ├── plot_spectrograms.py    synthetic DRF spectrogram visualisation
+│   └── events/                 generated DRF data (gitignored, ~500MB)
 │
 └── examples/
     ├── README.md               event descriptions and data access
@@ -263,7 +278,7 @@ automatically (look for "Cite this repository" in the sidebar), or:
 > Mattaliano, R. (N6RFM) and Griffiths, G. (G3ZIL). 2026.
 > *psws-drf-tid-tools: a Python pipeline for analyzing Traveling
 > Ionospheric Disturbances from HamSCI Grape Digital RF I/Q recordings.*
-> Version 2.4.x https://github.com/N6RFM/psws-drf-tid-tools
+> Version 2.6.5 https://github.com/N6RFM/psws-drf-tid-tools
 
 ---
 

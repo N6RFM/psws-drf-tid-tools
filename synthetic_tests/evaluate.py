@@ -97,10 +97,19 @@ def evaluate(speed_m_s, az_from_deg, n_flags, ground_truth):
     noise_type = ground_truth.get("noise_type", "awgn")
 
     true_speed = ground_truth["true_speed_m_s"]
+    method = ground_truth.get("method", "autocorr")
+    # Manual methods (wave-fit, cwt-prophet) have wider thresholds
+    # because click precision directly affects accuracy.
+    # Automated methods (autocorr, fft, cwt) have tighter thresholds.
+    MANUAL_METHODS = {"spline", "wave-fit", "cwt-prophet"}
+    is_manual = method in MANUAL_METHODS
     # High-speed TIDs have larger quantization error at 60s cadence
-    # (lag resolution 60s / true_lag_s ~= 7-8% at 800 m/s)
     speed_factor = 1.5 if true_speed >= 600 else 1.0
-    if snr_db >= 30 and noise_type == "awgn":
+    if is_manual:
+        # Manual methods: wider thresholds regardless of SNR/noise
+        spd_thresh, az_thresh = round(25 * speed_factor), 15
+        tier = "manual"
+    elif snr_db >= 30 and noise_type == "awgn":
         spd_thresh, az_thresh = round(15 * speed_factor), 3
         tier = "clean"
     elif snr_db >= 15 and noise_type == "awgn":

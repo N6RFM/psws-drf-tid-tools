@@ -142,14 +142,32 @@ def run_one_test(tc, method, output_root, verbose=True):
         csv_path = event_dir / f"{s['name'].lower()}_{method}.csv"
         if method in INTERACTIVE_METHODS:
             # Don't run extraction -- user must have run tid_spect_click.py
+            # tid_spect_click.py writes CSV alongside the spectrogram PNG
+            # so also check plots dir for <station>_spectrogram_wave_tid.csv
+            # (wave-fit) or <station>_spectrogram_prophet_tid.csv (cwt-prophet)
             if not csv_path.exists():
-                if verbose:
-                    print(f"    {s['name']}: CSV not found -- run interactively:")
-                    print(f"      python3 run_tests.py --show-commands --test {name}")
-                return {"test": name, "method": method,
-                        "overall_pass": False,
-                        "note": f"CSV not found -- run tid_spect_click.py first: "
-                                f"python3 run_tests.py --show-commands --test {name}"}
+                plots_dir = pathlib.Path(__file__).parent / 'plots' / name
+                stn_lower = s['name'].lower()
+                # Look for tid_spect_click.py output in plots dir
+                candidates = [
+                    plots_dir / f"{s['name']}_spectrogram_wave_tid.csv",
+                    plots_dir / f"{s['name']}_spectrogram_prophet_tid.csv",
+                    plots_dir / f"{s['name']}_spectrogram_guided.csv",
+                ]
+                found = next((c for c in candidates if c.exists()), None)
+                if found:
+                    import shutil
+                    shutil.copy(found, csv_path)
+                    if verbose:
+                        print(f"    {s['name']}: copied {found.name} -> {csv_path.name}")
+                else:
+                    if verbose:
+                        print(f"    {s['name']}: CSV not found -- run interactively:")
+                        print(f"      python3 run_tests.py --show-commands --test {name}")
+                    return {"test": name, "method": method,
+                            "overall_pass": False,
+                            "note": f"CSV not found -- run tid_spect_click.py first: "
+                                    f"python3 run_tests.py --show-commands --test {name}"}
             if verbose:
                 print(f"    {s['name']}: using pre-existing CSV {csv_path.name}")
         else:
@@ -213,6 +231,7 @@ def run_one_test(tc, method, output_root, verbose=True):
     gt["notes"] = notes  # ensure notes available for evaluate()
     gt["snr_db"] = snr
     gt["noise_type"] = noise
+    gt["method"] = method  # for per-method thresholds
     result = evaluate(spd, az_meas, n_flags, gt)
     result["test"] = name
     result["method"] = method
