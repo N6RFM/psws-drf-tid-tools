@@ -1842,3 +1842,29 @@ speed_err=4.8%, az_err=1.0 deg -> PASS
    pending (check July)
 3. Run full 20-test suite (currently only nominal verified on Bob's machine)
 4. Consider wiring tid_doa_residual.py into tid_workflow.py
+
+---
+## 81. v2.6.5 -- cwt bug fix + spectrogram plotting -- 2026-07-03
+
+### Changes
+- drf_to_doppler.py: fixed NameError (_pre_seeded undefined) in
+  estimate_carrier_freq_cwt() -- cwt method now works on all DRF data
+- synthetic_tests/plot_spectrograms.py: new spectrogram visualisation
+  tool; full complex FFT with fftshift for DC-centred display; overlays
+  true TID Doppler + extracted traces; saves to plots/
+- synthetic_tests/README.md: full method table (7 methods, automated vs
+  interactive), fft/cwt naming clarified, spectrogram usage documented
+- synthetic_tests/run_tests.py + conftest.py: default methods now
+  autocorr,cwt,fft; alias demos labelled "no (alias)" not "no (stress)"
+- README.md: drf_to_doppler description lists all 5 automated methods
+- Spectrogram validation: nominal (AWGN) shows clean sinusoidal carrier;
+  realistic_noise shows drift-smeared carrier explaining 17-20% speed
+  uncertainty; stress_worst shows pure noise confirming correct failure
+- v2.6.5 tagged and GitHub release published
+
+### Open items
+1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+2. June 6 2026 event: 509 m/s @ 137 deg; Madrigal TEC pending (July)
+3. Run full 20-test suite with all automated methods (autocorr,cwt,fft)
+4. Consider wiring tid_doa_residual.py into tid_workflow.py
+5. Consider adding sgolay-ridge to automated test suite
