@@ -525,7 +525,7 @@ def estimate_carrier_freq_cwt(iq_block, fs_hz, search_band_hz=5.0,
     j = _state['block_idx']
     hist = _state['history']
 
-    if j < N_TRAIN and not _pre_seeded:
+    if j < N_TRAIN:
         # Training phase: seed with FFT result for reliability
         chosen_freq = fft_peak_freq()
         hist.append((j, chosen_freq))
