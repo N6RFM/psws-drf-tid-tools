@@ -456,19 +456,24 @@ where the wave actually passes through (the F-region reflection point):
 midpoint = great_circle_midpoint(wwv_lat, wwv_lon, station_lat, station_lon)
 ```
 
-The local projection uses equirectangular coordinates centered on the
-array centroid:
+The local projection uses an **azimuthal equidistant (AE) projection**
+centred on the array centroid. Each midpoint is mapped to local EN
+coordinates by computing its great-circle distance and initial bearing
+from the centroid:
 
 ```python
-x_east_m  = (lon - lon_0) · R · cos(lat_0)
-y_north_m = (lat - lat_0) · R
+c      = arccos(sin(lat_0)·sin(lat) + cos(lat_0)·cos(lat)·cos(Δlon))
+az     = atan2(cos(lat)·sin(Δlon), sin(lat) − sin(lat_0)·cos(c)
+                                    / cos(lat_0))
+x_east_m  = c · R · sin(az)
+y_north_m = c · R · cos(az)
 ```
 
-This is exact in the limit of small arrays (when curvature can be
-ignored). For arrays spanning more than ~2000 km, replace with a more
-careful projection (e.g. Mercator with cosine-of-latitude correction).
-For the 19 Jan 2026 4-station array (~1500 km span), the
-equirectangular projection is good to ~1% in distances.
+This preserves great-circle distances and bearings from the centre
+point exactly, eliminating the systematic north-component error
+introduced by the equirectangular approximation on CONUS-scale arrays
+(13–20% error in north baseline lengths for near-meridional waves,
+tested on the Jan 2026 event).
 
 ---
 
@@ -514,6 +519,18 @@ the toolkit's planar assumption doesn't capture.
 Drop one station and re-run. If the direction changes by less than
 ~10° and speed by less than ~20%, the answer is robust. Larger
 changes mean the array geometry is poorly conditioned for the wave.
+
+### Extraction period spread
+
+`tid_doa.py` reports a `[6] Dominant period spread` diagnostic
+estimated from the FFT of each station's extracted Doppler series.
+If all stations show similar dominant periods (spread < 15%), the
+single-wave assumption is internally self-consistent. If one or more
+stations show a markedly different dominant period, extraction noise
+— not a second physical wave — is the most likely cause of any
+elevated plane-wave RMS residual. The diagnostic uses a subharmonic
+guard to avoid confusing a harmonic peak for the fundamental when the
+analysis window contains approximately two wave cycles.
 
 ---
 
@@ -573,8 +590,8 @@ The toolkit assumes:
 
 For events that violate these assumptions, the toolkit still produces
 a "best-fit plane wave" result, but it should be reported with explicit
-caveats. Future work directions: spherical-Earth projection, two-hop
-support, multi-wave decomposition.
+caveats. Future work directions: two-hop support, multi-wave
+decomposition.
 
 ---
 

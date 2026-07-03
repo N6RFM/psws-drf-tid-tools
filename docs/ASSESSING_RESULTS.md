@@ -75,8 +75,9 @@ below is just the compact way to write "speed and direction" so that
 the timing differences become a set of linear equations.
 
 The formal statement follows. Let station *k* sample the disturbance
-at position **r**_k (a local east-north map projection of its path
-midpoint). For a plane wave with slowness vector **s** (units s m⁻¹,
+at position **r**_k (the azimuthal equidistant projection of its
+WWV-path midpoint onto the local east-north plane centred on the
+array centroid — preserving great-circle distances and bearings). For a plane wave with slowness vector **s** (units s m⁻¹,
 pointing in the direction the wave travels, with magnitude 1/v where
 v is the phase speed), the arrival time of a given wave crest at
 station *k* is
