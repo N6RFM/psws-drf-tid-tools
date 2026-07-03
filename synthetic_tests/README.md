@@ -6,77 +6,100 @@ synthetic Digital RF (DRF) data with known ground truth.
 ## What this does
 
 Generates synthetic I/Q recordings that mimic real HamSCI Grape/
-WSPRDaemon station data, with a known TID embedded at a specified speed,
-azimuth, period, and amplitude. Runs the full pipeline on these
-recordings — DRF generation, Doppler extraction, DOA inversion — and
-compares the recovered parameters against the known ground truth.
+WSPRDaemon station data, with a known TID embedded at a specified
+speed, azimuth, period, amplitude, and noise type. Runs the full
+pipeline on these recordings and compares the recovered parameters
+against the known ground truth.
 
-This is the only way to validate the toolkit against a reference TID,
-since real ionospheric events have no independently known ground truth.
+Since real ionospheric events have no independently known ground
+truth, this is the only way to rigorously validate the toolkit.
 
-## Extraction methods
+---
 
-`drf_to_doppler.py` supports seven extraction methods:
+## Ground truth table (all 27 test conditions)
 
-| Method | CLI flag | Automated? | Notes |
-|--------|----------|-----------|-------|
-| FFT peak-tracking | `--method fft` | ✅ Yes | Default; fast survey |
-| Autocorrelation | `--method autocorr` | ✅ Yes | Good for clean signals |
-| CWT multi-peak | `--method cwt` | ✅ Yes | Handles E-region better |
-| Adaptive bandpass | `--method bandpass` | ✅ Yes | Suppresses fixed interferers |
-| Savitzky-Golay ridge | `--method sgolay-ridge` | ✅ Yes | Smooth ridge tracking |
-| Anchor-guided cwt-prophet | `--method cwt-prophet` | ⚠️ Semi | Requires user anchor clicks in `tid_spect_click.py` |
-| Wave-fit / spline | `--method spline` | ⚠️ Semi | Requires user interaction in `tid_spect_click.py` |
+| # | Name | Speed (m/s) | From (°) | Period (min) | Amp (Hz) | SNR (dB) | Noise | Array | Pass? |
+|---|------|-------------|----------|--------------|----------|----------|-------|-------|-------|
+| 1 | `nominal` | 500 | 30 | 60 | 0.5 | 20 | AWGN | EW-3stn | yes |
+| 2 | `fast_tid` | 800 | 30 | 60 | 0.5 | 20 | AWGN | EW-3stn | yes |
+| 3 | `slow_tid_south` | 150 | 180 | 60 | 0.5 | 20 | AWGN | EW-3stn | yes |
+| 4 | `slow_tid_alias` | 150 | 30 | 60 | 0.5 | 20 | AWGN | EW-3stn | **no** |
+| 5 | `az_south` | 300 | 180 | 60 | 0.5 | 20 | AWGN | EW-3stn | yes |
+| 6 | `az_east_alias` | 300 | 90 | 60 | 0.5 | 20 | AWGN | EW-3stn | **no** |
+| 7 | `az_northwest` | 500 | 315 | 60 | 0.5 | 20 | AWGN | EW-3stn | yes |
+| 8 | `period_60_compact` | 300 | 30 | 60 | 0.5 | 20 | AWGN | compact | yes |
+| 9 | `period_120` | 300 | 30 | 120 | 0.5 | 20 | AWGN | EW-3stn | yes |
+| 10 | `period_180` | 300 | 30 | 180 | 0.5 | 20 | AWGN | EW-3stn | yes |
+| 11 | `weak_signal` | 500 | 30 | 60 | 0.1 | 20 | AWGN | EW-3stn | yes |
+| 12 | `strong_signal` | 500 | 30 | 60 | 1.0 | 20 | AWGN | EW-3stn | yes |
+| 13 | `high_snr` | 500 | 30 | 60 | 0.5 | 40 | AWGN | EW-3stn | yes |
+| 14 | `low_snr` | 500 | 30 | 60 | 0.5 | 10 | AWGN | EW-3stn | yes |
+| 15 | `very_low_snr` | 500 | 30 | 60 | 0.5 | 5 | AWGN | EW-3stn | **no** |
+| 16 | `realistic_noise` | 500 | 30 | 60 | 0.5 | 20 | realistic | EW-3stn | yes |
+| 17 | `realistic_low_snr` | 500 | 30 | 60 | 0.5 | 10 | realistic | EW-3stn | yes |
+| 18 | `wide_array_alias` | 300 | 30 | 60 | 0.5 | 20 | AWGN | wide | **no** |
+| 19 | `mixed_4stn` | 509 | 137 | 60 | 0.5 | 20 | AWGN | 4stn | yes |
+| 20 | `stress_worst` | 150 | 90 | 120 | 0.1 | 5 | realistic | compact | **no** |
+| 21 | `two_wave` | 500 | 30 | 60 | 0.5 | 20 | AWGN | EW-3stn | yes |
+| 22 | `two_wave_strong` | 500 | 30 | 60 | 0.5 | 20 | AWGN | EW-3stn | yes |
+| 23 | `period_chirp` | 500 | 30 | 60→66 | 0.5 | 20 | AWGN | EW-3stn | yes |
+| 24 | `eregion` | 500 | 30 | 60 | 0.5 | 20 | AWGN+spikes | EW-3stn | **no** |
+| 25 | `coloured_noise` | 500 | 30 | 60 | 0.5 | 20 | 1/f | EW-3stn | yes |
+| 26 | `snr_fading` | 500 | 30 | 60 | 0.5 | 10–30 | AWGN | EW-3stn | yes |
+| 27 | `carrier_offset` | 500 | 30 | 60 | 0.5+0.08 | 20 | AWGN | EW-3stn | yes |
 
-The synthetic test suite runs automated methods only (`fft`, `autocorr`,
-`cwt`, `bandpass`). The semi-automated methods (`cwt-prophet`, `spline`)
-require a display and user interaction — they are tested separately by
-running `tid_spect_click.py` interactively on the synthetic DRF.
+**"From (°)"** = true bearing the wave comes FROM (0°=N, 90°=E, 180°=S, 270°=W).
 
-**Note on naming:** `fft` and `cwt` are distinct methods — do not use
-them interchangeably. `fft` picks the single loudest FFT peak each
-block; `cwt` uses a continuous wavelet transform to find multiple
-candidate peaks and selects the best one using temporal continuity.
+**"Pass?"** = whether the toolkit is expected to recover the correct
+result for automated methods (autocorr, fft, cwt). Tests marked **no**
+are deliberately outside the reliable operating range and demonstrate
+known limitations.
 
-## Test conditions (20 representative cases)
+### Station arrays
 
-| Category | Tests | Purpose |
-|----------|-------|---------|
-| Baseline | `nominal` | 500 m/s, 30°, 60-min, clean — all methods should pass |
-| Speed | `fast_tid`, `slow_tid_south`, `slow_tid_alias` | Speed range + aliasing demo |
-| Azimuth | `az_south`, `az_east_alias`, `az_northwest` | Directional sensitivity |
-| Period | `period_60_compact`, `period_120`, `period_180` | 60/120/180-min periods |
-| Amplitude | `weak_signal`, `strong_signal` | 0.1 and 1.0 Hz Doppler |
-| SNR | `high_snr`, `low_snr`, `very_low_snr` | 40/10/5 dB |
-| Noise | `realistic_noise`, `realistic_low_snr` | Drift + fading vs AWGN |
-| Geometry | `wide_array_alias`, `mixed_4stn` | Different station arrays |
-| Stress | `stress_worst` | Worst-case combination |
+| Array | Stations | Baseline | Notes |
+|-------|----------|----------|-------|
+| EW-3stn | SYN_AA6BD, SYN_N6RFM, SYN_W7LUX | ~1200 km E-W | Geometry from Jan 2026 event |
+| compact | SYN_A, SYN_B, SYN_C | ~500 km | Short baselines, alias-safe |
+| wide | SYN_A, SYN_B, SYN_C | ~2000 km | Long baselines, alias-prone |
+| 4stn | SYN_JJMP, SYN_KV0S_MO, SYN_AC0G_ND, SYN_N6RFM5 | ~1000 km mixed | Geometry from June 6 event |
 
-Tests marked `expect_pass=False` demonstrate known toolkit limitations:
-- **Alias demos**: lag > T/2 → wrong azimuth (confirms aliasing constraint)
-- **Stress tests**: conditions beyond the reliable operating range
+### Enhanced conditions (tests 21-27)
+
+| Test | Enhancement | What it tests |
+|------|-------------|---------------|
+| `two_wave` | Second TID at 200 m/s / 270° / 30% amplitude | Primary wave recovery with superimposed wave |
+| `two_wave_strong` | Second TID at 50% amplitude | Primary still recoverable; second wave detectable via `tid_doa_residual.py` |
+| `period_chirp` | Period drifts linearly 60→66 min over 2h | Extractor robustness to slowly varying period |
+| `eregion` | 8 random E-region spike bursts per station | Spike rejection: autocorr fails, cwt-prophet expected to pass |
+| `coloured_noise` | 70% pink (1/f) noise, 30% AWGN | Realistic noise spectrum |
+| `snr_fading` | SNR varies 10→30 dB sinusoidally (30-min period) | Time-varying signal quality |
+| `carrier_offset` | +0.08 Hz DC offset on all stations | DRF calibration error robustness |
+
+---
 
 ## Files
 
 ```
 synthetic_tests/
 ├── README.md                  this file
-├── synthetic_signal.py        TID I/Q signal model (AWGN + realistic noise)
+├── synthetic_signal.py        TID I/Q signal model (all noise/enhancement types)
 ├── synthetic_drf.py           DRF writer (generates HDF5 station directories)
-├── test_conditions.py         20 test condition definitions + array geometry
-├── run_tests.py               automated batch runner (no GUI required)
-├── evaluate.py                tiered pass/fail evaluation logic
+├── test_conditions.py         27 test condition definitions + array geometry
+├── run_tests.py               automated batch runner + interactive command helper
+├── evaluate.py                tiered pass/fail evaluation (per method, per condition)
 ├── plot_spectrograms.py       Doppler spectrogram visualisation
-├── conftest.py                pytest integration
+├── conftest.py                pytest CI integration
 ├── test_pipeline.py           pytest test cases
 ├── .gitignore                 excludes events/ and plots/ from git
-└── events/                    generated DRF data (created on first run)
-    ├── README.md
-    └── synthetic_<name>/      one directory per test condition
+└── events/                    generated DRF data (~700MB, created on first run)
+    └── synthetic_<name>/
         ├── ground_truth.json  known parameters for comparison
         ├── <STATION>/ch0/     DRF I/Q HDF5 files
-        └── <STATION>_<method>.csv  extracted Doppler (after first run)
+        └── <STATION>_<method>.csv  extracted Doppler (created on first run)
 ```
+
+---
 
 ## Requirements
 
@@ -84,105 +107,165 @@ synthetic_tests/
 pip install digital_rf pytest numpy scipy pandas matplotlib
 ```
 
-The toolkit scripts (`tid_doa.py`, `drf_to_doppler.py`) must be in the
-parent directory (`psws-drf-tid-tools/`). Run from inside
-`psws-drf-tid-tools/synthetic_tests/` and they are found automatically.
+---
 
-## Quick start
+## Quick start — automated methods
+
+Automated methods (autocorr, fft, cwt, bandpass) run without user
+interaction and are suitable for CI.
 
 ```bash
 cd ~/psws-tools-pr/synthetic_tests
 source ../.venv/bin/activate
 
-# List all 20 test conditions
+# List all 27 test conditions with ground truth
 python3 run_tests.py --list
 
-# Run one test (~30s to generate DRF, ~5s cached)
+# Run one test (~30-60s to generate DRF on first run, ~5s cached)
 python3 run_tests.py --test nominal --methods autocorr
 
-# Run with multiple methods
+# Run with multiple automated methods
 python3 run_tests.py --test nominal --methods autocorr,cwt,fft
 
-# Run all 20 tests (~30-40 min first run, ~5 min cached)
+# Run all 27 tests with autocorr (~45 min first run, ~8 min cached)
 python3 run_tests.py --automated --methods autocorr
 
-# Run all tests with all automated methods
-python3 run_tests.py --automated --methods autocorr,cwt,fft,bandpass
+# Generate spectrogram for visual inspection
+python3 plot_spectrograms.py --test nominal
+eog plots/nominal/SYN_AA6BD_spectrogram.png
 ```
 
-## Spectrogram visualisation
+---
+
+## Quick start — interactive methods (cwt-prophet, wave-fit)
+
+Interactive methods require a display and user clicks on the spectrogram.
+The workflow for each test condition is:
+
+### Step 1: Generate DRF and spectrogram
 
 ```bash
-# Plot spectrogram for all stations in one test (saves to plots/)
-python3 plot_spectrograms.py --test nominal
+# Generate DRF (automated extraction first ensures DRF exists)
+python3 run_tests.py --test nominal --methods autocorr
 
-# Overlay extracted Doppler traces on the spectrogram
-python3 plot_spectrograms.py --test nominal --overlay autocorr,cwt,fft
-
-# Plot all generated test conditions
-python3 plot_spectrograms.py --all
-
-# Plot specific stations only
-python3 plot_spectrograms.py --test realistic_noise --stations SYN_AA6BD,SYN_N6RFM
+# Generate spectrogram using drf_spectrogram.py (NOT plot_spectrograms.py)
+# drf_spectrogram.py produces the format tid_spect_click.py expects
+cd ~/psws-tools-pr
+python3 drf_spectrogram.py \
+    synthetic_tests/events/synthetic_nominal/SYN_AA6BD \
+    --subchannel 0 --start 00:00 --end 02:00 \
+    --ylim=-1,1 \
+    --output /tmp/syn_aa6bd.png
 ```
+
+Repeat `drf_spectrogram.py` for each station (SYN_N6RFM, SYN_W7LUX).
+
+### Step 2: Get the exact commands
+
+```bash
+cd synthetic_tests
+python3 run_tests.py --show-commands --test nominal
+```
+
+This prints the exact `tid_spect_click.py` command for each station
+and method, noting whether a sidecar `_axes.json` is available.
+
+### Step 3: Run cwt-prophet or wave-fit
+
+Run each printed command. The spectrogram opens with the true TID
+Doppler shown as a **red dashed line** — use it as your reference.
+
+**For cwt-prophet:**
+- Press **E** to accept the auto-detected trace
+- Or click on the carrier to anchor, then press **E**
+
+**For wave-fit (`--wave-only`):**
+- Click **5 or more points** on the bright carrier band
+- Spread clicks across the full window (t=0 to t=end)
+- Click peaks, troughs, and zero-crossings
+- Press **F** to fit — a dialog asks "how many cycles did you span?"
+  Count your peak-to-peak intervals and enter the number
+  (period-hint is pre-filled — just confirm if correct)
+- Check the blue fitted curve covers the full window and follows the carrier
+- Press **A** to accept, **W** to redo, **Q** to auto-accept and exit
+
+Output CSV is saved alongside the spectrogram PNG. The test runner
+copies it automatically to the events directory.
+
+### Step 4: Evaluate
+
+```bash
+python3 run_tests.py --test nominal --methods cwt-prophet
+python3 run_tests.py --test nominal --methods spline
+```
+
+---
+
+## Understanding pass/fail
+
+### For expect_pass=True tests (automated methods)
+
+| Tier | Speed threshold | Azimuth threshold | When applied |
+|------|----------------|-------------------|--------------|
+| Clean | 15% | 3° | SNR ≥ 30 dB, AWGN |
+| Nominal | 12% | 5° | SNR ≥ 15 dB, AWGN |
+| Degraded | 20% | 8° | Low SNR or realistic noise |
+| Two-wave | 18% | 5° | Two superimposed TIDs |
+| Chirp | 22% | 8° | Period drift |
+
+High-speed TIDs (≥ 600 m/s) get 1.5× speed threshold due to quantization
+error at 60-second cadence.
+
+### For expect_pass=False tests
+
+These tests are expected to **fail** — they demonstrate known toolkit
+limitations:
+
+| Category | Pass condition | Tests |
+|----------|---------------|-------|
+| Alias demo | Azimuth error > 30° (wrong-period lag confirmed) | `slow_tid_alias`, `az_east_alias`, `wide_array_alias` |
+| Stress | Speed error > threshold OR flags ≥ 2 | `very_low_snr`, `stress_worst`, `eregion` |
+
+### For manual methods (cwt-prophet, wave-fit)
+
+Speed threshold 25%, azimuth threshold 15° — wider than automated
+methods to account for click-precision variability.
+
+---
 
 ## pytest usage
 
 ```bash
-# Run all tests with autocorr (default)
+# Run all tests with default methods (autocorr, cwt, fft)
+pytest test_pipeline.py -v
+
+# Run with specific methods
 pytest test_pipeline.py -v --method autocorr
 
-# Run with multiple methods
-pytest test_pipeline.py -v --method autocorr,cwt,fft
-
-# Run specific tests
-pytest test_pipeline.py -v --method autocorr -k "nominal or az_south"
-
-# Skip alias demos and stress tests
+# Run only expect_pass=True tests
 pytest test_pipeline.py -v --method autocorr -m expect_pass
 
+# Run only alias demos
+pytest test_pipeline.py -v --method autocorr -m alias_demo
+
 # Headless CI
-PYTEST_METHODS=autocorr,cwt pytest test_pipeline.py -v
+PYTEST_METHODS=autocorr,fft pytest test_pipeline.py -q
 ```
 
-## Signal model
+---
 
-```
-I/Q(t) = exp(j * 2*pi * integral(f_doppler) dt) + noise(t)
+## Key findings from validation
 
-f_doppler(t) = amp_hz * sin(2*pi*t/period_s + phase_k)
-phase_k      = -2*pi * tau_k / period_s
-tau_k        = slowness_vector · AE_projected_position_k
-```
-
-**Noise types:**
-- `awgn`: additive white Gaussian noise only
-- `realistic`: AWGN + slow ionospheric carrier drift + Gaussian fading
-
-## Key findings from synthetic validation
-
-| Condition | Speed error | Azimuth error |
-|-----------|-------------|---------------|
-| Clean AWGN, SNR ≥ 20 dB | < 12% | < 5° |
-| Realistic noise (drift + fading) | 15–20% | < 8° |
-| High speed (≥ 600 m/s, 60s cadence) | up to 20% | < 5° |
-| Sub-cycle (180-min period, 2h window) | < 2% | < 2° |
-| Very low SNR (5 dB) | ~40% | ~12° |
-
-Key findings:
-1. **Period aliasing** (lag > T/2) produces wrong azimuths — see `[!]` diagnostic
-2. **Sub-cycle periods** more robust than expected
-3. **Realistic noise** is the dominant error source for real events
-4. **Very low SNR** passes all 5 core flags silently — see `[7]` SNR diagnostic
-5. **CWT and FFT** produce virtually identical results on synthetic data
-   (CWT advantage appears mainly with real E-region contamination)
-
-## Pass/fail thresholds
-
-| Category | Speed | Azimuth |
-|----------|-------|---------|
-| Clean (SNR ≥ 30 dB, AWGN) | 15% (high-speed: 22%) | 3° |
-| Nominal (SNR ≥ 15 dB, AWGN) | 12% (high-speed: 18%) | 5° |
-| Degraded (low SNR or realistic) | 20% (high-speed: 30%) | 8° |
-| Alias demo (`expect_pass=False`) | azimuth error > 30° confirms alias | — |
-| Stress (`expect_pass=False`) | error > threshold OR flags ≥ 2 | — |
+| Condition | Speed error | Azimuth error | Interpretation |
+|-----------|-------------|---------------|----------------|
+| AWGN, SNR ≥ 20 dB | ~5% | ~1° | Baseline accuracy |
+| Realistic noise | 15–20% | 5–8° | Dominant real-world error source |
+| Two waves (30%) | ~14% | ~0° | Primary wave recoverable |
+| Two waves (50%) | ~3% | ~4° | Primary still dominant |
+| Period chirp (10%/h) | ~19% | ~6° | Period drift degrades speed |
+| E-region spikes | ~33% | ~9° | autocorr fails; cwt-prophet should pass |
+| 1/f noise | ~5% | ~1° | Same as AWGN for autocorr |
+| Time-varying SNR | ~5% | ~1° | Minimal impact on autocorr |
+| Carrier offset +0.08 Hz | ~5% | ~1° | Cancels in cross-correlation |
+| Sub-cycle (180-min, 2h window) | ~0.3% | ~1° | More robust than expected |
+| Period aliasing (lag > T/2) | wrong azimuth | 113–144° error | Physical constraint, not a bug |

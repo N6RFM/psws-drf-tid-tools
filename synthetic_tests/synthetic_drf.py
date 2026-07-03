@@ -152,7 +152,8 @@ def generate_event(test_name, output_root):
               f"phase={math.degrees(phase_rad):+7.1f}deg  "
               f"mid=({midpoint[0]:.2f},{midpoint[1]:.2f})")
 
-        iq = generate_iq(
+        # Build enhanced parameters based on test name
+        _kw = dict(
             duration_s=duration_s,
             sample_rate_hz=SAMPLE_RATE_HZ,
             f_carrier_hz=F_CARRIER_HZ,
@@ -163,6 +164,36 @@ def generate_event(test_name, output_root):
             noise_type=noise_type,
             rng=rng,
         )
+        if name == 'two_wave':
+            # Second TID: 200 m/s from 270deg, 30% amplitude
+            _lag2, _ = compute_station_lag(
+                station['lat'], station['lon'], 200, 270, midpoints)
+            _phase2 = -2 * math.pi * _lag2 / period_s
+            _kw.update(second_tid_amp_hz=amp_hz * 0.30,
+                       second_tid_period_s=period_s,
+                       second_tid_phase_rad=_phase2)
+        elif name == 'two_wave_strong':
+            # Second TID at 50% amplitude (comparable to primary)
+            _lag2, _ = compute_station_lag(
+                station['lat'], station['lon'], 200, 270, midpoints)
+            _phase2 = -2 * math.pi * _lag2 / period_s
+            _kw.update(second_tid_amp_hz=amp_hz * 0.50,
+                       second_tid_period_s=period_s,
+                       second_tid_phase_rad=_phase2)
+        elif name == 'period_chirp':
+            _kw.update(chirp_rate=0.10)  # 10% period change per hour
+        elif name == 'eregion':
+            _kw.update(eregion_spikes=True, n_eregion_spikes=8)
+        elif name == 'coloured_noise':
+            _kw.update(coloured_noise_fraction=0.7)  # 70% pink, 30% AWGN
+        elif name == 'snr_fading':
+            _kw.update(snr_variation_db=20.0,
+                       snr_variation_period_s=1800.0)  # 10-30 dB, 30-min period
+        elif name == 'carrier_offset':
+            _kw.update(carrier_offset_hz=0.08)
+        elif noise_type == 'realistic':
+            _kw.update(asymmetric_fading=True)
+        iq = generate_iq(**_kw)
 
         write_station_drf(
             event_dir, station, iq,
