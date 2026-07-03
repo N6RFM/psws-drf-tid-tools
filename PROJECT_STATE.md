@@ -1868,3 +1868,33 @@ speed_err=4.8%, az_err=1.0 deg -> PASS
 3. Run full 20-test suite with all automated methods (autocorr,cwt,fft)
 4. Consider wiring tid_doa_residual.py into tid_workflow.py
 5. Consider adding sgolay-ridge to automated test suite
+
+---
+## 82. Interactive method support + sidecar axes.json -- 2026-07-03
+
+### Changes
+- synthetic_tests/run_tests.py: added --show-commands flag that prints
+  exact tid_spect_click.py commands for cwt-prophet and wave-fit
+  extraction on any synthetic event. Detects sidecar axes.json and
+  notes if pixel mapping is auto. Interactive methods (cwt-prophet,
+  spline, wave-fit) now look for pre-existing CSVs rather than running
+  extraction -- user runs tid_spect_click.py manually, then evaluates
+  with --methods cwt-prophet or --methods spline.
+- synthetic_tests/plot_spectrograms.py: now writes _axes.json sidecar
+  alongside each PNG -- auto-detected by tid_spect_click.py for
+  accurate pixel-to-frequency mapping without needing --tlim/--ylim.
+  Fixed sidecar path bug (with_suffix -> parent / stem + _axes.json).
+  Fixed deprecation warning (utcfromtimestamp -> fromtimestamp with UTC).
+
+### Interactive workflow
+1. python3 run_tests.py --test nominal --methods autocorr  (generate DRF)
+2. python3 plot_spectrograms.py --test nominal              (generate PNG + sidecar)
+3. python3 run_tests.py --show-commands --test nominal      (get commands)
+4. Run tid_spect_click.py commands for each station (3x cwt-prophet or wave-fit)
+5. python3 run_tests.py --test nominal --methods cwt-prophet (evaluate)
+
+### Open items
+1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+2. June 6 2026 event: 509 m/s @ 137 deg; Madrigal TEC pending (July)
+3. Run interactive methods on nominal to validate cwt-prophet/wave-fit
+4. Consider wiring tid_doa_residual.py into tid_workflow.py
