@@ -64,6 +64,18 @@
   SNR diagnostic addresses this gap.
 
 ---
+## v2.6.3 -- 2026-07-03
+
+### Fixed
+- **`tid_doa.py`**: replaced equirectangular projection with azimuthal
+  equidistant (AE) projection in `latlon_to_local_xy()`. Fixes 13-20%
+  north-component error on CONUS-scale arrays for near-meridional waves.
+  Impact: Jan 2026 autocorr 195.6->224.6 m/s; June 6 532.6->509.0 m/s.
+- **`docs/`**: updated METHODOLOGY.md, ASSESSING_RESULTS.md, README.md,
+  MANUAL_TUTORIAL.md to reflect AE projection and remove stale
+  flat-earth/equirectangular references.
+
+---
 ## v2.6.2 -- 2026-07-02
 
 ### Fixed
