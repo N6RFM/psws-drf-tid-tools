@@ -143,7 +143,7 @@ TEST_CONDITIONS = [
 
     ("mixed_4stn",
      509, 137, 60, 0.5, 20, "awgn", "array_4stn_mixed", True,
-     "4-station mixed geometry (June 6 array), 509 m/s from 137 deg"),
+     "4-station mixed N-S/E-W geometry, 509 m/s from 137 deg"),
 
     # ── Stress tests ───────────────────────────────────────────────────────
     ("stress_worst",
