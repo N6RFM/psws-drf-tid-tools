@@ -75,7 +75,7 @@ known limitations.
 | `two_wave` | Second TID at 200 m/s / 270° / 30% amplitude | Primary wave recovery with superimposed wave |
 | `two_wave_strong` | Second TID at 50% amplitude | Primary still recoverable; second wave detectable via `tid_doa_residual.py` |
 | `period_chirp` | Period drifts linearly 60→66 min over 2h | Extractor robustness to slowly varying period |
-| `eregion` | 8 random E-region spike bursts per station | Spike rejection: autocorr fails, cwt-prophet expected to pass |
+| `eregion` | 8 random E-region spike bursts per station | Spike rejection: autocorr/fft fail; cwt not yet tested on this condition |
 | `coloured_noise` | 70% pink (1/f) noise, 30% AWGN | Realistic noise spectrum |
 | `snr_fading` | SNR varies 10→30 dB sinusoidally (30-min period) | Time-varying signal quality |
 | `carrier_offset` | +0.08 Hz DC offset on all stations | DRF calibration error robustness |
@@ -143,7 +143,11 @@ eog plots/nominal/SYN_AA6BD_spectrogram.png
 
 ---
 
-## Quick start — interactive methods (cwt-prophet, wave-fit)
+## Quick start — interactive methods (wave-fit)
+
+> **cwt-prophet on synthetic data:** The Prophet model hangs on pure
+> sinusoidal signals. Use cwt-prophet on **real HamSCI events only**.
+> For synthetic testing, use `--method spline` (wave-fit) instead.
 
 Interactive methods require a display and user clicks on the spectrogram.
 The workflow for each test condition is:
@@ -201,9 +205,12 @@ copies it automatically to the events directory.
 ### Step 4: Evaluate
 
 ```bash
-python3 run_tests.py --test nominal --methods cwt-prophet
 python3 run_tests.py --test nominal --methods spline
 ```
+
+> **Note:** do not use `--methods cwt-prophet` on synthetic data.
+> The Prophet model stalls on pure sinusoidal signals and hangs.
+> cwt-prophet works correctly on real HamSCI events.
 
 ---
 
@@ -269,7 +276,7 @@ PYTEST_METHODS=autocorr,fft pytest test_pipeline.py -q
 | Two waves (30%) | ~14% | ~0° | Primary wave recoverable |
 | Two waves (50%) | ~3% | ~4° | Primary still dominant |
 | Period chirp (10%/h) | ~19% | ~6° | Period drift degrades speed |
-| E-region spikes | ~33% | ~9° | autocorr fails; cwt-prophet should pass |
+| E-region spikes (autocorr) | ~33% | ~9° | autocorr fails; cwt not yet tested |
 | 1/f noise | ~5% | ~1° | Same as AWGN for autocorr |
 | Time-varying SNR | ~5% | ~1° | Minimal impact on autocorr |
 | Carrier offset +0.08 Hz | ~5% | ~1° | Cancels in cross-correlation |
