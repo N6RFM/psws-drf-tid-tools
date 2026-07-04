@@ -3,6 +3,8 @@
 End-to-end validation of the TID direction-of-arrival pipeline using
 synthetic Digital RF (DRF) data with known ground truth.
 
+**Current suite: 29 test conditions, 26/29 pass with autocorr.**
+
 ## What this does
 
 Generates synthetic I/Q recordings that mimic real HamSCI Grape/
@@ -47,6 +49,8 @@ truth, this is the only way to rigorously validate the toolkit.
 | 25 | `coloured_noise` | 500 | 30 | 60 | 0.5 | 20 | 1/f | EW-3stn | yes |
 | 26 | `snr_fading` | 500 | 30 | 60 | 0.5 | 10–30 | AWGN | EW-3stn | yes |
 | 27 | `carrier_offset` | 500 | 30 | 60 | 0.5+0.08 | 20 | AWGN | EW-3stn | yes |
+| 28 | `snr_8db` | 500 | 30 | 60 | 0.5 | 8 | AWGN | EW-3stn | **no** |
+| 29 | `realistic_8db` | 500 | 30 | 60 | 0.5 | 8 | realistic | EW-3stn | **no** |
 
 **"From (°)"** = true bearing the wave comes FROM (0°=N, 90°=E, 180°=S, 270°=W).
 
@@ -75,6 +79,8 @@ known limitations.
 | `coloured_noise` | 70% pink (1/f) noise, 30% AWGN | Realistic noise spectrum |
 | `snr_fading` | SNR varies 10→30 dB sinusoidally (30-min period) | Time-varying signal quality |
 | `carrier_offset` | +0.08 Hz DC offset on all stations | DRF calibration error robustness |
+| `snr_8db` | 8 dB AWGN (exactly at [7] POOR threshold) | Calibrates whether SNR diagnostic threshold is meaningful |
+| `realistic_8db` | 8 dB + realistic noise | Combination stress: poor SNR + ionospheric noise |
 
 ---
 
@@ -269,3 +275,5 @@ PYTEST_METHODS=autocorr,fft pytest test_pipeline.py -q
 | Carrier offset +0.08 Hz | ~5% | ~1° | Cancels in cross-correlation |
 | Sub-cycle (180-min, 2h window) | ~0.3% | ~1° | More robust than expected |
 | Period aliasing (lag > T/2) | wrong azimuth | 113–144° error | Physical constraint, not a bug |
+| 8 dB SNR (AWGN) | ~36% | ~10° | Fails silently — [7] diagnostic cannot detect this gap |
+| 8 dB + realistic noise | ~49% | ~45° | Complete failure; run multiple methods to check |
