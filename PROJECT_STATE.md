@@ -2030,3 +2030,40 @@ synthetic_tests/README.md now includes:
 3. Test cwt-prophet on eregion condition (expected to pass)
 4. Test cwt-prophet on nominal (basic validation)
 5. Consider wiring tid_doa_residual.py into tid_workflow.py
+
+---
+## 86. run_interactive.py + cwt-prophet fix -- 2026-07-03
+
+### run_interactive.py
+New script collapsing 9-step interactive workflow to 3:
+  1. python3 synthetic_tests/run_interactive.py --test nominal --method spline
+  2. Click in each spectrogram window (unavoidable)
+  3. See pass/fail result
+
+Features:
+- Generates DRF if not cached
+- Runs drf_spectrogram.py for each station automatically
+- Opens reference image (plot_spectrograms.py with true Doppler overlay)
+- Opens tid_spect_click.py station-by-station sequentially
+- Copies output CSVs and runs DOA evaluation automatically
+- --stations A,B,C: specific stations only
+- --force: redo even if CSV exists
+- --all: batch through all 27 conditions
+
+### cwt-prophet incompatibility with synthetic data
+Prophet forecasting model stalls on pure sinusoidal signals (no
+trend/seasonality). Works fine on real HamSCI events. Excluded from
+automated synthetic testing. README and run_interactive.py updated
+to warn users and default to spline (wave-fit) instead.
+
+### wave-fit validated end-to-end via run_interactive.py
+Nominal test (500 m/s, 30 deg, 60-min period):
+  Result: 554.3 m/s @ 31.7 deg
+  speed_err=10.9%, az_err=1.7 deg -- PASS (manual tier: 25%/15 deg)
+Previous best: 424.3 m/s @ 20.9 deg (47.5% error) before fixes.
+
+### Open items
+1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+2. June 6 2026 event: 509 m/s @ 137 deg; Madrigal TEC pending (July)
+3. Run wave-fit on more test conditions via run_interactive.py
+4. Consider wiring tid_doa_residual.py into tid_workflow.py
