@@ -2156,7 +2156,6 @@ Failures (expected): eregion, snr_8db, realistic_8db
 2. June 6 2026 event: 509 m/s @ 137 deg; Madrigal TEC pending (July)
 3. Consider multi-method consistency check as future SNR diagnostic
 4. Consider wiring tid_doa_residual.py into tid_workflow.py
-5. Run full 29-test suite with fft and cwt methods -- DONE (26/29 pass autocorr, results consistent across methods)
 
 ---
 ## 90. Wave-fit UX improvements -- 2026-07-04
@@ -2222,4 +2221,3 @@ Tagged and published on GitHub. Covers all work since v2.6.5:
 2. June 6 2026 event: 509 m/s @ 137 deg; Madrigal TEC pending (July)
 3. Run full 3-station wave-fit on nominal to validate DOA result
 4. Consider wiring tid_doa_residual.py into tid_workflow.py
-5. Run full 29-test suite with fft and cwt methods -- DONE
