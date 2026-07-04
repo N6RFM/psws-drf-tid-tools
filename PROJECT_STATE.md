@@ -2157,3 +2157,42 @@ Failures (expected): eregion, snr_8db, realistic_8db
 3. Consider multi-method consistency check as future SNR diagnostic
 4. Consider wiring tid_doa_residual.py into tid_workflow.py
 5. Run full 29-test suite with fft and cwt methods
+
+---
+## 90. Wave-fit UX improvements -- 2026-07-04
+
+### Changes to tid_spect_click.py
+- t_out now uses DRF sample bounds (most reliable source of true start/end
+  time) so exported CSV always covers full analysis window regardless of
+  sidecar floating-point rounding (1.9999... issue fixed)
+- Yellow segment bars default to 15% inset from each edge -- visible and
+  easy to grab, while t_out still covers full DRF window
+- Preview curve (_full_t0/_full_t1 from _update_image_transform) spans
+  full spectrogram extent beyond yellow bars
+- t_out computation rounds to nearest minute with 3-min ceiling buffer
+
+### Validated
+- CSV covers full 00:00-02:00 UTC (122 rows at 1-min cadence)
+- T=59.5 min recovered vs true 60 min (0.8% error)
+- Yellow bars visible and easy to grab at 15% inset
+
+### Open items
+1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+2. June 6 2026 event: 509 m/s @ 137 deg; Madrigal TEC pending (July)
+3. Run full 3-station wave-fit on nominal to validate DOA result
+4. Consider wiring tid_doa_residual.py into tid_workflow.py
+
+---
+## 90. Wave-fit UX improvements -- 2026-07-04
+
+### Changes to tid_spect_click.py
+- t_out uses DRF sample bounds for full window coverage
+- Yellow bars default to 15% inset from edges -- visible and easy to grab
+- Preview curve spans full spectrogram beyond yellow bars
+- CSV validated: 00:00-02:00 UTC, 122 rows, T=59.5 min (0.8% error)
+
+### Open items
+1. May 2026 event (--resume)
+2. June 6 event: 509 m/s @ 137 deg; Madrigal TEC pending (July)
+3. Run full 3-station wave-fit on nominal to validate DOA
+4. Consider wiring tid_doa_residual.py into tid_workflow.py
