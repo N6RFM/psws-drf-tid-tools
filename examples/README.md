@@ -16,11 +16,11 @@ Large-scale TID observed across the central US. 4-station array using WWV
 
 | Parameter | Value |
 |-----------|-------|
-| Phase speed | 239 m/s |
-| Coming from | 30° NNE |
+| Phase speed | 304 m/s |
+| Coming from | 10° NNE |
 | Window | 2026-01-19T00:00–01:15 UTC |
-| Stations | N6RFM, AA6BD, W7LUX, AC0G_ND |
-| Flags | 1/5 |
+| Stations | N6RFM, AA6BD, W7LUX (AC0G_ND dropped — E-region) |
+| Flags | 0/5 |
 
 ### Stations
 | Callsign | Location | Grid | Subchannel |
