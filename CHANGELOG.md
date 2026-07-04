@@ -1,3 +1,71 @@
+## v3.0.0 -- 2026-07-04
+
+### Major changes
+
+#### Wave-fit (tid_spect_click.py) -- substantially improved
+- Exported CSV now covers the full analysis window using DRF sample
+  bounds, not just the region between yellow segment bars. Fixes a
+  long-standing issue where partial-segment fitting produced truncated
+  Doppler traces that degraded cross-correlation.
+- Yellow segment bars default to 15% inset from edges -- visible and
+  easy to grab while t_out still covers the full DRF window.
+- Period dialog replaced: instead of a confusing "multiplier" input,
+  users now answer "how many cycles did you span?" -- pre-filled from
+  --period-hint, shows implied period for reference.
+- Preview curve extrapolates the fitted sinusoid across the full
+  spectrogram, not just the clicked region.
+
+#### Synthetic DRF test suite (synthetic_tests/) -- 29 conditions
+Complete end-to-end validation framework with known ground truth.
+Generates synthetic I/Q recordings, runs the full pipeline, and
+compares recovered DOA parameters against truth.
+
+New in v3.0 (beyond v2.6.4/v2.6.5 foundation):
+- 7 enhanced realism conditions: two superimposed TIDs, period chirp
+  (linear drift), E-region spikes, 1/f coloured noise, time-varying
+  SNR, carrier DC offset, asymmetric fading
+- 2 SNR threshold conditions: snr_8db (at [7] POOR threshold),
+  realistic_8db (8 dB + realistic noise)
+- run_interactive.py: one-command launcher for interactive extraction
+  (cwt-prophet or wave-fit) -- generates DRF, spectrograms, opens
+  tid_spect_click.py station-by-station, evaluates automatically
+- Per-method pass/fail thresholds: manual methods (wave-fit, spline)
+  use wider thresholds (25% speed, 15 deg az) than automated methods
+- Full ground truth table and step-by-step usage in README.md
+- Note: cwt-prophet incompatible with synthetic data (Prophet model
+  stalls on pure sinusoids) -- use wave-fit for interactive testing
+
+#### Suite results: 26/29 PASS, 0 UNEXPECTED (autocorr)
+Expected failures: eregion (autocorr has no spike rejection),
+snr_8db and realistic_8db (below reliable operating floor).
+
+### Fixed
+- **`tid_spect_click.py`**: wave-fit exports full window via DRF bounds
+- **`tid_spect_click.py`**: yellow bars 15% inset for visibility
+- **`tid_spect_click.py`**: clearer "how many cycles?" period dialog
+- **`synthetic_tests/run_tests.py`**: display 0 flags not None
+- **`synthetic_tests/README.md`**: removed cwt-prophet from commands
+- **`examples/README.md`**: corrected stale 239->304 m/s Jan 2026 result
+- **`synthetic_tests/`**: June 6 event attribution removed from 4stn array
+
+### Documentation
+- **`MANUAL_TUTORIAL.md`**: Option D (wave-fit) rewritten with explicit
+  step-by-step instructions, click guidance, and accuracy note
+- **`README.md`**: 4-method extraction table, repo listing updated,
+  citation version updated
+- **`docs/ASSESSING_RESULTS.md`**: SNR diagnostic gap documented --
+  at 8 dB, autocorr produces plausible-looking results with 0 flags
+  but 35% speed error; multi-method comparison recommended
+
+### Key findings from v3.0 validation
+- Two superimposed TIDs: primary wave recoverable even at 50% amplitude
+- E-region spikes: autocorr fails (33% error); cwt should handle better
+- 1/f noise, SNR fading, carrier offset: minimal impact on autocorr
+- Period chirp (10%/h): 19% speed error -- worst non-alias, non-stress
+- 8 dB SNR: fails silently -- [7] diagnostic cannot detect this gap
+- Wave-fit (3-station nominal): 10.9% speed error after UX fixes
+
+---
 ## v2.6.5 -- 2026-07-03
 
 ### Fixed
