@@ -2133,3 +2133,27 @@ demonstrate failure). Both confirm the diagnostic gap.
 2. June 6 2026 event: 509 m/s @ 137 deg; Madrigal TEC pending (July)
 3. Consider multi-method consistency check as future SNR diagnostic
 4. Consider wiring tid_doa_residual.py into tid_workflow.py
+
+---
+## 89. Final fixes -- 2026-07-04
+
+### Changes
+- synthetic_tests/run_tests.py: display 0 flags instead of None when
+  DOA completes successfully but flag line wasn't parsed
+- synthetic_tests/README.md: removed cwt-prophet from interactive test
+  commands (hangs on pure sinusoids); added warning note; updated
+  eregion and findings table to remove unverified cwt-prophet claim
+- examples/README.md: corrected stale Jan 2026 result (239->304 m/s)
+- synthetic_tests/README.md + test_conditions.py: removed June 6 event
+  attribution from 4stn array geometry
+
+### Full automated suite result (29 conditions, autocorr)
+26/29 PASS, 0 UNEXPECTED
+Failures (expected): eregion, snr_8db, realistic_8db
+
+### Open items
+1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+2. June 6 2026 event: 509 m/s @ 137 deg; Madrigal TEC pending (July)
+3. Consider multi-method consistency check as future SNR diagnostic
+4. Consider wiring tid_doa_residual.py into tid_workflow.py
+5. Run full 29-test suite with fft and cwt methods
