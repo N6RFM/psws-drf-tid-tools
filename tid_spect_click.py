@@ -365,9 +365,10 @@ class SpectClickApp(QtWidgets.QMainWindow):
         if self.transform and self.transform.ready:
             t_span = self.transform.ax * self.img_w  # total time width
             t_start = self.transform.bx
-            # Default to FULL window so wave-fit covers complete period
-            t0 = t_start
-            t1 = t_start + t_span
+            # Inset yellow bars 15% from each edge so they're visible
+            # and easy to grab -- but t_out still uses full DRF bounds
+            t0 = t_start + t_span * 0.15
+            t1 = t_start + t_span * 0.85
         else:
             t0, t1 = 0.0, 2.0   # fractions until calibrated
 
@@ -391,6 +392,10 @@ class SpectClickApp(QtWidgets.QMainWindow):
         """Position the image in data coordinates using the transform."""
         if self.transform is None or not self.transform.ready:
             return
+        # Store full spectrogram extent for wave-fit extrapolation
+        # Add small margin to ensure full right-edge coverage
+        self._full_t0 = self.transform.bx
+        self._full_t1 = self.transform.bx + self.transform.ax * self.img_w + 1/60
         # Map pixel corners to physical coordinates
         t_left, d_bot_left = self.transform.px_to_physical(0, self.img_h)
         t_right, d_top = self.transform.px_to_physical(self.img_w, 0)
@@ -844,7 +849,11 @@ class SpectClickApp(QtWidgets.QMainWindow):
             d_arr = _np_pv.array([p[1] for p in pairs])
             t_min_pv = t_arr[0]; t_max_pv = t_arr[-1]
             spline = _Pchip_pv(t_arr, d_arr)
-            t_dense = _np_pv.linspace(self.seg_t0, self.seg_t1, 500)
+            # Preview spans FULL spectrogram, not just segment --
+            # the fitted sinusoid is extrapolated across all data
+            _pv_t0 = getattr(self, '_full_t0', self.seg_t0)
+            _pv_t1 = getattr(self, '_full_t1', self.seg_t1)
+            t_dense = _np_pv.linspace(_pv_t0, _pv_t1, 500)
             d_dense = []
             for _t in t_dense:
                 if t_min_pv <= _t <= t_max_pv:
@@ -1155,16 +1164,39 @@ class SpectClickApp(QtWidgets.QMainWindow):
         # Use sidecar for full window extent if available,
         # otherwise fall back to segment handles
         _sidecar_path = str(self.img_path).replace(".png", "_axes.json")
-        _t_out_start = self.seg_t0
-        _t_out_end   = self.seg_t1
+        # t_out spans FULL spectrogram -- extrapolate beyond clicked region
+        _t_out_start = getattr(self, '_full_t0', self.seg_t0)
+        _t_out_end   = getattr(self, '_full_t1', self.seg_t1)
         if _osw.path.exists(_sidecar_path):
             try:
                 _sc_tmp = _jsonw.load(open(_sidecar_path))
-                _t_out_start = _sc_tmp.get("t_start_utc_hours", self.seg_t0)
-                _t_out_end   = _sc_tmp.get("t_end_utc_hours",   self.seg_t1)
+                _t_out_start = _sc_tmp.get("t_start_utc_hours", _t_out_start)
+                # Round t_end up to nearest minute to avoid floating point cutoff
+                import math as _math
+                _raw_end = _sc_tmp.get("t_end_utc_hours", _t_out_end)
+                _t_out_end = _math.ceil(_raw_end * 60) / 60
             except Exception:
                 pass
-        t_out = _npw.arange(_t_out_start, _t_out_end + 1/3600, 1/60)
+        # Use DRF bounds for t_out if available -- most reliable
+        import math as _mth
+        if self.drf_dir is not None:
+            try:
+                import digital_rf as _drft
+                _rdr = _drft.DigitalRFReader(str(self.drf_dir))
+                _ch = _rdr.get_channels()[0]
+                _bds = _rdr.get_bounds(_ch)
+                _sr = float(_rdr.get_properties(_ch)['samples_per_second'])
+                _drf_t0_h = _bds[0] / _sr / 3600 % 24
+                _drf_t1_h = _bds[1] / _sr / 3600 % 24
+                _t_out_start = _mth.floor(_drf_t0_h * 60) / 60
+                _t_out_end   = _mth.ceil(_drf_t1_h  * 60) / 60 + 1/60
+            except Exception:
+                _t_out_start = _mth.floor(_t_out_start * 60) / 60
+                _t_out_end   = _mth.ceil(_t_out_end * 60 + 3) / 60
+        else:
+            _t_out_start = _mth.floor(_t_out_start * 60) / 60
+            _t_out_end   = _mth.ceil(_t_out_end * 60 + 3) / 60
+        t_out = _npw.arange(_t_out_start, _t_out_end, 1/60)
         stem = _pl_wf.Path(self.img_path).stem
         parent = _pl_wf.Path(self.img_path).parent
 

@@ -172,8 +172,8 @@ def plot_station(station_name, station_dir, event_start_unix, duration_s,
         import datetime as _dt
         date_utc = _dt.datetime.fromtimestamp(
             ground_truth['event_start_unix'], tz=_dt.timezone.utc).strftime('%Y-%m-%d')
-        t0_h = ground_truth['event_start_unix'] / 3600 % 24
-        t1_h = ground_truth['event_end_unix']   / 3600 % 24
+        t0_h = round(ground_truth['event_start_unix'] / 3600 % 24, 6)
+        t1_h = round(ground_truth['event_end_unix']   / 3600 % 24, 6)
         sidecar = {
             'spectrogram_png': output_path.name,
             't_start_utc_hours': t0_h,
