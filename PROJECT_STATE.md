@@ -2114,3 +2114,22 @@ demonstrate failure). Both confirm the diagnostic gap.
 2. June 6 2026 event: 509 m/s @ 137 deg; Madrigal TEC pending (July)
 3. Consider multi-method consistency check as future diagnostic
 4. Consider wiring tid_doa_residual.py into tid_workflow.py
+
+---
+## 88. Doc sanitization -- 2026-07-04
+
+### Changes
+- examples/README.md: corrected stale Jan 2026 result (239 m/s ->
+  304 m/s, 30 deg NNE -> 10 deg NNE, 1/5 flags -> 0/5 flags, noted
+  AC0G_ND dropped due to E-region contamination)
+- synthetic_tests/README.md: removed "Geometry from June 6 event"
+  attribution from 4stn array -- June 6 event is not in public repo
+  examples, only in Bob's local research data
+- synthetic_tests/test_conditions.py: same -- removed June 6 reference
+  from mixed_4stn condition notes
+
+### Remaining open items
+1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+2. June 6 2026 event: 509 m/s @ 137 deg; Madrigal TEC pending (July)
+3. Consider multi-method consistency check as future SNR diagnostic
+4. Consider wiring tid_doa_residual.py into tid_workflow.py
