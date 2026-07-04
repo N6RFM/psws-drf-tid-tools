@@ -101,6 +101,10 @@ def run_doa(event_json_path):
         if "All five diagnostics fall within typical ranges" in line:
             n_flags = 0
 
+    # Default None to 0 -- DOA ran but flag line wasn't found
+    if speed is not None and n_flags is None:
+        n_flags = 0
+
     return speed, az_from, n_flags, output
 
 
