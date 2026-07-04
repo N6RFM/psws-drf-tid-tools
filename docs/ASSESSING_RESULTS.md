@@ -509,13 +509,20 @@ The following are acknowledged limitations:
   correct it; the only remedies are a shorter baseline, a faster
   wave, or a longer period.
 
-- **Low extraction SNR is not detected by the five core diagnostics.**
-  The five diagnostics measure internal consistency of the lags, not
-  the quality of the underlying Doppler extraction. A noisy extraction
-  (median SNR < 8 dB) can produce lags that appear self-consistent
-  while being noise-driven. The [7] SNR diagnostic addresses this by
-  reading median SNR from each station's CSV; it is informational and
-  does not contribute to the flag count.
+- **Low extraction SNR is not fully detected by the diagnostics.**
+  The five core diagnostics measure internal consistency of the lags,
+  not the quality of the underlying Doppler extraction. The [7] SNR
+  diagnostic reads `snr_db` from each station's CSV (carrier-to-noise
+  from the raw I/Q). However, at very low input SNR (≤ 8 dB), the
+  60-second decimation smooths the autocorr Doppler trace so that
+  both the CSV `snr_db` and the Doppler variance appear acceptable
+  while the cross-correlation lags are wrong due to accumulated phase
+  drift. Synthetic validation confirmed: at 8 dB AWGN, autocorr
+  produced 35% speed error and 9.5° azimuth error with 0/5 flags and
+  acceptable [7] values. **The only reliable check at very low SNR
+  is to run multiple extraction methods (autocorr, fft, cwt) and
+  compare the resulting lags — if they disagree significantly, the
+  SNR is likely too low for a reliable DOA result.**
 
 ---
 
