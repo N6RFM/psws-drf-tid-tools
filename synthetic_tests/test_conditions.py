@@ -180,6 +180,17 @@ TEST_CONDITIONS = [
      "Time-varying SNR: sinusoidal modulation 10-30 dB over 30-min period. "
      "Tests extractor robustness to fading signal quality."),
 
+    # ── Additional SNR conditions ─────────────────────────────────────────
+    ("snr_8db",
+     500, 30, 60, 0.5, 8, "awgn", "array_3stn_eastwest", False,
+     "SNR at exactly the [7] diagnostic POOR threshold (8 dB AWGN). "
+     "Calibrates whether the flag threshold is meaningful for DOA."),
+
+    ("realistic_8db",
+     500, 30, 60, 0.5, 8, "realistic", "array_3stn_eastwest", False,
+     "STRESS: 8 dB + realistic noise (drift + fading). "
+     "Combination of poor SNR and ionospheric noise."),
+
     ("carrier_offset",
      500, 30, 60, 0.5, 20, "awgn", "array_3stn_eastwest", True,
      "Carrier DC offset +0.08 Hz on all stations (DRF calibration error). "

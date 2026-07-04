@@ -927,44 +927,7 @@ def format_diagnostics(result, station_periods=None, station_snrs=None):
         else:
             L.append(f"    All stations above {SNR_WARN_DB:.0f} dB -- "
                      "extraction quality acceptable.")
-        L.append("")
-    # [7] Per-station SNR (informational)
-    # Reads median snr_db from each station's extracted Doppler CSV.
-    # Low SNR means the Doppler trace is unreliable regardless of how
-    # consistent the cross-correlation lags appear -- the internal
-    # consistency checks (flags 1-5) cannot detect bad extractions.
-    SNR_WARN_DB = 15.0   # below this, extraction reliability is reduced
-    SNR_FLAG_DB = 8.0    # below this, lags are likely noise-driven
-    if station_snrs and len(station_snrs) >= 1:
-        L.append("[7] Per-station extraction SNR (informational)")
-        low_snr_stns = []
-        for nm, snr_db in station_snrs:
-            flag = ""
-            if snr_db < SNR_FLAG_DB:
-                flag = "  << POOR"
-                low_snr_stns.append((nm, snr_db, "poor"))
-            elif snr_db < SNR_WARN_DB:
-                flag = "  << LOW"
-                low_snr_stns.append((nm, snr_db, "low"))
-            L.append(f"    {nm}: {snr_db:.1f} dB{flag}")
-        if low_snr_stns:
-            poor = [n for n, s, c in low_snr_stns if c == "poor"]
-            low  = [n for n, s, c in low_snr_stns if c == "low"]
-            if poor:
-                L.append(f"    >> POOR SNR (< {SNR_FLAG_DB:.0f} dB) at: "
-                         f"{', '.join(poor)}.")
-                L.append("       Lag estimates for these stations are "
-                         "likely noise-driven.")
-                L.append("       The DOA result is unreliable regardless "
-                         "of the flag count above.")
-            elif low:
-                L.append(f"    >> LOW SNR (< {SNR_WARN_DB:.0f} dB) at: "
-                         f"{', '.join(low)}.")
-                L.append("       Consider re-extracting or dropping "
-                         "these stations.")
-        else:
-            L.append(f"    All stations above {SNR_WARN_DB:.0f} dB -- "
-                     "extraction quality acceptable.")
+
         L.append("")
     L.append("Reminder: these are internal consistency checks. They")
     L.append("cannot confirm the result is physically real -- cross-")
