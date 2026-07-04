@@ -278,7 +278,7 @@ automatically (look for "Cite this repository" in the sidebar), or:
 > Mattaliano, R. (N6RFM) and Griffiths, G. (G3ZIL). 2026.
 > *psws-drf-tid-tools: a Python pipeline for analyzing Traveling
 > Ionospheric Disturbances from HamSCI Grape Digital RF I/Q recordings.*
-> Version 2.6.5 https://github.com/N6RFM/psws-drf-tid-tools
+> https://github.com/N6RFM/psws-drf-tid-tools
 
 ---
 
