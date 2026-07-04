@@ -2067,3 +2067,50 @@ Previous best: 424.3 m/s @ 20.9 deg (47.5% error) before fixes.
 2. June 6 2026 event: 509 m/s @ 137 deg; Madrigal TEC pending (July)
 3. Run wave-fit on more test conditions via run_interactive.py
 4. Consider wiring tid_doa_residual.py into tid_workflow.py
+
+---
+## 87. SNR diagnostic gap investigation + 8dB conditions -- 2026-07-04
+
+### Investigation
+Tried Option 1 (Doppler variance ratio HF/LF) to improve [7] SNR
+diagnostic for very low SNR cases. Found it ineffective for autocorr
+at 8 dB:
+- 60-second decimation smooths the Doppler trace even at low SNR
+- First-difference variance stays low (~0.09) regardless of input SNR
+- The failure mode (accumulated phase drift in cross-correlation) is
+  invisible to any per-sample diagnostic
+
+Reverted the variance ratio code. Documented the gap instead.
+
+### Key finding
+At 8 dB input SNR, autocorr produces:
+- Smooth Doppler trace (variance ratio ~0.09 -- looks fine)
+- High pairwise correlations (~0.87-0.96 -- looks fine)
+- 0/5 diagnostic flags -- looks fine
+- But: 35.7% speed error, 9.5 deg azimuth error -- WRONG result
+
+The [7] SNR diagnostic (CSV snr_db column) also reports ~55 dB --
+completely wrong because it measures carrier-to-noise in the raw I/Q
+not extraction quality.
+
+The ONLY reliable check at very low SNR is to run multiple extraction
+methods (autocorr, fft, cwt) and compare lags. If they disagree
+significantly, SNR is too low for reliable DOA.
+
+### Documentation
+docs/ASSESSING_RESULTS.md §7 updated with full explanation of gap
+and multi-method comparison recommendation.
+
+### New test conditions (total now 29)
+- snr_8db: 8 dB AWGN -- 35.7% speed err, 9.5 deg az err, 0 flags
+- realistic_8db: 8 dB + realistic noise -- 48.5% speed err, 45 deg
+  az err -- complete failure, also 0 flags
+
+Both expect_pass=False (stress tests). Both PASS evaluation (correctly
+demonstrate failure). Both confirm the diagnostic gap.
+
+### Open items
+1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+2. June 6 2026 event: 509 m/s @ 137 deg; Madrigal TEC pending (July)
+3. Consider multi-method consistency check as future diagnostic
+4. Consider wiring tid_doa_residual.py into tid_workflow.py
