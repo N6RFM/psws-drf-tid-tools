@@ -2196,3 +2196,30 @@ Failures (expected): eregion, snr_8db, realistic_8db
 2. June 6 event: 509 m/s @ 137 deg; Madrigal TEC pending (July)
 3. Run full 3-station wave-fit on nominal to validate DOA
 4. Consider wiring tid_doa_residual.py into tid_workflow.py
+
+---
+## 91. v3.0.0 released + housekeeping -- 2026-07-04
+
+### v3.0.0 release
+Tagged and published on GitHub. Covers all work since v2.6.5:
+- Wave-fit full window coverage, yellow bars 15% inset, clearer dialog
+- 29-condition synthetic test suite (26/29 pass, 0 UNEXPECTED)
+- 7 enhanced realism signal conditions + 2 SNR threshold conditions
+- run_interactive.py: 3-step interactive workflow launcher
+- Per-method eval thresholds, cwt-prophet incompatibility documented
+- SNR diagnostic gap documented (8 dB fails silently)
+- examples/README.md corrected (304 m/s Jan 2026 result)
+- June 6 attribution removed from synthetic test array definitions
+
+### Housekeeping
+- CHANGELOG.md: v3.0.0 entry added to main (was only on research_gui)
+- README.md: version number removed from citation line -- one less
+  thing to keep in sync; repo URL alone is sufficient
+- 5 stale local branches deleted
+
+### Open items
+1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+2. June 6 2026 event: 509 m/s @ 137 deg; Madrigal TEC pending (July)
+3. Run full 3-station wave-fit on nominal to validate DOA result
+4. Consider wiring tid_doa_residual.py into tid_workflow.py
+5. Run full 29-test suite with fft and cwt methods
