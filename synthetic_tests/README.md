@@ -66,7 +66,7 @@ known limitations.
 | EW-3stn | SYN_AA6BD, SYN_N6RFM, SYN_W7LUX | ~1200 km E-W | Geometry from Jan 2026 event |
 | compact | SYN_A, SYN_B, SYN_C | ~500 km | Short baselines, alias-safe |
 | wide | SYN_A, SYN_B, SYN_C | ~2000 km | Long baselines, alias-prone |
-| 4stn | SYN_JJMP, SYN_KV0S_MO, SYN_AC0G_ND, SYN_N6RFM5 | ~1000 km mixed | Geometry from June 6 event |
+| 4stn | SYN_JJMP, SYN_KV0S_MO, SYN_AC0G_ND, SYN_N6RFM5 | ~1000 km mixed | 4-station mixed N-S/E-W geometry |
 
 ### Enhanced conditions (tests 21-27)
 
