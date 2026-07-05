@@ -2221,3 +2221,74 @@ Tagged and published on GitHub. Covers all work since v2.6.5:
 2. June 6 2026 event: 509 m/s @ 137 deg; Madrigal TEC pending (July)
 3. Run full 3-station wave-fit on nominal to validate DOA result
 4. Consider wiring tid_doa_residual.py into tid_workflow.py
+---
+## 92. June 6 TEC cross-check, closure-fork, tid_doa.py fix, wave-fit validated -- 2026-07-05
+
+### Madrigal TEC cross-check (June 6 event)
+GNSS TEC experiment for 2026-06-06 confirmed available on Madrigal
+(4 days landed: 04-07jun26). fetch_madrigal_tec.py run against
+4-station June 6 array (JJMP, KV0S_MO, AC0G_ND, N6RFM_5). Cross-
+correlation lag table showed one ambiguous pair (JJMP-N6RFM_5: two
+comparable-height peaks at +40m and -40m) that the existing argmax
+picker chose wrong, breaking triangle closure (worst residual ~75 min
+across the 4-station set).
+
+### fetch_madrigal_tec_closure.py -- experimental fork
+New file (NOT yet merged into fetch_madrigal_tec.py or
+run_madrigal_tools.py). Adds find_candidate_peaks() (keeps local
+maxima within a correlation margin of global max instead of plain
+argmax) and resolve_loop_closure() (brute-force search over ambiguous
+pairs' candidates, minimizing total triangle-closure residual across
+all station triples). Correctly flipped the JJMP-N6RFM_5 pick to -40m,
+dropping worst closure residual to 8 min RMS. Validated only against
+reconstructed June 6 numbers so far -- not yet run against a fresh
+live Madrigal pull end-to-end. Status noted in file docstring.
+
+### tid_doa.py divide-by-zero fix (v1.2.1)
+Fixed RuntimeWarning: divide by zero in dominant-period FFT calc
+(diagnostic [6]). _freqs[0]==0 (DC bin) was divided before the
+freqs>0 mask was applied (numpy evaluates both sides of `&`
+regardless of order). Now computed via np.errstate + np.where.
+Confirmed byte-identical mask/period output before and after --
+no change to any computed value. Committed to research_gui.
+Note: __version__ variable (line ~228) still reads "1.1.0" vs
+docstring "1.2.1" -- pre-existing mismatch, not addressed here.
+
+### 3-station DOA (no AC0G_ND) gave an unphysical result
+tid_doa.py --drop AC0G_ND on the real June 6 event gave 1283.1 m/s
+@ from 6.6 deg -- flagged by diagnostic [5] (speed range) as outside
+typical TID range. Very high pairwise correlation (0.93-0.98) + tight
+closure (6s/1.7%) despite the implausible speed suggested either (a)
+click-precision noise on the real wave-fit CSVs, or (b) a second
+contaminated station among the remaining three, undetectable with
+only 3 stations / 1 closed triangle.
+
+### Wave-fit validated end-to-end via mixed_4stn (item 3 resolved)
+mixed_4stn (509 m/s @ 137 deg, 4-station array -- geometry matches
+the real June 6 array) run through the full manual wave-fit pipeline
+(tid_spect_click.py --wave-only x4 stations, run_tests.py --methods
+spline):
+  Result: 528.3 m/s @ 139.2 deg (0 flags)
+  Truth:  509.0 m/s @ 137.0 deg
+  PASS: speed_err=3.8%, az_err=2.2 deg (manual tier: 25%/15 deg)
+Confirms wave-fit + tid_doa.py correctly recovers this exact
+speed/azimuth/geometry when clicked carefully. Rules out "the method
+is broken" as an explanation for the real event's bad 3-station
+result -- points back at click precision or real-data contamination
+on one of JJMP/KV0S_MO/N6RFM_5.
+
+Side finding: two independent wave-fit click passes on SYN_JJMP
+(same synthetic spectrogram) gave T=59.1min/A=0.362Hz/phi=-0.175rad
+vs T=61.2min/A=0.431Hz/phi=+0.580rad -- a ~43 deg (~7 min) phase
+difference between attempts. Concrete evidence of the click-precision
+variability the manual-method tolerance bands are meant to absorb.
+
+### Open items
+1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+2. June 6 2026 event: re-extract JJMP/KV0S_MO/N6RFM_5 wave-fit
+   carefully (or try cwt-prophet/autocorr if traces are clean enough)
+   to isolate click noise vs. a second contaminated station now that
+   wave-fit itself is validated against ground truth
+3. Fold fetch_madrigal_tec_closure.py into fetch_madrigal_tec.py /
+   run_madrigal_tools.py once validated on a live Madrigal pull
+4. Consider wiring tid_doa_residual.py into tid_workflow.py
