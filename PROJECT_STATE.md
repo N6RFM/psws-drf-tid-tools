@@ -2292,3 +2292,44 @@ variability the manual-method tolerance bands are meant to absorb.
 3. Fold fetch_madrigal_tec_closure.py into fetch_madrigal_tec.py /
    run_madrigal_tools.py once validated on a live Madrigal pull
 4. Consider wiring tid_doa_residual.py into tid_workflow.py
+---
+## 93. Clarified fetch_madrigal_tec_closure.py graduation criteria -- 2026-07-05
+
+### Why this entry
+Item 3 ("fold into fetch_madrigal_tec.py once validated on a live
+Madrigal pull") was too vague to act on -- no defined test, no defined
+pass/fail, risk of sitting in permanent limbo. Replaced with concrete
+next action + explicit promote/park decision criteria below.
+
+### Next action (do this on the next real TEC run)
+Use fetch_madrigal_tec_closure.py instead of fetch_madrigal_tec.py the
+next time a live cross-correlation run is done -- natural fit is the
+June 6 re-extraction (item 2 below), once JJMP/KV0S_MO/N6RFM_5 wave-fit
+is redone carefully. That run IS the validation test; no separate
+exercise needed.
+
+Optional second check: re-run against the archived Jan 2026 event
+(clean 3-station result, 0/5 flags, no known ambiguous pairs) as a
+negative control -- closure diagnostics should report zero flips.
+Confirms the tool doesn't introduce false-positive peak flips on data
+that's already known-good.
+
+### Decision criteria (make an actual call after the above)
+PROMOTE to fetch_madrigal_tec.py (replace argmax picker, retire the
+standalone _closure.py file, bump fetch_madrigal_tec.py version) if:
+  - Live run's closure resolution flips look correct on visual
+    inspection of the xcorr plots (chosen peak is the physically
+    sensible lobe, not just the closure-minimizing one)
+  - Jan 2026 negative control shows 0 flips (no false positives)
+
+PARK as documented experiment (leave as-is, do not promote) if either
+check fails -- add the specific failure mode to the file's docstring
+as a known limitation, don't just leave it ambiguous.
+
+### Open items
+1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+2. June 6 2026 event: re-extract JJMP/KV0S_MO/N6RFM_5 wave-fit
+   carefully (or try cwt-prophet/autocorr if traces are clean enough);
+   re-run TEC cross-check with fetch_madrigal_tec_closure.py (see #93
+   above -- this run doubles as its validation test)
+3. Consider wiring tid_doa_residual.py into tid_workflow.py
