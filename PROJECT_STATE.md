@@ -2729,3 +2729,47 @@ specifically about catching this pattern. Both fixed before commit.
    graduation test (see #93)
 5. Consider the periodic docstring-vs-code version-check script
    proposed in #96
+---
+## 98. Dashboard, TEC interpretation, and annotation fixes promoted to main via PR #301 -- 2026-07-05
+
+### What happened
+Merged to main via PR #301 (https://github.com/N6RFM/psws-drf-tid-tools/pull/301),
+not a direct branch merge -- a targeted file sync onto a fresh branch
+off current main (sync/dashboard-and-tec-improvements), matching the
+project's established gwyn-g3zil sync convention. This was necessary
+because research_gui and main had diverged far more than expected
+(~100 independent commits on main since the branches split, discovered
+only after unshallowing what had been a shallow sandbox clone all
+session -- a raw `git merge research_gui` would have tried to
+reconcile all of that unrelated history).
+
+29 files promoted: tid_dashboard.py (v0.7.0), fetch_madrigal_tec_closure.py
+(v1.2.0-closure-experimental), tid_doa_residual.py (v0.2.0) as new files;
+fetch_madrigal_tec.py, tid_doa.py, and the full annotation/version-drift
+audit fixes as changes to existing files. Full detail in entries
+92-97 above.
+
+PROJECT_STATE.md/FINDINGS.md deliberately excluded -- confirmed this
+repo already has a CI check for exactly this
+(.github/workflows/block-research-docs.yml, itself added after an
+earlier incident: commit 37e94ab "remove FINDINGS.md and
+PROJECT_STATE.md from main"). Verified the exact grep condition that
+check runs (`git diff --name-only origin/main...HEAD | grep -E
+"^(FINDINGS|PROJECT_STATE)\.md$"`) returned nothing before committing.
+add_project_state_entry.py also intentionally excluded -- it's a
+PROJECT_STATE.md-maintenance tool with nothing to act on since that
+file doesn't exist on main.
+
+### Verified post-merge
+Pulled real main, confirmed the 3 new files exist and PROJECT_STATE.md/
+FINDINGS.md correctly do not.
+
+### Open items
+1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+2. June 6 2026 event: re-extract JJMP/KV0S_MO/N6RFM_5 wave-fit
+   carefully; re-run TEC cross-check (see #93 -- doubles as its
+   validation test); second-wave hypothesis already ruled out (#94)
+3. Run tid_dashboard.py against a REAL event end to end -- now
+   possible against main, not just research_gui (see #95)
+4. fetch_madrigal_tec_closure.py still pending its own live-data
+   graduation test (see #93)
