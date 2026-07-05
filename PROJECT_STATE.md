@@ -2665,3 +2665,67 @@ contains a literal `!` typed directly in an interactive shell.
    given this drifted 4 separate times before being caught (see this
    entry) -- cheap to write, would catch the next one automatically
    instead of relying on another manual audit
+---
+## 97. Closed out the remaining UX friction list: PROJECT_STATE helper, tid_doa_residual.py CLI, error clarity, wave-fit save confusion -- 2026-07-05
+
+### Why this entry
+Back-references the original 6-item friction list raised mid-session
+(before the dashboard was built). #2 and #5 were already resolved or
+superseded; this closes out the remaining four: #1, #3, #4, #6.
+
+### 1. add_project_state_entry.py (new, v1.0.0)
+Replaces the manual `cat >> PROJECT_STATE.md` + `sed` separator dance
+that caused two real bugs this session (missing "---" separators in
+entries 92 and 94, both caught after the fact). Auto-numbers the next
+entry, always inserts the separator, uses today's date, writes
+atomically. This very entry was created with it.
+
+### 3. tid_doa_residual.py: real CLI (0.1.0 -> 0.2.0)
+Replaced the hardcoded CONFIG block (with a personal /home/bob/...
+path baked in) with real argparse: event_json positional arg,
+--output-dir/--target-dt-s/--max-lag-s/--residual-ratio-min flags.
+Caught a real bug during testing: a literal '%' in a help string
+crashed argparse's own %-based internal formatting -- fixed by
+escaping to '%%'. Verified end-to-end against synthetic data,
+including forcing the "residual too small" guard path via
+--residual-ratio-min to confirm it still triggers through the new flag.
+
+### 4. Directory-dependent commands -- mostly not a code bug after all
+Investigated tid_spect_click.py and run_tests.py. Finding:
+tid_spect_click.py never had a location bug (it only touches explicit
+CLI-provided paths). run_tests.py's imports were already __file__-
+relative and correct. The real errors hit earlier this session were
+just "wrong shell path used to invoke a file" -- not fixable by code,
+since Python has to find the file before any of its code executes.
+Did clean up find_script()'s fallback to give a specific, actionable
+error (what paths were tried, how to fix it) instead of a bare
+FileNotFoundError. run_tests.py bumped 1.0.0 -> 1.0.1.
+
+### 6. Wave-fit silent save-location confusion (the one real bug here)
+tid_spect_click.py already announced where it saved the wave-fit CSV.
+The actual gap: run_tests.py --show-commands described a DIFFERENT
+"eventual" path with no explanation that a downstream auto-copy step
+was involved. Fixed both sides -- tid_spect_click.py's save
+confirmation now explains run_tests.py will auto-detect and copy the
+file from there; --show-commands' output comments now clearly
+distinguish "saved here first" from "copied here on evaluate."
+tid_spect_click.py bumped 0.1.0 -> 0.1.1 (first changelog entry it's
+ever had).
+
+### Process note
+Missed bumping run_tests.py and tid_spect_click.py's version numbers
+on the first pass of this exact fix -- caught only because the version
+audit habit from entry #96 was still fresh. Ironic given entry #96 was
+specifically about catching this pattern. Both fixed before commit.
+
+### Open items
+1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+2. June 6 2026 event: re-extract JJMP/KV0S_MO/N6RFM_5 wave-fit
+   carefully; re-run TEC cross-check with fetch_madrigal_tec_closure.py
+   (see #93 -- this run doubles as its validation test); second-wave
+   hypothesis already ruled out (see #94)
+3. Run tid_dashboard.py against a REAL event end to end (see #95)
+4. fetch_madrigal_tec_closure.py still pending its own live-data
+   graduation test (see #93)
+5. Consider the periodic docstring-vs-code version-check script
+   proposed in #96
