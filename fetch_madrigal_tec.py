@@ -100,7 +100,19 @@ WORKED EXAMPLE — Jan 2026 LSTID:
   not the true wave speed. The GPS TEC confirms NNE propagation direction.
 
 Author: N6RFM with Claude AI
-Version: 1.0.0
+Version: 1.1.0
+
+Change log:
+  v1.1.0  Added DOA CROSS-CHECK INTERPRETATION: an automated verdict
+          (CONSISTENT / MOSTLY CONSISTENT / INCONSISTENT) summarizing
+          agreement between DOA-predicted and GPS-TEC-observed lags,
+          plus per-station mean disagreement and outlier-station
+          flagging. Computed directly from xcorr_results (no text
+          parsing), printed to console AND written to report.txt --
+          previously only visible if the dashboard parsed it out of
+          the saved report file after the fact. New --tec-tolerance-min
+          flag (default 20.0 min). No change to any existing computed
+          value; purely additive.
 """
 
 import argparse
@@ -122,7 +134,7 @@ except ImportError:
     print("ERROR: madrigalWeb not installed. Run: pip install madrigalWeb")
     sys.exit(1)
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 MADRIGAL_URL = "https://cedar.openmadrigal.org/"
 GPS_TEC_CODE = 8000      # Madrigal instrument code for GPS TEC
 GRIDDED_KINDAT = 3500    # kindat for gridded global TEC
@@ -396,9 +408,122 @@ def plot_xcorr_all(det, ev_start_h, ev_end_h, doa_lags, date_str, out_path):
 
 # ── Report ────────────────────────────────────────────────────────────────
 
+def interpret_doa_tec_agreement(xcorr_results, tolerance_min=20.0):
+    """Summarize agreement between the DOA result's predicted lags and the
+    independently-measured GPS-TEC lags into a plain verdict plus
+    supporting numbers. Flag-don't-fail in spirit, like tid_doa.py's own
+    RESULT DIAGNOSTICS -- this doesn't assert ground truth, just surfaces
+    where agreement is weak and which station (if any) is dragging it
+    down, the same way a person would otherwise eyeball the comparison
+    table by hand.
+
+    tolerance_min is deliberately loose (20 min default) -- MSTID-scale
+    GPS TEC lags are a blunt cross-check against a DOA fit built from
+    Doppler cross-correlation; exact numeric agreement isn't expected,
+    only rough directional consistency.
+
+    Returns None if no pair has a DOA lag to compare against (e.g.
+    --doa-speed/--doa-azimuth-from weren't supplied), otherwise a dict
+    with verdict / mean_diff_min / within_tolerance / total_pairs /
+    station_means / flagged_station / spread_min.
+    """
+    diffs_by_pair = []
+    for s1, s2, peak_min, doa_s in xcorr_results:
+        if not doa_s:
+            continue
+        doa_min = doa_s / 60.0
+        diffs_by_pair.append((s1, s2, abs(peak_min - doa_min)))
+
+    if not diffs_by_pair:
+        return None
+
+    diffs = [d for _, _, d in diffs_by_pair]
+    mean_diff = sum(diffs) / len(diffs)
+    within = sum(1 for d in diffs if d <= tolerance_min)
+    total = len(diffs_by_pair)
+
+    station_diffs = {}
+    for s1, s2, d in diffs_by_pair:
+        station_diffs.setdefault(s1, []).append(d)
+        station_diffs.setdefault(s2, []).append(d)
+    station_means = {s: sum(v) / len(v) for s, v in station_diffs.items()}
+    worst_station = max(station_means, key=station_means.get)
+    best_station = min(station_means, key=station_means.get)
+    spread = station_means[worst_station] - station_means[best_station]
+
+    if within == total and mean_diff <= tolerance_min * 0.6:
+        verdict = "CONSISTENT"
+    elif within >= total * 0.6:
+        verdict = "MOSTLY CONSISTENT"
+    else:
+        verdict = "INCONSISTENT"
+
+    # Only flag a station as a likely outlier if it's clearly separated
+    # from the rest, not just nominally the worst of a tight cluster.
+    flagged_station = worst_station if spread > tolerance_min else None
+
+    return {
+        "verdict": verdict,
+        "mean_diff_min": mean_diff,
+        "within_tolerance": within,
+        "total_pairs": total,
+        "tolerance_min": tolerance_min,
+        "station_means": station_means,
+        "flagged_station": flagged_station,
+        "spread_min": spread,
+    }
+
+
+def print_and_append_interpretation(lines, interp):
+    """Render an interpretation dict as both report-file lines (appended
+    to `lines` in place) and printed directly to the console -- so the
+    verdict is visible immediately in CLI usage, not just buried in the
+    saved report.txt that write_report() otherwise only confirms by
+    filename ('Saved: ...'), never prints the content of."""
+    verdict_text = {
+        "CONSISTENT": "CONSISTENT with the DOA result.",
+        "MOSTLY CONSISTENT": "MOSTLY CONSISTENT with the DOA result -- some pairs disagree.",
+        "INCONSISTENT": "does NOT support this DOA result well -- most pairs disagree.",
+    }[interp["verdict"]]
+
+    block = [
+        "",
+        "DOA CROSS-CHECK INTERPRETATION:",
+        "",
+        f"  Verdict: {interp['verdict']} -- TEC cross-check {verdict_text}",
+        f"  {interp['within_tolerance']}/{interp['total_pairs']} pairs agree within "
+        f"{interp['tolerance_min']:.0f} min (mean |diff| = {interp['mean_diff_min']:.1f} min)",
+        "",
+        "  Per-station mean disagreement (minutes):",
+    ]
+    for s, m in sorted(interp["station_means"].items(), key=lambda x: -x[1]):
+        block.append(f"    {s:12s} {m:6.1f}")
+
+    if interp["flagged_station"]:
+        block += [
+            "",
+            f"  >> {interp['flagged_station']} stands out as a likely outlier -- its pairs "
+            f"disagree by {interp['spread_min']:.1f} min more, on average, than the "
+            f"best-agreeing station. Worth checking that station's data quality "
+            f"(e.g. E-region contamination) before trusting the overall DOA result.",
+        ]
+
+    block += [
+        "",
+        "  This is an automated heuristic, not a definitive verdict -- it flags",
+        "  where to look closer, the same way tid_doa.py's own RESULT",
+        "  DIAGNOSTICS do. Always check the actual cross-correlation plots",
+        "  before drawing conclusions.",
+    ]
+
+    lines.extend(block)
+    print("\n" + "\n".join(block))
+
+
 def write_report(out_path, date_str, ev_start, ev_end,
                  stations, binned, det, xcorr_results,
-                 doa_lags, doa_speed, doa_az_from, madrigal_file):
+                 doa_lags, doa_speed, doa_az_from, madrigal_file,
+                 tec_tolerance_min=20.0):
 
     lines = [
         "=" * 68,
@@ -469,6 +594,10 @@ def write_report(out_path, date_str, ev_start, ev_end,
                 f"angle={angle:.1f}°  along={along_spd:.0f}m/s  "
                 f"true≈{true_spd:.0f}m/s")
 
+    interp = interpret_doa_tec_agreement(xcorr_results, tolerance_min=tec_tolerance_min)
+    if interp:
+        print_and_append_interpretation(lines, interp)
+
     lines += [
         "",
         "NOTES:",
@@ -523,6 +652,11 @@ def parse_args():
                    help="DOA true phase speed in m/s")
     p.add_argument("--doa-azimuth-from", type=float, default=None,
                    help="DOA wave coming FROM azimuth (degrees true)")
+    p.add_argument("--tec-tolerance-min", type=float, default=20.0,
+                   help="Minutes of DOA-vs-GPS-TEC lag disagreement still "
+                        "counted as 'agreeing', for the DOA CROSS-CHECK "
+                        "INTERPRETATION verdict (default 20.0 -- loose on "
+                        "purpose, GPS TEC is a blunt cross-check)")
     p.add_argument("--output-dir", default=".",
                    help="Output directory (default: current dir)")
     p.add_argument("--lat-box", type=float, default=3.0,
@@ -664,7 +798,8 @@ def main():
         out / "madrigal_tec_report.txt",
         args.date, ev_start, ev_end,
         stations, binned, det, xcorr_results,
-        doa_lags, args.doa_speed, args.doa_azimuth_from, fname)
+        doa_lags, args.doa_speed, args.doa_azimuth_from, fname,
+        tec_tolerance_min=args.tec_tolerance_min)
 
     print(f"\n{'='*55}")
     print(f"Done. Outputs in: {out.resolve()}")
