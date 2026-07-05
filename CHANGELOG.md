@@ -1,3 +1,184 @@
+## v3.0.0 -- 2026-07-04
+
+### Major changes
+
+#### Wave-fit (tid_spect_click.py) -- substantially improved
+- Exported CSV now covers the full analysis window using DRF sample
+  bounds, not just the region between yellow segment bars. Fixes a
+  long-standing issue where partial-segment fitting produced truncated
+  Doppler traces that degraded cross-correlation.
+- Yellow segment bars default to 15% inset from edges -- visible and
+  easy to grab while t_out still covers the full DRF window.
+- Period dialog replaced: instead of a confusing "multiplier" input,
+  users now answer "how many cycles did you span?" -- pre-filled from
+  --period-hint, shows implied period for reference.
+- Preview curve extrapolates the fitted sinusoid across the full
+  spectrogram, not just the clicked region.
+
+#### Synthetic DRF test suite (synthetic_tests/) -- 29 conditions
+Complete end-to-end validation framework with known ground truth.
+Generates synthetic I/Q recordings, runs the full pipeline, and
+compares recovered DOA parameters against truth.
+
+New in v3.0 (beyond v2.6.4/v2.6.5 foundation):
+- 7 enhanced realism conditions: two superimposed TIDs, period chirp
+  (linear drift), E-region spikes, 1/f coloured noise, time-varying
+  SNR, carrier DC offset, asymmetric fading
+- 2 SNR threshold conditions: snr_8db (at [7] POOR threshold),
+  realistic_8db (8 dB + realistic noise)
+- run_interactive.py: one-command launcher for interactive extraction
+  (cwt-prophet or wave-fit) -- generates DRF, spectrograms, opens
+  tid_spect_click.py station-by-station, evaluates automatically
+- Per-method pass/fail thresholds: manual methods (wave-fit, spline)
+  use wider thresholds (25% speed, 15 deg az) than automated methods
+- Full ground truth table and step-by-step usage in README.md
+- Note: cwt-prophet incompatible with synthetic data (Prophet model
+  stalls on pure sinusoids) -- use wave-fit for interactive testing
+
+#### Suite results: 26/29 PASS, 0 UNEXPECTED (autocorr)
+Expected failures: eregion (autocorr has no spike rejection),
+snr_8db and realistic_8db (below reliable operating floor).
+
+### Fixed
+- **`tid_spect_click.py`**: wave-fit exports full window via DRF bounds
+- **`tid_spect_click.py`**: yellow bars 15% inset for visibility
+- **`tid_spect_click.py`**: clearer "how many cycles?" period dialog
+- **`synthetic_tests/run_tests.py`**: display 0 flags not None
+- **`synthetic_tests/README.md`**: removed cwt-prophet from commands
+- **`examples/README.md`**: corrected stale 239->304 m/s Jan 2026 result
+- **`synthetic_tests/`**: June 6 event attribution removed from 4stn array
+
+### Documentation
+- **`MANUAL_TUTORIAL.md`**: Option D (wave-fit) rewritten with explicit
+  step-by-step instructions, click guidance, and accuracy note
+- **`README.md`**: 4-method extraction table, repo listing updated,
+  citation version updated
+- **`docs/ASSESSING_RESULTS.md`**: SNR diagnostic gap documented --
+  at 8 dB, autocorr produces plausible-looking results with 0 flags
+  but 35% speed error; multi-method comparison recommended
+
+### Key findings from v3.0 validation
+- Two superimposed TIDs: primary wave recoverable even at 50% amplitude
+- E-region spikes: autocorr fails (33% error); cwt should handle better
+- 1/f noise, SNR fading, carrier offset: minimal impact on autocorr
+- Period chirp (10%/h): 19% speed error -- worst non-alias, non-stress
+- 8 dB SNR: fails silently -- [7] diagnostic cannot detect this gap
+- Wave-fit (3-station nominal): 10.9% speed error after UX fixes
+
+---
+## v2.6.5 -- 2026-07-03
+
+### Fixed
+- **`drf_to_doppler.py`**: removed undefined `_pre_seeded` reference in
+  `estimate_carrier_freq_cwt()` -- cwt extraction now works correctly on
+  synthetic and real DRF data.
+- **`synthetic_tests/`**: file cadence increased from 60s to 3600s (1h)
+  to reduce spectrogram boundary artifacts.
+- **`synthetic_tests/run_tests.py`**: default methods updated to
+  autocorr,cwt,fft; alias demos now labelled "no (alias)" not "no (stress)".
+- **`synthetic_tests/evaluate.py`**: alias demo note now includes azimuth
+  error value for clarity.
+- **`synthetic_tests/conftest.py`**: default pytest methods now
+  autocorr,cwt,fft (consistent with run_tests.py).
+- **`README.md`**: drf_to_doppler.py description lists all 5 automated
+  methods and notes cwt-prophet/spline require tid_spect_click.py.
+
+### Added
+- **`synthetic_tests/plot_spectrograms.py`**: generates Doppler STFT
+  spectrograms from synthetic DRF events for visual inspection. Overlays
+  true TID Doppler and extracted traces from any automated method. Uses
+  full complex FFT with fftshift for correct DC-centred display.
+- **`synthetic_tests/README.md`**: comprehensive method table (all 7
+  extraction methods, automated vs interactive), spectrogram usage,
+  updated quick start and pytest examples.
+
+---
+## v2.6.4 -- 2026-07-03
+
+### Added
+- **`synthetic_tests/`**: complete synthetic DRF test suite for end-to-end
+  pipeline validation against known ground truth. Generates synthetic I/Q
+  recordings with a known TID embedded, runs the full pipeline, and
+  compares recovered speed/azimuth against truth. 20 representative test
+  conditions covering speed, azimuth, period, SNR, noise type, array
+  geometry, aliasing demos, and stress cases. Supports automated batch
+  running (`run_tests.py`) and pytest CI integration (`test_pipeline.py`).
+- **`tid_doa.py` [7] SNR diagnostic**: reads median `snr_db` from each
+  station's extracted Doppler CSV and warns if SNR < 15 dB or flags if
+  < 8 dB. The five core diagnostics check lag consistency but not signal
+  quality -- a bad extraction can pass all five flags silently.
+- **`tid_doa.py` [!] Aliasing risk**: warns when any station-pair lag
+  exceeds 70% of T/2 (half the dominant TID period). Period aliasing is
+  a physical constraint of cross-correlation applied to sinusoidal signals,
+  not a code bug; this diagnostic makes it visible.
+
+### Documentation
+- **`docs/ASSESSING_RESULTS.md`**: added synthetic validation to §3.3;
+  added [7] SNR and [!] Aliasing to §5.1 threshold table; updated §5.5
+  closing note; added aliasing and SNR gap to §7 limitations.
+- **`docs/METHODOLOGY.md`**: added empirical accuracy estimates from
+  synthetic validation (speed error 5-20% depending on noise conditions,
+  sub-cycle robustness finding, aliasing constraint, quantization note).
+
+### Key findings from synthetic validation
+- Realistic ionospheric noise (drift + fading) is the dominant error
+  source: 15-20% speed uncertainty vs ~5% for pure AWGN at same SNR.
+- Sub-cycle windows (180-min period in 2-hour window) perform better
+  than theory predicts -- cross-correlation of slow trends recovers
+  accurate lags in clean conditions.
+- Period aliasing confirmed: E-W array at 60-min period, speeds < 500
+  m/s produce wrong azimuths due to lag > T/2.
+- Very low SNR (5 dB) passes all 5 core diagnostics silently -- [7]
+  SNR diagnostic addresses this gap.
+
+---
+## v2.6.3 -- 2026-07-03
+
+### Fixed
+- **`tid_doa.py`**: replaced equirectangular projection with azimuthal
+  equidistant (AE) projection in `latlon_to_local_xy()`. Fixes 13-20%
+  north-component error on CONUS-scale arrays for near-meridional waves.
+  Impact: Jan 2026 autocorr 195.6->224.6 m/s; June 6 532.6->509.0 m/s.
+- **`docs/`**: updated METHODOLOGY.md, ASSESSING_RESULTS.md, README.md,
+  MANUAL_TUTORIAL.md to reflect AE projection and remove stale
+  flat-earth/equirectangular references.
+
+---
+## v2.6.2 -- 2026-07-02
+
+### Fixed
+- **`tid_doa.py`**: period spread diagnostic [6] now uses FFT of the
+  already-loaded Doppler series (works for all extraction methods:
+  wave-fit, autocorr, cwt, cwt-prophet) instead of reading a
+  non-existent period_s CSV column.
+- **`tid_doa.py`**: added subharmonic guard to FFT period estimation
+  -- when the FFT peak looks like a harmonic (period < half the window
+  length), checks if the subharmonic has >= 80% of its power and if
+  so uses the longer (fundamental) period instead. Fixes spurious
+  spread flags caused by harmonic detection on ~2-cycle windows.
+- **`tid_workflow.py`**: max_lag_seconds auto-computation now uses
+  proper great-circle midpoints (matching tid_doa.py exactly) instead
+  of a simplified lat/lon average.
+
+---
+## v2.6.1 -- 2026-07-02
+
+### Fixed
+- **`examples/event_20260119.json`**: corrected stale comment field
+  (239 m/s -> 304 m/s from 10 deg NNE, per PROJECT_STATE SS47/SS75).
+- **`tid_workflow.py`**: max_lag_seconds now always written to
+  tid_workflow_event.json -- previously only saved when --max-lag was
+  passed explicitly, causing a silent reproducibility gap.
+
+### Added
+- **`tid_doa.py`**: new [6] Extraction period spread informational
+  diagnostic in format_diagnostics() -- reads fitted period_s from
+  each station CSV (wave-fit exports this), flags spread > 15% as a
+  likely contributor to elevated plane-wave RMS residual.
+- **`docs/ASSESSING_RESULTS.md`** SS4.2: added reference to
+  tid_doa_residual.py as a diagnostic tool for high RMS residuals.
+
+---
 ## v2.5.0 — 2026-06-11
 
 ### Added
