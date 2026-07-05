@@ -3,6 +3,11 @@
 test_pipeline.py -- pytest test cases for psws-drf-tid-tools synthetic
 validation suite.
 
+Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
+Created by N6RFM with help from Claude AI.
+Version: 1.0.0
+License: MIT (do whatever you want, no warranty).
+
 Each parametrized test runs one (test_condition, extraction_method) pair
 through the full pipeline: DRF generation → extraction → DOA → evaluation.
 """

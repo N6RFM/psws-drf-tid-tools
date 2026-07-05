@@ -46,6 +46,8 @@ lets you:
 - render annotated Doppler spectrograms with optional overlay of
   extracted Doppler traces for visual method assessment
 - run the complete analysis pipeline in one guided interactive session
+  — as a terminal-based guided workflow, or a browser-based GUI
+  dashboard for the automated methods
 - run a full multi-station direction-of-arrival (DOA) analysis
 - visualize results as stacked Doppler traces and array-geometry maps
 - validate the pipeline against synthetic DRF data with known ground
@@ -133,6 +135,44 @@ The guided workflow handles all 8 steps interactively:
 See **[`WORKFLOW_TUTORIAL.md`](WORKFLOW_TUTORIAL.md)** for a complete
 walkthrough.
 
+### GUI option: `tid_dashboard.py`
+
+> **Not yet validated on a real event end to end.** Every part of
+> this dashboard has been tested individually against synthetic DRF
+> test data, but the full pipeline hasn't yet been run against a real
+> station recording. Use it, but don't treat it as more authoritative
+> than the CLI tools until that's happened.
+
+A browser-based control panel wrapping the **automated** extraction
+methods (autocorr, cwt, fft) end to end: point it at an event
+directory, and it runs DRF discovery → Doppler extraction → DOA →
+Madrigal TEC cross-check behind one button, auto-computing
+`--doa-lags`/`--doa-speed`/`--doa-azimuth-from` for the TEC cross-check
+instead of you typing them by hand.
+
+```bash
+pip install streamlit
+streamlit run tid_dashboard.py
+```
+
+Then open the printed `http://localhost:8501` URL. Everything before
+the "Run full pipeline" button — event window selection (with a live
+spectrogram showing exactly what you've selected), station
+coordinates, and channel confirmation for multi-channel/RX888-style
+stations — happens live as you type, no need to click anything first.
+
+**What it doesn't cover:** wave-fit and cwt-prophet extraction, since
+both need a human clicking on a spectrogram — use `tid_spect_click.py`
+directly for those, same as the guided/manual workflows below. The
+Madrigal cross-check step is optional (toggle in the sidebar) and can
+be skipped if you just want speed/azimuth.
+
+For an event with more than 3 stations, a follow-up section lets you
+exclude station(s) and re-run just the DOA fit (and optionally the TEC
+cross-check) without redoing extraction — the same
+`tid_doa.py --drop NAME` workflow used to isolate a bad station
+(e.g. E-region contamination), but clickable.
+
 ### Manual step-by-step
 
 For full control over each step, run the pipeline directly.
@@ -209,8 +249,12 @@ psws-drf-tid-tools/
 │
 ├── tid_workflow.py             guided 8-step workflow
 ├── tid_quicklook.py            interactive TID window selector
+├── tid_window_detector.py      automatic TID time-window detector
 ├── tid_spect_click.py          interactive spectrogram extraction
 │                               (cwt-prophet and wave-fit; display required)
+├── tid_guided_extract.py       interactive guided Doppler CSV correction
+├── tid_dashboard.py            browser GUI for automated methods only
+│                               (not yet validated on a real event)
 ├── drf_spectrogram.py          full-day and zoomed spectrograms
 ├── drf_to_doppler.py           automated Doppler extraction
 │                               (fft, autocorr; also cwt, bandpass, sgolay-ridge)
@@ -218,12 +262,23 @@ psws-drf-tid-tools/
 ├── find_event_stations.py      companion-station discovery
 ├── download_companions.py      companion-station download + organize
 ├── tid_doa.py                  multi-station DOA inversion
+├── tid_doa_config.py           interactive builder for tid_doa.py configs
 ├── tid_doa_residual.py         residual-subtraction second-wave diagnostic
+├── tid_pair.py                 two-station Doppler cross-correlation analyzer
+├── hf_int.py                   HF interferometry TID detection method
+├── quality_summary.py          per-station Doppler quality metrics
 ├── tid_stack_plot.py           stacked Doppler comparison
 ├── tid_map.py                  array geometry map
 ├── run_madrigal_tools.py       combined Madrigal TEC + LSTID wrapper
 ├── fetch_ae_index.py           fetch + plot AE index (WDC Kyoto)
+├── fetch_kp_index.py           fetch + plot Kp index (WDC Kyoto)
 ├── fetch_madrigal_tec.py       Madrigal GPS TEC retrieval + xcorr
+├── fetch_madrigal_tec_closure.py  experimental fork of the above adding
+│                               loop-closure peak disambiguation
+│                               (experimental; not yet validated on a
+│                               live Madrigal pull)
+├── evaluate_external.py        external space weather evaluation of DOA
+│                               results (Kp/AE + guidance for manual sources)
 │
 ├── docs/
 │   ├── ASSESSING_RESULTS.md    understanding and validating DOA results
@@ -260,6 +315,9 @@ Core (required):
 
 Optional:
 - `cartopy` for nicer `tid_map.py` output with state/country outlines
+- `streamlit` for `tid_dashboard.py`. `python3-tk` (system package,
+  not pip) is also needed for that dashboard's folder-browse button —
+  optional, it falls back to manual path entry without it.
 
 ---
 

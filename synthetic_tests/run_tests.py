@@ -3,6 +3,24 @@
 run_tests.py -- Automated test runner for psws-drf-tid-tools synthetic
 validation suite.
 
+Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
+Created by N6RFM with help from Claude AI.
+Version: 1.0.1
+License: MIT (do whatever you want, no warranty).
+
+Change log:
+  v1.0.1  find_script() now gives a specific, actionable error (what
+          paths it tried, how to fix it) instead of a bare
+          FileNotFoundError. --show-commands' wave-fit/cwt-prophet
+          output comments corrected -- they described the eventual
+          auto-copied destination path as if it were the immediate
+          save location, which doesn't match where tid_spect_click.py
+          actually writes the file first (next to the spectrogram
+          PNG). No change to any test-running logic.
+  v1.0.0  Initial versioned release (version annotation added
+          retroactively during the repo-wide annotation audit; no
+          prior version history existed).
+
 Modes:
   --automated   Run all tests non-interactively using autocorr and cwt
                 extraction (no GUI required). Fast, suitable for CI.
@@ -45,15 +63,26 @@ TOOLKIT_DIR = pathlib.Path(__file__).parent.parent
 
 
 def find_script(name):
-    """Find a toolkit script."""
+    """Find a toolkit script. Tries, in order: the repo root (parent of
+    synthetic_tests/, __file__-relative so this works regardless of cwd),
+    then the actual current working directory (in case someone's running
+    from an unusual layout), then gives a specific, actionable error
+    instead of a bare FileNotFoundError.
+    """
     p = TOOLKIT_DIR / name
     if p.exists():
         return str(p)
-    # Try current dir
-    p2 = pathlib.Path(".") / name
+    p2 = pathlib.Path.cwd() / name
     if p2.exists():
         return str(p2)
-    raise FileNotFoundError(f"Cannot find {name} — set TOOLKIT_DIR or run from repo root")
+    raise FileNotFoundError(
+        f"Cannot find {name}. Looked in:\n"
+        f"  {TOOLKIT_DIR} (repo root, relative to this script's location)\n"
+        f"  {pathlib.Path.cwd()} (your current directory)\n"
+        f"If the repo layout is non-standard, set TOOLKIT_DIR at the top "
+        f"of run_tests.py, or run this from either the repo root "
+        f"(python3 synthetic_tests/run_tests.py ...) or from inside "
+        f"synthetic_tests/ (python3 run_tests.py ...) -- both work.")
 
 
 def run_extraction(station_dir, output_csv, method, t_start_iso, t_end_iso,
@@ -356,7 +385,11 @@ def _show_interactive_commands(test_name, output_root, results_dir):
             print(f'    --drf-dir {drf_dir} \\' )
             print(f'    --name {stn} \\' )
             print(f'    --period-hint {period_min*60:.0f}')
-            print(f'  # Output: {out_csv_prophet}')
+            print(f'  # tid_spect_click.py saves next to the spectrogram PNG '
+                  f'first (e.g. {png.with_name(png.stem + "_wave_tid.csv")});')
+            print(f'  # this run_tests.py --methods cwt-prophet evaluation '
+                  f'step below finds it there and copies it to:')
+            print(f'  #   {out_csv_prophet}')
             print()
             print(f'  # {stn} -- wave-fit (--wave-only): {sidecar_note}')
             print(f'  python3 {spect_click} \\' )
@@ -365,7 +398,9 @@ def _show_interactive_commands(test_name, output_root, results_dir):
             print(f'    --name {stn} \\' )
             print(f'    --period-hint {period_min*60:.0f} \\' )
             print(f'    --wave-only')
-            print(f'  # Output: {out_csv_spline}')
+            print(f'  # Same pattern: saved next to the PNG first, then '
+                  f'--methods spline below auto-copies it to:')
+            print(f'  #   {out_csv_spline}')
             print()
 
         print(f'  # After extraction, evaluate:')

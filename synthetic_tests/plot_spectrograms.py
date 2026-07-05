@@ -3,6 +3,11 @@
 plot_spectrograms.py -- Generate Doppler spectrograms for synthetic DRF
 events, for visual inspection and comparison with real HamSCI recordings.
 
+Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
+Created by N6RFM with help from Claude AI.
+Version: 1.0.0
+License: MIT (do whatever you want, no warranty).
+
 Usage:
     # Plot all stations for one test condition
     python3 plot_spectrograms.py --test nominal

@@ -4,10 +4,18 @@ tid_doa.py — multi-station TID direction-of-arrival analyzer
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.2.0
+Version: 1.2.1
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.2.1  Fixed a RuntimeWarning: divide by zero in the per-station
+          dominant-period FFT calculation (diagnostic [6]). The period
+          band mask computed 1.0/_freqs for all frequency bins, including
+          the DC bin (freqs[0]==0), before applying the freqs>0 filter --
+          numpy evaluates both sides of `&` regardless of order. Now uses
+          np.errstate + np.where to compute periods safely. Purely
+          cosmetic: confirmed byte-identical mask/period output before
+          and after, no change to any computed value.
   v1.2.0  Added RESULT DIAGNOSTICS: five observational checks
           (geometry conditioning, plane-wave residual,
           pairwise correlation spread, triangle closure,
@@ -217,7 +225,7 @@ import numpy as np
 import pandas as pd
 from scipy.signal import butter, filtfilt, correlate
 
-__version__ = "1.1.0"
+__version__ = "1.2.1"
 
 WWV_LAT, WWV_LON = 40.6776, -105.0405
 EARTH_R_KM = 6371.0
@@ -1162,8 +1170,13 @@ def run(config):
                 continue
             _fft = np.abs(np.fft.rfft(_d))
             _freqs = np.fft.rfftfreq(_n, d=dt_s)
-            # Restrict to TID period band (5 min to 2 hours)
-            _mask = (_freqs > 0) & (1.0/_freqs >= 300) & (1.0/_freqs <= 7200)
+            # Restrict to TID period band (5 min to 2 hours).
+            # _freqs[0] is always 0 (DC bin); guard the divide so numpy
+            # doesn't warn on it before the _freqs > 0 mask is applied
+            # (both operands of `&` get evaluated regardless of order).
+            with np.errstate(divide='ignore', invalid='ignore'):
+                _periods = np.where(_freqs > 0, 1.0 / _freqs, np.inf)
+            _mask = (_freqs > 0) & (_periods >= 300) & (_periods <= 7200)
             if not _mask.any():
                 continue
             _peak_idx = np.argmax(_fft[_mask])
@@ -1177,7 +1190,7 @@ def run(config):
             _candidate_period = 1.0 / _peak_freq
             if _candidate_period < _window_s / 2.0:
                 _sub_freq = _peak_freq / 2.0
-                _sub_mask = (_freqs > 0) & (1.0/_freqs >= 300) & (1.0/_freqs <= 7200)
+                _sub_mask = (_freqs > 0) & (_periods >= 300) & (_periods <= 7200)
                 _sub_freqs = _freqs[_sub_mask]
                 _sub_fft = _fft[_sub_mask]
                 if len(_sub_freqs) > 0:
