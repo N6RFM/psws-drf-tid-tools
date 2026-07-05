@@ -2511,3 +2511,157 @@ track.
    wave-fit validations above.
 5. fetch_madrigal_tec_closure.py still pending its own live-data
    graduation test (see #93) -- unaffected by today's changes
+---
+## 96. Full repo annotation/version audit -- 25 of 33 code files fixed;
+     3 more version-drift bugs and 1 content bug found -- 2026-07-05
+
+### Why this entry
+User asked to verify version control and annotations are current across
+every code file, suspecting they'd drifted. They were right -- this
+turned out to be more than a formatting pass.
+
+### Header standardization (22 files)
+Audited all 33 .py files against the canonical 4-line block:
+  Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
+  Created by N6RFM with help from Claude AI.
+  Version: X.Y.Z
+  License: MIT (do whatever you want, no warranty).
+
+13 files were already fully compliant. 22 needed fixes: missing lines
+entirely (run_madrigal_tools.py, tid_doa_residual.py, all 9
+synthetic_tests/*.py files had NO annotation at all), inconsistent
+wording ("Author: N6RFM with Claude AI" -> "Created by..." in
+fetch_madrigal_tec.py, fetch_madrigal_tec_closure.py, hf_int.py,
+evaluate_external.py), missing URL parenthetical (fetch_ae_index.py,
+fetch_kp_index.py had bare "Part of psws-drf-tid-tools" with no link),
+or a partial line missing (License wording truncated in
+quality_summary.py; single missing lines in download_companions.py,
+tid_doa_config.py, tid_workflow.py).
+
+download_companions.py's "Community add-on for psws-drf-tid-tools"
+framing (distinct from "Part of...") was preserved deliberately -- it's
+meaningful differentiation (this one's a community add-on, not a core
+tool), not a formatting slip. Only the missing "Created by" line was
+added.
+
+### Version-drift bugs found (4 files) -- same pattern as entry #95's
+    tid_dashboard.py STATUS-line bug, now found repo-wide
+Checked every file with both a docstring "Version:" line and an
+in-code VERSION/__version__ constant for disagreement between them:
+
+  - drf_spectrogram.py: docstring said 1.1.1; changelog's newest entry
+    AND the code constant both already said 1.2.0. Docstring was
+    stale. Fixed to 1.2.0.
+  - tid_doa.py: docstring said 1.2.1 (correct -- the divide-by-zero
+    fix from entry #92), but __version__ constant still said 1.1.0.
+    THIS IS THE EXACT MISMATCH FLAGGED IN ENTRY #92 AND DELIBERATELY
+    LEFT AS OUT-OF-SCOPE AT THE TIME. Fixed now: __version__ -> 1.2.1.
+  - tid_stack_plot.py: docstring said 1.1.0; changelog only documents
+    a single v1.0.0 entry, code constant agrees at 1.0.0. No evidence
+    anywhere for what "1.1.0" was supposed to be -- reverted docstring
+    to 1.0.0 to match the only documented history.
+  - tid_dashboard.py: already caught and fixed as part of entry #95's
+    header addition (STATUS: v0.5.0 in docstring vs DASHBOARD_VERSION
+    = "v0.7.0" in code -- same class of bug, different file).
+
+Take-away: a docstring Version: line and an in-code version constant
+silently drifting apart is not a one-off -- it happened at least 4
+times across the repo. Worth a periodic automated check (e.g. a small
+script comparing the two per file) rather than relying on catching it
+by hand again.
+
+### Content bug (not just versioning): synthetic_tests/test_conditions.py
+Docstring claimed "20 representative synthetic test conditions."
+Actual count, verified by listing every condition tuple in the file:
+29. Matches PROJECT_STATE's own canonical "29-condition suite, 26/29
+PASS" language used throughout earlier entries -- the file grew from
+20 to 29 conditions at some point and the header text was never
+updated to match. Fixed the count in the docstring, bumped to v1.1.0
+with a changelog line explaining the correction. No code changed.
+
+Checked tid_doa.py's own "RESULT DIAGNOSTICS: five observational
+checks" claim the same way (in case it was a similar stale-count bug)
+-- verified accurate: diagnostics [1]-[5] are the five that count
+toward the flag tally, [6]/[7] are explicitly informational and
+correctly excluded. No bug there.
+
+### Other fix: synthetic_tests/conftest.py shebang ordering
+`from pathlib import Path` sat before `#!/usr/bin/env python3`,
+silently defeating the shebang (harmless when run via `pytest`/
+`python3 conftest.py` explicitly, but wrong if ever executed directly
+as `./conftest.py`). Reordered: shebang, then docstring, then imports.
+
+### tid_workflow.py version bump (user's explicit call)
+Was 0.1.0 despite being a mature, heavily-referenced, 1412-line,
+10-step central orchestrator with 10 CLI options -- clearly
+understated, but no changelog existed to derive a "correct" number
+from, so this was flagged as a judgment call rather than silently
+fixed. User's decision: bump to 1.0.0.
+
+### Commit note
+First push attempt (commit 1ce3e60) had its commit message silently
+truncated mid-sentence -- the message was typed with `<<'EOF'`... no,
+typed inline with the literal string `#!/usr/bin/env python3` in it,
+and bash's history expansion (`!`) ate everything after the `!` when
+entered interactively (a `bash: !/usr/bin/env: event not found`
+warning appeared, easy to miss). Fixed via `git commit --amend -F -`
+with a `<<'EOF'` heredoc (quoted delimiter disables history expansion)
+and `git push --force-with-lease` (safer than plain --force -- refuses
+if someone else had pushed to research_gui in the meantime). Final
+commit: 44871a7. Worth remembering for any future commit message that
+contains a literal `!` typed directly in an interactive shell.
+
+### Current version table (all 33 files, post-audit)
+  download_companions.py               1.0.0
+  drf_inspect.py                       1.0.0
+  drf_spectrogram.py                   1.2.0
+  drf_to_doppler.py                    1.1.0
+  evaluate_external.py                 1.0.0
+  fetch_ae_index.py                    1.0.0
+  fetch_kp_index.py                    1.0.0
+  fetch_madrigal_tec.py                1.1.0
+  fetch_madrigal_tec_closure.py        1.2.0-closure-experimental
+  find_event_stations.py               1.0.0
+  hf_int.py                            1.0.0
+  quality_summary.py                   1.0.1
+  run_madrigal_tools.py                1.0.0
+  synthetic_tests/conftest.py          1.0.0
+  synthetic_tests/evaluate.py          1.0.0
+  synthetic_tests/plot_spectrograms.py 1.0.0
+  synthetic_tests/run_interactive.py   1.0.0
+  synthetic_tests/run_tests.py         1.0.0
+  synthetic_tests/synthetic_drf.py     1.0.0
+  synthetic_tests/synthetic_signal.py  2.0.0
+  synthetic_tests/test_conditions.py   1.1.0
+  synthetic_tests/test_pipeline.py     1.0.0
+  tid_dashboard.py                     0.7.0
+  tid_doa.py                           1.2.1
+  tid_doa_config.py                    1.0.0
+  tid_doa_residual.py                  0.1.0
+  tid_guided_extract.py                0.1.0
+  tid_map.py                           1.0.0
+  tid_pair.py                          1.1.0
+  tid_quicklook.py                     0.1.0
+  tid_spect_click.py                   0.1.0
+  tid_stack_plot.py                    1.0.0
+  tid_window_detector.py               1.0.0
+  tid_workflow.py                      1.0.0
+
+### Open items
+1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+2. June 6 2026 event: re-extract JJMP/KV0S_MO/N6RFM_5 wave-fit
+   carefully (or try cwt-prophet/autocorr if traces are clean enough);
+   re-run TEC cross-check with fetch_madrigal_tec_closure.py (see #93
+   -- this run doubles as its validation test); second-wave hypothesis
+   already ruled out (see #94)
+3. Consider wiring tid_doa_residual.py into tid_workflow.py -- give it
+   a real CLI instead of the in-file CONFIG block
+4. Run tid_dashboard.py against a REAL event end to end (not synthetic
+   test data) -- see entry #95
+5. fetch_madrigal_tec_closure.py still pending its own live-data
+   graduation test (see #93)
+6. Consider a small periodic script that checks every file's docstring
+   Version: line against its in-code VERSION/__version__ constant,
+   given this drifted 4 separate times before being caught (see this
+   entry) -- cheap to write, would catch the next one automatically
+   instead of relying on another manual audit
