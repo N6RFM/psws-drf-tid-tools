@@ -2374,3 +2374,140 @@ more hypothesis eliminated rather than merely unconsidered.
    already ruled out (see #94 above)
 3. Consider wiring tid_doa_residual.py into tid_workflow.py -- give it
    a real CLI instead of the in-file CONFIG block
+---
+## 95. tid_dashboard.py built (v0.1.0 -> v0.7.0); DOA CROSS-CHECK
+     INTERPRETATION added to both TEC scripts; gwyn-g3zil branch
+     removed -- 2026-07-05
+
+### tid_dashboard.py -- new Streamlit control panel (v0.7.0)
+New file, committed to research_gui only (not main/gwyn -- gwyn-g3zil
+no longer exists, see below). Wraps the AUTOMATED pipeline end to end:
+DRF discovery -> Doppler extraction -> DOA -> Madrigal TEC cross-check.
+Does not reimplement any extraction/DOA/TEC logic -- calls the existing
+scripts via subprocess. Wave-fit (manual spectrogram clicking) is NOT
+covered; use tid_spect_click.py / tid_workflow.py directly for that.
+
+Built incrementally over many rounds this session, each round driven by
+a specific usability complaint and verified against real or synthetic
+DRF data (not just read-through) before moving on:
+
+- **Core pipeline**: point at an event directory, pick an extraction
+  method (autocorr/cwt/fft), click one button -> per-station
+  drf_to_doppler.py -> tid_workflow_event.json -> tid_doa.py ->
+  fetch_madrigal_tec.py (or the closure fork), with predicted DOA lags
+  computed from the result's own geometry and auto-filled in (no
+  hand-typing --doa-lags anymore).
+- **Native directory browse button**: opens a real OS folder-picker
+  (tkinter) since Streamlit runs locally on the same machine as the
+  browser. Needs python3-tk. Falls back gracefully (no crash) if
+  unavailable. Fixed a real StreamlitAPIException bug during
+  development (session_state can't be reassigned after the bound
+  widget has already rendered in the same script run -- fixed via
+  on_click callback, which runs before the rerun re-instantiates
+  widgets).
+- **Persistent settings autosave**: event dir, method, Madrigal
+  fields, tec variant/tolerance, keystone station all saved to
+  ~/.config/psws/tid_dashboard_settings.json (same convention
+  run_madrigal_tools.py uses), only rewritten when something actually
+  changed. Verified fresh-session reload actually restores saved
+  values, not just same-session state.
+- **Keystone station picker**: user selects which station anchors the
+  overview spectrogram / event-window bounds, instead of silently
+  always using whichever station sorts first in directory listing
+  order.
+- **Overview spectrogram with live selection overlay**: calls the
+  repo's own drf_spectrogram.py (cached to disk, not regenerated per
+  interaction) so the event window is picked with actual visual
+  evidence of where the TID is, not blind. The current slider
+  selection is drawn live as a translucent band directly on the
+  cached image via fast in-process PIL drawing (no re-running the slow
+  spectrogram subprocess per drag). Caught and fixed a real geometry
+  bug during development: drf_spectrogram.py's plot_fraction sidecar
+  is [left, right, bottom, top] (bbox corners), not [left, bottom,
+  width, height] as first assumed -- caught by comparing overlay
+  pixels before/after at known coordinates, confirmed against the
+  actual drf_spectrogram.py source.
+- **Channel selection, not subchannel**: PSWS data has no subchannels
+  (unlike the KA9Q-radio/WSPRdaemon convention drf_to_doppler.py's own
+  docstring describes) -- subchannel-picking code was built, then
+  removed per direct correction. What PSWS stations DO have is
+  multiple real DRF channels (RX888-style: separate ch0/ch1/ch2/...).
+  For any station with >1 channel, the dashboard shows an actual
+  spectrogram of each candidate (not just an SNR/frequency label) and
+  REQUIRES a per-station checkbox confirmation before the run button
+  enables -- an auto-picked "best guess" isn't good enough on its own.
+- **Run button always visible**: originally created after the slow
+  overview-spectrogram step in script order, so the sidebar looked
+  broken/incomplete while that ran. Moved to render immediately
+  (undisabled); prerequisite checks (channel confirmation, Madrigal
+  fields) moved into the click handler instead of a disabled= state.
+- **Live-streamed subprocess output**: extraction/DOA/Madrigal all
+  originally used subprocess.run(capture_output=True), which shows
+  NOTHING until the whole process exits -- looked hung on a real
+  24-hour window. Fixed with byte-by-byte streaming (not line-
+  buffered, since drf_to_doppler.py's progress dots have no newline)
+  into a live expander per step.
+- **Optional Madrigal step**: checkbox to skip the TEC cross-check
+  entirely; when off, Madrigal fields hide and aren't required, and
+  the pipeline stops cleanly after the DOA step.
+- **Drop-station re-run section**: for events with >3 stations, a
+  post-run section lets you exclude station(s) and re-run just the
+  DOA fit (and optionally Madrigal, with an explicit --stations list
+  correctly excluding the dropped station(s) from that comparison too)
+  without redoing extraction. Mirrors the exact `tid_doa.py --drop
+  NAME` workflow used by hand for the June 6 investigation. Results
+  cached in st.session_state so they don't vanish when interacting
+  with the drop controls before clicking re-run.
+
+### DOA CROSS-CHECK INTERPRETATION (fetch_madrigal_tec.py v1.1.0,
+    fetch_madrigal_tec_closure.py v1.2.0-closure-experimental)
+Both scripts now compute and print an automated verdict comparing
+DOA-predicted lags against GPS-TEC-observed lags: CONSISTENT / MOSTLY
+CONSISTENT / INCONSISTENT, mean |diff|, pairs-within-tolerance count,
+per-station mean disagreement, and outlier-station flagging when one
+station is clearly separated from the rest. New --tec-tolerance-min
+flag (default 20.0 min). Computed directly from xcorr_results in
+memory -- no text parsing. Printed to console AND written to
+report.txt (previously the CLI only printed "Saved: ..." with no
+content shown). Validated against the real June 6 2026 report data:
+correctly reproduces the exact INCONSISTENT verdict and AC0G_ND
+outlier flag found by manual inspection earlier this session.
+
+The dashboard reads this same output (extract_interpretation_section
+passthrough) rather than maintaining its own separate copy of the
+analysis -- an earlier dashboard-only version that re-parsed the
+cross-correlation table and recomputed the verdict independently was
+removed in favor of this, since two implementations of the same
+analysis risked silently drifting apart. Single source of truth now:
+fix it once, in the CLI scripts, and both CLI and dashboard usage see
+the same verdict.
+
+Also fixed in passing: fetch_madrigal_tec_closure.py's docstring said
+"Version: 1.0.0" while its VERSION constant already said
+"1.1.0-closure-experimental" -- pre-existing mismatch, reconciled.
+
+### gwyn-g3zil branch removed
+Confirmed with the user that Gwyn is not using this branch. Archived
+its tip as tag archive/gwyn-g3zil (recoverable) before deleting both
+the local ref and origin/gwyn-g3zil. Remote now has only main and
+research_gui. Repo's established cross-branch sync convention (`sync:
+X from research_gui/main` commits) no longer needs a third branch to
+track.
+
+### Open items
+1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+2. June 6 2026 event: re-extract JJMP/KV0S_MO/N6RFM_5 wave-fit
+   carefully (or try cwt-prophet/autocorr if traces are clean enough);
+   re-run TEC cross-check with fetch_madrigal_tec_closure.py (see #93
+   -- this run doubles as its validation test); second-wave hypothesis
+   already ruled out (see #94)
+3. Consider wiring tid_doa_residual.py into tid_workflow.py -- give it
+   a real CLI instead of the in-file CONFIG block
+4. Run tid_dashboard.py against a REAL event end to end (not synthetic
+   test data) -- every feature has been verified individually against
+   synthetic DRF data or via AppTest, but the full pipeline has never
+   been exercised against real hardware recordings. First real run is
+   the actual proving ground, same pattern as the closure-fork /
+   wave-fit validations above.
+5. fetch_madrigal_tec_closure.py still pending its own live-data
+   graduation test (see #93) -- unaffected by today's changes
