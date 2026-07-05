@@ -2333,3 +2333,44 @@ as a known limitation, don't just leave it ambiguous.
    re-run TEC cross-check with fetch_madrigal_tec_closure.py (see #93
    above -- this run doubles as its validation test)
 3. Consider wiring tid_doa_residual.py into tid_workflow.py
+---
+## 94. tid_doa_residual.py explained; connects to June 6 investigation -- 2026-07-05
+
+### What tid_doa_residual.py actually is
+Never previously explained in PROJECT_STATE despite riding along as an
+open item across many entries. It's a POC (no CLI, edit CONFIG block
+in-file) that tests whether an event's DOA result could be TWO
+superimposed TID waves rather than one: fit+subtract a single sinusoid
+per station, re-run the same broadband cross-correlation DOA on the
+residual. Coherent/plausible residual DOA = evidence of a second wave.
+Noisy/unphysical residual = single-wave model was already sufficient.
+Negative control target: Jan 2026 event (clean single wave, low RMS
+residual) should show no second wave.
+
+### Already run against June 6 -- second-wave hypothesis ruled out
+The file's EVENT_JSON config constant already points at
+~/Downloads/tid_event_20260606/tid_workflow_event.json. A code comment
+records that a prior June 6 run hit a failure mode: single-wave fits
+absorbed nearly all the signal at some stations, leaving residuals
+dominated by fit noise rather than a real second wave -- a DOA on
+that residual would have been meaningless. This led to the
+RESIDUAL_RATIO_MIN=0.15 guard, which detects this case and skips the
+residual DOA step rather than reporting bogus results.
+
+Net effect: this independently rules out "two superimposed TIDs" as
+an explanation for June 6's anomalous DOA behavior (entry 92's
+1283 m/s 3-station result, AC0G_ND question). Consistent with a
+single dominant wave. Leaves click-precision noise and/or real
+contamination on one of JJMP/KV0S_MO/N6RFM_5 as the standing
+explanations -- unchanged from entry 92's conclusion, now with one
+more hypothesis eliminated rather than merely unconsidered.
+
+### Open items
+1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+2. June 6 2026 event: re-extract JJMP/KV0S_MO/N6RFM_5 wave-fit
+   carefully (or try cwt-prophet/autocorr if traces are clean enough);
+   re-run TEC cross-check with fetch_madrigal_tec_closure.py (see #93
+   -- this run doubles as its validation test); second-wave hypothesis
+   already ruled out (see #94 above)
+3. Consider wiring tid_doa_residual.py into tid_workflow.py -- give it
+   a real CLI instead of the in-file CONFIG block
