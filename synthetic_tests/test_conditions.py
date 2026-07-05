@@ -1,7 +1,18 @@
 #!/usr/bin/env python3
 """
-test_conditions.py -- 20 representative synthetic test conditions for
+test_conditions.py -- 29 representative synthetic test conditions for
 psws-drf-tid-tools end-to-end validation.
+
+Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
+Created by N6RFM with help from Claude AI.
+Version: 1.1.0
+License: MIT (do whatever you want, no warranty).
+
+Change log:
+  v1.1.0  Corrected docstring count from stale "20" to actual 29 --
+          the file grew from 20 to 29 conditions over time without
+          the header being updated to match. No code change.
+  v1.0.0  Initial release (20 conditions).
 
 Each condition is a tuple:
   (name, speed_m_s, az_from_deg, period_min, amp_hz,

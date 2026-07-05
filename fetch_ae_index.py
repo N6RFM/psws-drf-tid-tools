@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """
 fetch_ae_index.py — fetch and plot AE index from WDC Kyoto for a given date
-Part of psws-drf-tid-tools
+Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
+Created by N6RFM with help from Claude AI.
+Version: 1.0.0
+License: MIT (do whatever you want, no warranty).
 
 Usage:
   python3 fetch_ae_index.py --date 2026-01-19 \\

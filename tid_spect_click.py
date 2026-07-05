@@ -3,8 +3,19 @@ tid_spect_click.py — spectrogram-based guided Doppler phase extraction
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 0.1.0
+Version: 0.1.1
 License: MIT (do whatever you want, no warranty).
+
+Change log:
+  v0.1.1  Wave-fit save confirmation now also explains that
+          run_tests.py auto-detects and copies the file from here into
+          its expected event-directory location -- previously only
+          announced where the file was saved, not that a downstream
+          tool would relocate it, which caused real confusion in
+          practice (the file's --show-commands-described final path
+          differs from where it's actually written first). No change
+          to the fitting/extraction logic itself.
+  v0.1.0  Initial release.
 
 OVERVIEW
 ========
@@ -1344,6 +1355,12 @@ class SpectClickApp(QtWidgets.QMainWindow):
         tag = "auto-accepted on close" if auto else "Accepted"
         self._set_status(f"[{self.name}] WAVE-FIT {tag} → {final.name}")
         print(f"  {tag}: {final}")
+        print(f"  (If this is for the synthetic test suite, run_tests.py "
+              f"looks for exactly this file -- <station>_wave_tid.csv next "
+              f"to the spectrogram PNG -- and copies it into the event "
+              f"directory automatically. You don't need to move it "
+              f"yourself, even though --show-commands describes a "
+              f"different final path.)")
         return final
 
     def _wave_fit_accept(self):

@@ -79,8 +79,9 @@ CRITICAL LIMITATION — SHORT WINDOW DATASETS:
 Requirements:
   pip install numpy matplotlib scipy astropy
 
-Author: N6RFM with Claude AI, adapted from Altadill et al. (2020)
+Created by N6RFM with help from Claude AI, adapted from Altadill et al. (2020).
 Version: 1.0.0
+License: MIT (do whatever you want, no warranty).
 """
 
 import argparse
