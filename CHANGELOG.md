@@ -1,3 +1,87 @@
+## v3.1.0 -- 2026-07-05
+
+### Major changes
+
+#### New: `tid_dashboard.py` -- browser-based GUI (experimental)
+- Streamlit control panel wrapping the automated pipeline end to end:
+  DRF discovery -> Doppler extraction (autocorr/cwt/fft) -> DOA ->
+  Madrigal TEC cross-check, behind one button
+- Auto-computes `--doa-lags`/`--doa-speed`/`--doa-azimuth-from` for the
+  TEC cross-check instead of manual entry
+- Native OS folder-browse dialog, persistent settings autosave,
+  keystone-station picker
+- Overview spectrogram with a live selection-window overlay, drawn
+  directly on the cached image so it updates instantly as you adjust
+  the window -- no re-running the spectrogram subprocess per interaction
+- Mandatory visual confirmation (an actual spectrogram, not just an
+  SNR number) for any station with more than one DRF channel (e.g.
+  RX888-style wideband receivers recording several carriers at once)
+- Drop-station re-run section for events with more than 3 stations,
+  mirroring the `tid_doa.py --drop NAME` workflow
+- Does not cover wave-fit or cwt-prophet extraction -- both need a
+  human clicking on a spectrogram; use `tid_spect_click.py` directly
+  for those
+- **Not yet validated against a real event end to end** -- tested
+  against synthetic DRF data and via Streamlit's AppTest framework only
+
+#### New: DOA cross-check interpretation (`fetch_madrigal_tec.py`, `fetch_madrigal_tec_closure.py`)
+- Automated verdict (CONSISTENT / MOSTLY CONSISTENT / INCONSISTENT)
+  comparing DOA-predicted lags against independently-measured GPS-TEC
+  lags, with per-station outlier flagging when one station's pairs
+  disagree substantially more than the rest
+- New `--tec-tolerance-min` flag (default 20.0 minutes)
+- Printed to console and saved in `report.txt` -- previously the CLI
+  only confirmed the report was saved, never showed its content
+- Validated against the archived June 6 2026 event data: correctly
+  reproduces the AC0G_ND outlier finding found by manual inspection
+
+#### New: `fetch_madrigal_tec_closure.py` (experimental fork)
+- Adds loop-closure cross-correlation peak disambiguation: for any
+  station triple, checks that pairwise lags are mutually consistent,
+  and resolves which of several comparable-height correlation peaks
+  is correct when a pair's peak pick is ambiguous
+- **Not yet validated against a live Madrigal pull** -- validated only
+  against reconstructed known-ambiguous data so far
+
+#### New: `tid_doa_residual.py` real CLI
+- Real argparse interface (`event_json` positional arg,
+  `--output-dir`/`--target-dt-s`/`--max-lag-s`/`--residual-ratio-min`
+  flags) replacing a hardcoded CONFIG block with a personal path baked in
+- Still a proof of concept otherwise -- not wired into `tid_workflow.py`
+
+### Fixed
+- **`tid_doa.py`**: divide-by-zero warning in the dominant-period FFT
+  diagnostic; `__version__` constant brought back in sync with its
+  own changelog
+- **`drf_spectrogram.py`**, **`tid_stack_plot.py`**: docstring
+  `Version:` line corrected to match each file's own changelog/code
+  constant
+- **`synthetic_tests/test_conditions.py`**: docstring corrected from
+  stale "20 conditions" to the actual 29
+- **`synthetic_tests/run_tests.py`**: clearer, actionable error when a
+  toolkit script can't be found; `--show-commands` output corrected --
+  it described the eventual auto-copied file location as if it were
+  the immediate save location
+- **`tid_spect_click.py`**: wave-fit save confirmation now explains
+  that `run_tests.py` auto-detects and copies the file, closing a
+  real point of confusion
+- **`synthetic_tests/conftest.py`**: an import statement sat before
+  the file's own shebang line, silently defeating it
+
+### Documentation
+- **`README.md`**: dashboard documented (capability list, new "GUI
+  option" section, Dependencies); file-tree table audited and
+  corrected -- it was missing 10 real files (`evaluate_external.py`,
+  `fetch_kp_index.py`, `hf_int.py`, `quality_summary.py`,
+  `tid_doa_config.py`, `tid_guided_extract.py`, `tid_pair.py`,
+  `tid_window_detector.py`, `fetch_madrigal_tec_closure.py`)
+  independent of the dashboard work
+- **`requirements-optional.txt`**: added `streamlit`
+- Repo-wide annotation audit: every code file now carries the
+  standard `Part of psws-drf-tid-tools` / `Created by` / `Version:` /
+  `License:` header block (22 files needed some fix, from missing
+  lines entirely to inconsistent wording)
+
 ## v3.0.0 -- 2026-07-04
 
 ### Major changes
