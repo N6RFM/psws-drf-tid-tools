@@ -41,8 +41,9 @@ Outputs:
 Requirements:
   pip install requests matplotlib numpy Pillow
 
-Author: N6RFM with Claude AI
+Created by N6RFM with help from Claude AI.
 Version: 1.0.0
+License: MIT (do whatever you want, no warranty).
 """
 
 import argparse

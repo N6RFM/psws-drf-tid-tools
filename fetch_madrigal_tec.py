@@ -99,8 +99,9 @@ WORKED EXAMPLE — Jan 2026 LSTID:
   direction — the large along-baseline speed reflects geometric projection,
   not the true wave speed. The GPS TEC confirms NNE propagation direction.
 
-Author: N6RFM with Claude AI
+Created by N6RFM with help from Claude AI.
 Version: 1.1.0
+License: MIT (do whatever you want, no warranty).
 
 Change log:
   v1.1.0  Added DOA CROSS-CHECK INTERPRETATION: an automated verdict

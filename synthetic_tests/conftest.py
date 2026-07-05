@@ -1,8 +1,12 @@
-from pathlib import Path
 #!/usr/bin/env python3
 """
 conftest.py -- pytest integration for the psws-drf-tid-tools synthetic
 test suite.
+
+Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
+Created by N6RFM with help from Claude AI.
+Version: 1.0.0
+License: MIT (do whatever you want, no warranty).
 
 Usage:
     cd synthetic_tests/
@@ -18,6 +22,7 @@ DRF files (fast, ~5 min for all tests).
 CI note: wave-fit and cwt-prophet require a display (GUI). In headless
 CI environments, set PYTEST_METHODS=autocorr,cwt to skip GUI methods.
 """
+from pathlib import Path
 import os
 import pathlib
 import pytest

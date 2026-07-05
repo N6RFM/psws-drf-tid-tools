@@ -3,7 +3,9 @@ r"""
 tid_workflow.py — guided TID direction-of-arrival workflow
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
-Version: 0.1.0
+Created by N6RFM with help from Claude AI.
+Version: 1.0.0
+License: MIT (do whatever you want, no warranty).
 
 OVERVIEW
 ========

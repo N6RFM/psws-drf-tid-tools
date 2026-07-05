@@ -5,7 +5,7 @@ quality_summary.py — compute and display per-station Doppler quality metrics
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
 Version: 1.0.1
-License: MIT
+License: MIT (do whatever you want, no warranty).
 
 OVERVIEW
 ========

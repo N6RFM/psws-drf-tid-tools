@@ -3,7 +3,7 @@ drf_spectrogram.py — render an annotated Doppler spectrogram from DRF I/Q
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.1.1
+Version: 1.2.0
 License: MIT (do whatever you want, no warranty).
 
 Based on the spectrogram approach used by AB4EJ (W. Engelke, University of

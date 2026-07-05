@@ -3,6 +3,11 @@
 run_interactive.py -- One-command launcher for interactive extraction
 (cwt-prophet or wave-fit) on synthetic test events.
 
+Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
+Created by N6RFM with help from Claude AI.
+Version: 1.0.0
+License: MIT (do whatever you want, no warranty).
+
 Collapses the 9-step manual workflow into 3:
   1. Run this script
   2. Click in each spectrogram window (unavoidable)

@@ -225,7 +225,7 @@ import numpy as np
 import pandas as pd
 from scipy.signal import butter, filtfilt, correlate
 
-__version__ = "1.1.0"
+__version__ = "1.2.1"
 
 WWV_LAT, WWV_LON = 40.6776, -105.0405
 EARTH_R_KM = 6371.0

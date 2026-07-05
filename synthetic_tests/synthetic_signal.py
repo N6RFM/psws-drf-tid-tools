@@ -3,6 +3,11 @@
 synthetic_signal.py v2 -- Enhanced TID signal model for synthetic DRF
 generation.
 
+Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
+Created by N6RFM with help from Claude AI.
+Version: 2.0.0
+License: MIT (do whatever you want, no warranty).
+
 Enhancements over v1:
 1. Asymmetric fading: upper/lower sideband fade independently
 2. Non-sinusoidal/period chirp: period drifts linearly over event

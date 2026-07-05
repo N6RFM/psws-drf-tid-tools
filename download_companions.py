@@ -6,6 +6,7 @@ station data from the PSWS network for psws-drf-tid-tools
 Community add-on for psws-drf-tid-tools
 (https://github.com/N6RFM/psws-drf-tid-tools)
 
+Created by N6RFM with help from Claude AI.
 Version: 1.0.0
 License: MIT (do whatever you want, no warranty).
 

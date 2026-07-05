@@ -3,6 +3,11 @@
 tid_doa_residual.py — Proof of concept: iterative single-wave
 subtraction to test for a second superimposed TID.
 
+Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
+Created by N6RFM with help from Claude AI.
+Version: 0.1.0
+License: MIT (do whatever you want, no warranty).
+
 THIS IS A PROOF OF CONCEPT, NOT YET INTEGRATED INTO THE WORKFLOW.
 No CLI polish yet -- edit the CONFIG block below.
 

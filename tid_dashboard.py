@@ -5,8 +5,11 @@ end-to-end TID pipeline (DRF discovery -> Doppler extraction -> DOA ->
 Madrigal TEC cross-check).
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
+Created by N6RFM with help from Claude AI.
+Version: 0.7.0
+License: MIT (do whatever you want, no warranty).
 
-STATUS: v0.5.0. Wraps existing scripts via subprocess -- does not
+STATUS: v0.7.0. Wraps existing scripts via subprocess -- does not
 reimplement any extraction/DOA/TEC logic itself. Covers AUTOMATED
 extraction methods only (autocorr, cwt, fft). Wave-fit (manual spectrogram
 clicking) is inherently interactive and is NOT wired in here; use

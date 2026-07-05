@@ -3,6 +3,11 @@
 synthetic_drf.py -- Generate a complete synthetic DRF event directory
 for testing psws-drf-tid-tools end-to-end.
 
+Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
+Created by N6RFM with help from Claude AI.
+Version: 1.0.0
+License: MIT (do whatever you want, no warranty).
+
 Creates one DRF station directory per station, each containing:
   <station>/
     ch0/

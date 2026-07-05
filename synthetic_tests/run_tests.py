@@ -3,6 +3,11 @@
 run_tests.py -- Automated test runner for psws-drf-tid-tools synthetic
 validation suite.
 
+Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
+Created by N6RFM with help from Claude AI.
+Version: 1.0.0
+License: MIT (do whatever you want, no warranty).
+
 Modes:
   --automated   Run all tests non-interactively using autocorr and cwt
                 extraction (no GUI required). Fast, suitable for CI.
