@@ -5,11 +5,22 @@ subtraction to test for a second superimposed TID.
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 0.1.0
+Version: 0.2.0
 License: MIT (do whatever you want, no warranty).
 
-THIS IS A PROOF OF CONCEPT, NOT YET INTEGRATED INTO THE WORKFLOW.
-No CLI polish yet -- edit the CONFIG block below.
+Change log:
+  v0.2.0  Real argparse CLI -- event_json is now a positional arg,
+          --output-dir/--target-dt-s/--max-lag-s/--residual-ratio-min
+          are flags with sane defaults, instead of editing a CONFIG
+          block hardcoded to one specific event/machine path. Still a
+          proof of concept in every other respect (not wired into
+          tid_workflow.py, no test coverage) -- see STATUS below.
+  v0.1.0  Initial POC, in-file CONFIG block only.
+
+STATUS: Still a proof of concept -- not yet integrated into
+tid_workflow.py, no automated test coverage. The CLI is now real
+(see --help), so "no CLI polish yet" from earlier versions no longer
+applies; what's still missing is workflow integration.
 
 Rationale (see PROJECT_STATE.md §70): period-resolved DOA via FFT/
 Welch methods does not work on single 2-3 hour event windows (1-2
@@ -18,6 +29,10 @@ asks a narrower, more tractable question: "does removing the best-
 fit single sinusoid from each station's trace reveal a second,
 geometrically coherent wave in the residual?" -- without needing to
 resolve a continuous period axis at all.
+
+Usage:
+  python3 tid_doa_residual.py EVENT_JSON --output-dir OUTPUT_DIR
+  python3 tid_doa_residual.py --help    # for all options
 
 Method:
   1. Run the existing broadband cross-correlation DOA (reusing
@@ -44,6 +59,7 @@ i.e. this is a negative control to confirm the method doesn't
 manufacture spurious second waves where none exist.
 """
 import sys
+import argparse
 import pathlib
 import json
 import math
@@ -60,12 +76,11 @@ from tid_doa import (load_station, latlon_to_local_xy,
                       cross_correlate_lag)  # noqa: E402
 
 # ---------------------------------------------------------------------------
-# CONFIG -- edit for your event
+# Defaults -- override any of these via CLI flags, see --help
 # ---------------------------------------------------------------------------
-EVENT_JSON = "/home/bob/Downloads/tid_event_20260606/tid_workflow_event.json"
-TARGET_DT_S = 60
-MAX_LAG_S = 1800  # same as tid_doa.py config for this event
-OUTPUT_DIR = "/home/bob/Downloads/tid_event_20260606/runs/residual_poc"
+DEFAULT_TARGET_DT_S = 60
+DEFAULT_MAX_LAG_S = 1800
+DEFAULT_RESIDUAL_RATIO_MIN = 0.15
 # ---------------------------------------------------------------------------
 
 
@@ -153,8 +168,10 @@ def run_broadband_doa(sigs, pos, names, fs_hz, max_lag_s, label=""):
     }
 
 
-def main():
-    with open(EVENT_JSON) as f:
+def main(event_json, output_dir, target_dt_s=DEFAULT_TARGET_DT_S,
+         max_lag_s=DEFAULT_MAX_LAG_S,
+         residual_ratio_min=DEFAULT_RESIDUAL_RATIO_MIN):
+    with open(event_json) as f:
         cfg = json.load(f)
 
     t_start = pd.Timestamp(cfg["event_start_utc"])
@@ -164,10 +181,10 @@ def main():
     print(f"Loading {len(names)} stations: {', '.join(names)}")
     print(f"Window: {t_start} to {t_end}")
 
-    loaded = {s["name"]: load_station(s, t_start, t_end, TARGET_DT_S)
+    loaded = {s["name"]: load_station(s, t_start, t_end, target_dt_s)
               for s in cfg["stations"]}
     n = min(len(sd.times) for sd in loaded.values())
-    fs_hz = 1.0 / TARGET_DT_S
+    fs_hz = 1.0 / target_dt_s
 
     mids = np.array([loaded[nm].midpoint for nm in names])
     lat0 = float(np.mean(mids[:, 0]))
@@ -180,7 +197,7 @@ def main():
     times_s = loaded[names[0]].times[:n]
 
     # --- Step 1: broadband DOA on raw signals (should reproduce known result) ---
-    result_raw = run_broadband_doa(raw_sigs, pos, names, fs_hz, MAX_LAG_S,
+    result_raw = run_broadband_doa(raw_sigs, pos, names, fs_hz, max_lag_s,
                                     label="RAW (broadband, step 1)")
 
     # --- Step 2+3: fit single wave per station, subtract -> residual ---
@@ -206,22 +223,21 @@ def main():
     # run showed exactly this failure mode: near-perfect fits,
     # near-zero residuals, and a DOA result driven by edge-locked
     # lags and correlated numerical noise rather than a real signal).
-    RESIDUAL_RATIO_MIN = 0.15  # residual RMS must be >=15% of raw RMS
     print("\n--- Residual magnitude check ---")
     weak_stations = []
     for nm in names:
         raw_rms = np.sqrt(np.mean(raw_sigs[nm] ** 2))
         resid_rms = np.sqrt(np.mean(residual_sigs[nm] ** 2))
         ratio = resid_rms / raw_rms if raw_rms > 0 else 0.0
-        flag = "" if ratio >= RESIDUAL_RATIO_MIN else "  << TOO SMALL"
+        flag = "" if ratio >= residual_ratio_min else "  << TOO SMALL"
         print(f"  {nm}: raw_rms={raw_rms:.4f}  resid_rms={resid_rms:.4f}  "
               f"ratio={ratio:.3f}{flag}")
-        if ratio < RESIDUAL_RATIO_MIN:
+        if ratio < residual_ratio_min:
             weak_stations.append(nm)
 
     if weak_stations:
         print(f"\n  >> {len(weak_stations)}/{len(names)} station(s) have "
-              f"residual RMS < {RESIDUAL_RATIO_MIN:.0%} of raw signal "
+              f"residual RMS < {residual_ratio_min:.0%} of raw signal "
               f"({', '.join(weak_stations)}).")
         print("  The single-wave fit absorbed nearly all of the signal at "
               "these stations.")
@@ -243,7 +259,7 @@ def main():
 
     # --- Step 4: broadband DOA on residuals ---
     result_resid = run_broadband_doa(residual_sigs, pos, names, fs_hz,
-                                      MAX_LAG_S,
+                                      max_lag_s,
                                       label="RESIDUAL (after single-wave "
                                             "subtraction, step 4)")
 
@@ -267,7 +283,7 @@ def main():
     print("  -> possible evidence of a second wave.")
 
     # Plot: raw traces, fits, and residuals
-    out = pathlib.Path(OUTPUT_DIR)
+    out = pathlib.Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
 
     fig, axes = plt.subplots(len(names), 1, figsize=(9, 2.2 * len(names)),
@@ -293,5 +309,42 @@ def main():
     print(f"\nPlot saved: {plot_path}")
 
 
+def parse_args():
+    ap = argparse.ArgumentParser(
+        description="Proof of concept: does removing the best-fit single "
+                     "sinusoid from each station's trace reveal a second, "
+                     "geometrically coherent wave in the residual?",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="Example:\n"
+               "  python3 tid_doa_residual.py "
+               "~/Downloads/tid_event_20260606/tid_workflow_event.json \\\n"
+               "      --output-dir ~/Downloads/tid_event_20260606/runs/residual_poc")
+    ap.add_argument("event_json", help="Path to a tid_workflow_event.json "
+                     "(same format tid_doa.py consumes)")
+    ap.add_argument("--output-dir", required=True,
+                     help="Directory to write residual_fits.png into "
+                          "(created if it doesn't exist)")
+    ap.add_argument("--target-dt-s", type=float, default=DEFAULT_TARGET_DT_S,
+                     help=f"Resample interval in seconds (default: "
+                          f"{DEFAULT_TARGET_DT_S})")
+    ap.add_argument("--max-lag-s", type=float, default=DEFAULT_MAX_LAG_S,
+                     help=f"Max cross-correlation lag search window in "
+                          f"seconds (default: {DEFAULT_MAX_LAG_S}, same as "
+                          f"tid_doa.py's typical config)")
+    ap.add_argument("--residual-ratio-min", type=float,
+                     default=DEFAULT_RESIDUAL_RATIO_MIN,
+                     help=f"Minimum residual RMS as a fraction of raw RMS "
+                          f"before the residual DOA step is trusted enough "
+                          f"to run (default: {DEFAULT_RESIDUAL_RATIO_MIN}, "
+                          f"i.e. {DEFAULT_RESIDUAL_RATIO_MIN * 100:.0f}%%). Below "
+                          f"this, the single-wave fit absorbed nearly all "
+                          f"the signal and a residual DOA would just be "
+                          f"fitting noise.")
+    return ap.parse_args()
+
+
 if __name__ == "__main__":
-    main()
+    args = parse_args()
+    main(args.event_json, args.output_dir,
+         target_dt_s=args.target_dt_s, max_lag_s=args.max_lag_s,
+         residual_ratio_min=args.residual_ratio_min)
