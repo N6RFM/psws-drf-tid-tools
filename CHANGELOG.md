@@ -1,3 +1,75 @@
+## v4.0.0 -- 2026-07-06
+
+### Breaking changes
+
+#### `--subchannel` renamed to `--channel-num` everywhere
+"Subchannel" incorrectly implied a single combined signal demultiplexed
+into related sub-streams -- the way ATSC TV subchannels are derived
+from one over-the-air broadcast. That's not what happens here: a
+KA9Q-radio/WSPRdaemon receiver records several independent, unrelated
+WWV frequencies (2.5/5/10/15/20/25 MHz etc.) simultaneously, packing
+them into one DRF directory's data columns purely for storage
+convenience. There's no relationship between them the way there is
+between a TV channel and its subchannels, and the old name actively
+misled anyone trying to understand what the flag did.
+
+`--subchannel` no longer exists as a flag, anywhere, in:
+`drf_to_doppler.py`, `drf_spectrogram.py`, `tid_spect_click.py`,
+`analyze_event.sh`. Use `--channel-num` instead.
+
+**If you have an in-progress `tid_workflow_state.json`** from
+`tid_workflow.py`, it will not resume cleanly under this release --
+the saved state used a `"subchannel"` key that no longer exists.
+Finish or discard old sessions before updating.
+
+**If you have any saved scripts or notes referencing `--subchannel`**,
+update them to `--channel-num` -- the flag is not aliased or
+deprecated, it is gone.
+
+### Major changes
+
+#### Fixed a real, silent data-quality bug in the rename's own follow-through
+`analyze_event.sh` was missed in the initial rename (that audit only
+searched `.py`/`.md` files) and, as a result, had a genuine functional
+bug: Stage 8's parser for `drf_inspect.py`'s own printed output still
+expected the old `--subchannel` wording after `drf_inspect.py` itself
+had already been renamed elsewhere. The regex would have silently
+never matched, defaulting every multi-channel-num station to
+channel-num 0 -- often an empty/unused band, per the real June 6 2026
+event that originally surfaced this whole class of bug. Fixed and
+verified against realistic `drf_inspect.py` output.
+
+#### `tid_dashboard.py`: real subchannel/channel-num detection restored (v0.9.0)
+The first real (non-synthetic) test of the dashboard's interactive
+wave-fit extraction against the June 6 2026 event revealed that 3 of
+4 stations were genuine KA9Q-radio receivers with up to 9 packed
+channel-nums each, and the dashboard was silently defaulting to
+channel-num 0 for all of them -- an empty band for every affected
+station, producing spectrograms with no visible signal at all. Added
+a "Channel-num selection" step (same mandatory real-spectrogram
+visual confirmation pattern as the existing channel picker) to both
+the automated and interactive extraction paths.
+
+#### `tid_dashboard.py`: interactive wave-fit and cwt-prophet extraction (v0.8.0-v0.8.1)
+The dashboard now covers all 5 extraction methods, not just the 3
+automated ones. Selecting wave-fit or cwt-prophet launches
+`tid_spect_click.py`'s native window per station (the existing,
+tested tool spawned as a subprocess, not reimplemented in-browser);
+the dashboard picks up the result automatically once you press X to
+export and close the window. A "Doppler axis half-range" control was
+added after the first real test showed the default axis range made a
+real TID signal look flat and hard to click precisely.
+
+### Fixed
+- Repo-wide: every `--subchannel`/`subchannel` reference renamed to
+  `--channel-num`/`channel_num` in 19 files total (11 code, 8 docs),
+  with the real external `digital_rf` metadata keys and one historical
+  `CHANGELOG.md` filename reference deliberately left unchanged.
+- `tid_dashboard.py`: a version-drift bug (docstring `Version:` line
+  disagreeing with its own `STATUS:` line) that had already been fixed
+  once earlier in this project's history had crept back in across two
+  version bumps -- fixed again.
+
 ## v3.1.0 -- 2026-07-05
 
 ### Major changes
