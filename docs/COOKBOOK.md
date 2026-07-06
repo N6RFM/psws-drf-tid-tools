@@ -9,6 +9,61 @@ Every script accepts `--help` and `--version`.
 
 ---
 
+## Using the browser dashboard (`tid_dashboard.py`)
+
+Everything below this section is the CLI-first path. `tid_dashboard.py`
+wraps most of it behind one browser page instead — same underlying
+scripts, same math, just clickable. This section covers dashboard-
+specific recipes; for troubleshooting an individual step it launches
+(extraction methods, DOA diagnostics, Madrigal cross-check), the
+regular CLI recipes below still apply, since that's exactly what's
+running underneath.
+
+### How do I launch the dashboard?
+
+```bash
+pip install streamlit
+streamlit run tid_dashboard.py
+```
+
+Open the printed `http://localhost:8501` URL. Point it at an event
+directory (a folder containing DRF station subdirectories, same
+convention as `tid_workflow.py --event-dir`); station coordinates,
+channel confirmation, and the event-window spectrogram all appear live
+as you type — nothing runs until you click "Run full pipeline."
+
+### How do I pick an extraction method in the dashboard?
+
+One dropdown in the sidebar, five methods: `autocorr`, `cwt`, `fft`
+run automatically with no further input. `wave-fit` and `cwt-prophet`
+open `tid_spect_click.py`'s native window per station — same tool, same
+key bindings as the [wave-fit CLI recipe](#how-do-i-use-wave-fit-extraction---wave-only)
+below (click, `F` to fit, `X` to export, close the window). The
+dashboard waits for each window to close, then moves to the next
+station automatically. All stations in one run use the same method —
+mixing methods isn't supported yet, so for a mixed-method event (e.g.
+Jan 2026's cwt-prophet + autocorr mix) use the CLI tools directly
+instead.
+
+### How do I skip the Madrigal cross-check in the dashboard?
+
+Uncheck "Perform Madrigal TEC cross-check" in the sidebar before
+running — the Madrigal fields disappear, nothing is required, and the
+pipeline stops cleanly right after the DOA result instead of attempting
+the network step.
+
+### How do I drop a station and re-run in the dashboard?
+
+For any event with more than 3 stations, an "Investigate further: drop
+station(s) and re-run" section appears below the main results — pick
+station(s) to exclude from the multiselect and click re-run. This is
+the same `--drop NAME` mechanism as the CLI recipe below, just without
+retyping the command; it reuses the already-extracted CSVs rather than
+re-running extraction, and can optionally re-run the Madrigal
+cross-check with the reduced station list too.
+
+---
+
 ## Station discovery
 
 ### How do I find candidate stations for my event?
@@ -78,7 +133,7 @@ inconsistency worth "fixing":
   there's nothing left to discover, just data to fetch.
 
 Using `downloadapi` for discovery too would mean downloading a full
-zip (often ~3 GB for multi-subchannel rx888/WSPRDaemon stations) for
+zip (often ~3 GB for multi-channel-num rx888/WSPRDaemon stations) for
 every candidate just to check whether it's worth recommending — a bad
 trade against scraping a metadata-only HTML row, and one that would
 burn through the shared 100-requests/day rate limit before
@@ -151,16 +206,16 @@ API.
 `frequency` parameter does an exact-string match against the
 observation's center-frequency field. Single-channel Grape v1.x
 stations store one value there (e.g. `"10.000"`) and match fine.
-Multi-subchannel rx888/WSPRDaemon stations store a comma-separated
+Multi-channel-num rx888/WSPRDaemon stations store a comma-separated
 list (e.g. `"10.000 MHz, 5.000 MHz, ..."`), which a bare `10` will
 **not** match — the API silently reports "no matching observations"
 for a station that actually has your target frequency.
 
-Since you usually can't tell which companions are multi-subchannel
+Since you usually can't tell which companions are multi-channel-num
 ahead of time, the safest default is to **omit `--frequency` from the
 download step entirely** and let `drf_inspect.py --frequency 10`
-identify the right `--subchannel` per station afterward. Omitting it
-just means multi-subchannel stations download their full file (often
+identify the right `--channel-num` per station afterward. Omitting it
+just means multi-channel-num stations download their full file (often
 ~3 GB instead of ~30-50 MB) rather than being silently dropped.
 
 ### Why did I get folders like `<station>_20260126` I didn't ask for?
@@ -194,13 +249,13 @@ pipeline expects.
 
 ## DRF inspection
 
-### How do I check which subchannel is 10 MHz on a multi-subchannel station?
+### How do I check which channel-num is 10 MHz on a multi-channel-num station?
 
 ```bash
 python3 drf_inspect.py ./station_dir --frequency 10
 ```
 
-Look for the row marked `*** YES ***` in the subchannel table.
+Look for the row marked `*** YES ***` in the channel-num table.
 
 ### How do I batch-inspect every station in a folder?
 
@@ -209,9 +264,9 @@ python3 drf_inspect.py --all . --frequency 10
 ```
 
 Run this after `download_companions.py` (or a manual download) to get
-a ready-to-use `--subchannel N` for every station folder in one pass —
+a ready-to-use `--channel-num N` for every station folder in one pass —
 single-channel Grapes are always `0`, but rx888/WSPRDaemon stations
-vary per station (e.g. one station's 10 MHz subchannel might be index
+vary per station (e.g. one station's 10 MHz channel-num might be index
 4, another's index 5).
 
 ### How do I just read the metadata without identifying a frequency?
@@ -222,10 +277,10 @@ python3 drf_inspect.py ./station_dir
 
 (Same command, without `--frequency`.)
 
-### How do I tell which subchannels are actually active vs empty?
+### How do I tell which channel-nums are actually active vs empty?
 
 `drf_inspect.py` automatically prints a signal-level table at the end
-of its output. EMPTY-flagged subchannels have RMS magnitude more than
+of its output. EMPTY-flagged channel-nums have RMS magnitude more than
 10x below the median.
 
 ---
@@ -237,7 +292,7 @@ of its output. EMPTY-flagged subchannels have RMS magnitude more than
 ```bash
 python3 drf_to_doppler.py ./station_dir \
     --start 2026-01-19T00:00:00 --end 2026-01-19T01:15:00 \
-    --decim-seconds 10 --subchannel 0 \
+    --decim-seconds 10 --channel-num 0 \
     --output station.csv --plot station.png
 ```
 
@@ -249,14 +304,14 @@ python3 drf_to_doppler.py ./station_dir \
 | `--decim-seconds 10` | TID analysis (default, good resolution) |
 | `--decim-seconds 1`  | Prompt flare signatures (SFD/SWF), high time res |
 
-### How do I extract from a multi-subchannel station?
+### How do I extract from a multi-channel-num station?
 
-Pass `--subchannel N` where N is what `drf_inspect.py` reported:
+Pass `--channel-num N` where N is what `drf_inspect.py` reported:
 
 ```bash
 python3 drf_to_doppler.py ./ac0g_nd \
     --start 2026-01-19T00:00:00 --end 2026-01-19T01:15:00 \
-    --decim-seconds 10 --subchannel 4 \
+    --decim-seconds 10 --channel-num 4 \
     --output ac0g_nd.csv --plot ac0g_nd.png
 ```
 
@@ -280,7 +335,7 @@ the wave period:
 ```bash
 python3 drf_to_doppler.py ./ac0g_nd \
     --start 2026-01-19T00:00:00 --end 2026-01-19T01:15:00 \
-    --decim-seconds 10 --subchannel 4 --method autocorr \
+    --decim-seconds 10 --channel-num 4 --method autocorr \
     --output ac0g_nd_autocorr.csv
 ```
 
@@ -314,7 +369,7 @@ python3 tid_spect_click.py \
     --spectrogram station_tid_zoom_clean.png \
     --name STATION \
     --drf-dir ./station \
-    --subchannel 0 \
+    --channel-num 0 \
     --corridor-width 0.4 \
     --seg-start 0 --seg-end 2 \
     --event-json event.json
@@ -820,14 +875,14 @@ code, example configs, and example data should be committed.
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Doppler trace looks like a square wave | Wrong `--subchannel` | Re-run `drf_inspect.py`; use the right index |
+| Doppler trace looks like a square wave | Wrong `--channel-num` | Re-run `drf_inspect.py`; use the right index |
 | `--ylim -2,2` rejected by argparse | Negative value treated as flag | Use `--ylim=-2,2` |
 | `find_event_stations.py` first run is slow | Building station cache | Wait 3–5 min; subsequent runs fast |
-| Multi-subchannel station has no `*** YES ***` | Frequency not recorded | Check `drf_inspect.py` table; pick nearest |
+| Multi-channel-num station has no `*** YES ***` | Frequency not recorded | Check `drf_inspect.py` table; pick nearest |
 | `tid_doa.py` correlations < 0.4 across all pairs | Wrong analysis window | Look at spectrograms; pick a cleaner window |
 | `tid_doa.py` one lag at the edge of max_lag_s | Pair too noisy or wrong cycle | Reduce `max_lag_seconds` or `--drop` that station |
 | `tid_map.py` says "install cartopy" | Optional dep missing | `pip install cartopy` for nicer maps |
-| `download_companions.py` reports "no matching observations" for a station that has data on the PSWS site | `--frequency` exact-string-matches; multi-subchannel rx888/WSPRDaemon stations store frequency as a list | Omit `--frequency` from the download step; use `drf_inspect.py --frequency` afterward |
+| `download_companions.py` reports "no matching observations" for a station that has data on the PSWS site | `--frequency` exact-string-matches; multi-channel-num rx888/WSPRDaemon stations store frequency as a list | Omit `--frequency` from the download step; use `drf_inspect.py --frequency` afterward |
 | `download_companions.py` returns an unexpected extra day of data | PSWS download API's date matching is inconsistent across station types | Default behavior already discards out-of-range days; pass `--keep-extra-days` only if you want them |
 | Multi-word station nickname only partly resolves | Shell splits unquoted `--stations` on spaces | Quote it (`--stations "KE9SA Grape DRF S48"`) or use `--stations-file` |
 
@@ -835,7 +890,11 @@ code, example configs, and example data should be committed.
 
 When running `tid_doa.py` directly, use `--drop` to exclude a station
 by name. When using `tid_workflow.py`, the interactive drop-station
-loop activates automatically after the DOA result.
+loop activates automatically after the DOA result. The browser
+dashboard has the same capability built in for events with more than 3
+stations -- see [How do I drop a station and re-run in the
+dashboard?](#how-do-i-drop-a-station-and-re-run-in-the-dashboard)
+above.
 
 ```bash
 # Drop one station (direct tid_doa.py use)

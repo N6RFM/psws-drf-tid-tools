@@ -1,3 +1,159 @@
+## v4.0.0 -- 2026-07-06
+
+### Breaking changes
+
+#### `--subchannel` renamed to `--channel-num` everywhere
+"Subchannel" incorrectly implied a single combined signal demultiplexed
+into related sub-streams -- the way ATSC TV subchannels are derived
+from one over-the-air broadcast. That's not what happens here: a
+KA9Q-radio/WSPRdaemon receiver records several independent, unrelated
+WWV frequencies (2.5/5/10/15/20/25 MHz etc.) simultaneously, packing
+them into one DRF directory's data columns purely for storage
+convenience. There's no relationship between them the way there is
+between a TV channel and its subchannels, and the old name actively
+misled anyone trying to understand what the flag did.
+
+`--subchannel` no longer exists as a flag, anywhere, in:
+`drf_to_doppler.py`, `drf_spectrogram.py`, `tid_spect_click.py`,
+`analyze_event.sh`. Use `--channel-num` instead.
+
+**If you have an in-progress `tid_workflow_state.json`** from
+`tid_workflow.py`, it will not resume cleanly under this release --
+the saved state used a `"subchannel"` key that no longer exists.
+Finish or discard old sessions before updating.
+
+**If you have any saved scripts or notes referencing `--subchannel`**,
+update them to `--channel-num` -- the flag is not aliased or
+deprecated, it is gone.
+
+### Major changes
+
+#### Fixed a real, silent data-quality bug in the rename's own follow-through
+`analyze_event.sh` was missed in the initial rename (that audit only
+searched `.py`/`.md` files) and, as a result, had a genuine functional
+bug: Stage 8's parser for `drf_inspect.py`'s own printed output still
+expected the old `--subchannel` wording after `drf_inspect.py` itself
+had already been renamed elsewhere. The regex would have silently
+never matched, defaulting every multi-channel-num station to
+channel-num 0 -- often an empty/unused band, per the real June 6 2026
+event that originally surfaced this whole class of bug. Fixed and
+verified against realistic `drf_inspect.py` output.
+
+#### `tid_dashboard.py`: real subchannel/channel-num detection restored (v0.9.0)
+The first real (non-synthetic) test of the dashboard's interactive
+wave-fit extraction against the June 6 2026 event revealed that 3 of
+4 stations were genuine KA9Q-radio receivers with up to 9 packed
+channel-nums each, and the dashboard was silently defaulting to
+channel-num 0 for all of them -- an empty band for every affected
+station, producing spectrograms with no visible signal at all. Added
+a "Channel-num selection" step (same mandatory real-spectrogram
+visual confirmation pattern as the existing channel picker) to both
+the automated and interactive extraction paths.
+
+#### `tid_dashboard.py`: interactive wave-fit and cwt-prophet extraction (v0.8.0-v0.8.1)
+The dashboard now covers all 5 extraction methods, not just the 3
+automated ones. Selecting wave-fit or cwt-prophet launches
+`tid_spect_click.py`'s native window per station (the existing,
+tested tool spawned as a subprocess, not reimplemented in-browser);
+the dashboard picks up the result automatically once you press X to
+export and close the window. A "Doppler axis half-range" control was
+added after the first real test showed the default axis range made a
+real TID signal look flat and hard to click precisely.
+
+### Fixed
+- Repo-wide: every `--subchannel`/`subchannel` reference renamed to
+  `--channel-num`/`channel_num` in 19 files total (11 code, 8 docs),
+  with the real external `digital_rf` metadata keys and one historical
+  `CHANGELOG.md` filename reference deliberately left unchanged.
+- `tid_dashboard.py`: a version-drift bug (docstring `Version:` line
+  disagreeing with its own `STATUS:` line) that had already been fixed
+  once earlier in this project's history had crept back in across two
+  version bumps -- fixed again.
+
+## v3.1.0 -- 2026-07-05
+
+### Major changes
+
+#### New: `tid_dashboard.py` -- browser-based GUI (experimental)
+- Streamlit control panel wrapping the automated pipeline end to end:
+  DRF discovery -> Doppler extraction (autocorr/cwt/fft) -> DOA ->
+  Madrigal TEC cross-check, behind one button
+- Auto-computes `--doa-lags`/`--doa-speed`/`--doa-azimuth-from` for the
+  TEC cross-check instead of manual entry
+- Native OS folder-browse dialog, persistent settings autosave,
+  keystone-station picker
+- Overview spectrogram with a live selection-window overlay, drawn
+  directly on the cached image so it updates instantly as you adjust
+  the window -- no re-running the spectrogram subprocess per interaction
+- Mandatory visual confirmation (an actual spectrogram, not just an
+  SNR number) for any station with more than one DRF channel (e.g.
+  RX888-style wideband receivers recording several carriers at once)
+- Drop-station re-run section for events with more than 3 stations,
+  mirroring the `tid_doa.py --drop NAME` workflow
+- Does not cover wave-fit or cwt-prophet extraction -- both need a
+  human clicking on a spectrogram; use `tid_spect_click.py` directly
+  for those
+- **Not yet validated against a real event end to end** -- tested
+  against synthetic DRF data and via Streamlit's AppTest framework only
+
+#### New: DOA cross-check interpretation (`fetch_madrigal_tec.py`, `fetch_madrigal_tec_closure.py`)
+- Automated verdict (CONSISTENT / MOSTLY CONSISTENT / INCONSISTENT)
+  comparing DOA-predicted lags against independently-measured GPS-TEC
+  lags, with per-station outlier flagging when one station's pairs
+  disagree substantially more than the rest
+- New `--tec-tolerance-min` flag (default 20.0 minutes)
+- Printed to console and saved in `report.txt` -- previously the CLI
+  only confirmed the report was saved, never showed its content
+- Validated against the archived June 6 2026 event data: correctly
+  reproduces the AC0G_ND outlier finding found by manual inspection
+
+#### New: `fetch_madrigal_tec_closure.py` (experimental fork)
+- Adds loop-closure cross-correlation peak disambiguation: for any
+  station triple, checks that pairwise lags are mutually consistent,
+  and resolves which of several comparable-height correlation peaks
+  is correct when a pair's peak pick is ambiguous
+- **Not yet validated against a live Madrigal pull** -- validated only
+  against reconstructed known-ambiguous data so far
+
+#### New: `tid_doa_residual.py` real CLI
+- Real argparse interface (`event_json` positional arg,
+  `--output-dir`/`--target-dt-s`/`--max-lag-s`/`--residual-ratio-min`
+  flags) replacing a hardcoded CONFIG block with a personal path baked in
+- Still a proof of concept otherwise -- not wired into `tid_workflow.py`
+
+### Fixed
+- **`tid_doa.py`**: divide-by-zero warning in the dominant-period FFT
+  diagnostic; `__version__` constant brought back in sync with its
+  own changelog
+- **`drf_spectrogram.py`**, **`tid_stack_plot.py`**: docstring
+  `Version:` line corrected to match each file's own changelog/code
+  constant
+- **`synthetic_tests/test_conditions.py`**: docstring corrected from
+  stale "20 conditions" to the actual 29
+- **`synthetic_tests/run_tests.py`**: clearer, actionable error when a
+  toolkit script can't be found; `--show-commands` output corrected --
+  it described the eventual auto-copied file location as if it were
+  the immediate save location
+- **`tid_spect_click.py`**: wave-fit save confirmation now explains
+  that `run_tests.py` auto-detects and copies the file, closing a
+  real point of confusion
+- **`synthetic_tests/conftest.py`**: an import statement sat before
+  the file's own shebang line, silently defeating it
+
+### Documentation
+- **`README.md`**: dashboard documented (capability list, new "GUI
+  option" section, Dependencies); file-tree table audited and
+  corrected -- it was missing 10 real files (`evaluate_external.py`,
+  `fetch_kp_index.py`, `hf_int.py`, `quality_summary.py`,
+  `tid_doa_config.py`, `tid_guided_extract.py`, `tid_pair.py`,
+  `tid_window_detector.py`, `fetch_madrigal_tec_closure.py`)
+  independent of the dashboard work
+- **`requirements-optional.txt`**: added `streamlit`
+- Repo-wide annotation audit: every code file now carries the
+  standard `Part of psws-drf-tid-tools` / `Created by` / `Version:` /
+  `License:` header block (22 files needed some fix, from missing
+  lines entirely to inconsistent wording)
+
 ## v3.0.0 -- 2026-07-04
 
 ### Major changes
@@ -791,7 +947,7 @@ spectrogram titles show the correct grid square:
 A complete 8-step guided workflow that takes you from raw DRF data to
 a validated DOA result in a single interactive session:
 
-1. Station discovery and subchannel selection with thumbnail spectrograms
+1. Station discovery and channel-num selection with thumbnail spectrograms
 2. Full-day spectrogram generation
 3. Interactive TID window selection (tid_quicklook.py)
 4. Zoomed spectrogram generation
@@ -1044,9 +1200,9 @@ Feedback from G3ZIL (16 May testing).
     `END_TIME` from the v1.3.0 prototype).
   - Persists `WINDOW_END` to `.analyze_event_state` immediately when
     changed, so Stage 10 and resumes always read the correct value.
-  - Reads each station's subchannel from `station_subchannels.txt`
-    (already built at Stage 8), correctly handling multi-subchannel
-    DRFs like AC0G/ND where 10 MHz is at subchannel 4, not 0.
+  - Reads each station's channel-num from `station_subchannels.txt`
+    (already built at Stage 8), correctly handling multi-channel-num
+    DRFs like AC0G/ND where 10 MHz is at channel-num 4, not 0.
   - Defaults to safe behavior (Enter = keep current) rather than
     the v1.3.0 prototype's "Enter = accept the change" pattern that
     caused unintended tightening.
@@ -1230,7 +1386,7 @@ Grape stations across the central US.
 | Script | Purpose | Version |
 |---|---|---|
 | `find_event_stations.py` | Locate companion HamSCI stations for a given event date | 1.0.0 |
-| `drf_inspect.py` | Verify DRF metadata and identify the correct subchannel for a target frequency | 1.0.0 |
+| `drf_inspect.py` | Verify DRF metadata and identify the correct channel-num for a target frequency | 1.0.0 |
 | `drf_to_doppler.py` | Extract Doppler-vs-time CSV from raw DRF I/Q | 1.0.0 |
 | `drf_spectrogram.py` | Render annotated Doppler spectrograms | 1.1.0 |
 | `tid_window_detector.py` | Automatically locate TID windows in a Doppler survey | 1.0.0 |
@@ -1258,7 +1414,7 @@ Grape stations across the central US.
 #### `find_event_stations.py` v1.0.0
 - Discovered (and works around) several PSWS observation-portal quirks:
   - `sort=-startDate` uses upload timestamp rather than observation date
-  - Multi-subchannel WSPRdaemon stations store comma-separated frequency
+  - Multi-channel-num WSPRdaemon stations store comma-separated frequency
     lists that defeat exact-string filters
   - Per-station observation lists must be queried individually (rather
     than scanning the global date-sorted list)

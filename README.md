@@ -38,7 +38,7 @@ WSPRDaemon stations all recording the same WWV carrier, this toolkit
 lets you:
 
 - find which other stations were on the air during your event of interest
-- inspect a DRF recording and identify the correct subchannel for comparative
+- inspect a DRF recording and identify the correct channel-num for comparative
   analysis
 - extract Doppler-vs-time CSVs from raw I/Q using four methods:
   anchor-guided cwt-prophet (recommended), wave-fit, autocorr,
@@ -123,7 +123,7 @@ python3 tid_workflow.py \
 
 The guided workflow handles all 8 steps interactively:
 
-1. Station discovery and subchannel selection
+1. Station discovery and channel-num selection
 2. Full-day spectrogram generation
 3. TID window selection (interactive)
 4. Zoomed spectrogram generation
@@ -137,16 +137,10 @@ walkthrough.
 
 ### GUI option: `tid_dashboard.py`
 
-> **Not yet validated on a real event end to end.** Every part of
-> this dashboard has been tested individually against synthetic DRF
-> test data, but the full pipeline hasn't yet been run against a real
-> station recording. Use it, but don't treat it as more authoritative
-> than the CLI tools until that's happened.
-
-A browser-based control panel wrapping the **automated** extraction
-methods (autocorr, cwt, fft) end to end: point it at an event
-directory, and it runs DRF discovery → Doppler extraction → DOA →
-Madrigal TEC cross-check behind one button, auto-computing
+A browser-based control panel wrapping the full extraction → DOA →
+Madrigal TEC cross-check pipeline behind one button: point it at an
+event directory, pick a window (with a live spectrogram showing
+exactly what you've selected), and run — auto-computing
 `--doa-lags`/`--doa-speed`/`--doa-azimuth-from` for the TEC cross-check
 instead of you typing them by hand.
 
@@ -156,16 +150,30 @@ streamlit run tid_dashboard.py
 ```
 
 Then open the printed `http://localhost:8501` URL. Everything before
-the "Run full pipeline" button — event window selection (with a live
-spectrogram showing exactly what you've selected), station
+the "Run full pipeline" button — event window selection, station
 coordinates, and channel confirmation for multi-channel/RX888-style
 stations — happens live as you type, no need to click anything first.
 
-**What it doesn't cover:** wave-fit and cwt-prophet extraction, since
-both need a human clicking on a spectrogram — use `tid_spect_click.py`
-directly for those, same as the guided/manual workflows below. The
-Madrigal cross-check step is optional (toggle in the sidebar) and can
-be skipped if you just want speed/azimuth.
+**Extraction methods:** all five are available from one dropdown —
+`autocorr`, `cwt`, and `fft` run automatically with no further input;
+`wave-fit` and `cwt-prophet` open `tid_spect_click.py`'s own native
+window per station (the dashboard spawns the same tool this page
+already documents, rather than reimplementing spectrogram clicking in
+the browser) — click cycle points, fit, **press X to export**, then
+close the window, and the dashboard picks up the result automatically
+via `--event-json` and moves to the next station. All stations in a
+given run use the same method; mixing methods across stations isn't
+supported yet.
+
+**Two real constraints on the interactive methods, stated plainly:**
+this only works when Streamlit is running locally on the same machine
+as the display (same reason the folder-browse button works — a
+browser can't be granted access to a remote machine's desktop), and
+the browser tab blocks while each native window is open, same as any
+other slow step in the pipeline.
+
+The Madrigal cross-check step is optional (toggle in the sidebar) and
+can be skipped if you just want speed/azimuth.
 
 For an event with more than 3 stations, a follow-up section lets you
 exclude station(s) and re-run just the DOA fit (and optionally the TEC
@@ -253,12 +261,11 @@ psws-drf-tid-tools/
 ├── tid_spect_click.py          interactive spectrogram extraction
 │                               (cwt-prophet and wave-fit; display required)
 ├── tid_guided_extract.py       interactive guided Doppler CSV correction
-├── tid_dashboard.py            browser GUI for automated methods only
-│                               (not yet validated on a real event)
+├── tid_dashboard.py            browser GUI, all 5 extraction methods
 ├── drf_spectrogram.py          full-day and zoomed spectrograms
 ├── drf_to_doppler.py           automated Doppler extraction
 │                               (fft, autocorr; also cwt, bandpass, sgolay-ridge)
-├── drf_inspect.py              verify DRF metadata + subchannel
+├── drf_inspect.py              verify DRF metadata + channel-num
 ├── find_event_stations.py      companion-station discovery
 ├── download_companions.py      companion-station download + organize
 ├── tid_doa.py                  multi-station DOA inversion

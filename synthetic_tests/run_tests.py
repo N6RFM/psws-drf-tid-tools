@@ -5,10 +5,17 @@ validation suite.
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.0.1
+Version: 1.0.2
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.0.2  Renamed run_extraction()'s subchannel parameter and the
+          --subchannel drf_to_doppler.py subprocess arg to channel_num/
+          --channel-num, matching that tool's own rename. "Subchannel"
+          incorrectly implied a single combined signal demultiplexed
+          into related sub-streams; what's actually happening is
+          several independent, unrelated frequencies packed into one
+          DRF directory's data columns. No functional change.
   v1.0.1  find_script() now gives a specific, actionable error (what
           paths it tried, how to fix it) instead of a bare
           FileNotFoundError. --show-commands' wave-fit/cwt-prophet
@@ -86,12 +93,12 @@ def find_script(name):
 
 
 def run_extraction(station_dir, output_csv, method, t_start_iso, t_end_iso,
-                   decim_seconds=60, subchannel=0):
+                   decim_seconds=60, channel_num=0):
     """Run drf_to_doppler.py on one station."""
     cmd = [
         sys.executable, find_script("drf_to_doppler.py"),
         str(station_dir),
-        "--subchannel", str(subchannel),
+        "--channel-num", str(channel_num),
         "--start", t_start_iso,
         "--end",   t_end_iso,
         "--decim-seconds", str(decim_seconds),

@@ -59,7 +59,7 @@ python3 download_companions.py --date 2026-01-19 \
 This downloads and organizes each station automatically into the
 `<station>/ch0/...` layout `tid_workflow.py` expects (see Prerequisites
 above) — no manual unzipping or renaming needed. Omit `--frequency`
-if your companion list might include multi-subchannel rx888/WSPRDaemon
+if your companion list might include multi-channel-num rx888/WSPRDaemon
 stations (see `docs/COOKBOOK.md` for why). Alternatively, download
 manually from https://pswsnetwork.eng.ua.edu/ and organize it yourself
 to match the Prerequisites layout — see `MANUAL_TUTORIAL.md` for the
@@ -95,17 +95,17 @@ python3 tid_workflow.py --event-dir /path/to/event --resume
 
 ## The 8 steps
 
-### Step 1 -- Station discovery and subchannel selection
+### Step 1 -- Station discovery and channel-num selection
 
 The workflow scans the event directory for DRF subdirectories, probes
-each for subchannels, generates thumbnail spectrograms, and asks you
-to confirm the subchannel for WWV 10 MHz. The highest-SNR subchannel
+each for channel-nums, generates thumbnail spectrograms, and asks you
+to confirm the channel-num for WWV 10 MHz. The highest-SNR channel-num
 is suggested automatically.
 
-    Station: AA6BD  (subchannel 0)
-      Top subchannels by SNR:
-        subchannel 0: 18.0 dB
-      Enter subchannel [0]:         <- press Enter to accept
+    Station: AA6BD  (channel-num 0)
+      Top channel-nums by SNR:
+        channel-num 0: 18.0 dB
+      Enter channel-num [0]:         <- press Enter to accept
 
 After all stations are confirmed, choose the extraction method
 and DOA coordinate system:
@@ -281,7 +281,7 @@ For clean stations with no E-region contamination. Runs without
 opening a window — useful for batch processing:
 
 ```bash
-python3 drf_to_doppler.py ./n6rfm --subchannel 0 \\
+python3 drf_to_doppler.py ./n6rfm --channel-num 0 \\
     --start 2026-01-19T00:00:00 --end 2026-01-19T02:00:00 \\
     --decim-seconds 60 --method autocorr --output n6rfm_autocorr_tid.csv
 ```
@@ -391,11 +391,11 @@ For full control, or to run only part of the pipeline, each step can
 be run directly. See `MANUAL_TUTORIAL.md` for the complete walkthrough.
 
 ```bash
-# 1. Inspect subchannels
+# 1. Inspect channel-nums
 python3 drf_inspect.py --all ./n6rfm --frequency 10
 
 # 2. Full-day spectrogram
-python3 drf_spectrogram.py ./n6rfm --subchannel 0 \
+python3 drf_spectrogram.py ./n6rfm --channel-num 0 \
     --output n6rfm_fullday.png --start 00:00 --end 24:00 \
     --ylim=-5,5 --dpi 100 --callsign N6RFM
 
@@ -403,7 +403,7 @@ python3 drf_spectrogram.py ./n6rfm --subchannel 0 \
 python3 tid_quicklook.py --spectrogram n6rfm_fullday.png
 
 # 4. Zoomed spectrogram
-python3 drf_spectrogram.py ./n6rfm --subchannel 0 \
+python3 drf_spectrogram.py ./n6rfm --channel-num 0 \
     --output n6rfm_zoom.png \
     --window n6rfm_fullday_window.json \
     --ylim=-5,5 --dpi 150 --callsign N6RFM
@@ -411,7 +411,7 @@ python3 drf_spectrogram.py ./n6rfm --subchannel 0 \
 # 5a. cwt-prophet extraction (recommended)
 #     Pass 0 auto-runs. E=accept auto-trace, X=export clicked trace
 python3 tid_spect_click.py --spectrogram n6rfm_zoom.png \
-    --name N6RFM --drf-dir ./n6rfm --subchannel 0 \
+    --name N6RFM --drf-dir ./n6rfm --channel-num 0 \
     --event-json event.json
 
 # 5b. Wave-fit only (>=1.5 cycles recommended)
@@ -419,12 +419,12 @@ python3 tid_spect_click.py --spectrogram n6rfm_zoom.png \
     --name N6RFM --seg-start 0.0 --seg-end 2.0 --wave-only
 
 # 5c. Automated extraction — autocorr
-python3 drf_to_doppler.py ./n6rfm --subchannel 0 \
+python3 drf_to_doppler.py ./n6rfm --channel-num 0 \
     --start 2026-01-19T00:00:00 --end 2026-01-19T02:00:00 \
     --decim-seconds 60 --method autocorr --output n6rfm_autocorr_tid.csv
 
 # 5d. Automated extraction — fft
-python3 drf_to_doppler.py ./n6rfm --subchannel 0 \
+python3 drf_to_doppler.py ./n6rfm --channel-num 0 \
     --start 2026-01-19T00:00:00 --end 2026-01-19T02:00:00 \
     --decim-seconds 60 --method fft --output n6rfm_fft_tid.csv
 
@@ -489,7 +489,7 @@ For the 19 January 2026 event (00:00-01:36 UTC, 4 stations):
 
 cwt-prophet Pass 0 extractions are **not fully deterministic** across
 sessions. The prophet algorithm is sensitive to initial CWT ridge
-selection, which can vary with subchannel noise and display window.
+selection, which can vary with channel-num noise and display window.
 This means running the GUI twice on the same spectrogram may give
 slightly different `_prophet_preview.csv` files, and therefore
 slightly different DOA results.

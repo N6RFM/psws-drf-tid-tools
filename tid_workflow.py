@@ -4,8 +4,25 @@ tid_workflow.py — guided TID direction-of-arrival workflow
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.0.0
+Version: 1.1.0
 License: MIT (do whatever you want, no warranty).
+
+Change log:
+  v1.1.0  Renamed "subchannel" to "channel-num"/"channel_num" throughout
+          (probe_subchannels -> probe_channel_nums, best_subchannel ->
+          best_channel_num, the "subchannel" state-file key ->
+          "channel_num", all --subchannel subprocess args ->
+          --channel-num, all prose/prompts). "Subchannel" incorrectly
+          implied a single combined signal demultiplexed into related
+          sub-streams (like ATSC TV subchannels); what's actually
+          happening is several independent, unrelated frequencies
+          packed into one DRF directory's data columns purely for
+          storage convenience. NOTE: this changes the state-file JSON
+          key -- an in-progress tid_workflow_state.json saved by an
+          older version of this script will not resume cleanly; finish
+          or discard old sessions before updating.
+  v1.0.0  (version annotation added retroactively during the repo-wide
+          annotation audit; no prior version history existed)
 
 OVERVIEW
 ========
@@ -186,11 +203,15 @@ def get_station_coords(name, drf_dir, event_dir=None):
             print("    Invalid — enter decimal numbers e.g. 35.1042 and -111.7083")
 
 
-def probe_subchannels(drf_dir, date_str, target_mhz=10.0):
+def probe_channel_nums(drf_dir, date_str, target_mhz=10.0):
     """
-    Probe all subchannels. Returns list of (subchannel, snr_db, freq_hz).
-    Priority: DRF metadata frequencies > SNR ranking.
-    Auto-selects subchannel closest to target_mhz if frequency metadata available.
+    Probe all packed channel-nums (see terminology note in
+    drf_to_doppler.py -- NOT "subchannels" in the broadcast sense;
+    several independent, unrelated frequencies packed into one DRF
+    directory's data columns). Returns list of (channel_num, snr_db,
+    freq_hz). Priority: DRF metadata frequencies > SNR ranking.
+    Auto-selects the channel-num closest to target_mhz if frequency
+    metadata is available.
     """
     try:
         import digital_rf as drf_lib
@@ -241,7 +262,7 @@ def probe_subchannels(drf_dir, date_str, target_mhz=10.0):
                         freqs = arr
                         break
                     elif len(arr) == 1:
-                        # Single freq — same for all subchannels
+                        # Single freq — same for all channel-nums
                         freqs = np.full(n_subs, float(arr[0]))
                         break
                 except Exception:
@@ -261,15 +282,15 @@ def probe_subchannels(drf_dir, date_str, target_mhz=10.0):
         return sorted(results, key=lambda x: -x[1])
 
     except Exception as e:
-        print(f"    Subchannel probe failed: {e}")
+        print(f"    Channel-num probe failed: {e}")
         return [(0, 0.0, None)]
 
 
-def best_subchannel(subs, target_mhz=10.0):
+def best_channel_num(subs, target_mhz=10.0):
     """
-    Select best subchannel:
-    1. Subchannel with frequency closest to target_mhz (if freq metadata available)
-    2. Subchannel with highest SNR (fallback)
+    Select best channel-num:
+    1. Channel-num with frequency closest to target_mhz (if freq metadata available)
+    2. Channel-num with highest SNR (fallback)
     """
     # Try frequency match first
     freq_matches = [(sub, snr, freq) for sub, snr, freq in subs
@@ -561,57 +582,58 @@ def run_workflow(args):
             date_str = input("  Enter event date (YYYY-MM-DD): ").strip()
         print(f"  Event date: {date_str}")
 
-        def _confirm_subchannel(drf_dir_s):
-            """Step 1 body for one station: probe subchannels, generate
-            thumbnails, confirm subchannel, resolve coords. Returns a
-            station dict (same shape stations[] has always used)."""
+        def _confirm_channel_num(drf_dir_s):
+            """Step 1 body for one station: probe packed channel-nums,
+            generate thumbnails, confirm channel-num, resolve coords.
+            Returns a station dict (same shape stations[] has always
+            used)."""
             name = drf_dir_s.name.upper()
             print(f"\n  Station: {name}")
-            print(f"    [Step 1] Subchannel confirmation for {name}...")
+            print(f"    [Step 1] Channel-num confirmation for {name}...")
 
-            print(f"    Probing subchannels...")
-            subs = probe_subchannels(drf_dir_s, date_str, args.tx_freq_mhz)
-            print(f"    Top subchannels by SNR:")
+            print(f"    Probing channel-nums...")
+            subs = probe_channel_nums(drf_dir_s, date_str, args.tx_freq_mhz)
+            print(f"    Top channel-nums by SNR:")
             for sub, snr, freq in subs[:5]:
                 freq_str = f" — {freq/1e6:.3f} MHz" if freq else ""
                 marker = " ← WWV 10 MHz" if freq and abs(freq/1e6 - 10.0) < 0.01 else ""
-                print(f"      subchannel {sub}: {snr:.1f} dB{freq_str}{marker}")
+                print(f"      channel-num {sub}: {snr:.1f} dB{freq_str}{marker}")
 
             if len(subs) > 1:
-                thumb_dir = event_dir / f'{name.lower()}_subchannels'
+                thumb_dir = event_dir / f'{name.lower()}_channel_nums'
                 thumb_dir.mkdir(exist_ok=True)
-                print(f'    Generating subchannel thumbnails...')
+                print(f'    Generating channel-num thumbnails...')
                 for sub_i, snr_i, freq_i in subs:
                     thumb = thumb_dir / f'sub{sub_i:02d}.png'
                     if not thumb.exists():
                         run([
                             'python3', tool('drf_spectrogram.py'),
                             drf_dir_s,
-                            '--subchannel', str(sub_i),
+                            '--channel-num', str(sub_i),
                             '--output', str(thumb),
                             '--start', '00:00', '--end', '24:00',
                             '--ylim=-5,5', '--dpi', '60',
                             '--callsign', name,
                         ])
                     freq_str = f' {freq_i/1e6:.3f} MHz' if freq_i else ''
-                    print(f'      sub{sub_i:02d}.png — subchannel {sub_i}{freq_str} SNR={snr_i:.1f} dB')
+                    print(f'      sub{sub_i:02d}.png — channel-num {sub_i}{freq_str} SNR={snr_i:.1f} dB')
                 print(f'    Open thumbnails in: {thumb_dir}')
                 print(f'    Look for clear carrier near 0 Hz = WWV 10 MHz')
             else:
-                print(f'    Single subchannel — skipping thumbnail preview '
+                print(f'    Single channel-num — skipping thumbnail preview '
                       f'(Step 2\'s full-day spectrogram covers this)')
 
-            best_sub, reason = best_subchannel(subs, args.tx_freq_mhz)
+            best_sub, reason = best_channel_num(subs, args.tx_freq_mhz)
             if best_sub is not None:
-                print(f'    Suggested: subchannel {best_sub} ({reason})')
+                print(f'    Suggested: channel-num {best_sub} ({reason})')
             while True:
                 try:
-                    prompt = f'    Enter subchannel'
+                    prompt = f'    Enter channel-num'
                     if best_sub is not None:
                         prompt += f' [{best_sub}]'
                     sub_input = input(prompt + ': ').strip()
-                    subchannel = int(sub_input) if sub_input else (best_sub if best_sub is not None else None)
-                    if subchannel is None:
+                    channel_num = int(sub_input) if sub_input else (best_sub if best_sub is not None else None)
+                    if channel_num is None:
                         print('    Please enter a number')
                         continue
                     break
@@ -631,7 +653,7 @@ def run_workflow(args):
             return {
                 "name": name,
                 "drf_dir": str(drf_dir_s),
-                "subchannel": subchannel,
+                "channel_num": channel_num,
                 "receiver_lat": rx_lat,
                 "receiver_lon": rx_lon,
                 "ipp_lat": ipp_lat,
@@ -643,19 +665,19 @@ def run_workflow(args):
         def _fullday_and_window(stn):
             """Step 2 (full-day spectrogram) + Step 3 (window selection,
             with the 'apply to remaining' propagation offer) for one
-            already-subchannel-confirmed station. Mirrors the same state
+            already-channel-num-confirmed station. Mirrors the same state
             keys / file paths the Steps 2-9 loop later expects, so when
             that loop reaches this station it will find everything
             already done and just skip straight past it."""
             name = stn["name"]
             drf_dir_s = stn["drf_dir"]
-            sub = stn["subchannel"]
+            sub = stn["channel_num"]
             stn_key = name.lower()
             fullday_png = event_dir / f"{stn_key}_fullday.png"
             window_json = event_dir / f"{stn_key}_fullday_window.json"
 
             print(f"\n{'─'*60}")
-            print(f"Station: {name}  (subchannel {sub})")
+            print(f"Station: {name}  (channel-num {sub})")
             print(f"{'─'*60}")
 
             if f"{stn_key}_fullday" not in state:
@@ -663,7 +685,7 @@ def run_workflow(args):
                 r = run([
                     "python3", tool("drf_spectrogram.py"),
                     drf_dir_s,
-                    "--subchannel", str(sub),
+                    "--channel-num", str(sub),
                     "--output", str(fullday_png),
                     "--start", "00:00", "--end", "24:00",
                     "--ylim=-5,5", "--dpi", "100",
@@ -714,9 +736,9 @@ def run_workflow(args):
                         print(f"  Applied to: {remaining}")
 
         # Keystone fast-path: if --my-station is set, take that station
-        # all the way through subchannel confirmation, full-day
+        # all the way through channel-num confirmation, full-day
         # spectrogram, AND window selection before any other station is
-        # even probed for its subchannel. This is what makes the
+        # even probed for its channel-num. This is what makes the
         # keystone's own full-day view (not anyone else's) the thing
         # you're actually looking at when you pick the TID window.
         stations = []
@@ -727,7 +749,7 @@ def run_workflow(args):
                                   if d.name.lower() == my), None)
             if keystone_dir is not None:
                 remaining_dirs.remove(keystone_dir)
-                keystone_stn = _confirm_subchannel(keystone_dir)
+                keystone_stn = _confirm_channel_num(keystone_dir)
                 stations.append(keystone_stn)
                 _fullday_and_window(keystone_stn)
             else:
@@ -735,12 +757,12 @@ def run_workflow(args):
                       f"found among discovered stations — proceeding "
                       f"without a keystone fast-path.")
 
-        # Remaining stations: subchannel confirmation only, same as
+        # Remaining stations: channel-num confirmation only, same as
         # before. Their full-day spectrogram + window selection (or the
         # propagated window from the keystone, if you said yes above)
         # happens later in the Steps 2-9 loop, per station, in order.
         for drf_dir_s in remaining_dirs:
-            stations.append(_confirm_subchannel(drf_dir_s))
+            stations.append(_confirm_channel_num(drf_dir_s))
 
         state["stations"] = stations
         state["date_str"] = date_str
@@ -784,12 +806,12 @@ def run_workflow(args):
     for stn in stations:
         name = stn["name"]
         drf_dir_s = stn["drf_dir"]
-        sub = stn["subchannel"]
+        sub = stn["channel_num"]
         date_str = stn["date_str"]
         stn_key = name.lower()
 
         print(f"\n{'─'*60}")
-        print(f"Station: {name}  (subchannel {sub})")
+        print(f"Station: {name}  (channel-num {sub})")
         print(f"{'─'*60}")
 
         fullday_png  = event_dir / f"{stn_key}_fullday.png"
@@ -807,7 +829,7 @@ def run_workflow(args):
             r = run([
                 "python3", tool("drf_spectrogram.py"),
                 drf_dir_s,
-                "--subchannel", str(sub),
+                "--channel-num", str(sub),
                 "--output", str(fullday_png),
                 "--start", "00:00", "--end", "24:00",
                 "--ylim=-5,5", "--dpi", "100",
@@ -864,7 +886,7 @@ def run_workflow(args):
             r = run([
                 "python3", tool("drf_spectrogram.py"),
                 drf_dir_s,
-                "--subchannel", str(sub),
+                "--channel-num", str(sub),
                 "--output", str(zoom_clean_png),
                 "--window", str(window_json),
                 "--ylim=-5,5", "--dpi", "150",
@@ -982,7 +1004,7 @@ def run_workflow(args):
                         "--spectrogram", str(zoom_clean_png),
                         "--name", name,
                         "--drf-dir", drf_dir_s,
-                        "--subchannel", str(sub),
+                        "--channel-num", str(sub),
                         "--corridor-width", "0.4",
                         "--seg-start", str(max(0.0, t0_h)),
                         "--seg-end",   str(t1_h),
@@ -1023,7 +1045,7 @@ def run_workflow(args):
                 r = run([
                     "python3", tool("drf_to_doppler.py"),
                     drf_dir_s,
-                    "--subchannel", str(sub),
+                    "--channel-num", str(sub),
                     "--start", h_to_iso(date_str, t0_h),
                     "--end",   h_to_iso(date_str, t1_h),
                     "--decim-seconds", "60",
@@ -1049,7 +1071,7 @@ def run_workflow(args):
                 r = run([
                     "python3", tool("drf_spectrogram.py"),
                     drf_dir_s,
-                    "--subchannel", str(sub),
+                    "--channel-num", str(sub),
                     "--output", str(zoom_png),
                     "--window", str(window_json),
                     "--ylim=-5,5", "--dpi", "150",
@@ -1098,7 +1120,7 @@ def run_workflow(args):
         # Re-run Steps 3-5 for this station only
         name = redo_stn["name"]
         drf_dir_s = redo_stn["drf_dir"]
-        sub = redo_stn["subchannel"]
+        sub = redo_stn["channel_num"]
         date_str = redo_stn["date_str"]
         fullday_png    = event_dir / f"{stn_key}_fullday.png"
         zoom_clean_png = event_dir / f"{stn_key}_tid_zoom_clean.png"
@@ -1119,7 +1141,7 @@ def run_workflow(args):
         print(f"\n[Step 4] Zoomed spectrogram for {name}...")
         run([
             "python3", tool("drf_spectrogram.py"),
-            drf_dir_s, "--subchannel", str(sub),
+            drf_dir_s, "--channel-num", str(sub),
             "--output", str(zoom_clean_png),
             "--window", str(window_json),
             "--ylim=-5,5", "--dpi", "150",
@@ -1146,7 +1168,7 @@ def run_workflow(args):
         print(f"  Regenerating zoom spectrogram with refined window...")
         run([
             "python3", tool("drf_spectrogram.py"),
-            drf_dir_s, "--subchannel", str(sub),
+            drf_dir_s, "--channel-num", str(sub),
             "--output", str(zoom_clean_png),
             "--window", str(zoom_window) if zoom_window.exists() else str(window_json),
             "--ylim=-5,5", "--dpi", "150",
@@ -1399,7 +1421,7 @@ def _parse_args():
     p.add_argument("--tx-name", default="WWV", metavar="NAME",
                    help="Transmitter name for labeling (default: WWV)")
     p.add_argument("--tx-freq-mhz", type=float, default=10.0, metavar="MHZ",
-                   help="Transmitter frequency MHz for subchannel selection (default 10.0)")
+                   help="Transmitter frequency MHz for channel-num selection (default 10.0)")
     p.add_argument("--sgolay-window", type=float, default=21.0, metavar="MIN",
                    help="SGOLAY smoothing window in minutes (default 21)")
     p.add_argument("--max-lag", type=float, default=None, metavar="MIN",
