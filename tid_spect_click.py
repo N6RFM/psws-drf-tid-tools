@@ -3,10 +3,19 @@ tid_spect_click.py — spectrogram-based guided Doppler phase extraction
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 0.1.1
+Version: 0.2.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v0.2.0  Renamed --subchannel to --channel-num throughout (flag,
+          constructor parameter, internal drf_to_doppler.py subprocess
+          calls). "Subchannel" incorrectly implied a single combined
+          signal demultiplexed into related sub-streams (like ATSC TV
+          subchannels); what's actually happening is several
+          independent, unrelated frequencies packed into one DRF
+          directory's data columns purely for storage convenience.
+          No functional change; --subchannel itself no longer exists,
+          callers must update.
   v0.1.1  Wave-fit save confirmation now also explains that
           run_tests.py auto-detects and copies the file from here into
           its expected event-directory location -- previously only
@@ -214,14 +223,14 @@ class SpectClickApp(QtWidgets.QMainWindow):
     def __init__(self, img_path, csv_path, name,
                  transform=None, period_hint=None,
                  seg_start=None, seg_end=None,
-                 drf_dir=None, subchannel=0, sgolay_window=21.0,
+                 drf_dir=None, channel_num=0, sgolay_window=21.0,
                  corridor_width=0.4):
         super().__init__()
         self.name        = name
         self.img_path    = img_path
         self.csv_path    = Path(csv_path) if csv_path else None
         self.drf_dir     = drf_dir
-        self.subchannel  = subchannel
+        self.channel_num  = channel_num
         self.sgolay_window = sgolay_window
         self.corridor_width = corridor_width
         self._wave_mode = False
@@ -499,7 +508,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
             _os2.path.join(_os2.path.dirname(_os2.path.abspath(__file__)),
                           "drf_to_doppler.py"),
             self.drf_dir,
-            "--subchannel", str(self.subchannel),
+            "--channel-num", str(self.channel_num),
             "--start", _h_to_iso(t0_h),
             "--end",   _h_to_iso(t1_h),
             "--decim-seconds", "60",
@@ -775,7 +784,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
             _os2.path.join(_os2.path.dirname(_os2.path.abspath(__file__)),
                           "drf_to_doppler.py"),
             self.drf_dir,
-            "--subchannel", str(self.subchannel),
+            "--channel-num", str(self.channel_num),
             "--start", _h_to_iso(t0_h),
             "--end",   _h_to_iso(t1_h),
             "--decim-seconds", "60",
@@ -1513,8 +1522,8 @@ def _parse_args():
                    help="DRF data directory for sgolay-ridge preview after X. "
                         "If provided, runs sgolay-ridge extraction after corridor "
                         "export and overlays result on spectrogram.")
-    p.add_argument("--subchannel", type=int, default=0, metavar="N",
-                   help="DRF subchannel index for sgolay-ridge preview (default 0)")
+    p.add_argument("--channel-num", type=int, default=0, metavar="N",
+                   help="DRF column index (for stations packing multiple frequencies into one channel) for sgolay-ridge preview (default 0)")
     p.add_argument("--corridor-width", type=float, default=0.4, metavar="HZ",
                    help="Half-width in Hz of the adaptive corridor centred on "
                         "the Prophet prediction at each time step. CWT peaks "
@@ -1591,7 +1600,7 @@ def main():
         seg_start    = seg_start,
         seg_end      = seg_end,
         drf_dir      = args.drf_dir,
-        subchannel   = args.subchannel,
+        channel_num  = args.channel_num,
         sgolay_window = args.sgolay_window,
         corridor_width = args.corridor_width,
     )

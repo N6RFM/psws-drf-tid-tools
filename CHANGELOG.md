@@ -875,7 +875,7 @@ spectrogram titles show the correct grid square:
 A complete 8-step guided workflow that takes you from raw DRF data to
 a validated DOA result in a single interactive session:
 
-1. Station discovery and subchannel selection with thumbnail spectrograms
+1. Station discovery and channel-num selection with thumbnail spectrograms
 2. Full-day spectrogram generation
 3. Interactive TID window selection (tid_quicklook.py)
 4. Zoomed spectrogram generation
@@ -1128,9 +1128,9 @@ Feedback from G3ZIL (16 May testing).
     `END_TIME` from the v1.3.0 prototype).
   - Persists `WINDOW_END` to `.analyze_event_state` immediately when
     changed, so Stage 10 and resumes always read the correct value.
-  - Reads each station's subchannel from `station_subchannels.txt`
-    (already built at Stage 8), correctly handling multi-subchannel
-    DRFs like AC0G/ND where 10 MHz is at subchannel 4, not 0.
+  - Reads each station's channel-num from `station_subchannels.txt`
+    (already built at Stage 8), correctly handling multi-channel-num
+    DRFs like AC0G/ND where 10 MHz is at channel-num 4, not 0.
   - Defaults to safe behavior (Enter = keep current) rather than
     the v1.3.0 prototype's "Enter = accept the change" pattern that
     caused unintended tightening.
@@ -1314,7 +1314,7 @@ Grape stations across the central US.
 | Script | Purpose | Version |
 |---|---|---|
 | `find_event_stations.py` | Locate companion HamSCI stations for a given event date | 1.0.0 |
-| `drf_inspect.py` | Verify DRF metadata and identify the correct subchannel for a target frequency | 1.0.0 |
+| `drf_inspect.py` | Verify DRF metadata and identify the correct channel-num for a target frequency | 1.0.0 |
 | `drf_to_doppler.py` | Extract Doppler-vs-time CSV from raw DRF I/Q | 1.0.0 |
 | `drf_spectrogram.py` | Render annotated Doppler spectrograms | 1.1.0 |
 | `tid_window_detector.py` | Automatically locate TID windows in a Doppler survey | 1.0.0 |
@@ -1342,7 +1342,7 @@ Grape stations across the central US.
 #### `find_event_stations.py` v1.0.0
 - Discovered (and works around) several PSWS observation-portal quirks:
   - `sort=-startDate` uses upload timestamp rather than observation date
-  - Multi-subchannel WSPRdaemon stations store comma-separated frequency
+  - Multi-channel-num WSPRdaemon stations store comma-separated frequency
     lists that defeat exact-string filters
   - Per-station observation lists must be queried individually (rather
     than scanning the global date-sorted list)

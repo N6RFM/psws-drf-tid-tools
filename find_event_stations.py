@@ -4,10 +4,16 @@ find_event_stations.py — locate companion HamSCI Grape DRF stations for a TID 
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.0.0
+Version: 1.1.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.1.0  Reworded "subchannel" references to "channel-num" in
+          comments/prose -- "subchannel" incorrectly implied a single
+          combined signal demultiplexed into related sub-streams;
+          what's actually happening is several independent, unrelated
+          frequencies packed into one DRF directory's data columns.
+          No functional change.
   v1.0.0  Initial public release covering the 19 Jan 2026 event analysis.
 
 OVERVIEW
@@ -28,7 +34,7 @@ quirks that prevent a simple date+frequency query from working:
      -> Workaround: query each station ID individually.
 
   2. The centerFrequency form filter does an exact-string match against the
-     observation's center_freq field. Multi-subchannel WSPRdaemon stations
+     observation's center_freq field. Multi-channel-num WSPRdaemon stations
      record this as a comma-separated list ("10.000 MHz, 5.000 MHz, ...")
      which never matches "10.000".  Many older DRF observations leave the
      field blank entirely.
@@ -748,7 +754,7 @@ def main():
     print(f"  {PSWS_BASE}/observations/select_download_range/<ObsID>/")
     print("Notes:")
     print("  - Each download is roughly 30-50 MB (single-channel) or "
-          "~3 GB (multi-subchannel WSPRdaemon)")
+          "~3 GB (multi-channel-num WSPRdaemon)")
     print("  - Confirm the actual recording frequency by reading the DRF "
           "metadata after download (see drf_to_doppler.py docstring)")
     print("  - Flagged stations [!NN MHz] may have been recording a "

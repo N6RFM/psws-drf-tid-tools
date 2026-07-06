@@ -7,8 +7,19 @@ Community add-on for psws-drf-tid-tools
 (https://github.com/N6RFM/psws-drf-tid-tools)
 
 Created by N6RFM with help from Claude AI.
-Version: 1.0.0
+Version: 1.1.0
 License: MIT (do whatever you want, no warranty).
+
+Change log:
+  v1.1.0  Reworded "subchannel" references to "channel-num" (and fixed
+          an internal inconsistency where the same warning message
+          mixed "multi-subchannel" and "multi-channel" for the same
+          concept). "Subchannel" incorrectly implied a single combined
+          signal demultiplexed into related sub-streams; what's
+          actually happening is several independent, unrelated
+          frequencies packed into one DRF directory's data columns.
+          No functional change.
+  v1.0.0  Initial release.
 
 OVERVIEW
 ========
@@ -306,7 +317,7 @@ def download_one(session, nickname, station_id, start_date, end_date,
               f"({start_date}..{end_date}"
               f"{', '+str(frequency)+' MHz' if frequency else ''}).")
         if frequency:
-            print(f"    (if {nickname} is a multi-subchannel rx888/"
+            print(f"    (if {nickname} is a multi-channel-num rx888/"
                   f"WSPRdaemon station, retry just this one without "
                   f"--frequency -- see the warning above)")
         return None
@@ -546,7 +557,7 @@ def main():
 
     if args.frequency:
         print("WARNING: --frequency does an exact-string match against "
-              "the API's center-frequency field. Multi-subchannel "
+              "the API's center-frequency field. Multi-channel-num "
               "rx888/WSPRdaemon stations store this as a comma-separated "
               "list (e.g. \"10.000 MHz, 5.000 MHz, ...\") which will NOT "
               "match a bare value like '10', so the API may silently "
@@ -554,10 +565,10 @@ def main():
               "actually does have your target frequency. If a station "
               "you expect to have data keeps coming back empty, re-run "
               "for just that station with --frequency omitted -- this "
-              "downloads the full multi-channel file (often ~3 GB "
+              "downloads the full multi-channel-num file (often ~3 GB "
               "instead of ~30-50 MB) but is the only filter-safe option "
               "for those stations. Use drf_inspect.py --frequency <MHz> "
-              "afterward to find the right --subchannel index.\n")
+              "afterward to find the right --channel-num index.\n")
 
     id_table = get_station_id_table(session, use_cache=not args.no_cache)
 
@@ -649,10 +660,10 @@ def main():
     print("Next steps:")
     freq_flag = f" --frequency {args.frequency}" if args.frequency else ""
     print(f"  python3 drf_inspect.py --all {args.out_dir}{freq_flag}")
-    print(f"  (read the '--subchannel N' it prints for EACH station -- "
+    print(f"  (read the '--channel-num N' it prints for EACH station -- "
           f"single-channel Grapes are always 0, but rx888/WSPRdaemon "
           f"stations vary per station, e.g. N5TNL=4, KD7EFG=5, then "
-          f"run drf_to_doppler.py per station with its own --subchannel)")
+          f"run drf_to_doppler.py per station with its own --channel-num)")
 
 
 if __name__ == "__main__":

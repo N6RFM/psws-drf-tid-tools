@@ -3,13 +3,20 @@ drf_spectrogram.py — render an annotated Doppler spectrogram from DRF I/Q
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.2.0
+Version: 1.3.0
 License: MIT (do whatever you want, no warranty).
 
 Based on the spectrogram approach used by AB4EJ (W. Engelke, University of
 Alabama) in plotspectrum_V4a.py.
 
 Change log:
+  v1.3.0  Renamed --subchannel to --channel-num throughout. "Subchannel"
+          incorrectly implied a single combined signal demultiplexed
+          into related sub-streams (like ATSC TV subchannels); what's
+          actually happening is several independent, unrelated
+          frequencies packed into one DRF directory's data columns
+          purely for storage convenience. No functional change;
+          --subchannel itself no longer exists, callers must update.
   v1.2.0  Added --overlay CSV:label[:color] to superimpose one or more
           Doppler CSV traces (from drf_to_doppler.py) on the spectrogram.
           Useful for visually validating FFT vs autocorr extraction and
@@ -58,10 +65,10 @@ Multiple annotations, plus event markers:
         --annotate "17:50,18:10,X1.9 flare SFD" \
         --vline "17:50,X1.9 peak" --vline "00:00,Jan 19"
 
-Multi-subchannel station:
+Multi-channel-num station:
 
     python drf_spectrogram.py ./ac0g_nd --output ac0g_spectrogram.png \
-        --subchannel 4 \
+        --channel-num 4 \
         --annotate "00:00,01:15,TID region of study"
 
 Overlay FFT and autocorr Doppler traces on the spectrogram:
@@ -173,7 +180,7 @@ REQUIREMENTS
 SEE ALSO
 ========
     drf_to_doppler.py     reduces the same DRF data to a peak-tracked CSV
-    drf_inspect.py        identifies the subchannel for multi-subchannel
+    drf_inspect.py        identifies the channel-num for multi-channel-num
                           recordings
 """
 
@@ -252,7 +259,7 @@ def parse_overlay(s):
 # ----------------------------------------------------------------------------
 # Spectrogram computation
 # ----------------------------------------------------------------------------
-def compute_spectrogram(reader, channel, subchannel,
+def compute_spectrogram(reader, channel, channel_num,
                         start_sample, n_seconds, window_seconds, fs_hz):
     """Build the spectrogram array.
 
@@ -274,12 +281,12 @@ def compute_spectrogram(reader, channel, subchannel,
     for col in range(n_columns):
         offset = col * n_per_fft
         try:
-            if subchannel is not None:
-                # Multi-subchannel: returns 2D array (n, num_sub)
+            if channel_num is not None:
+                # Multiple packed channels: returns 2D array (n, num_channel_nums)
                 block = reader.read_vector(start_sample + offset,
                                             n_per_fft, channel)
                 if block.ndim == 2:
-                    block = block[:, subchannel]
+                    block = block[:, channel_num]
             else:
                 block = reader.read_vector(start_sample + offset,
                                             n_per_fft, channel)
@@ -321,8 +328,9 @@ def main():
                          "Same path you'd pass to drf_to_doppler.py.")
     ap.add_argument("--channel", default="ch0",
                     help="DRF channel name. Default: ch0")
-    ap.add_argument("--subchannel", type=int, default=None,
-                    help="Subchannel index for multi-subchannel data "
+    ap.add_argument("--channel-num", type=int, default=None,
+                    help="Column index for stations that pack multiple "
+                         "independent frequencies into one DRF channel "
                          "(use drf_inspect.py to find this). Single-"
                          "channel: omit.")
     ap.add_argument("--output", "-o", required=True,
@@ -420,7 +428,7 @@ def main():
                 grid = meta.get("grid_square", "?")
                 fr = meta.get("center_frequencies", None)
                 if fr is not None:
-                    idx = args.subchannel if args.subchannel is not None else 0
+                    idx = args.channel_num if args.channel_num is not None else 0
                     if idx < len(fr):
                         target_freq = float(fr[idx])
         except Exception as e:
@@ -468,7 +476,7 @@ def main():
     print(f"Plot window: {start_dt} to {end_dt}  ({n_seconds/3600:.2f} hr)")
 
     spec, freqs, times = compute_spectrogram(
-        reader, args.channel, args.subchannel,
+        reader, args.channel, args.channel_num,
         start_sample, n_seconds, window_seconds, fs_hz)
 
     # Plot

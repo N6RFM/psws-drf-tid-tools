@@ -5,8 +5,17 @@ run_interactive.py -- One-command launcher for interactive extraction
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.0.0
+Version: 1.0.1
 License: MIT (do whatever you want, no warranty).
+
+Change log:
+  v1.0.1  Renamed --subchannel to --channel-num in the drf_spectrogram.py
+          subprocess call, matching that tool's own rename. "Subchannel"
+          incorrectly implied a single combined signal demultiplexed
+          into related sub-streams; what's actually happening is
+          several independent, unrelated frequencies packed into one
+          DRF directory's data columns. No functional change.
+  v1.0.0  Initial release.
 
 Collapses the 9-step manual workflow into 3:
   1. Run this script
@@ -110,7 +119,7 @@ def generate_spectrogram(station_dir, station_name, t_start_hhmm, t_end_hhmm,
     cmd = [
         sys.executable, find_script("drf_spectrogram.py"),
         str(station_dir),
-        "--subchannel", "0",
+        "--channel-num", "0",
         "--start", t_start_hhmm,
         "--end",   t_end_hhmm,
         f"--ylim={ylim}",

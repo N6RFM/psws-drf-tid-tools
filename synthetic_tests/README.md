@@ -163,7 +163,7 @@ python3 run_tests.py --test nominal --methods autocorr
 cd ~/psws-tools-pr
 python3 drf_spectrogram.py \
     synthetic_tests/events/synthetic_nominal/SYN_AA6BD \
-    --subchannel 0 --start 00:00 --end 02:00 \
+    --channel-num 0 --start 00:00 --end 02:00 \
     --ylim=-1,1 \
     --output /tmp/syn_aa6bd.png
 ```

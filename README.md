@@ -38,7 +38,7 @@ WSPRDaemon stations all recording the same WWV carrier, this toolkit
 lets you:
 
 - find which other stations were on the air during your event of interest
-- inspect a DRF recording and identify the correct subchannel for comparative
+- inspect a DRF recording and identify the correct channel-num for comparative
   analysis
 - extract Doppler-vs-time CSVs from raw I/Q using four methods:
   anchor-guided cwt-prophet (recommended), wave-fit, autocorr,
@@ -123,7 +123,7 @@ python3 tid_workflow.py \
 
 The guided workflow handles all 8 steps interactively:
 
-1. Station discovery and subchannel selection
+1. Station discovery and channel-num selection
 2. Full-day spectrogram generation
 3. TID window selection (interactive)
 4. Zoomed spectrogram generation
@@ -265,7 +265,7 @@ psws-drf-tid-tools/
 ├── drf_spectrogram.py          full-day and zoomed spectrograms
 ├── drf_to_doppler.py           automated Doppler extraction
 │                               (fft, autocorr; also cwt, bandpass, sgolay-ridge)
-├── drf_inspect.py              verify DRF metadata + subchannel
+├── drf_inspect.py              verify DRF metadata + channel-num
 ├── find_event_stations.py      companion-station discovery
 ├── download_companions.py      companion-station download + organize
 ├── tid_doa.py                  multi-station DOA inversion

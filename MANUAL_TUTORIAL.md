@@ -76,10 +76,10 @@ A couple of things worth knowing:
 
 - **Don't pass `--frequency` for mixed companion lists.** It does an
   exact-string match against PSWS's center-frequency field, which
-  silently excludes multi-subchannel rx888/WSPRDaemon stations (their
+  silently excludes multi-channel-num rx888/WSPRDaemon stations (their
   frequency is stored as a comma-separated list, not a single value).
   Omit it and let Step 1's `drf_inspect.py --frequency` identify the
-  right `--subchannel` per station afterward instead.
+  right `--channel-num` per station afterward instead.
 - Multi-word station nicknames (e.g. registered as `"KE9SA Grape DRF
   S48"`) need quoting on the command line, or use `--stations-file`
   which handles them without quoting.
@@ -124,14 +124,14 @@ This step is optional if you already have DRF data from companion stations.
 
 ## Step 1 -- Inspect the DRF recording
 
-Verify what subchannels are available and which contains the frequency of interest, e.g., WWV 10 MHz.
+Verify what channel-nums are available and which contains the frequency of interest, e.g., WWV 10 MHz.
 
 ```bash
 python3 drf_inspect.py --all ./n6rfm --frequency 10
 ```
 
-Note the subchannel index for each station before proceeding.
-For single-channel Grape v1 stations this is always subchannel 0.
+Note the channel-num index for each station before proceeding.
+For single-channel Grape v1 stations this is always channel-num 0.
 For multi-channel WSPRDaemon stations (e.g. AC0G/ND) it varies.
 
 ---
@@ -140,7 +140,7 @@ For multi-channel WSPRDaemon stations (e.g. AC0G/ND) it varies.
 
 ```bash
 python3 drf_spectrogram.py ./n6rfm \
-    --subchannel 0 \
+    --channel-num 0 \
     --output n6rfm_fullday.png \
     --start 00:00 --end 24:00 \
     --ylim=-5,5 --dpi 100 \
@@ -169,7 +169,7 @@ For the Jan 2026 event: 00:00-02:00 UTC covers one full TID cycle.
 
 ```bash
 python3 drf_spectrogram.py ./n6rfm \
-    --subchannel 0 \
+    --channel-num 0 \
     --output n6rfm_zoom.png \
     --window n6rfm_fullday_window.json \
     --ylim=-5,5 --dpi 150 \
@@ -189,7 +189,7 @@ python3 tid_spect_click.py \
     --spectrogram n6rfm_zoom.png \
     --name N6RFM \
     --drf-dir ./n6rfm \
-    --subchannel 0 \
+    --channel-num 0 \
     --corridor-width 0.4 \
     --seg-start 0 --seg-end 2 \
     --event-json event.json
@@ -240,7 +240,7 @@ character mid-window.
 No GUI required. Best for smooth, clean carriers.
 ```bash
 python3 drf_to_doppler.py ./n6rfm \
-    --subchannel 0 \
+    --channel-num 0 \
     --start 2026-01-19T00:00:00 \
     --end   2026-01-19T02:00:00 \
     --decim-seconds 60 \
@@ -250,7 +250,7 @@ python3 drf_to_doppler.py ./n6rfm \
 **Check visually:**
 ```bash
 python3 drf_spectrogram.py ./n6rfm \
-    --subchannel 0 \
+    --channel-num 0 \
     --output n6rfm_overlay.png \
     --window n6rfm_fullday_window.json \
     --ylim=-5,5 --dpi 150 \
@@ -268,7 +268,7 @@ auto-trace doesn't follow the carrier.
 No GUI required. Best for multi-peak or ambiguous carriers.
 ```bash
 python3 drf_to_doppler.py ./n6rfm \
-    --subchannel 0 \
+    --channel-num 0 \
     --start 2026-01-19T00:00:00 \
     --end   2026-01-19T02:00:00 \
     --decim-seconds 60 \
@@ -278,7 +278,7 @@ python3 drf_to_doppler.py ./n6rfm \
 **Check visually:**
 ```bash
 python3 drf_spectrogram.py ./n6rfm \
-    --subchannel 0 \
+    --channel-num 0 \
     --output n6rfm_overlay.png \
     --window n6rfm_fullday_window.json \
     --ylim=-5,5 --dpi 150 \
@@ -363,7 +363,7 @@ Use autocorr or cwt-prophet when the carrier is clean enough.
 Repeat Steps 2-5 for AA6BD, AC0G/ND, and W7LUX.
 
 **Special notes for AC0G/ND:**
-- Multi-subchannel WSPRDaemon DRF -- probe with drf_inspect.py first
+- Multi-channel-num WSPRDaemon DRF -- probe with drf_inspect.py first
 - May have E-region contamination -- use spline extraction
 - Click the corridor carefully near 0 Hz
 
