@@ -9,6 +9,61 @@ Every script accepts `--help` and `--version`.
 
 ---
 
+## Using the browser dashboard (`tid_dashboard.py`)
+
+Everything below this section is the CLI-first path. `tid_dashboard.py`
+wraps most of it behind one browser page instead — same underlying
+scripts, same math, just clickable. This section covers dashboard-
+specific recipes; for troubleshooting an individual step it launches
+(extraction methods, DOA diagnostics, Madrigal cross-check), the
+regular CLI recipes below still apply, since that's exactly what's
+running underneath.
+
+### How do I launch the dashboard?
+
+```bash
+pip install streamlit
+streamlit run tid_dashboard.py
+```
+
+Open the printed `http://localhost:8501` URL. Point it at an event
+directory (a folder containing DRF station subdirectories, same
+convention as `tid_workflow.py --event-dir`); station coordinates,
+channel confirmation, and the event-window spectrogram all appear live
+as you type — nothing runs until you click "Run full pipeline."
+
+### How do I pick an extraction method in the dashboard?
+
+One dropdown in the sidebar, five methods: `autocorr`, `cwt`, `fft`
+run automatically with no further input. `wave-fit` and `cwt-prophet`
+open `tid_spect_click.py`'s native window per station — same tool, same
+key bindings as the [wave-fit CLI recipe](#how-do-i-use-wave-fit-extraction---wave-only)
+below (click, `F` to fit, `X` to export, close the window). The
+dashboard waits for each window to close, then moves to the next
+station automatically. All stations in one run use the same method —
+mixing methods isn't supported yet, so for a mixed-method event (e.g.
+Jan 2026's cwt-prophet + autocorr mix) use the CLI tools directly
+instead.
+
+### How do I skip the Madrigal cross-check in the dashboard?
+
+Uncheck "Perform Madrigal TEC cross-check" in the sidebar before
+running — the Madrigal fields disappear, nothing is required, and the
+pipeline stops cleanly right after the DOA result instead of attempting
+the network step.
+
+### How do I drop a station and re-run in the dashboard?
+
+For any event with more than 3 stations, an "Investigate further: drop
+station(s) and re-run" section appears below the main results — pick
+station(s) to exclude from the multiselect and click re-run. This is
+the same `--drop NAME` mechanism as the CLI recipe below, just without
+retyping the command; it reuses the already-extracted CSVs rather than
+re-running extraction, and can optionally re-run the Madrigal
+cross-check with the reduced station list too.
+
+---
+
 ## Station discovery
 
 ### How do I find candidate stations for my event?
@@ -835,7 +890,11 @@ code, example configs, and example data should be committed.
 
 When running `tid_doa.py` directly, use `--drop` to exclude a station
 by name. When using `tid_workflow.py`, the interactive drop-station
-loop activates automatically after the DOA result.
+loop activates automatically after the DOA result. The browser
+dashboard has the same capability built in for events with more than 3
+stations -- see [How do I drop a station and re-run in the
+dashboard?](#how-do-i-drop-a-station-and-re-run-in-the-dashboard)
+above.
 
 ```bash
 # Drop one station (direct tid_doa.py use)
