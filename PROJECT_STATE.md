@@ -2773,3 +2773,100 @@ FINDINGS.md correctly do not.
    possible against main, not just research_gui (see #95)
 4. fetch_madrigal_tec_closure.py still pending its own live-data
    graduation test (see #93)
+---
+## 99. Real-world dashboard test surfaces 2 genuine bugs; --subchannel renamed to --channel-num everywhere (v4.0.0, breaking); research_gui resynced -- 2026-07-06
+
+### What happened
+First real (non-synthetic) test of the dashboard's interactive wave-fit
+extraction, against the June 6 2026 event's real JJMP station. Found
+two genuine, distinct bugs -- not cosmetic issues -- each fixed and
+shipped via its own PR to main.
+
+### Bug 1: Doppler axis too wide for real data (dashboard v0.8.1)
+Default drf_spectrogram.py range (+/-5 Hz) made the real TID signal
+look flat and hard to click precisely. Added a "Doppler axis
+half-range" control, passed as --ylim=-h,h to both the zoomed-
+spectrogram generation and tid_spect_click.py itself.
+
+### Bug 2: dashboard silently defaulting to the wrong subchannel (v0.9.0)
+Much more serious. drf_inspect.py on JJMP showed 9 subchannels;
+subchannel 0 (what the dashboard always used, unconditionally) was
+2.500 MHz, status EMPTY. Subchannel 4 was 10.000 MHz WWV, ACTIVE. The
+dashboard had NO subchannel handling at all -- it had been removed
+earlier this session based on an overgeneralized "PSWS data has no
+subchannels" correction that turned out to be true for some station
+types (plain Grape/N6RFM_5-style) but not others (KA9Q-radio/
+WSPRdaemon receivers, which 3 of JJMP/KV0S_MO/AC0G_ND all turned out
+to be). Restored subchannel detection with the same mandatory real-
+spectrogram visual confirmation pattern the existing channel picker
+already used, for both automated and interactive extraction. Verified
+against a synthetic station reproducing the exact real pattern (empty
+channel 0, strong signal at channel 4).
+
+### The terminology was itself wrong -- full rename, v4.0.0 (BREAKING)
+User flagged that "subchannel" is a real terminology error, not just
+an unfamiliar word: it implies a single combined signal demultiplexed
+into related sub-streams (like ATSC TV subchannels). That's not what
+happens here -- a KA9Q-radio/WSPRdaemon receiver records several
+independent, unrelated WWV frequencies at once, packed into one DRF
+directory's data columns purely for storage convenience. Decision
+(user's call, given a real naming collision with the existing string
+--channel flag): rename --subchannel to --channel-num everywhere,
+keep --channel unchanged.
+
+19 files renamed: 4 core CLI tools, tid_workflow.py, 2 utility
+scripts, the dashboard, 2 synthetic-test files, 8 docs. Deliberately
+NOT renamed: the real digital_rf metadata keys (num_subchannels,
+subchannel_center_frequencies -- external library convention, not
+ours), the ATSC-comparison explanatory prose, one historical
+CHANGELOG.md filename reference (station_subchannels.txt -- that's
+what it was actually called at the time).
+
+Caught during the rename, not just mechanical find-replace: a hyphen
+briefly introduced into a Python function name (syntax error, caught
+by py_compile), two keyword-argument call sites left passing the old
+parameter name after the function signature was renamed (would have
+been a runtime TypeError, caught by cross-referencing every
+definition against every call site), and the same docstring-Version-
+vs-STATUS-line drift bug from entry #96 recurring across two more
+version bumps.
+
+### The rename itself had a real miss: analyze_event.sh
+Initial audit only searched .py/.md files -- missed this 1414-line
+shell script entirely. It had a genuine functional bug as a result:
+Stage 8's regex parsing drf_inspect.py's own printed "USE: ..." line
+still expected the old wording after drf_inspect.py itself had
+already been renamed, so it would have silently never matched,
+defaulting every multi-channel-num station to channel-num 0 with no
+visible error -- the exact same class of bug this whole investigation
+started from. Fixed in a follow-up PR, verified against realistic
+drf_inspect.py output.
+
+### Release: v4.0.0 (tagged)
+Major version bump given the breaking CLI change. State-file
+compatibility note included: an in-progress tid_workflow_state.json
+from an older version will not resume cleanly (the "subchannel" state
+key is gone).
+
+### research_gui resynced with main
+research_gui had fallen behind -- everything above went straight from
+a branch off main to a PR to main, never touching research_gui. It
+was also carrying its own older, now-superseded commits on this exact
+topic (e.g. "fix subchannel selection - read DRF freq metadata
+properly"). Resynced via targeted `git checkout main -- <file>` for
+all 19 shared files (not a branch merge, avoiding the two branches'
+separately-diverged commit histories) -- PROJECT_STATE.md,
+FINDINGS.md, and add_project_state_entry.py deliberately excluded,
+since main never had them.
+
+### Open items
+1. May 2026 event at ~/Downloads/tid_event_20260516 (--resume)
+2. June 6 2026 event: JJMP successfully wave-fit-clicked via the CLI
+   workaround during this investigation (subchannel 4, real signal
+   visible). KV0S_MO and AC0G_ND still need the same treatment.
+   N6RFM_5 needs no fix (single-channel). Re-run TEC cross-check
+   afterward (see #93 -- doubles as its validation test)
+3. Run the NOW-FIXED tid_dashboard.py against a real event end to end,
+   using --channel-num correctly this time
+4. fetch_madrigal_tec_closure.py still pending its own live-data
+   graduation test (see #93)
