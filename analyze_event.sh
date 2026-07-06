@@ -3,8 +3,28 @@
 #
 # Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 # Created by N6RFM with help from Claude AI.
-# Version: 1.5.0
+# Version: 1.6.0
 # License: MIT (do whatever you want, no warranty).
+#
+# Change log:
+#   v1.6.0  Renamed --subchannel to --channel-num throughout (CLI flags,
+#           the reextract_one_station/extract_with_overlay function
+#           variables, the station_subchannels.txt working file ->
+#           station_channel_nums.txt). "Subchannel" incorrectly implied
+#           a single combined signal demultiplexed into related sub-
+#           streams (like ATSC TV subchannels); what's actually
+#           happening is several independent, unrelated frequencies
+#           packed into one DRF directory's data columns. This file was
+#           missed during the initial rename across the rest of the
+#           repo (only .py/.md files were searched) and was found to
+#           have a REAL functional bug as a result: Stage 8's Python
+#           heredoc parses drf_inspect.py's own printed "USE: ..." line
+#           with a regex that still expected the old --subchannel
+#           wording, so once drf_inspect.py was renamed elsewhere, this
+#           regex would have silently never matched -- defaulting every
+#           multi-channel-num station to channel-num 0 (often an empty/
+#           unused band) without any visible error. Verified fixed
+#           against realistic drf_inspect.py output.
 #
 # OVERVIEW
 # ========
@@ -381,7 +401,7 @@ if [[ $LAST_STAGE -lt 2 ]]; then
         hint "(takes ~20-40 seconds — drf_to_doppler.py output below is normal):"
         python3 "$TOOLS_DIR/drf_to_doppler.py" "$MY_STATION" \
             --start "$DAY_START" --end "$DAY_END" \
-            --decim-seconds 60 --subchannel 0 \
+            --decim-seconds 60 --channel-num 0 \
             --output "$SURVEY_CSV" --plot "$SURVEY_PNG" \
             || true
     fi
@@ -534,8 +554,8 @@ fi
 # Helper: re-render the spectrogram with a different proposed window,
 # then open it. Used when the user edits the proposal.
 # Re-extract a single station's Doppler CSV at the current WINDOW_START
-# and WINDOW_END. Used by the Pause 4 tightening loop. The subchannel
-# is read from station_subchannels.txt (built at Stage 8); falls back
+# and WINDOW_END. Used by the Pause 4 tightening loop. The channel-num
+# is read from station_channel_nums.txt (built at Stage 8); falls back
 # to 0 if the file is missing or the station is not listed.
 #
 # Args:
@@ -544,21 +564,21 @@ fi
 reextract_one_station() {
     local s="$1"
     local kind="$2"
-    local data_dir subch
+    local data_dir channel_num
     if [[ "$kind" == "ref" ]]; then
         data_dir="$MY_STATION"
-        # Reference station: subchannel always 0 in this pipeline
+        # Reference station: channel-num always 0 in this pipeline
         # (matches Stage 8's behavior at line 925-ish).
-        subch=0
+        channel_num=0
     else
         data_dir="./$s"
-        subch=$(awk -F'\t' -v s="$s" '$1 == s {print $2; exit}' \
-                station_subchannels.txt 2>/dev/null)
-        subch="${subch:-0}"
+        channel_num=$(awk -F'\t' -v s="$s" '$1 == s {print $2; exit}' \
+                station_channel_nums.txt 2>/dev/null)
+        channel_num="${channel_num:-0}"
     fi
     python3 "$TOOLS_DIR/drf_to_doppler.py" "$data_dir" \
         --start "$WINDOW_START" --end "$WINDOW_END" \
-        --decim-seconds "$DECIM_SECONDS" --subchannel "$subch" \
+        --decim-seconds "$DECIM_SECONDS" --channel-num "$channel_num" \
         --output "${s}.csv" --plot "${s}.png"
 }
 
@@ -569,25 +589,25 @@ reextract_one_station() {
 # Args:
 #   $1 = station name
 #   $2 = data directory (path to DRF)
-#   $3 = subchannel index
+#   $3 = channel-num index
 extract_with_overlay() {
     local s="$1"
     local data_dir="$2"
-    local subch="$3"
+    local channel_num="$3"
     local overlay_png="${s}_overlay_comparison.png"
 
     echo ""
     echo "  Extracting FFT and autocorr Doppler for $s..."
 
-    python3 "$TOOLS_DIR/drf_to_doppler.py" "$data_dir"         --start "$WINDOW_START" --end "$WINDOW_END"         --decim-seconds "$DECIM_SECONDS" --subchannel "$subch"         --method fft         --output "${s}_fft.csv" --plot "${s}_fft.png"         2>/dev/null || true
+    python3 "$TOOLS_DIR/drf_to_doppler.py" "$data_dir"         --start "$WINDOW_START" --end "$WINDOW_END"         --decim-seconds "$DECIM_SECONDS" --channel-num "$channel_num"         --method fft         --output "${s}_fft.csv" --plot "${s}_fft.png"         2>/dev/null || true
 
-    python3 "$TOOLS_DIR/drf_to_doppler.py" "$data_dir"         --start "$WINDOW_START" --end "$WINDOW_END"         --decim-seconds "$DECIM_SECONDS" --subchannel "$subch"         --method autocorr         --output "${s}_autocorr.csv"         2>/dev/null || true
+    python3 "$TOOLS_DIR/drf_to_doppler.py" "$data_dir"         --start "$WINDOW_START" --end "$WINDOW_END"         --decim-seconds "$DECIM_SECONDS" --channel-num "$channel_num"         --method autocorr         --output "${s}_autocorr.csv"         2>/dev/null || true
 
     ANN_S=$(echo "$WINDOW_START" | grep -oE "T[0-9]{2}:[0-9]{2}" | tr -d T)
     ANN_E=$(echo "$WINDOW_END"   | grep -oE "T[0-9]{2}:[0-9]{2}" | tr -d T)
     if [[ -f "${s}_fft.csv" && -f "${s}_autocorr.csv" ]]; then
         echo "  Rendering overlay spectrogram for $s..."
-        python3 "$TOOLS_DIR/drf_spectrogram.py" "$data_dir"             --output "$overlay_png"             --subchannel "$subch"             --ylim=-2,2             --start "$ANN_S" --end "$ANN_E"             --annotate "${ANN_S},${ANN_E},Analysis window"             --overlay "${s}_fft.csv:FFT"             --overlay "${s}_autocorr.csv:Autocorr:#FF9800"             2>/dev/null || true
+        python3 "$TOOLS_DIR/drf_spectrogram.py" "$data_dir"             --output "$overlay_png"             --channel-num "$channel_num"             --ylim=-2,2             --start "$ANN_S" --end "$ANN_E"             --annotate "${ANN_S},${ANN_E},Analysis window"             --overlay "${s}_fft.csv:FFT"             --overlay "${s}_autocorr.csv:Autocorr:#FF9800"             2>/dev/null || true
         if [[ -f "$overlay_png" ]]; then
             open_image "$overlay_png"
         fi
@@ -935,7 +955,7 @@ if [[ $LAST_STAGE -lt 3 ]]; then
     python3 "$TOOLS_DIR/drf_to_doppler.py" "$MY_STATION" \
         --start "$WINDOW_START" --end "$WINDOW_END" \
         --decim-seconds "$DECIM_SECONDS" \
-        --subchannel 0 \
+        --channel-num 0 \
         --output "$REF_CSV" --plot "$REF_PNG"
     echo "Wrote $REF_PNG (sanity check)"
     open_image "$REF_PNG"
@@ -1044,16 +1064,16 @@ EOF
 fi
 
 # -----------------------------------------------------------------------------
-# STAGE 7: verify each station and find correct subchannel for 10 MHz
+# STAGE 7: verify each station and find correct channel-num for 10 MHz
 # -----------------------------------------------------------------------------
 if [[ $LAST_STAGE -lt 7 ]]; then
-    banner "STAGE 7 — inspect each DRF and identify 10 MHz subchannel"
+    banner "STAGE 7 — inspect each DRF and identify 10 MHz channel-num"
     hint "Reading metadata + signal-level check from each companion DRF."
     hint "Typically a few seconds per station."
     python3 "$TOOLS_DIR/drf_inspect.py" --all . --frequency 10 \
         | tee drf_inspect_output.txt
     echo
-    echo "Subchannel mapping has been recorded in drf_inspect_output.txt"
+    echo "Channel-num mapping has been recorded in drf_inspect_output.txt"
     save_state 7
 fi
 
@@ -1065,10 +1085,10 @@ if [[ $LAST_STAGE -lt 8 ]]; then
     hint "Reducing raw I/Q to Doppler-vs-time for each station."
     hint "Typically 10-30 seconds per station."
 
-    # Extract subchannel info from drf_inspect output. Parse lines like:
-    #   >>> For 10.0 MHz, USE: --subchannel N
+    # Extract channel-num info from drf_inspect output. Parse lines like:
+    #   >>> For 10.0 MHz, USE: --channel-num N
     # Map them to their preceding "=== ./station ===" line.
-    python3 <<EOF > station_subchannels.txt
+    python3 <<EOF > station_channel_nums.txt
 import re
 sub_for = {}
 current = None
@@ -1078,7 +1098,7 @@ for line in open('drf_inspect_output.txt'):
         current = m.group(1)
         sub_for[current] = 0
         continue
-    m = re.search(r'USE:\s*--subchannel\s+(\d+)', line)
+    m = re.search(r'USE:\s*--channel-num\s+(\d+)', line)
     if m and current:
         sub_for[current] = int(m.group(1))
 for k, v in sub_for.items():
@@ -1098,9 +1118,9 @@ EOF
     # Each companion
     IFS=',' read -ra COMPANION_LIST <<< "$COMPANIONS"
     for s in "${COMPANION_LIST[@]}"; do
-        SUB=$(awk -F'\t' -v s="$s" '$1 == s {print $2; exit}' station_subchannels.txt)
+        SUB=$(awk -F'\t' -v s="$s" '$1 == s {print $2; exit}' station_channel_nums.txt)
         SUB="${SUB:-0}"
-        echo "  $s: --subchannel $SUB"
+        echo "  $s: --channel-num $SUB"
         extract_with_overlay "$s" "./$s" "$SUB"
     done
     save_state 8
