@@ -6,10 +6,43 @@ Madrigal TEC cross-check).
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 0.8.0
+Version: 0.9.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v0.9.0  Restored channel-num detection and mandatory visual
+          confirmation (KA9Q-radio/WSPRdaemon-style receivers), fixing
+          a significant real-world bug found during the first live
+          test of the interactive extraction feature: 3 of 4 stations
+          in the June 6 2026 event turned out to have real channel-nums
+          (up to 9 each), and every part of the pipeline -- overview
+          spectrogram, zoomed spectrogram, automated extraction, and
+          the interactive tid_spect_click.py launch -- was silently
+          defaulting to channel-num 0, which for all 3 affected
+          stations was an empty/unused band, not the actual carrier.
+          An earlier version of this file had removed channel-num
+          handling entirely based on an overgeneralized "PSWS data has
+          no channel-nums" assumption; that's true for some station
+          types (e.g. plain Grape/N6RFM_5-style single-channel-num
+          recorders) but not for KA9Q-radio/WSPRdaemon receivers.
+          New "Channel-num selection" step (same mandatory real-
+          spectrogram confirmation pattern as the existing Channel
+          selection step) reuses tid_workflow.py's own probe_channel_nums/
+          best_channel_num selection policy (frequency match to a
+          configurable target MHz, else highest SNR). The overview
+          spectrogram (used to pick the event window, before per-
+          station confirmation happens) uses an unconfirmed best-guess
+          for the keystone station only, to avoid a circular UI
+          dependency; the real, mandatory-confirmation gate happens
+          later, before extraction actually runs.
+  v0.8.1  Added a "Doppler axis half-range" control (only shown for
+          wave-fit/cwt-prophet), passed as --ylim=-h,h to both the
+          zoomed-spectrogram generation and tid_spect_click.py itself.
+          Found during the first real (non-synthetic) test of the
+          interactive extraction feature: the default ±5 Hz range
+          made a real TID signal that only varies over a much smaller
+          band look flat and hard to click precisely. Persisted in
+          settings like everything else.
   v0.8.0  Added wave-fit and cwt-prophet extraction: the dashboard now
           launches tid_spect_click.py as a native window per station
           (Option A -- spawn the existing, tested tool as a subprocess
@@ -25,20 +58,24 @@ Change log:
           stations in a run use the same method.
   v0.7.0  (see prior entries in PROJECT_STATE.md)
 
-STATUS: v0.8.0. Wraps existing scripts via subprocess -- does not
+STATUS: v0.9.0. Wraps existing scripts via subprocess -- does not
 reimplement any extraction/DOA/TEC logic itself. Automated methods
 (autocorr, cwt, fft) run non-interactively; wave-fit and cwt-prophet
 launch tid_spect_click.py's own native window per station (see change
 log above) rather than reimplementing spectrogram clicking here.
 
-PSWS data has no subchannels -- unlike the KA9Q-radio/WSPRdaemon
-convention drf_to_doppler.py's docstring describes (many carriers packed
-as subchannels within one DRF channel), this dashboard only handles real
-multiple DRF *channels* (e.g. wideband receivers like RX888 recording
-several carriers as separate ch0/ch1/ch2/... directories). When a station
-has more than one channel, you get an actual spectrogram of each
-candidate to visually confirm before the pipeline runs -- an SNR number
-alone isn't good enough to trust blindly.
+Handles both real multiple DRF *channels* (e.g. wideband receivers like
+RX888 recording several carriers as separate ch0/ch1/ch2/... directories)
+and multiple *channel-nums* within one channel (KA9Q-radio/WSPRdaemon-style
+receivers packing several carriers into one channel's data columns).
+An earlier version of this file assumed PSWS data never has channel-nums;
+real-world testing (June 6 2026 event) found 3 of 4 stations were
+genuine KA9Q-radio receivers with up to 9 channel-nums each, and the
+dashboard was silently defaulting to channel-num 0 -- often an empty or
+unused band -- producing spectrograms with no visible signal at all.
+Both channel and channel-num selection now require the same real-
+spectrogram visual confirmation before the pipeline runs -- an SNR
+number or frequency label alone isn't good enough to trust blindly.
 
 PREREQUISITES
     pip install streamlit digital_rf madrigalWeb numpy matplotlib scipy
@@ -174,7 +211,7 @@ def projected_lag_s(dist_km, az_toward_deg, baseline_bear_deg, speed_ms):
 
 # ── Station / channel discovery (mirrors tid_workflow.py's conventions
 #    for the parts it already covers; channel selection -- as opposed to
-#    subchannel selection -- is new, no existing repo tool does this) ──
+#    channel-num selection -- is new, no existing repo tool does this) ──
 
 def discover_stations(event_dir):
     """Find DRF-readable subdirectories of event_dir. Returns list of Path."""
@@ -225,13 +262,19 @@ def probe_channel_frequency(drf_dir, channel):
         return None
 
 
-def render_channel_spectrogram(drf_dir, channel, center_dt=None, seconds=600):
+def render_channel_spectrogram(drf_dir, channel, center_dt=None, seconds=600, channel_num=0):
     """Read a short real segment of a channel's IQ data and return a
     matplotlib Figure showing its spectrogram, for visual confirmation.
 
     center_dt: a UTC datetime to center the preview on (typically the
     middle of the selected event window). Falls back to the middle of
     the whole recording if not given or out of range.
+
+    channel-num: which column to read if this channel's data is
+    multi-channel-num (KA9Q-radio/WSPRdaemon-style). Previously
+    hardcoded to column 0 regardless of which channel-num was actually
+    relevant -- found via real-world testing to silently show an
+    empty/wrong-frequency band for any station with real channel-nums.
     """
     try:
         import digital_rf as drf_lib
@@ -255,7 +298,7 @@ def render_channel_spectrogram(drf_dir, channel, center_dt=None, seconds=600):
         n = min(block, b1 - start_idx)
         iq = r.read_vector(start_idx, n, channel)
         if iq.ndim == 2:
-            iq = iq[:, 0]
+            iq = iq[:, channel_num]
 
         nperseg = min(1024, max(64, int(sr * 2)))
         f, t, sxx = sp_signal.spectrogram(
@@ -270,7 +313,8 @@ def render_channel_spectrogram(drf_dir, channel, center_dt=None, seconds=600):
         ax.pcolormesh(t, f, db, shading="auto", cmap="viridis")
         ax.set_ylabel("Freq offset (Hz)")
         ax.set_xlabel("Time (s)")
-        ax.set_title(f"{Path(drf_dir).name} / {channel}", fontsize=10)
+        ax.set_title(f"{Path(drf_dir).name} / {channel}"
+                     f"{f' sub{channel_num}' if channel_num else ''}", fontsize=10)
         fig.tight_layout()
         return fig
     except Exception as e:
@@ -278,6 +322,92 @@ def render_channel_spectrogram(drf_dir, channel, center_dt=None, seconds=600):
         ax.text(0.5, 0.5, f"Preview failed:\n{e}", ha="center", va="center", fontsize=8, wrap=True)
         ax.axis("off")
         return fig
+
+
+def probe_station_channel_nums(drf_dir, channel, target_mhz=10.0):
+    """Probe every channel-num within a specific DRF channel, returning
+    (channel_num_idx, snr_db, freq_hz) tuples sorted by SNR descending.
+
+    Channel-aware equivalent of tid_workflow.py's probe_channel_nums(),
+    which always hardcodes channel[0] -- needed here since a station
+    could have multiple real channels (RX888-style) AND multiple
+    channel-nums within whichever one was actually selected.
+
+    Real-world finding (June 6 2026 event): 3 of 4 stations turned out
+    to be genuine KA9Q-radio/WSPRdaemon receivers with up to 9
+    channel-nums each, and this dashboard previously always silently
+    used channel-num 0 -- often an empty/unused band, not the actual
+    carrier -- producing spectrograms with no visible signal at all.
+    "PSWS data has no channel-nums" (an earlier correction this session)
+    turned out to be true only for some station types, not all.
+    """
+    try:
+        import digital_rf as drf_lib
+        r = drf_lib.DigitalRFReader(str(drf_dir))
+        props = r.get_properties(channel)
+        sr = float(props["samples_per_second"])
+        b0, b1 = r.get_bounds(channel)
+        mid = (b0 + b1) // 2
+        block = int(sr * 60)
+        try:
+            iq = r.read_vector(mid, block, channel)
+        except Exception:
+            iq = r.read_vector(b0, min(block, b1 - b0), channel)
+
+        if iq.ndim == 1:
+            spec = np.abs(np.fft.rfft(iq.real))
+            snr = 20 * np.log10(spec.max() / (np.median(spec) + 1e-12))
+            freq = None
+            for key in ["center_frequencies", "center_frequency", "rf_centerfreq", "centerfreq"]:
+                val = props.get(key, None)
+                if val is not None:
+                    try:
+                        freq = float(np.atleast_1d(val)[0])
+                    except Exception:
+                        pass
+                    break
+            return [(0, float(snr), freq)]
+
+        n_subs = iq.shape[1]
+        freqs = None
+        for key in ["center_frequencies", "center_frequency", "rf_centerfreq",
+                    "centerfreq", "subchannel_center_frequencies"]:
+            val = props.get(key, None)
+            if val is not None:
+                try:
+                    arr = np.atleast_1d(val)
+                    if len(arr) == n_subs:
+                        freqs = arr
+                        break
+                    elif len(arr) == 1:
+                        freqs = np.full(n_subs, float(arr[0]))
+                        break
+                except Exception:
+                    pass
+
+        results = []
+        for sub in range(n_subs):
+            col = iq[:, sub]
+            spec = np.abs(np.fft.fftshift(np.fft.fft(col))) if np.iscomplexobj(col) else np.abs(np.fft.rfft(col))
+            snr = 20 * np.log10(spec.max() / (np.median(spec) + 1e-12))
+            freq = float(freqs[sub]) if freqs is not None else None
+            results.append((sub, float(snr), freq))
+        return sorted(results, key=lambda x: -x[1])
+    except Exception:
+        return [(0, 0.0, None)]
+
+
+def best_channel_num_choice(subs, target_mhz=10.0):
+    """Same selection policy as tid_workflow.py's best_channel_num(): a
+    frequency match within 100 kHz of target_mhz wins; otherwise fall
+    back to highest SNR."""
+    freq_matches = [(sub, snr, freq) for sub, snr, freq in subs if freq is not None]
+    if freq_matches:
+        closest = min(freq_matches, key=lambda x: abs(x[2] / 1e6 - target_mhz))
+        if abs(closest[2] / 1e6 - target_mhz) < 0.1:
+            return closest[0], f"frequency match ({closest[2] / 1e6:.3f} MHz)"
+    best = subs[0]
+    return best[0], f"highest SNR ({best[1]:.1f} dB)"
 
 
 def load_coords_cache(event_dir):
@@ -293,7 +423,8 @@ def save_coords_cache(event_dir, cache):
 
 
 def generate_zoomed_spectrogram(event_path, drf_dir, channel, station_name,
-                                 event_start_dt, event_end_dt):
+                                 event_start_dt, event_end_dt, ylim_half_range=None,
+                                 channel_num=None):
     """Generate a spectrogram zoomed to the actual event window (not the
     full-day overview) -- this is what tid_spect_click.py's wave-fit/
     cwt-prophet clicking is meant to be done against, same as
@@ -301,6 +432,20 @@ def generate_zoomed_spectrogram(event_path, drf_dir, channel, station_name,
     Not cached (unlike the overview) since the event window can change
     between runs and this is only generated once per interactive
     extraction attempt, not on every rerun.
+
+    ylim_half_range: if given, passes --ylim=-{h},{h} to drf_spectrogram.py
+    to narrow the Doppler axis (default is a wide -5,5 Hz, which can make
+    a real TID signal that only varies over a much smaller range look
+    flat/squished and hard to click precisely). Uses the --ylim=-2,2
+    equals-sign form drf_spectrogram.py's own --help specifically calls
+    out as required -- a bare --ylim -2,2 gets misparsed by argparse as
+    two separate flags because of the leading minus sign.
+
+    channel-num: which channel-num to plot, for stations where this
+    matters (KA9Q-radio/WSPRdaemon-style receivers with several
+    carriers packed into one channel). Omitting this previously meant
+    silently defaulting to channel-num 0, which for 3 of 4 real stations
+    tested this session turned out to be an empty/unused band.
 
     Returns (png_path, axes_json_path, ok, output_text).
     """
@@ -314,13 +459,18 @@ def generate_zoomed_spectrogram(event_path, drf_dir, channel, station_name,
     ]
     if channel:
         args += ["--channel", channel]
+    if channel_num is not None:
+        args += ["--channel-num", str(channel_num)]
+    if ylim_half_range:
+        args.append(f"--ylim=-{ylim_half_range},{ylim_half_range}")
     ok, out = run_cmd(args)
     ok = ok and png_path.exists() and axes_path.exists()
     return (png_path if ok else None), (axes_path if ok else None), ok, out
 
 
 def run_interactive_extraction(config_path, drf_dir, channel, station_name,
-                                spectrogram_png, period_hint_s, wave_only):
+                                spectrogram_png, period_hint_s, wave_only,
+                                ylim_half_range=None, channel_num=None):
     """Launch tid_spect_click.py's native window for one station and
     block until it's closed. Uses --event-json so the tool itself
     writes the resulting CSV path into our config (matched by station
@@ -330,6 +480,20 @@ def run_interactive_extraction(config_path, drf_dir, channel, station_name,
     This is a genuinely blocking subprocess.run, not the byte-streamed
     run_cmd() used elsewhere -- there's no incremental console output
     to show for a GUI app, just "wait for the window to close."
+
+    ylim_half_range: same as generate_zoomed_spectrogram's parameter --
+    passed through so the interactive window's own axis matches the
+    zoomed preview image exactly, rather than the window silently
+    reverting to a wider default range.
+
+    channel-num: the confirmed channel-num index for this station (see
+    probe_station_channel_nums/best_channel_num_choice). A previous
+    version of this function hardcoded --channel-num 0 unconditionally
+    with a comment claiming "PSWS data has no channel-nums" -- true for
+    some station types, not all; 3 of 4 real stations tested this
+    session turned out to be KA9Q-radio/WSPRdaemon receivers with real
+    channel-nums, and channel-num 0 was an empty/unused band for all
+    three, meaning this bug silently sent people to click on pure noise.
 
     Returns (ok, output_text, updated_file_value_or_None). The third
     value is read back from config_path after the process exits, so
@@ -345,11 +509,12 @@ def run_interactive_extraction(config_path, drf_dir, channel, station_name,
     if drf_dir:
         args.append("--drf-dir")
         args.append(str(drf_dir))
-    if channel:
-        args += ["--subchannel", "0"]  # PSWS data has no subchannels; channel
-                                        # selection already happened earlier
+    if channel_num is not None:
+        args += ["--channel-num", str(channel_num)]
     if period_hint_s:
         args += ["--period-hint", str(int(period_hint_s))]
+    if ylim_half_range:
+        args.append(f"--ylim=-{ylim_half_range},{ylim_half_range}")
     if wave_only:
         args.append("--wave-only")
 
@@ -376,7 +541,7 @@ def run_interactive_extraction(config_path, drf_dir, channel, station_name,
     return ok, out, updated_file
 
 
-def generate_overview_spectrogram(event_path, drf_dir, channel, station_name):
+def generate_overview_spectrogram(event_path, drf_dir, channel, station_name, channel_num=None):
     """Generate (or reuse a cached) full-window overview spectrogram via the
     repo's own drf_spectrogram.py, so users can visually locate the TID
     before picking a window -- rather than the dashboard reimplementing
@@ -385,6 +550,11 @@ def generate_overview_spectrogram(event_path, drf_dir, channel, station_name):
     much heavier than the short channel-preview one and shouldn't
     regenerate on every widget interaction.
 
+    channel-num: which channel-num to plot (see generate_zoomed_spectrogram
+    for why this matters). Included in the cache filename so switching
+    channel-nums correctly invalidates any previously-cached overview
+    instead of silently reusing a wrong-band image.
+
     Also writes/reuses the axes sidecar JSON that drf_spectrogram.py
     produces (the same one tid_spect_click.py consumes) -- needed by
     overlay_selected_window() below to map times to pixel coordinates
@@ -392,7 +562,8 @@ def generate_overview_spectrogram(event_path, drf_dir, channel, station_name):
 
     Returns (png_path, axes_json_path, ok, output_text).
     """
-    png_path = event_path / f"{station_name.lower()}_overview_spectrogram.png"
+    suffix = f"_sub{channel_num}" if channel_num is not None else ""
+    png_path = event_path / f"{station_name.lower()}_overview_spectrogram{suffix}.png"
     axes_path = png_path.with_name(png_path.stem + "_axes.json")
     if png_path.exists() and axes_path.exists():
         return png_path, axes_path, True, "(using cached overview)"
@@ -403,6 +574,8 @@ def generate_overview_spectrogram(event_path, drf_dir, channel, station_name):
     ]
     if channel:
         args += ["--channel", channel]
+    if channel_num is not None:
+        args += ["--channel-num", str(channel_num)]
     ok, out = run_cmd(args)
     ok = ok and png_path.exists() and axes_path.exists()
     return (png_path if ok else None), (axes_path if ok else None), ok, out
@@ -712,7 +885,7 @@ def run_and_display_tec(config_path, doa, stations_subset, tec_script, out_dir,
 
 # ── Streamlit UI ──
 
-DASHBOARD_VERSION = "v0.8.0"
+DASHBOARD_VERSION = "v0.9.0"
 
 st.set_page_config(page_title="TID Pipeline Dashboard", layout="wide")
 st.title("TID Direction-of-Arrival Pipeline")
@@ -782,6 +955,20 @@ with st.sidebar:
              "stations in one run isn't supported yet.",
     )
     is_interactive_method = method in ("wave-fit (interactive)", "cwt-prophet (interactive)")
+
+    ylim_half_range = None
+    if is_interactive_method:
+        ylim_half_range = st.number_input(
+            "Doppler axis half-range for clicking (Hz)",
+            min_value=0.1, max_value=10.0,
+            value=float(_settings.get("ylim_half_range", 2.0)), step=0.5,
+            help="The spectrogram window opened for clicking shows "
+                 "±this value on the Doppler axis. Default drf_spectrogram.py "
+                 "range is ±5 Hz, which can make a real TID signal that only "
+                 "varies over a much smaller range look flat and hard to "
+                 "click precisely -- narrow this if that happens. Widen it "
+                 "if the signal is being clipped at the edges instead.",
+        )
 
     st.divider()
     st.header("Madrigal TEC cross-check")
@@ -864,11 +1051,26 @@ keystone_name = st.selectbox(
 )
 keystone_station = next(d for d in stations_preview if d.name == keystone_name)
 
+# Provisional (NOT yet user-confirmed) channel-num guess for the keystone
+# station, used only to orient the overview spectrogram below so it has
+# a reasonable chance of showing the right band before you've picked an
+# event window yet. The real, mandatory-confirmation step (with a live
+# spectrogram preview) happens later, in the Channel/Channel-num
+# selection section, for every station -- this is just enough of a
+# guess to avoid the overview defaulting to channel-num 0.
+_keystone_chans = discover_channels(keystone_station)
+_keystone_channel_guess = _keystone_chans[0] if _keystone_chans else "ch0"
+_keystone_subs = probe_station_channel_nums(keystone_station, _keystone_channel_guess)
+keystone_channel_num_guess = (
+    best_channel_num_choice(_keystone_subs)[0] if len(_keystone_subs) > 1 else None
+)
+
 save_settings_if_changed({
     "event_dir": event_dir,
     "method": method,
     "run_madrigal": run_madrigal,
     "tec_tolerance_min": tec_tolerance_min,
+    "ylim_half_range": ylim_half_range if ylim_half_range is not None else _settings.get("ylim_half_range", 2.0),
     "tec_variant": tec_variant,
     "user_name": user_name,
     "user_email": user_email,
@@ -896,7 +1098,8 @@ st.caption(f"Full-window spectrogram for **{keystone_station.name}** with the "
 spectrogram_placeholder = st.empty()
 
 overview_png, axes_path, overview_ok, overview_out = generate_overview_spectrogram(
-    event_path, keystone_station, "ch0", keystone_station.name)
+    event_path, keystone_station, _keystone_channel_guess, keystone_station.name,
+    channel_num=keystone_channel_num_guess)
 if not overview_png:
     spectrogram_placeholder.warning("Could not generate overview spectrogram -- see details below.")
     with st.expander("drf_spectrogram.py output"):
@@ -970,8 +1173,7 @@ st.dataframe(
 )
 
 # -- Channel selection: real spectrogram + mandatory visual confirmation
-#    for any station with more than one DRF channel. PSWS data has no
-#    subchannels, so that's the only ambiguity that can exist here. --
+#    for any station with more than one DRF channel (RX888-style). --
 st.subheader("Channel selection")
 all_confirmed = True
 any_multi_channel = False
@@ -1012,8 +1214,65 @@ for s in station_info:
 if not any_multi_channel:
     st.caption("All stations have a single channel -- nothing to confirm.")
 
+# -- Channel-num selection: real spectrogram + mandatory visual confirmation
+#    for any station with more than one channel-num within its selected
+#    channel (KA9Q-radio/WSPRdaemon-style receivers -- confirmed present
+#    in 3 of 4 real stations tested this session, contrary to an earlier
+#    assumption in this file that PSWS data never has channel-nums). Uses
+#    tid_workflow.py's own probe_channel_nums()/best_channel_num() policy
+#    (frequency match to target_mhz, else highest SNR), channel-aware
+#    (see probe_station_channel_nums above) since the channel confirmed
+#    just above might not be channel[0]. --
+st.subheader("Channel-num selection")
+target_mhz = st.number_input(
+    "Target carrier frequency (MHz)", value=10.0, step=0.5,
+    help="Used to auto-pick the channel-num closest to this frequency, "
+         "for stations recording multiple carriers at once (e.g. WWV "
+         "5/10/15/20 MHz). Default 10.0 = WWV 10 MHz, the usual target.",
+)
+any_multi_channel_num = False
+for s in station_info:
+    subs = probe_station_channel_nums(s["drf_dir"], s.get("channel"), target_mhz=target_mhz)
+    if len(subs) <= 1:
+        s["channel_num"] = subs[0][0] if subs else None
+        continue
+
+    any_multi_channel_num = True
+    auto_idx, reason = best_channel_num_choice(subs, target_mhz=target_mhz)
+    st.markdown(f"**{s['name']}** -- {len(subs)} channel-nums found "
+                f"(auto-picked via {reason}). Review the preview below "
+                f"and confirm, or pick a different one.")
+
+    sub_labels = {}
+    for sub, snr, freq in subs:
+        sub_labels[sub] = (f"{sub} -- {freq/1e6:.3f} MHz, {snr:.1f} dB"
+                            if freq else f"{sub} -- {snr:.1f} dB")
+    default_pos = [sub for sub, _, _ in subs].index(auto_idx)
+    choice = st.radio(
+        f"Channel-num for {s['name']}:",
+        [sub for sub, _, _ in subs], index=default_pos,
+        format_func=lambda sub: sub_labels.get(sub, str(sub)),
+        key=f"subch_{s['name']}", horizontal=True,
+    )
+    fig = render_channel_spectrogram(s["drf_dir"], s.get("channel"),
+                                       center_dt=event_mid_dt, channel_num=choice)
+    st.pyplot(fig, clear_figure=True)
+    s["channel_num"] = choice
+    confirmed = st.checkbox(
+        f"I have reviewed the spectrogram above and confirm "
+        f"**{sub_labels.get(choice, choice)}** is the correct channel-num "
+        f"for {s['name']}.",
+        key=f"subch_confirm_{s['name']}",
+    )
+    if not confirmed:
+        all_confirmed = False
+    st.divider()
+
+if not any_multi_channel_num:
+    st.caption("All stations have a single channel-num -- nothing to confirm.")
+
 if not all_confirmed:
-    st.warning("Confirm the channel selection for every multi-channel station above before running -- "
+    st.warning("Confirm the channel/channel-num selection for every station flagged above before running -- "
                "the Run full pipeline button (sidebar) will stop with an error if you click it before that.")
 
 log_box = st.expander("Raw subprocess log", expanded=False)
@@ -1035,8 +1294,9 @@ if run_button:
         st.error(f"Only {len(station_info)} station(s) -- need at least 3 for a DOA fit.")
         st.stop()
     if not all_confirmed:
-        st.error("Confirm the channel selection checkbox for every multi-channel station "
-                  "(see 'Channel selection' section above) before running.")
+        st.error("Confirm the channel/channel-num selection checkbox for every "
+                  "station flagged above (see 'Channel selection' and "
+                  "'Channel-num selection' sections) before running.")
         st.stop()
 
     config_path = event_path / "tid_workflow_event.json"
@@ -1077,7 +1337,8 @@ if run_button:
                      f"the selected event window...")
             zoom_png, zoom_axes, zoom_ok, zoom_out = generate_zoomed_spectrogram(
                 event_path, s["drf_dir"], s.get("channel"), s["name"],
-                event_start_dt, event_end_dt)
+                event_start_dt, event_end_dt, ylim_half_range=ylim_half_range,
+                channel_num=s.get("channel_num"))
             log(f"$ drf_spectrogram.py (zoomed, {s['name']})\n{zoom_out}")
             if not zoom_png:
                 st.error(f"{s['name']}: could not generate zoomed spectrogram -- "
@@ -1090,7 +1351,8 @@ if run_button:
             ok, out, updated_file = run_interactive_extraction(
                 config_path, s["drf_dir"], s.get("channel"), s["name"],
                 zoom_png, (event_end_dt - event_start_dt).total_seconds(),
-                wave_only)
+                wave_only, ylim_half_range=ylim_half_range,
+                channel_num=s.get("channel_num"))
             log(f"$ tid_spect_click.py ({s['name']})\n{out}")
 
             if not ok:
@@ -1145,6 +1407,8 @@ if run_button:
             ]
             if s.get("channel"):
                 args += ["--channel", s["channel"]]
+            if s.get("channel_num") is not None:
+                args += ["--channel-num", str(s["channel_num"])]
             station_expander = st.expander(f"{s['name']} -- extracting...", expanded=True)
             ok, out = run_cmd(args, live_container=station_expander)
             log(f"$ {' '.join(args)}\n{out}")

@@ -23,7 +23,7 @@ Large-scale TID observed across the central US. 4-station array using WWV
 | Flags | 0/5 |
 
 ### Stations
-| Callsign | Location | Grid | Subchannel |
+| Callsign | Location | Grid | Channel-num |
 |----------|----------|------|------------|
 | N6RFM | Texas | EM12jw | 0 |
 | AA6BD | Alabama | EM75kb | 0 |

@@ -39,7 +39,7 @@ curl -I https://pswsnetwork.eng.ua.edu/
 The PSWS observation portal has several known quirks worked around by
 the script:
 
-- **Multi-subchannel WSPRdaemon stations** report frequency as
+- **Multi-channel-num WSPRdaemon stations** report frequency as
   `"10.000 MHz, 5.000 MHz, ..."` (comma-separated). PSWS exact-string
   filters reject these; the script handles them client-side.
 - **Stations with empty frequency metadata** are still valid DRF
@@ -81,13 +81,13 @@ gracefully and you supply missing fields manually:
 ### `drf_inspect.py` shows no `*** YES ***` row
 
 The station does not have a recording at your target frequency. Check
-the subchannel-to-frequency table; pick the nearest WWV frequency
+the channel-num-to-frequency table; pick the nearest WWV frequency
 (2.5, 5, 10, 15, 20, 25 MHz). For WWVB-recording stations (60 kHz),
 this analysis pipeline does not apply.
 
 ### `drf_to_doppler.py` produces a noisy or empty trace
 
-**Cause 1**: Wrong `--subchannel` for a multi-subchannel station. The
+**Cause 1**: Wrong `--channel-num` for a multi-channel-num station. The
 trace often looks like a square wave bouncing between ±5 Hz (the
 search-band edges). **Fix**: re-run `drf_inspect.py` and use the index
 it reports.

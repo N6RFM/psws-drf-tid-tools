@@ -4,10 +4,21 @@ drf_to_doppler.py — extract a Doppler-vs-time CSV from Digital RF I/Q data
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.1.0
+Version: 1.4.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.4.0  Renamed --subchannel to --channel-num throughout (flag,
+          variable, docstring prose). "Subchannel" incorrectly implied
+          a single combined signal demultiplexed into related sub-
+          streams (like ATSC TV subchannels) -- what's actually
+          happening is several independent, unrelated frequencies
+          packed into one DRF directory's data columns purely for
+          storage convenience. No functional change; --subchannel
+          itself no longer exists as a flag, callers must update.
+          Also fixes a pre-existing drift: this docstring's own
+          Version: line said 1.1.0 while the changelog's own top
+          entry already said 1.3.0.
   v1.3.0  Added --method bandpass: adaptive narrow bandpass pre-filter
           centered on prior block's frequency, then FFT peak. Suppresses
           E-region component before extraction rather than separating
@@ -180,19 +191,24 @@ Run the gate before any research comparison:
 
 Then compare doppler_hz columns; RMS difference should be < 0.05 Hz.
 
-MULTI-SUBCHANNEL DRF
-====================
-Some stations (notably KA9Q-radio / WSPRdaemon receivers) record multiple
-WWV frequencies into a SINGLE DRF channel as parallel "subchannels".
-A 10-subchannel station might record 60 kHz, 2.5 / 3.33 / 5 / 7.85 / 10
-/ 14.67 / 15 / 20 / 25 MHz simultaneously.
+MULTIPLE CHANNELS PACKED INTO ONE DRF DIRECTORY
+================================================
+Some stations (notably KA9Q-radio / WSPRdaemon receivers) record several
+independent, unrelated WWV frequencies into a SINGLE DRF directory as
+parallel data columns -- not a single combined signal split apart after
+the fact (that would be a true "subchannel" in the broadcast sense, e.g.
+ATSC TV subchannels demultiplexed from one over-the-air stream; this is
+different). A station with 10 of these packed channels might record
+60 kHz, 2.5 / 3.33 / 5 / 7.85 / 10 / 14.67 / 15 / 20 / 25 MHz
+simultaneously, purely for storage convenience since they share a
+common time axis.
 
-When --subchannel is specified, the script reads that index from the
-multi-subchannel data. Single-channel DRF (one frequency only) is auto-
+When --channel-num is specified, the script reads that column index
+from the packed data. Single-channel DRF (one frequency only) is auto-
 detected and the flag is ignored.
 
-CRITICAL: The mapping from subchannel index to actual frequency varies
-between stations. To verify which subchannel is which, read the DRF
+CRITICAL: The mapping from channel-num index to actual frequency varies
+between stations. To verify which index is which, read the DRF
 metadata:
 
     python -c "
@@ -205,7 +221,7 @@ metadata:
 The output contains a 'center_frequencies' array showing which index
 corresponds to which MHz value. For example, on N5TNL the array starts
 at 2.5 MHz, so 10 MHz is index 4. On KD7EFG the array starts at 60 kHz,
-so 10 MHz is index 5. Reading the wrong subchannel produces a noisy
+so 10 MHz is index 5. Reading the wrong channel-num produces a noisy
 trace that may superficially look like weak signal -- always verify.
 
 USAGE
@@ -225,11 +241,11 @@ Single-channel station, autocorrelation method (Gwyn's parameters):
         --method autocorr \
         --output station_autocorr.csv --plot station_autocorr.png
 
-Multi-subchannel WSPRdaemon station:
+Multi-channel-num WSPRdaemon station:
 
     python drf_to_doppler.py ./n5tnl \
         --start 2026-01-19T00:00:00 --end 2026-01-19T01:45:00 \
-        --subchannel 4 \
+        --channel-num 4 \
         --output n5tnl.csv --plot n5tnl.png
 
 WHEN TO USE WHAT CADENCE
@@ -258,9 +274,9 @@ After running, inspect the output PNG:
   - Sudden vertical spikes are usually RFI or recording glitches.
     Brief spikes (one sample) get smoothed by downstream bandpass
     filtering; sustained spikes are a problem.
-  - For multi-subchannel data, if the trace looks like square-wave
+  - For multi-channel-num data, if the trace looks like square-wave
     noise jumping between +/- search_band edges, you've selected an
-    EMPTY subchannel. Try a different --subchannel index.
+    EMPTY channel-num. Try a different --channel-num index.
   - For --method autocorr: if the SNR panel shows values well below
     the FFT SNR on the same station, coherence is low; the phase
     estimate is unreliable. Do not proceed to contaminated-pair
@@ -1029,10 +1045,11 @@ def main():
                     help="DRF channel name. Almost always 'ch0' for HamSCI "
                          "Grape stations. Use list_channels in digital_rf to "
                          "check. Default: ch0")
-    ap.add_argument("--subchannel", type=int, default=0,
-                    help="Subchannel index for multi-subchannel DRF data. "
+    ap.add_argument("--channel-num", type=int, default=0,
+                    help="Column index for stations that pack multiple "
+                         "independent frequencies into one DRF channel. "
                          "Single-channel stations: leave at 0. Multi-"
-                         "subchannel stations: verify the correct index by "
+                         "channel-num stations: verify the correct index by "
                          "reading the metadata 'center_frequencies' array "
                          "(see docstring). Default: 0")
     ap.add_argument("--start", required=True,
@@ -1126,7 +1143,7 @@ def main():
     print(f"DRF channel '{args.channel}': {fs_hz:.1f} sps")
     print(f"Extraction method: {args.method}")
 
-    # Probe one sample to detect multi-subchannel data and report
+    # Probe one sample to detect data with multiple packed channels and report
     bounds_start, bounds_end = reader.get_bounds(args.channel)
     s_start = utc_to_drf_sample(t_start, sr_num, sr_den)
     s_end   = utc_to_drf_sample(t_end,   sr_num, sr_den)
@@ -1142,15 +1159,15 @@ def main():
         probe = reader.read_vector(s_start, min(block_size, 64), args.channel)
         if probe.ndim == 2:
             n_subs = probe.shape[1]
-            print(f"Multi-subchannel DRF detected: {n_subs} subchannels. "
-                  f"Using subchannel {args.subchannel}.")
-            if args.subchannel >= n_subs:
-                sys.exit(f"--subchannel {args.subchannel} >= number of "
-                         f"subchannels ({n_subs})")
+            print(f"Multi-channel-num DRF detected: {n_subs} packed channels. "
+                  f"Using channel-num {args.channel_num}.")
+            if args.channel_num >= n_subs:
+                sys.exit(f"--channel-num {args.channel_num} >= number of "
+                         f"packed channels ({n_subs})")
         else:
             print("Single-channel DRF.")
-            if args.subchannel != 0:
-                print(f"  (warning: --subchannel {args.subchannel} ignored)")
+            if args.channel_num != 0:
+                print(f"  (warning: --channel-num {args.channel_num} ignored)")
     except Exception as e:
         sys.exit(f"Could not probe DRF data: {e}")
 
@@ -1248,7 +1265,7 @@ def main():
                 print(f'  block {k}: read error {e}, using zeros')
                 iq_k = np.zeros(block_size, dtype=complex)
             if iq_k.ndim == 2:
-                iq_k = iq_k[:, args.subchannel]
+                iq_k = iq_k[:, args.channel_num]
             iq_chunks.append(iq_k)
         iq_full = np.concatenate(iq_chunks)
         print(f'  Loaded {len(iq_full):,} samples ({len(iq_full)/fs_hz/60:.1f} min)')
@@ -1278,9 +1295,9 @@ def main():
                 print(f"  block {k}: read error {e}, skipping")
                 continue
     
-            # Handle multi-subchannel DRF (shape: (N, n_subchannels))
+            # Handle multi-channel-num DRF (shape: (N, n_channel_nums))
             if iq.ndim == 2:
-                iq = iq[:, args.subchannel]
+                iq = iq[:, args.channel_num]
     
             if _cwt_state is not None:
                 if args.method == 'cwt-prophet':
