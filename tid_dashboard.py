@@ -6,14 +6,30 @@ Madrigal TEC cross-check).
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 0.7.0
+Version: 0.8.0
 License: MIT (do whatever you want, no warranty).
 
-STATUS: v0.7.0. Wraps existing scripts via subprocess -- does not
-reimplement any extraction/DOA/TEC logic itself. Covers AUTOMATED
-extraction methods only (autocorr, cwt, fft). Wave-fit (manual spectrogram
-clicking) is inherently interactive and is NOT wired in here; use
-tid_spect_click.py / tid_workflow.py directly for that.
+Change log:
+  v0.8.0  Added wave-fit and cwt-prophet extraction: the dashboard now
+          launches tid_spect_click.py as a native window per station
+          (Option A -- spawn the existing, tested tool as a subprocess
+          rather than reimplementing spectrogram clicking in-browser).
+          Uses --event-json so tid_spect_click.py itself writes the
+          exported CSV path into the config on X-export, matched by
+          station name -- no output-filename guessing. Only works when
+          Streamlit is running locally on the same machine as the
+          display (same constraint as the folder-browse button); the
+          browser tab blocks while each native window is open, same as
+          any other blocking step in the pipeline. Mixing methods
+          across stations within one run is not yet supported -- all
+          stations in a run use the same method.
+  v0.7.0  (see prior entries in PROJECT_STATE.md)
+
+STATUS: v0.8.0. Wraps existing scripts via subprocess -- does not
+reimplement any extraction/DOA/TEC logic itself. Automated methods
+(autocorr, cwt, fft) run non-interactively; wave-fit and cwt-prophet
+launch tid_spect_click.py's own native window per station (see change
+log above) rather than reimplementing spectrogram clicking here.
 
 PSWS data has no subchannels -- unlike the KA9Q-radio/WSPRdaemon
 convention drf_to_doppler.py's docstring describes (many carriers packed
@@ -274,6 +290,90 @@ def load_coords_cache(event_dir):
 def save_coords_cache(event_dir, cache):
     p = Path(event_dir) / "station_coords.json"
     p.write_text(json.dumps(cache, indent=2))
+
+
+def generate_zoomed_spectrogram(event_path, drf_dir, channel, station_name,
+                                 event_start_dt, event_end_dt):
+    """Generate a spectrogram zoomed to the actual event window (not the
+    full-day overview) -- this is what tid_spect_click.py's wave-fit/
+    cwt-prophet clicking is meant to be done against, same as
+    tid_workflow.py's own guided-workflow zoomed-spectrogram step.
+    Not cached (unlike the overview) since the event window can change
+    between runs and this is only generated once per interactive
+    extraction attempt, not on every rerun.
+
+    Returns (png_path, axes_json_path, ok, output_text).
+    """
+    png_path = event_path / f"{station_name.lower()}_zoomed_spectrogram.png"
+    axes_path = png_path.with_name(png_path.stem + "_axes.json")
+    args = [
+        sys.executable, str(REPO_DIR / "drf_spectrogram.py"),
+        str(drf_dir), "--output", str(png_path),
+        "--start", event_start_dt.strftime("%H:%M:%S"),
+        "--end", event_end_dt.strftime("%H:%M:%S"),
+    ]
+    if channel:
+        args += ["--channel", channel]
+    ok, out = run_cmd(args)
+    ok = ok and png_path.exists() and axes_path.exists()
+    return (png_path if ok else None), (axes_path if ok else None), ok, out
+
+
+def run_interactive_extraction(config_path, drf_dir, channel, station_name,
+                                spectrogram_png, period_hint_s, wave_only):
+    """Launch tid_spect_click.py's native window for one station and
+    block until it's closed. Uses --event-json so the tool itself
+    writes the resulting CSV path into our config (matched by station
+    name, see tid_spect_click.py's _save_event_json) -- the dashboard
+    never has to guess the output filename.
+
+    This is a genuinely blocking subprocess.run, not the byte-streamed
+    run_cmd() used elsewhere -- there's no incremental console output
+    to show for a GUI app, just "wait for the window to close."
+
+    Returns (ok, output_text, updated_file_value_or_None). The third
+    value is read back from config_path after the process exits, so
+    the caller can tell whether the user actually pressed X (exported)
+    before closing, versus closing without exporting.
+    """
+    args = [
+        sys.executable, str(REPO_DIR / "tid_spect_click.py"),
+        "--spectrogram", str(spectrogram_png),
+        "--name", station_name,
+        "--event-json", str(config_path),
+    ]
+    if drf_dir:
+        args.append("--drf-dir")
+        args.append(str(drf_dir))
+    if channel:
+        args += ["--subchannel", "0"]  # PSWS data has no subchannels; channel
+                                        # selection already happened earlier
+    if period_hint_s:
+        args += ["--period-hint", str(int(period_hint_s))]
+    if wave_only:
+        args.append("--wave-only")
+
+    try:
+        proc = subprocess.run(args, cwd=REPO_DIR, capture_output=True,
+                               text=True, timeout=3600)
+        out = (proc.stdout or "") + (proc.stderr or "")
+        ok = proc.returncode == 0
+    except subprocess.TimeoutExpired as e:
+        return False, f"TIMED OUT after 1hr waiting for the window to close\n{e}", None
+    except FileNotFoundError as e:
+        return False, f"Command not found: {e}", None
+
+    updated_file = None
+    try:
+        cfg = json.loads(Path(config_path).read_text())
+        for s in cfg.get("stations", []):
+            if s.get("name", "").upper() == station_name.upper():
+                updated_file = s.get("file")
+                break
+    except Exception:
+        pass
+
+    return ok, out, updated_file
 
 
 def generate_overview_spectrogram(event_path, drf_dir, channel, station_name):
@@ -612,7 +712,7 @@ def run_and_display_tec(config_path, doa, stations_subset, tec_script, out_dir,
 
 # ── Streamlit UI ──
 
-DASHBOARD_VERSION = "v0.7.0"
+DASHBOARD_VERSION = "v0.8.0"
 
 st.set_page_config(page_title="TID Pipeline Dashboard", layout="wide")
 st.title("TID Direction-of-Arrival Pipeline")
@@ -668,13 +768,20 @@ with st.sidebar:
                    "manually above instead. (Needs python3-tk installed and "
                    "a local desktop display -- not available over SSH/remote.)")
 
+    ALL_METHODS = ["autocorr", "cwt", "fft", "wave-fit (interactive)", "cwt-prophet (interactive)"]
     method = st.selectbox(
-        "Extraction method (automated only)",
-        ["autocorr", "cwt", "fft"],
-        index=["autocorr", "cwt", "fft"].index(_settings.get("method", "autocorr")),
-        help="Wave-fit and cwt-prophet need manual interaction and are "
-             "not available here.",
+        "Extraction method",
+        ALL_METHODS,
+        index=ALL_METHODS.index(_settings.get("method", "autocorr"))
+        if _settings.get("method") in ALL_METHODS else 0,
+        help="autocorr/cwt/fft run automatically. wave-fit and "
+             "cwt-prophet open tid_spect_click.py's native window per "
+             "station -- you click, fit, and close it yourself; the "
+             "dashboard waits and picks up the result. All stations use "
+             "the same method for a given run -- mixing methods across "
+             "stations in one run isn't supported yet.",
     )
+    is_interactive_method = method in ("wave-fit (interactive)", "cwt-prophet (interactive)")
 
     st.divider()
     st.header("Madrigal TEC cross-check")
@@ -932,58 +1039,145 @@ if run_button:
                   "(see 'Channel selection' section above) before running.")
         st.stop()
 
-    # ── Step 1: extraction ──
-    st.subheader(f"Step 1 -- Doppler extraction ({method})")
-    st.caption("Output streams live below as each station extracts -- this is "
-               "the slow step for a wide event window; a full 24h window at "
-               "10s decimation can genuinely take several minutes per station.")
-    prog = st.progress(0.0)
-    extraction_ok = True
-    for i, s in enumerate(station_info):
-        out_csv = event_path / f"{s['name'].lower()}_{method}.csv"
-        args = [
-            sys.executable, str(REPO_DIR / "drf_to_doppler.py"),
-            s["drf_dir"],
-            "--start", event_start, "--end", event_end,
-            "--method", method,
-            "--output", str(out_csv),
-        ]
-        if s.get("channel"):
-            args += ["--channel", s["channel"]]
-        station_expander = st.expander(f"{s['name']} -- extracting...", expanded=True)
-        ok, out = run_cmd(args, live_container=station_expander)
-        log(f"$ {' '.join(args)}\n{out}")
-        if not ok:
-            st.error(f"{s['name']}: extraction failed -- see log above / raw subprocess log")
-            extraction_ok = False
-        else:
-            st.write(f"{s['name']}: -> `{out_csv.name}`")
-            s["file"] = str(out_csv)
-        prog.progress((i + 1) / len(station_info))
-    if not extraction_ok:
-        st.stop()
-    st.success("Extraction complete for all stations.")
-
-    # ── Step 2: write event config ──
-    st.subheader("Step 2 -- Event config")
     config_path = event_path / "tid_workflow_event.json"
-    config = {
-        "event_start_utc": event_start,
-        "event_end_utc": event_end,
-        "resample_seconds": 60,
-        "use_bandpass": False,
-        "use_ipp": True,
-        "min_expected_speed_m_s": 100,
-        "stations": [
-            {"name": s["name"], "file": s["file"], "method": method,
-             "lat": s["lat"], "lon": s["lon"]}
-            for s in station_info
-        ],
-    }
-    config_path.write_text(json.dumps(config, indent=2))
-    st.write(f"Wrote `{config_path}`")
-    with st.expander("View config"):
-        st.json(config)
+
+    if is_interactive_method:
+        wave_only = method.startswith("wave-fit")
+        tsc_method_name = "spline" if wave_only else "cwt-prophet"
+
+        # -- Step 1: write the config FIRST, with stations but no "file"
+        #    yet -- tid_spect_click.py's --event-json needs this file to
+        #    already exist so it can update the matching station entry
+        #    in place when you press X. No guessing output filenames:
+        #    the tool writes its own path back into this same file. --
+        st.subheader(f"Step 1 -- Interactive extraction ({tsc_method_name})")
+        config = {
+            "event_start_utc": event_start,
+            "event_end_utc": event_end,
+            "resample_seconds": 60,
+            "use_bandpass": False,
+            "use_ipp": True,
+            "min_expected_speed_m_s": 100,
+            "stations": [
+                {"name": s["name"], "lat": s["lat"], "lon": s["lon"]}
+                for s in station_info
+            ],
+        }
+        config_path.write_text(json.dumps(config, indent=2))
+
+        st.info("A native window will open per station -- click cycle "
+                 "points on the spectrogram, fit, then **press X to "
+                 "export** before closing the window. The dashboard "
+                 "waits (this tab will look idle, that's expected) until "
+                 "you close each window, then moves to the next station.")
+
+        extraction_ok = True
+        for i, s in enumerate(station_info):
+            st.write(f"**{s['name']}** -- generating zoomed spectrogram for "
+                     f"the selected event window...")
+            zoom_png, zoom_axes, zoom_ok, zoom_out = generate_zoomed_spectrogram(
+                event_path, s["drf_dir"], s.get("channel"), s["name"],
+                event_start_dt, event_end_dt)
+            log(f"$ drf_spectrogram.py (zoomed, {s['name']})\n{zoom_out}")
+            if not zoom_png:
+                st.error(f"{s['name']}: could not generate zoomed spectrogram -- "
+                          f"see raw subprocess log")
+                extraction_ok = False
+                continue
+
+            st.write(f"{s['name']}: opening tid_spect_click.py -- waiting for "
+                     f"the window to close...")
+            ok, out, updated_file = run_interactive_extraction(
+                config_path, s["drf_dir"], s.get("channel"), s["name"],
+                zoom_png, (event_end_dt - event_start_dt).total_seconds(),
+                wave_only)
+            log(f"$ tid_spect_click.py ({s['name']})\n{out}")
+
+            if not ok:
+                st.error(f"{s['name']}: tid_spect_click.py exited with an "
+                          f"error -- see raw subprocess log")
+                extraction_ok = False
+            elif not updated_file:
+                st.warning(f"{s['name']}: window closed but no file was "
+                           f"registered -- did you forget to press X "
+                           f"before closing? Re-run this station.")
+                extraction_ok = False
+            else:
+                st.success(f"{s['name']}: exported -> `{updated_file}`")
+                s["file"] = str((event_path / updated_file).resolve()) \
+                    if not Path(updated_file).is_absolute() else updated_file
+
+        if not extraction_ok:
+            st.error("Not all stations were successfully extracted -- fix "
+                      "the ones flagged above and click Run full pipeline "
+                      "again. Stations that already succeeded will reuse "
+                      "their exported file (re-running tid_spect_click.py "
+                      "on them isn't necessary unless you want to redo one).")
+            st.stop()
+        st.success("Interactive extraction complete for all stations.")
+
+        # -- Step 2: config already updated in place by tid_spect_click.py
+        #    (via --event-json) -- just re-read and display it, nothing
+        #    to write ourselves. --
+        st.subheader("Step 2 -- Event config")
+        config = json.loads(config_path.read_text())
+        st.write(f"`{config_path}` already updated by tid_spect_click.py "
+                 f"as each station was exported.")
+        with st.expander("View config"):
+            st.json(config)
+
+    else:
+        # ── Step 1: extraction (automated) ──
+        st.subheader(f"Step 1 -- Doppler extraction ({method})")
+        st.caption("Output streams live below as each station extracts -- this is "
+                   "the slow step for a wide event window; a full 24h window at "
+                   "10s decimation can genuinely take several minutes per station.")
+        prog = st.progress(0.0)
+        extraction_ok = True
+        for i, s in enumerate(station_info):
+            out_csv = event_path / f"{s['name'].lower()}_{method}.csv"
+            args = [
+                sys.executable, str(REPO_DIR / "drf_to_doppler.py"),
+                s["drf_dir"],
+                "--start", event_start, "--end", event_end,
+                "--method", method,
+                "--output", str(out_csv),
+            ]
+            if s.get("channel"):
+                args += ["--channel", s["channel"]]
+            station_expander = st.expander(f"{s['name']} -- extracting...", expanded=True)
+            ok, out = run_cmd(args, live_container=station_expander)
+            log(f"$ {' '.join(args)}\n{out}")
+            if not ok:
+                st.error(f"{s['name']}: extraction failed -- see log above / raw subprocess log")
+                extraction_ok = False
+            else:
+                st.write(f"{s['name']}: -> `{out_csv.name}`")
+                s["file"] = str(out_csv)
+            prog.progress((i + 1) / len(station_info))
+        if not extraction_ok:
+            st.stop()
+        st.success("Extraction complete for all stations.")
+
+        # ── Step 2: write event config ──
+        st.subheader("Step 2 -- Event config")
+        config = {
+            "event_start_utc": event_start,
+            "event_end_utc": event_end,
+            "resample_seconds": 60,
+            "use_bandpass": False,
+            "use_ipp": True,
+            "min_expected_speed_m_s": 100,
+            "stations": [
+                {"name": s["name"], "file": s["file"], "method": method,
+                 "lat": s["lat"], "lon": s["lon"]}
+                for s in station_info
+            ],
+        }
+        config_path.write_text(json.dumps(config, indent=2))
+        st.write(f"Wrote `{config_path}`")
+        with st.expander("View config"):
+            st.json(config)
 
     # ── Step 3: DOA ──
     doa = run_and_display_doa(config_path, log, header="Step 3 -- Direction of arrival")
