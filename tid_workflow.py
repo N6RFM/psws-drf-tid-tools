@@ -4,10 +4,23 @@ tid_workflow.py — guided TID direction-of-arrival workflow
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.2.0
+Version: 1.2.1
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.2.1  Fixed a real bug found during live testing: pointing
+          --event-dir at a fresh, not-yet-created directory raised
+          FileNotFoundError from the console-log directory's own
+          mkdir() call. exist_ok=True only tolerates the target
+          directory already existing -- it doesn't create missing
+          parent directories, which is what event_dir itself was in
+          this case. Added parents=True to both this mkdir() and the
+          per-station channel-num thumbnail directory's mkdir() call,
+          which had the same underlying risk. Verified: reproduced the
+          exact original failure (event_dir not existing at all
+          beforehand) and confirmed it now succeeds, and confirmed
+          re-running against an already-existing directory still
+          works with no error.
   v1.2.0  Added --ylim-half-range (default 5.0, i.e. +/-5 Hz), replacing
           7 previously-hardcoded --ylim=-5,5 calls to drf_spectrogram.py
           across channel-num confirmation thumbnails, overlay generation,
@@ -556,7 +569,13 @@ def run_workflow(args):
     from datetime import datetime, timezone
     _log_ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M%SZ")
     _log_dir = event_dir / "runs"
-    _log_dir.mkdir(exist_ok=True)
+    # REAL BUG FOUND during live testing: without parents=True, this
+    # raises FileNotFoundError whenever event_dir itself doesn't exist
+    # yet (confirmed live: happened pointing --event-dir at a fresh,
+    # not-yet-created directory) -- exist_ok=True only tolerates the
+    # target directory already existing, it doesn't create missing
+    # parents.
+    _log_dir.mkdir(exist_ok=True, parents=True)
     _log_path = _log_dir / f"{_log_ts}_workflow_console.log"
     _console_logger = ConsoleLogger(str(_log_path))
 
@@ -609,7 +628,7 @@ def run_workflow(args):
 
             if len(subs) > 1:
                 thumb_dir = event_dir / f'{name.lower()}_channel_nums'
-                thumb_dir.mkdir(exist_ok=True)
+                thumb_dir.mkdir(exist_ok=True, parents=True)
                 print(f'    Generating channel-num thumbnails...')
                 for sub_i, snr_i, freq_i in subs:
                     thumb = thumb_dir / f'sub{sub_i:02d}.png'
