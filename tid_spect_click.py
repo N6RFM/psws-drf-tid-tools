@@ -3,10 +3,94 @@ tid_spect_click.py — spectrogram-based guided Doppler phase extraction
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 0.3.0
+Version: 0.6.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v0.6.0  The wave-fit cycle-count dialog now seeds itself with a
+          real, data-driven estimate instead of a blind guess of
+          "1.0". Found during live testing of a real event (N6RFM_5,
+          June 6 2026): a manually-entered "1.0" cycles answer was
+          actually wrong (the true count was 2.0), producing a fitted
+          period exactly double what the other two stations in the
+          same event independently measured -- which materially
+          distorted the resulting TID direction-of-arrival result
+          (speed came out non-physical; fixed once the correct cycle
+          count was used). The dialog's only prior fallback for a
+          data-driven estimate required manually supplying an
+          external --period-hint, which virtually nobody does.
+          Now fits the sine model at a range of candidate cycle
+          counts directly against the user's own clicked points
+          (coarse grid search 0.2-6.0, then a finer local refinement)
+          and seeds the dialog with whichever fits best -- eliminating
+          most of the guessing this dialog previously required, while
+          still letting the user override for genuinely ambiguous
+          cases. Also fixed a real aliasing vulnerability found while
+          testing this: picking the pure global-minimum-residual
+          candidate can lock onto a spurious higher-frequency alias
+          that fits the same sparse click points just as well by
+          coincidence (confirmed: 2 of 5 synthetic test cases failed
+          this way before the fix). Fixed by preferring the simplest
+          (fewest-cycles) explanation among all candidates whose
+          residual is close to the best, the same principle behind
+          preferring a fundamental frequency over its harmonic when
+          both explain sparse data similarly well. Verified: 5/5
+          synthetic cases (0.5, 1.0, 1.5, 2.0, 3.0 true cycles) now
+          correctly recovered, and a full end-to-end run through the
+          real _do_wave_fit() correctly seeded the dialog at 1.99 for
+          a synthetic scenario reproducing the exact real N6RFM_5
+          error (clicks spanning 2 true cycles), where the seed used
+          to be a blind "1.0".
+  v0.5.0  Fixed a real bug found testing v0.4.0 live (N6RFM_5, June 6
+          2026): after clicking points and pressing F, the plot
+          visibly compressed to a fraction of the window's width.
+          Root cause: t_out (used for both the drawn preview curve
+          and the exported CSV) was unconditionally overridden with
+          the DRF reader's own FULL RECORDING bounds (e.g. the entire
+          24-hour day) whenever --drf-dir was provided -- which is
+          every real invocation, since that flag is always passed.
+          This stretched the preview curve far beyond the zoomed
+          segment actually shown on screen; adding that much-wider
+          curve to the same plot forced the view to widen dramatically
+          to fit it, squeezing the real spectrogram down to a small
+          fraction of the window. The comment describing this code
+          ("extrapolate beyond clicked region") already correctly
+          described the real intent -- extrapolate to the segment,
+          not the whole recording -- so the fix simply removes the
+          erroneous full-bounds override and keeps the already-correct
+          sidecar-derived segment bounds established earlier in the
+          same function. Verified end to end: ran the real
+          _do_wave_fit() against a synthetic 24-hour recording with a
+          ~2.87-hour segment, confirmed both the exported CSV
+          (173 rows, 06:04-08:56) and the actual data passed to the
+          preview curve widget are correctly bounded to the segment,
+          not the full day.
+  v0.4.0  Fixed the actual root cause behind a serious bug found
+          testing v0.3.0 live (N6RFM_5, June 6 2026): after clicking
+          points and pressing F, the window visibly shrank, a stray
+          blue cwt-prophet auto-trace appeared, and the app became
+          unresponsive -- despite --wave-only being passed. Root
+          cause: _wave_only and _no_prophet were hardcoded False in
+          __init__, with main() only setting the real values as
+          post-construction attributes (win._wave_only = True) AFTER
+          the constructor had already finished. Every check inside
+          __init__ that read these -- including the auto-run-Prophet-
+          on-open guard -- always saw False, so the cwt-prophet pass
+          fired unconditionally 500ms after every window opened, even
+          in wave-fit mode. Now accepted as real constructor
+          parameters (wave_only=, no_prophet=), set correctly before
+          anything that depends on them runs. This also let
+          _install_shortcuts() branch correctly from the very first
+          shortcut installed -- P and E (cwt-prophet-specific keys)
+          are no longer bound at all in wave-only mode, and X is bound
+          directly to the correct wave-fit accept instead of needing
+          the v0.3.0 workaround of binding it wrong first and
+          disabling/rebinding it after the fact. Verified: instantiated
+          the real class with wave_only=True and wave_only=False,
+          confirmed each gets exactly the right key set (no P/E leaking
+          into wave-only mode, no W/F/A leaking into normal mode), and
+          confirmed X has a single, clean, enabled binding with no
+          leftover disabled duplicate from the old approach.
   v0.3.0  Fixed 3 real bugs found during live testing against a real
           event (KV0S_MO, June 6 2026):
           (1) _wave_fit_finalize() never called _save_event_json() --
@@ -256,7 +340,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
                  transform=None, period_hint=None,
                  seg_start=None, seg_end=None,
                  drf_dir=None, channel_num=0, sgolay_window=21.0,
-                 corridor_width=0.4):
+                 corridor_width=0.4, wave_only=False, no_prophet=False):
         super().__init__()
         self.name        = name
         self.img_path    = img_path
@@ -267,8 +351,22 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self.corridor_width = corridor_width
         self._wave_mode = False
         self._wave_done = False
-        self._wave_only = False
-        self._no_prophet = False
+        # REAL BUG FOUND during live testing, root cause of a serious
+        # issue: these used to be hardcoded False here, with main()
+        # only setting the real values (win._wave_only = True etc.)
+        # AFTER the constructor had already finished running. Every
+        # check inside __init__ that read self._wave_only -- including
+        # the auto-run-Prophet-on-open guard a few lines below --
+        # always saw False, regardless of what --wave-only actually
+        # requested. This meant the cwt-prophet auto-trace pass fired
+        # unconditionally 500ms after every window opened, even in
+        # wave-fit mode, producing exactly the symptoms reported live:
+        # the window visibly shrinking, a stray blue auto-trace
+        # appearing, and the app becoming unresponsive. Now accepted
+        # as real constructor parameters, set correctly before
+        # anything that depends on them runs.
+        self._wave_only = wave_only
+        self._no_prophet = no_prophet
         self._wave_candidate = None
         self._wave_final_path = None
         self._wave_clicks_t = []
@@ -290,10 +388,14 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self._build_ui(seg_start, seg_end)
         self._install_shortcuts()
         self._update_status()
-        # Auto-run Prophet on open (Pass 0 — no clicks needed)
+        # Auto-run Prophet on open (Pass 0 — no clicks needed) --
+        # this guard now works correctly, since self._wave_only is
+        # already the real, caller-provided value by this point.
         if self.drf_dir:
-            if not getattr(self, "_wave_only", False) and not self._no_prophet:
+            if not self._wave_only and not self._no_prophet:
                 QtCore.QTimer.singleShot(500, self._run_prophet_preview)
+        if self._wave_only:
+            QtCore.QTimer.singleShot(600, self._wave_fit_start)
 
     # ------------------------------------------------------------------
     # Data loading
@@ -1224,7 +1326,9 @@ class SpectClickApp(QtWidgets.QMainWindow):
         # Use sidecar for full window extent if available,
         # otherwise fall back to segment handles
         _sidecar_path = str(self.img_path).replace(".png", "_axes.json")
-        # t_out spans FULL spectrogram -- extrapolate beyond clicked region
+        # t_out spans the zoomed segment shown on screen -- extrapolate
+        # slightly beyond the clicked points to cover the segment, NOT
+        # the full day.
         _t_out_start = getattr(self, '_full_t0', self.seg_t0)
         _t_out_end   = getattr(self, '_full_t1', self.seg_t1)
         if _osw.path.exists(_sidecar_path):
@@ -1237,25 +1341,28 @@ class SpectClickApp(QtWidgets.QMainWindow):
                 _t_out_end = _math.ceil(_raw_end * 60) / 60
             except Exception:
                 pass
-        # Use DRF bounds for t_out if available -- most reliable
+        # REAL BUG FOUND during live testing: this used to unconditionally
+        # override the correct sidecar-derived segment bounds above with
+        # the DRF reader's own FULL RECORDING bounds (e.g. the entire
+        # day) whenever --drf-dir was provided -- which is every real
+        # invocation, since that flag is always passed. This stretched
+        # both the preview curve drawn on the zoomed spectrogram and the
+        # exported CSV across the whole day instead of just the segment
+        # actually shown on screen. When that full-day curve got added
+        # to the same plot as the (much narrower) zoomed image, the
+        # view had to widen dramatically to fit it, visually squeezing
+        # the real spectrogram down to a small fraction of the window --
+        # confirmed live: "the plot compressed to the right, about 1/3
+        # original size" after pressing F. The comment describing this
+        # block ("extrapolate beyond clicked region") already correctly
+        # described the real intent -- extrapolate to the segment, not
+        # the whole recording -- so this block simply rounds the
+        # already-correct bounds established above to the nearest
+        # minute, matching what used to only happen in the no-drf_dir
+        # fallback case.
         import math as _mth
-        if self.drf_dir is not None:
-            try:
-                import digital_rf as _drft
-                _rdr = _drft.DigitalRFReader(str(self.drf_dir))
-                _ch = _rdr.get_channels()[0]
-                _bds = _rdr.get_bounds(_ch)
-                _sr = float(_rdr.get_properties(_ch)['samples_per_second'])
-                _drf_t0_h = _bds[0] / _sr / 3600 % 24
-                _drf_t1_h = _bds[1] / _sr / 3600 % 24
-                _t_out_start = _mth.floor(_drf_t0_h * 60) / 60
-                _t_out_end   = _mth.ceil(_drf_t1_h  * 60) / 60 + 1/60
-            except Exception:
-                _t_out_start = _mth.floor(_t_out_start * 60) / 60
-                _t_out_end   = _mth.ceil(_t_out_end * 60 + 3) / 60
-        else:
-            _t_out_start = _mth.floor(_t_out_start * 60) / 60
-            _t_out_end   = _mth.ceil(_t_out_end * 60 + 3) / 60
+        _t_out_start = _mth.floor(_t_out_start * 60) / 60
+        _t_out_end   = _mth.ceil(_t_out_end * 60 + 3) / 60
         t_out = _npw.arange(_t_out_start, _t_out_end, 1/60)
         stem = _pl_wf.Path(self.img_path).stem
         parent = _pl_wf.Path(self.img_path).parent
@@ -1264,21 +1371,77 @@ class SpectClickApp(QtWidgets.QMainWindow):
         t_seg = click_t
         d_seg = click_d - click_d.mean()
 
-        # Ask user how many cycles they clicked across.
-        # Much clearer than asking for the period: user counts
-        # peaks-to-peaks or troughs-to-troughs in their clicks.
-        # Period = clicked_span / n_cycles.
+        # THE ACTUAL FIX: instead of defaulting the dialog to a blind
+        # guess of "1.0" (or a guess derived from an external, manually-
+        # supplied --period-hint that virtually nobody provides), fit
+        # the sine model at a RANGE of candidate cycle counts directly
+        # against the user's own clicked points, and seed the dialog
+        # with whichever cycle count fits best. This is exactly the
+        # kind of automatic estimate the GUI/dashboard workflow already
+        # used to avoid pure user guessing -- found missing here during
+        # live testing, after a wrong manual "1.0" answer for N6RFM_5
+        # (the true count was 2.0) produced a period exactly double the
+        # other two stations' independently-measured period, which
+        # measurably distorted the resulting TID speed/direction fit.
         _hint_s = getattr(self, '_period_hint_s', None)
         _hint_min = _hint_s / 60.0 if _hint_s else None
+
+        def _fit_residual_for_n_cycles(n_cyc):
+            """RMS residual of the 3-parameter sine fit at this cycle
+            count, evaluated only at the actual clicked points."""
+            T_h_try = span_h / n_cyc
+            def _sine_try(t, A, phi, offset):
+                return A * _npw.sin(2 * _npw.pi / T_h_try * (t - t_centre_est) + phi) + offset
+            try:
+                with _warnings.catch_warnings():
+                    _warnings.simplefilter("ignore")
+                    popt_try, _ = _curve_fit(
+                        _sine_try, click_t, click_d,
+                        p0=[A_guess_est, 0.0, off_guess_est], maxfev=2000)
+                resid = click_d - _sine_try(click_t, *popt_try)
+                return float(_npw.sqrt(_npw.mean(resid ** 2)))
+            except Exception:
+                return float("inf")
+
+        import warnings as _warnings
+        t_centre_est = (t0_mark + t1_mark) / 2.0
+        A_guess_est   = (click_d.max() - click_d.min()) / 2.0
+        off_guess_est = float(_npw.mean(click_d))
+
+        # Coarse grid search, then a finer local refinement around the
+        # best coarse candidate -- cheap (a few thousand small curve_fit
+        # calls at most) and far more reliable than a single guess for
+        # sparse, non-uniformly-sampled click data.
+        #
+        # Found during testing: picking the pure global-minimum-residual
+        # candidate is vulnerable to aliasing -- a spurious higher-
+        # frequency candidate can fit the same sparse click points just
+        # as well by coincidence, especially with few/evenly-spaced
+        # clicks. Fixed by preferring the simplest (fewest-cycles)
+        # explanation among all candidates whose residual is close to
+        # the best, rather than the pure minimum -- the same principle
+        # behind preferring the fundamental over a harmonic when both
+        # explain sparse data similarly well.
+        _coarse = _npw.arange(0.2, 6.01, 0.1)
+        _residuals = _npw.array([_fit_residual_for_n_cycles(n) for n in _coarse])
+        _best_resid = _residuals.min()
+        _tolerance = max(_best_resid * 1.5, 0.01)
+        _good_enough = _coarse[_residuals <= _tolerance]
+        _best_coarse = float(_good_enough.min()) if len(_good_enough) else _coarse[int(_npw.argmin(_residuals))]
+        _fine = _npw.arange(max(0.1, _best_coarse - 0.1), _best_coarse + 0.101, 0.01)
+        _fine_residuals = [_fit_residual_for_n_cycles(n) for n in _fine]
+        _fine_best_idx = int(_npw.argmin(_fine_residuals))
+        _n_auto = float(_fine[_fine_best_idx])
+        _n_auto_resid = _fine_residuals[_fine_best_idx]
+
+        _n_guess = _n_auto
+        _n_guess_str = f"{_n_auto:.2f}"
+        _hint_note = (f"\n  Best fit to your clicked points: {_n_auto:.2f} "
+                      f"cycles (RMS residual {_n_auto_resid:.3f} Hz)")
         if _hint_min and _hint_min > 0:
-            _n_guess = span_s / 60.0 / _hint_min
-            _n_guess_str = f"{_n_guess:.1f}"
-            _hint_note = (f"\n  period-hint {_hint_min:.0f} min "
-                          f"-> {_n_guess:.1f} cycles in your span")
-        else:
-            _n_guess = 1.0
-            _n_guess_str = "1.0"
-            _hint_note = ""
+            _n_from_hint = span_s / 60.0 / _hint_min
+            _hint_note += (f"\n  (--period-hint {_hint_min:.0f} min would "
+                           f"suggest {_n_from_hint:.1f} cycles instead)")
         from PyQt5 import QtWidgets as _QtW
         dlg = _QtW.QInputDialog()
         dlg.setWindowTitle("Wave-fit: how many cycles?")
@@ -1517,17 +1680,36 @@ class SpectClickApp(QtWidgets.QMainWindow):
         super().closeEvent(event)
 
     def _install_shortcuts(self):
-        keys = [("X", self._export_spline_csv),
-                ("E", self._export_prophet_csv),
-                ("P", self._run_prophet_preview),
-                ("Z", self._undo_last_click),
-                ("R", self._reset_clicks), ("C", self._clear_all),
-                ("Q", self.close)]
-        # Wave-fit keys only in --wave-only mode
-        if getattr(self, "_wave_only", False):
-            keys.extend([("W", self._wave_fit_start),
-                         ("F", self._wave_fit_execute),
-                         ("A", self._wave_fit_accept)])
+        # _wave_only is now correctly set before this runs (see the
+        # constructor-ordering fix above), so this branches correctly
+        # from the very first shortcut installed -- no more need to
+        # bind the wrong keys first and patch them later.
+        if self._wave_only:
+            # P (prophet preview) and E (prophet accept) are for
+            # cwt-prophet mode and must not be reachable here --
+            # confirmed live that the auto-prophet-timer bug this file
+            # just fixed could trigger real, serious problems (the
+            # window visibly shrinking, an unrelated blue auto-trace
+            # appearing, the app becoming unresponsive) when prophet
+            # code ran during wave-fit clicking. X is bound directly
+            # to accept (same as A) instead of the wrong
+            # _export_spline_csv -- "X = export" is the natural
+            # expectation in every other mode, no reason for wave-fit
+            # to be the exception.
+            keys = [("W", self._wave_fit_start),
+                    ("F", self._wave_fit_execute),
+                    ("A", self._wave_fit_accept),
+                    ("X", self._wave_fit_accept),
+                    ("Z", self._undo_last_click),
+                    ("R", self._reset_clicks), ("C", self._clear_all),
+                    ("Q", self.close)]
+        else:
+            keys = [("X", self._export_spline_csv),
+                    ("E", self._export_prophet_csv),
+                    ("P", self._run_prophet_preview),
+                    ("Z", self._undo_last_click),
+                    ("R", self._reset_clicks), ("C", self._clear_all),
+                    ("Q", self.close)]
         self._shortcut_objs = {}
         for key, cb in keys:
             sc = QtWidgets.QShortcut(QtGui.QKeySequence(key), self, cb)
@@ -1652,40 +1834,14 @@ def main():
         channel_num  = args.channel_num,
         sgolay_window = args.sgolay_window,
         corridor_width = args.corridor_width,
+        wave_only    = getattr(args, "wave_only", False),
+        no_prophet   = args.no_prophet,
     )
     if args.no_prophet:
-        win._no_prophet = True
         print('  Prophet Pass 0: skipped (--no-prophet)')
     if args.event_json:
         win._event_json = args.event_json
         print(f'  Event JSON: {args.event_json} (will update on X export)')
-    if getattr(args, "wave_only", False):
-        win._wave_only = True
-        # Bind wave-fit keys (not done in __init__ because _wave_only was False)
-        from PyQt5 import QtWidgets as _QtW, QtGui as _QtG, QtCore as _QtC2
-        # X was bound in __init__ to _export_spline_csv, the WRONG export
-        # function for wave-fit mode (it exports whatever spline-mode
-        # preview trace exists, not the wave-fit result -- a real bug
-        # found during live testing against a real event: pressing X in
-        # wave-fit mode silently did the wrong thing rather than nothing
-        # or the right thing). Disable that binding before adding a new
-        # one -- two QShortcuts on the same key are "ambiguous" to Qt and
-        # BOTH become inert, so simply adding a second X binding without
-        # disabling the first would make X do nothing at all, which is
-        # not better. Rebind X to the correct wave-fit accept, aliasing
-        # it to behave the same as A, since "X = export" is the natural
-        # expectation regardless of mode.
-        old_x = getattr(win, "_shortcut_objs", {}).get("X")
-        if old_x is not None:
-            old_x.setEnabled(False)
-        for key, cb in [("W", win._wave_fit_start),
-                        ("F", win._wave_fit_execute),
-                        ("A", win._wave_fit_accept),
-                        ("X", win._wave_fit_accept)]:
-            sc = _QtW.QShortcut(_QtG.QKeySequence(key), win, cb)
-            sc.setContext(_QtC2.Qt.ApplicationShortcut)
-        from PyQt5 import QtCore as _QtC
-        _QtC.QTimer.singleShot(600, win._wave_fit_start)
     win.show()
     sys.exit(app.exec_())
 
