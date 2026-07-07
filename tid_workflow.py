@@ -4,10 +4,28 @@ tid_workflow.py — guided TID direction-of-arrival workflow
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.2.1
+Version: 1.2.2
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.2.2  Supports tid_dashboard.py v0.10.0's consolidation, removing
+          5 functions there that were separate copies of this file's
+          own code. probe_channel_nums() gained an optional channel=
+          parameter (default None, preserving current behavior --
+          uses the station's first real channel) to cover the one
+          genuine difference the dashboard needed: RX888-style
+          stations with multiple real channels, where the caller has
+          already resolved which one to use. Also dropped the unused
+          date_str parameter (never referenced anywhere in the
+          function body) and updated the one internal call site.
+          load_coords_cache/save_coords_cache lost their underscore
+          prefix -- they're genuinely shared, public utilities now,
+          not private to this file. discover_stations() now returns
+          None (not an empty list) if digital_rf itself isn't
+          installed, matching what the dashboard's own copy already
+          did, so callers can distinguish "library missing" from "no
+          stations found"; confirmed this file's own caller already
+          handles both cases identically via a plain truthiness check.
   v1.2.1  Fixed a real bug found during live testing: pointing
           --event-dir at a fresh, not-yet-created directory raised
           FileNotFoundError from the console-log directory's own
@@ -158,7 +176,7 @@ def read_drf_metadata(drf_dir):
     return None, None
 
 
-def _load_coords_cache(event_dir):
+def load_coords_cache(event_dir):
     """Load station coordinates cache from event directory."""
     cache_path = Path(event_dir) / "station_coords.json"
     if cache_path.exists():
@@ -167,7 +185,7 @@ def _load_coords_cache(event_dir):
     return {}
 
 
-def _save_coords_cache(event_dir, cache):
+def save_coords_cache(event_dir, cache):
     """Save station coordinates cache to event directory."""
     cache_path = Path(event_dir) / "station_coords.json"
     with open(cache_path, "w") as f:
@@ -183,7 +201,7 @@ def get_station_coords(name, drf_dir, event_dir=None):
     # 0. Try persistent cache
     cache = {}
     if event_dir:
-        cache = _load_coords_cache(event_dir)
+        cache = load_coords_cache(event_dir)
         key_cache = name.upper()
         if key_cache in cache:
             lat, lon = cache[key_cache]["lat"], cache[key_cache]["lon"]
@@ -196,7 +214,7 @@ def get_station_coords(name, drf_dir, event_dir=None):
         print(f"    Coords from DRF metadata: {lat:.4f}N, {abs(lon):.4f}{'W' if lon < 0 else 'E'}")
         if event_dir:
             cache[name.upper()] = {"lat": lat, "lon": lon}
-            _save_coords_cache(event_dir, cache)
+            save_coords_cache(event_dir, cache)
         return lat, lon
 
     # 2. Try callsign database
@@ -206,7 +224,7 @@ def get_station_coords(name, drf_dir, event_dir=None):
             print(f"    Coords from callsign DB ({k}): {la:.4f}N, {abs(lo):.4f}{'W' if lo < 0 else 'E'}  {gr}")
             if event_dir:
                 cache[name.upper()] = {"lat": la, "lon": lo}
-                _save_coords_cache(event_dir, cache)
+                save_coords_cache(event_dir, cache)
             return la, lo
 
     # 3. User input
@@ -217,14 +235,14 @@ def get_station_coords(name, drf_dir, event_dir=None):
             lon = float(input(f"    Enter longitude for {name} (decimal degrees E, negative=W): "))
             if event_dir:
                 cache[name.upper()] = {"lat": lat, "lon": lon}
-                _save_coords_cache(event_dir, cache)
+                save_coords_cache(event_dir, cache)
                 print(f"    Saved to station_coords.json (will be reused on re-run)")
             return lat, lon
         except ValueError:
             print("    Invalid — enter decimal numbers e.g. 35.1042 and -111.7083")
 
 
-def probe_channel_nums(drf_dir, date_str, target_mhz=10.0):
+def probe_channel_nums(drf_dir, target_mhz=10.0, channel=None):
     """
     Probe all packed channel-nums (see terminology note in
     drf_to_doppler.py -- NOT "subchannels" in the broadcast sense;
@@ -233,11 +251,16 @@ def probe_channel_nums(drf_dir, date_str, target_mhz=10.0):
     freq_hz). Priority: DRF metadata frequencies > SNR ranking.
     Auto-selects the channel-num closest to target_mhz if frequency
     metadata is available.
+
+    channel: which real DRF channel (e.g. "ch0") to probe within.
+    Defaults to the station's first channel -- pass this explicitly
+    for stations with multiple real channels (RX888-style), where the
+    caller has already resolved which one to use.
     """
     try:
         import digital_rf as drf_lib
         r = drf_lib.DigitalRFReader(str(drf_dir))
-        ch = r.get_channels()[0]
+        ch = channel if channel is not None else r.get_channels()[0]
         props = r.get_properties(ch)
         sr = float(props["samples_per_second"])
         b0, b1 = r.get_bounds(ch)
@@ -328,14 +351,23 @@ def best_channel_num(subs, target_mhz=10.0):
 
 
 def discover_stations(event_dir):
-    """Find all DRF station directories in event_dir."""
+    """Find all DRF station directories in event_dir.
+
+    Returns None (not an empty list) if digital_rf itself isn't
+    installed -- lets callers like tid_dashboard.py distinguish "the
+    library is missing" from "no stations found" and show an
+    appropriate message for each case.
+    """
+    try:
+        import digital_rf as drf_lib
+    except ImportError:
+        return None
     stations = []
     for d in sorted(Path(event_dir).iterdir()):
         if not d.is_dir():
             continue
         # Check if it looks like a DRF directory
         try:
-            import digital_rf as drf_lib
             r = drf_lib.DigitalRFReader(str(d))
             chs = r.get_channels()
             if chs:
@@ -619,7 +651,7 @@ def run_workflow(args):
             print(f"    [Step 1] Channel-num confirmation for {name}...")
 
             print(f"    Probing channel-nums...")
-            subs = probe_channel_nums(drf_dir_s, date_str, args.tx_freq_mhz)
+            subs = probe_channel_nums(drf_dir_s, args.tx_freq_mhz)
             print(f"    Top channel-nums by SNR:")
             for sub, snr, freq in subs[:5]:
                 freq_str = f" — {freq/1e6:.3f} MHz" if freq else ""
