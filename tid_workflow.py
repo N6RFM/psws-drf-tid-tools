@@ -4,10 +4,18 @@ tid_workflow.py — guided TID direction-of-arrival workflow
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.1.0
+Version: 1.2.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.2.0  Added --ylim-half-range (default 5.0, i.e. +/-5 Hz), replacing
+          7 previously-hardcoded --ylim=-5,5 calls to drf_spectrogram.py
+          across channel-num confirmation thumbnails, overlay generation,
+          and the Step 4 zoomed spectrogram (including its redo/refine
+          path). Same real-world finding as tid_dashboard.py's v0.8.1:
+          a real TID signal often only varies over a much smaller range
+          than +/-5 Hz, making the default look flat/squished and hard
+          to visually assess.
   v1.1.0  Renamed "subchannel" to "channel-num"/"channel_num" throughout
           (probe_subchannels -> probe_channel_nums, best_subchannel ->
           best_channel_num, the "subchannel" state-file key ->
@@ -612,7 +620,7 @@ def run_workflow(args):
                             '--channel-num', str(sub_i),
                             '--output', str(thumb),
                             '--start', '00:00', '--end', '24:00',
-                            '--ylim=-5,5', '--dpi', '60',
+                            f'--ylim=-{args.ylim_half_range},{args.ylim_half_range}', '--dpi', '60',
                             '--callsign', name,
                         ])
                     freq_str = f' {freq_i/1e6:.3f} MHz' if freq_i else ''
@@ -688,7 +696,7 @@ def run_workflow(args):
                     "--channel-num", str(sub),
                     "--output", str(fullday_png),
                     "--start", "00:00", "--end", "24:00",
-                    "--ylim=-5,5", "--dpi", "100",
+                    f"--ylim=-{args.ylim_half_range},{args.ylim_half_range}", "--dpi", "100",
                     "--callsign", name,
                     "--grid", stn.get("grid", "?"),
                 ])
@@ -832,7 +840,7 @@ def run_workflow(args):
                 "--channel-num", str(sub),
                 "--output", str(fullday_png),
                 "--start", "00:00", "--end", "24:00",
-                "--ylim=-5,5", "--dpi", "100",
+                f"--ylim=-{args.ylim_half_range},{args.ylim_half_range}", "--dpi", "100",
                 "--callsign", name,
                 "--grid", stn.get("grid", "?"),
             ])
@@ -889,7 +897,7 @@ def run_workflow(args):
                 "--channel-num", str(sub),
                 "--output", str(zoom_clean_png),
                 "--window", str(window_json),
-                "--ylim=-5,5", "--dpi", "150",
+                f"--ylim=-{args.ylim_half_range},{args.ylim_half_range}", "--dpi", "150",
                 "--callsign", name,
                 "--grid", stn.get("grid", "?"),
             ])
@@ -1074,7 +1082,7 @@ def run_workflow(args):
                     "--channel-num", str(sub),
                     "--output", str(zoom_png),
                     "--window", str(window_json),
-                    "--ylim=-5,5", "--dpi", "150",
+                    f"--ylim=-{args.ylim_half_range},{args.ylim_half_range}", "--dpi", "150",
                     "--callsign", name,
                     "--grid", stn.get("grid", "?"),
                     f"--overlay={fft_csv}:FFT",
@@ -1144,7 +1152,7 @@ def run_workflow(args):
             drf_dir_s, "--channel-num", str(sub),
             "--output", str(zoom_clean_png),
             "--window", str(window_json),
-            "--ylim=-5,5", "--dpi", "150",
+            f"--ylim=-{args.ylim_half_range},{args.ylim_half_range}", "--dpi", "150",
             "--callsign", name,
             "--grid", redo_stn.get("grid", "?"),
         ])
@@ -1171,7 +1179,7 @@ def run_workflow(args):
             drf_dir_s, "--channel-num", str(sub),
             "--output", str(zoom_clean_png),
             "--window", str(zoom_window) if zoom_window.exists() else str(window_json),
-            "--ylim=-5,5", "--dpi", "150",
+            f"--ylim=-{args.ylim_half_range},{args.ylim_half_range}", "--dpi", "150",
             "--callsign", name,
             "--grid", redo_stn.get("grid", "?"),
         ])
@@ -1426,6 +1434,14 @@ def _parse_args():
                    help="SGOLAY smoothing window in minutes (default 21)")
     p.add_argument("--max-lag", type=float, default=None, metavar="MIN",
                    help="Maximum xcorr lag in minutes (default: auto). Set to ~1/3 of TID period.")
+    p.add_argument("--ylim-half-range", type=float, default=5.0, metavar="HZ",
+                   help="Doppler axis half-range for zoomed spectrograms (default "
+                        "5.0, i.e. +/-5 Hz). Real TID signals often only vary over "
+                        "a much smaller range -- found during live testing that "
+                        "the default made a real signal look flat/squished and "
+                        "hard to visually assess. Narrow this (e.g. 2.0) if that "
+                        "happens; widen it if the signal is being clipped at the "
+                        "edges instead.")
     return p.parse_args()
 
 
