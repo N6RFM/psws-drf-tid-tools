@@ -162,6 +162,12 @@ Type `y` to use the same window for all stations (recommended).
 A 150 dpi spectrogram covering just the TID window is generated.
 This is the image used for extraction in Step 6.
 
+By default this uses a +/-5 Hz Doppler axis. Real TID signals often
+only vary over a much smaller range, which can make the default look
+flat/squished and hard to visually assess -- pass `--ylim-half-range 2`
+(or whatever value suits your signal) to `tid_workflow.py` to narrow
+it.
+
 ---
 
 ### Step 5 -- Optionally refine TID window (opt-in)
@@ -407,6 +413,9 @@ python3 drf_spectrogram.py ./n6rfm --channel-num 0 \
     --output n6rfm_zoom.png \
     --window n6rfm_fullday_window.json \
     --ylim=-5,5 --dpi 150 --callsign N6RFM
+#    ^ narrow this (e.g. --ylim=-2,2) if the real signal only varies
+#      over a much smaller range than +/-5 Hz -- the default can make
+#      it look flat/squished and hard to visually assess or click
 
 # 5a. cwt-prophet extraction (recommended)
 #     Pass 0 auto-runs. E=accept auto-trace, X=export clicked trace
