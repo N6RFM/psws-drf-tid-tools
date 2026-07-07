@@ -3,10 +3,36 @@ tid_spect_click.py — spectrogram-based guided Doppler phase extraction
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 0.3.0
+Version: 0.4.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v0.4.0  Fixed the actual root cause behind a serious bug found
+          testing v0.3.0 live (N6RFM_5, June 6 2026): after clicking
+          points and pressing F, the window visibly shrank, a stray
+          blue cwt-prophet auto-trace appeared, and the app became
+          unresponsive -- despite --wave-only being passed. Root
+          cause: _wave_only and _no_prophet were hardcoded False in
+          __init__, with main() only setting the real values as
+          post-construction attributes (win._wave_only = True) AFTER
+          the constructor had already finished. Every check inside
+          __init__ that read these -- including the auto-run-Prophet-
+          on-open guard -- always saw False, so the cwt-prophet pass
+          fired unconditionally 500ms after every window opened, even
+          in wave-fit mode. Now accepted as real constructor
+          parameters (wave_only=, no_prophet=), set correctly before
+          anything that depends on them runs. This also let
+          _install_shortcuts() branch correctly from the very first
+          shortcut installed -- P and E (cwt-prophet-specific keys)
+          are no longer bound at all in wave-only mode, and X is bound
+          directly to the correct wave-fit accept instead of needing
+          the v0.3.0 workaround of binding it wrong first and
+          disabling/rebinding it after the fact. Verified: instantiated
+          the real class with wave_only=True and wave_only=False,
+          confirmed each gets exactly the right key set (no P/E leaking
+          into wave-only mode, no W/F/A leaking into normal mode), and
+          confirmed X has a single, clean, enabled binding with no
+          leftover disabled duplicate from the old approach.
   v0.3.0  Fixed 3 real bugs found during live testing against a real
           event (KV0S_MO, June 6 2026):
           (1) _wave_fit_finalize() never called _save_event_json() --
@@ -256,7 +282,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
                  transform=None, period_hint=None,
                  seg_start=None, seg_end=None,
                  drf_dir=None, channel_num=0, sgolay_window=21.0,
-                 corridor_width=0.4):
+                 corridor_width=0.4, wave_only=False, no_prophet=False):
         super().__init__()
         self.name        = name
         self.img_path    = img_path
@@ -267,8 +293,22 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self.corridor_width = corridor_width
         self._wave_mode = False
         self._wave_done = False
-        self._wave_only = False
-        self._no_prophet = False
+        # REAL BUG FOUND during live testing, root cause of a serious
+        # issue: these used to be hardcoded False here, with main()
+        # only setting the real values (win._wave_only = True etc.)
+        # AFTER the constructor had already finished running. Every
+        # check inside __init__ that read self._wave_only -- including
+        # the auto-run-Prophet-on-open guard a few lines below --
+        # always saw False, regardless of what --wave-only actually
+        # requested. This meant the cwt-prophet auto-trace pass fired
+        # unconditionally 500ms after every window opened, even in
+        # wave-fit mode, producing exactly the symptoms reported live:
+        # the window visibly shrinking, a stray blue auto-trace
+        # appearing, and the app becoming unresponsive. Now accepted
+        # as real constructor parameters, set correctly before
+        # anything that depends on them runs.
+        self._wave_only = wave_only
+        self._no_prophet = no_prophet
         self._wave_candidate = None
         self._wave_final_path = None
         self._wave_clicks_t = []
@@ -290,10 +330,14 @@ class SpectClickApp(QtWidgets.QMainWindow):
         self._build_ui(seg_start, seg_end)
         self._install_shortcuts()
         self._update_status()
-        # Auto-run Prophet on open (Pass 0 — no clicks needed)
+        # Auto-run Prophet on open (Pass 0 — no clicks needed) --
+        # this guard now works correctly, since self._wave_only is
+        # already the real, caller-provided value by this point.
         if self.drf_dir:
-            if not getattr(self, "_wave_only", False) and not self._no_prophet:
+            if not self._wave_only and not self._no_prophet:
                 QtCore.QTimer.singleShot(500, self._run_prophet_preview)
+        if self._wave_only:
+            QtCore.QTimer.singleShot(600, self._wave_fit_start)
 
     # ------------------------------------------------------------------
     # Data loading
@@ -1517,17 +1561,36 @@ class SpectClickApp(QtWidgets.QMainWindow):
         super().closeEvent(event)
 
     def _install_shortcuts(self):
-        keys = [("X", self._export_spline_csv),
-                ("E", self._export_prophet_csv),
-                ("P", self._run_prophet_preview),
-                ("Z", self._undo_last_click),
-                ("R", self._reset_clicks), ("C", self._clear_all),
-                ("Q", self.close)]
-        # Wave-fit keys only in --wave-only mode
-        if getattr(self, "_wave_only", False):
-            keys.extend([("W", self._wave_fit_start),
-                         ("F", self._wave_fit_execute),
-                         ("A", self._wave_fit_accept)])
+        # _wave_only is now correctly set before this runs (see the
+        # constructor-ordering fix above), so this branches correctly
+        # from the very first shortcut installed -- no more need to
+        # bind the wrong keys first and patch them later.
+        if self._wave_only:
+            # P (prophet preview) and E (prophet accept) are for
+            # cwt-prophet mode and must not be reachable here --
+            # confirmed live that the auto-prophet-timer bug this file
+            # just fixed could trigger real, serious problems (the
+            # window visibly shrinking, an unrelated blue auto-trace
+            # appearing, the app becoming unresponsive) when prophet
+            # code ran during wave-fit clicking. X is bound directly
+            # to accept (same as A) instead of the wrong
+            # _export_spline_csv -- "X = export" is the natural
+            # expectation in every other mode, no reason for wave-fit
+            # to be the exception.
+            keys = [("W", self._wave_fit_start),
+                    ("F", self._wave_fit_execute),
+                    ("A", self._wave_fit_accept),
+                    ("X", self._wave_fit_accept),
+                    ("Z", self._undo_last_click),
+                    ("R", self._reset_clicks), ("C", self._clear_all),
+                    ("Q", self.close)]
+        else:
+            keys = [("X", self._export_spline_csv),
+                    ("E", self._export_prophet_csv),
+                    ("P", self._run_prophet_preview),
+                    ("Z", self._undo_last_click),
+                    ("R", self._reset_clicks), ("C", self._clear_all),
+                    ("Q", self.close)]
         self._shortcut_objs = {}
         for key, cb in keys:
             sc = QtWidgets.QShortcut(QtGui.QKeySequence(key), self, cb)
@@ -1652,40 +1715,14 @@ def main():
         channel_num  = args.channel_num,
         sgolay_window = args.sgolay_window,
         corridor_width = args.corridor_width,
+        wave_only    = getattr(args, "wave_only", False),
+        no_prophet   = args.no_prophet,
     )
     if args.no_prophet:
-        win._no_prophet = True
         print('  Prophet Pass 0: skipped (--no-prophet)')
     if args.event_json:
         win._event_json = args.event_json
         print(f'  Event JSON: {args.event_json} (will update on X export)')
-    if getattr(args, "wave_only", False):
-        win._wave_only = True
-        # Bind wave-fit keys (not done in __init__ because _wave_only was False)
-        from PyQt5 import QtWidgets as _QtW, QtGui as _QtG, QtCore as _QtC2
-        # X was bound in __init__ to _export_spline_csv, the WRONG export
-        # function for wave-fit mode (it exports whatever spline-mode
-        # preview trace exists, not the wave-fit result -- a real bug
-        # found during live testing against a real event: pressing X in
-        # wave-fit mode silently did the wrong thing rather than nothing
-        # or the right thing). Disable that binding before adding a new
-        # one -- two QShortcuts on the same key are "ambiguous" to Qt and
-        # BOTH become inert, so simply adding a second X binding without
-        # disabling the first would make X do nothing at all, which is
-        # not better. Rebind X to the correct wave-fit accept, aliasing
-        # it to behave the same as A, since "X = export" is the natural
-        # expectation regardless of mode.
-        old_x = getattr(win, "_shortcut_objs", {}).get("X")
-        if old_x is not None:
-            old_x.setEnabled(False)
-        for key, cb in [("W", win._wave_fit_start),
-                        ("F", win._wave_fit_execute),
-                        ("A", win._wave_fit_accept),
-                        ("X", win._wave_fit_accept)]:
-            sc = _QtW.QShortcut(_QtG.QKeySequence(key), win, cb)
-            sc.setContext(_QtC2.Qt.ApplicationShortcut)
-        from PyQt5 import QtCore as _QtC
-        _QtC.QTimer.singleShot(600, win._wave_fit_start)
     win.show()
     sys.exit(app.exec_())
 
