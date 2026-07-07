@@ -3013,3 +3013,93 @@ Only main and research_gui remain on GitHub now.
    No decision yet on folding this into the real tid_quicklook.py.
 5. fetch_madrigal_tec_closure.py still pending its own live-data
    graduation test (see #93)
+---
+## 101. tid_spect_click.py v0.8.0 (2 more real bugs in the auto-cycle-estimate); tid_workflow.py v1.2.1 (mkdir fix); Jan 19 event re-clicked with fully-fixed tooling, real DOA result obtained -- 2026-07-07
+
+### What happened
+Continued from entry #100: fixed the found-but-not-yet-fixed
+tid_workflow.py mkdir bug, then used the systematically-tested tools
+to re-click all 4 stations of the Jan 19 event with the fixed
+auto-cycle-estimate, surfacing 2 more real bugs in that feature along
+the way -- each found via live testing with real data, not by
+inspection.
+
+### tid_workflow.py v1.2.1: mkdir FileNotFoundError fixed
+The bug found (but not fixed) in entry #100: pointing --event-dir at
+a fresh, not-yet-created directory raised FileNotFoundError from the
+console-log directory's own mkdir(). exist_ok=True only tolerates the
+target already existing, not missing parents. Added parents=True to
+this mkdir() and a second one with the same underlying risk (the
+per-station channel-num thumbnail directory) that hadn't actually
+been hit yet. Verified by reproducing the exact original failure and
+confirming it now succeeds, plus confirming normal re-runs against an
+existing directory still work.
+
+### tid_spect_click.py v0.7.0: minimum-points gate
+Live testing of a real 4-station event (Jan 19, run via the full
+guided tid_workflow.py for the first time) surfaced that with only
+3-4 clicked points, the v0.6.0 auto-estimator confidently converged
+to 0.20 (the search grid's own floor) regardless of the true cycle
+count, with false precision. Measured empirically across 400
+synthetic trials: 3 clicks failed 100% of the time, 4 clicks 61%, 5
+clicks 32%, 6+ dropped to single digits. Below 6 points, the
+auto-estimate is no longer attempted -- falls back honestly to the
+old "1.0" default with a clear explanation instead.
+
+### tid_spect_click.py v0.8.0: tolerance was still far too loose
+Re-clicking N6RFM with 9 real, well-placed clicks (above the new
+6-point minimum) surfaced a second false positive: the "prefer
+simplest among similarly-good fits" tolerance (1.5x the best
+residual) was accepting nearly the whole plausible search range
+(0.2 to 1.1 cycles) as "good enough," then confidently returning 0.2
+again. Captured the exact real click coordinates via temporary debug
+instrumentation (added, used, then removed) and confirmed the true
+best fit was 0.8, not 0.2 or the user's own visual estimate of 1.0.
+Tightened tolerance to 1.05x. Verified against the exact real
+coordinates that exposed this (dialog now correctly seeds 0.83), and
+re-confirmed this doesn't regress the original aliasing test the
+tolerance was built for.
+
+### Jan 19 event: all 4 stations re-clicked with the fully-fixed tool
+All four stations (aa6bd, ac0g_nd [channel-num 4], n6rfm, w7lux) --
+re-clicked with 6+ points each, using the
+now-fully-verified auto-cycle-estimate. Real, concrete confirmation
+the fixes work: N6RFM and AA6BD's independently-fitted periods now
+agree exactly (58.0 min each), which was not happening with the
+original broken clicks.
+
+Full 4-station DOA result was still poor (3 of 5 diagnostics failed,
+weak correlations, severe aliasing) -- but this was NOT a tooling
+problem this time. AC0G_ND stood out as a clear outlier: 11.6 min
+period vs. 29-58 min for the other three. Dropping AC0G_ND (tid_doa.py
+--drop AC0G_ND) produced a substantially better result: plane-wave
+residual 1.6% (was 77.9%), triangle closure 4.8% (was 40.9%), speed
+319 m/s (physically plausible MSTID/LSTID boundary), 4 of 5
+diagnostics passing. Pairwise correlations remain modest (0.15-0.21)
+but internally consistent (low residual, low closure error) rather
+than contradictory -- a more believable pattern for a real signal
+than the earlier, all-4-station result.
+
+AC0G_ND's own anomalous period was not further investigated this
+session (explicitly deferred to move on) -- worth a closer look at
+its specific spectrogram/clicks before trusting or discarding that
+station's result.
+
+### Docs
+No Cookbook changes needed for v0.8.0 -- purely an internal
+implementation fix, no change to how the dialog behaves from a
+user's perspective. FINDINGS.md entry #58 captures the actual
+scientific result (3-station Jan 19 DOA fit) separately from this
+software-engineering entry.
+
+### Open items
+1. AC0G_ND's anomalous 11.6-minute period (Jan 19 event) -- not yet
+   investigated; could be a genuine data characteristic or an
+   imperfect click, unresolved
+2. June 6 event: AC0G_ND (different event, same station) still
+   needs its own click to test dropping N6RFM there, per entry #100's
+   open item 2 -- not yet done
+3. The box-select prototype (test_box_select.py) -- still no decision
+   on folding into the real tid_quicklook.py (see entry #100)
+4. fetch_madrigal_tec_closure.py still pending its own live-data
+   graduation test (see #93)
