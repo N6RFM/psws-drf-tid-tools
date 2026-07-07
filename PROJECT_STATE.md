@@ -3103,3 +3103,92 @@ software-engineering entry.
    on folding into the real tid_quicklook.py (see entry #100)
 4. fetch_madrigal_tec_closure.py still pending its own live-data
    graduation test (see #93)
+---
+## 102. Wave-fit/spline terminology fix; dashboard consolidated onto tid_workflow.py's shared functions (net -80 lines, 5 duplicate functions removed) -- 2026-07-07
+
+### What happened
+Two pieces of follow-up work after the Jan 19 re-click testing: a
+real terminology bug found via documentation review (not live
+testing), and an architectural cleanup requested directly -- the
+dashboard should be a thin wrapper over the CLI, not a second,
+separately-maintained copy of its logic.
+
+### tid_spect_click.py v0.9.0 / tid_dashboard.py v0.9.1: wave-fit/spline terminology fix
+Found reviewing the README, not from a bug report: wave-fit's own
+accepted CSVs were being recorded in the config with "method":
+"spline" -- but spline is a genuinely separate, real extraction
+method (_export_spline_csv, anchor-click + PCHIP interpolation
+directly through the clicks, no sinusoid model at all), completely
+different from wave-fit (fits a single sinusoid). Reusing that name
+mislabeled every wave-fit CSV extracted this entire session,
+including tid_doa.py's own "methods_used" reporting. Corrected
+_wave_fit_finalize() to record "wave-fit" instead; fixed the same
+mismatch in the dashboard's own display label. Verified no other code
+branches on method=="spline" in a way that would need updating.
+Existing config files from both the June 6 and Jan 19 events were
+manually patched to correct the historical mislabeling (7 stations
+across both events).
+
+README.md also got two separate, real fixes here: the dashboard
+prose said "all five" extraction methods while a nearby table said
+"four" and omitted cwt (fixed by adding it), and spline was
+undocumented entirely as its own method despite being genuinely
+distinct from wave-fit -- now has its own table row and an explicit
+"wave-fit vs spline, precisely" explanation.
+
+### Dashboard/workflow consolidation (tid_dashboard.py v0.10.0, tid_workflow.py v1.2.2)
+Direct request: the dashboard should be little more than an umbrella
+over the CLI, not duplicate extraction functions unless absolutely
+necessary. Audit found tid_dashboard.py had 5 functions that were
+separate copies of tid_workflow.py's own code: discover_stations,
+probe_station_channel_nums, best_channel_num_choice, load_coords_cache,
+save_coords_cache. One (best_channel_num_choice) had a docstring
+admitting the duplication at the time it was written ("Same
+selection policy as tid_workflow.py's best_channel_num()").
+
+4 of the 5 had identical signatures to their tid_workflow.py
+counterparts -- aliased directly, zero behavior change. The 5th
+(probe_channel_nums) had one genuine difference: the dashboard needed
+an explicit channel parameter for RX888-style stations with multiple
+real channels. tid_workflow.py's version now accepts that as an
+optional parameter (default None, preserving current CLI behavior)
+instead of maintaining a second copy. Also dropped a dead, unused
+date_str parameter found while doing this (never referenced anywhere
+in the function body). load_coords_cache/save_coords_cache lost
+their underscore prefix in tid_workflow.py, since they're genuinely
+shared, public utilities now, not private to one file.
+discover_stations() now returns None (not an empty list) if
+digital_rf isn't installed, matching what the dashboard's own copy
+already did.
+
+Net result: tid_dashboard.py shrank by ~80 lines with zero functional
+change. Verified via a full end-to-end run against the same synthetic
+multi-channel-num test event used throughout this session, confirming
+the dashboard's pipeline still runs with no exceptions and still
+correctly auto-detects channel-num 4.
+
+### Docs
+No Cookbook/tutorial changes needed for the consolidation -- purely
+internal, no change to how anyone interacts with either tool.
+README.md's methods-table fix (above) was unrelated to the
+consolidation itself, found and fixed in the same session.
+
+### Housekeeping
+3 more merged branches deleted after this round (fix/tid-spect-click-
+cycle-estimate-tolerance, fix/tid-workflow-mkdir-parents,
+fix/wave-fit-spline-terminology), plus 1 more after the consolidation
+PR (refactor/dashboard-reuse-workflow-functions). Only main and
+research_gui remain on GitHub.
+
+### Open items
+1. AC0G_ND's anomalous 11.6-minute period (Jan 19 event) -- still not
+   investigated (see #101)
+2. June 6 event: AC0G_ND still needs its own click to test dropping
+   N6RFM there (see #100, #101)
+3. The box-select prototype (test_box_select.py) -- still no decision
+   on folding into the real tid_quicklook.py (see #100)
+4. Broader dashboard audit for other CLI-duplicating code was
+   suggested but not done this session -- only the 5 functions found
+   in this specific pass were addressed; worth a fuller pass later
+5. fetch_madrigal_tec_closure.py still pending its own live-data
+   graduation test (see #93)
