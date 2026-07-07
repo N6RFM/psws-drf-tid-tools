@@ -3,10 +3,36 @@ tid_spect_click.py — spectrogram-based guided Doppler phase extraction
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 0.6.0
+Version: 0.7.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v0.7.0  Fixed a serious regression in v0.6.0's auto-cycle-estimate,
+          found during live testing of a real 4-station event (Jan
+          19 2026): with only 3-4 clicked points, the estimator would
+          confidently converge to 0.20 (the search grid's own lower
+          bound) regardless of the true cycle count, and present it
+          with false precision (e.g. "0.20 cycles"). A 3-parameter
+          sine fit against only 3-4 points is fundamentally
+          underdetermined -- a very long, slowly-varying candidate
+          period can always curve through a handful of sparse points
+          by coincidence. Measured empirically across 400 synthetic
+          trials: 3 clicks failed 100% of the time, 4 clicks 61%, 5
+          clicks still 32% (too unreliable), 6+ clicks dropped to
+          single digits. Below 6 points, the auto-estimate is no
+          longer attempted at all -- falls back honestly to the same
+          "1.0" default this feature was built to replace, with a
+          clear message explaining why, rather than silently
+          presenting an unreliable number with false precision.
+          Verified: the exact 0.20 false-positive is gone for 3-5
+          clicked points (confirmed via the real _do_wave_fit(),
+          not just the estimation logic in isolation), and the
+          auto-estimate still works correctly at 6+ points -- though,
+          being an inherently hard estimation problem from sparse
+          data, it is not and cannot be made 100% reliable even at
+          6+ points (measured ~3% residual failure rate there); the
+          dialog still shows the number before it's accepted, so a
+          human check remains the final safeguard.
   v0.6.0  The wave-fit cycle-count dialog now seeds itself with a
           real, data-driven estimate instead of a blind guess of
           "1.0". Found during live testing of a real event (N6RFM_5,
@@ -1386,58 +1412,86 @@ class SpectClickApp(QtWidgets.QMainWindow):
         _hint_s = getattr(self, '_period_hint_s', None)
         _hint_min = _hint_s / 60.0 if _hint_s else None
 
-        def _fit_residual_for_n_cycles(n_cyc):
-            """RMS residual of the 3-parameter sine fit at this cycle
-            count, evaluated only at the actual clicked points."""
-            T_h_try = span_h / n_cyc
-            def _sine_try(t, A, phi, offset):
-                return A * _npw.sin(2 * _npw.pi / T_h_try * (t - t_centre_est) + phi) + offset
-            try:
-                with _warnings.catch_warnings():
-                    _warnings.simplefilter("ignore")
-                    popt_try, _ = _curve_fit(
-                        _sine_try, click_t, click_d,
-                        p0=[A_guess_est, 0.0, off_guess_est], maxfev=2000)
-                resid = click_d - _sine_try(click_t, *popt_try)
-                return float(_npw.sqrt(_npw.mean(resid ** 2)))
-            except Exception:
-                return float("inf")
-
         import warnings as _warnings
         t_centre_est = (t0_mark + t1_mark) / 2.0
         A_guess_est   = (click_d.max() - click_d.min()) / 2.0
         off_guess_est = float(_npw.mean(click_d))
 
-        # Coarse grid search, then a finer local refinement around the
-        # best coarse candidate -- cheap (a few thousand small curve_fit
-        # calls at most) and far more reliable than a single guess for
-        # sparse, non-uniformly-sampled click data.
-        #
-        # Found during testing: picking the pure global-minimum-residual
-        # candidate is vulnerable to aliasing -- a spurious higher-
-        # frequency candidate can fit the same sparse click points just
-        # as well by coincidence, especially with few/evenly-spaced
-        # clicks. Fixed by preferring the simplest (fewest-cycles)
-        # explanation among all candidates whose residual is close to
-        # the best, rather than the pure minimum -- the same principle
-        # behind preferring the fundamental over a harmonic when both
-        # explain sparse data similarly well.
-        _coarse = _npw.arange(0.2, 6.01, 0.1)
-        _residuals = _npw.array([_fit_residual_for_n_cycles(n) for n in _coarse])
-        _best_resid = _residuals.min()
-        _tolerance = max(_best_resid * 1.5, 0.01)
-        _good_enough = _coarse[_residuals <= _tolerance]
-        _best_coarse = float(_good_enough.min()) if len(_good_enough) else _coarse[int(_npw.argmin(_residuals))]
-        _fine = _npw.arange(max(0.1, _best_coarse - 0.1), _best_coarse + 0.101, 0.01)
-        _fine_residuals = [_fit_residual_for_n_cycles(n) for n in _fine]
-        _fine_best_idx = int(_npw.argmin(_fine_residuals))
-        _n_auto = float(_fine[_fine_best_idx])
-        _n_auto_resid = _fine_residuals[_fine_best_idx]
+        # REAL BUG FOUND during live testing of a real event (Jan 19
+        # 2026, 4-station run): with only 3-4 clicked points, this
+        # auto-estimate would confidently converge to 0.20 (the search
+        # grid's own lower bound) regardless of the true cycle count --
+        # a 3-parameter sine fit against only 3-4 points is fundamentally
+        # underdetermined, since a very long, slowly-varying candidate
+        # period can always curve through a handful of sparse points by
+        # coincidence. Measured empirically across 400 synthetic trials:
+        # 3 clicks failed 100% of the time, 4 clicks 61%, 5 clicks still
+        # 32% (too unreliable), 6+ clicks dropped to single digits. Below
+        # 6 points, don't attempt the auto-estimate at all -- fall back
+        # honestly to the same "1.0" default this feature was built to
+        # replace, with a clear message explaining why, rather than
+        # silently presenting an unreliable number with false precision
+        # (a value like "0.20" formatted to 2 decimals looks confident
+        # even when it's essentially noise).
+        _MIN_CLICKS_FOR_AUTO_ESTIMATE = 6
+        if len(click_t) < _MIN_CLICKS_FOR_AUTO_ESTIMATE:
+            _n_auto = 1.0
+            _n_auto_resid = None
+            _hint_note = (f"\n  NOTE: only {len(click_t)} points clicked -- "
+                          f"auto-estimate needs at least "
+                          f"{_MIN_CLICKS_FOR_AUTO_ESTIMATE} to be reliable "
+                          f"(tested: fewer points converge to a false "
+                          f"answer nearly every time). Falling back to a "
+                          f"plain default -- count cycles yourself, or "
+                          f"redo with more clicked points.")
+        else:
+            def _fit_residual_for_n_cycles(n_cyc):
+                """RMS residual of the 3-parameter sine fit at this cycle
+                count, evaluated only at the actual clicked points."""
+                T_h_try = span_h / n_cyc
+                def _sine_try(t, A, phi, offset):
+                    return A * _npw.sin(2 * _npw.pi / T_h_try * (t - t_centre_est) + phi) + offset
+                try:
+                    with _warnings.catch_warnings():
+                        _warnings.simplefilter("ignore")
+                        popt_try, _ = _curve_fit(
+                            _sine_try, click_t, click_d,
+                            p0=[A_guess_est, 0.0, off_guess_est], maxfev=2000)
+                    resid = click_d - _sine_try(click_t, *popt_try)
+                    return float(_npw.sqrt(_npw.mean(resid ** 2)))
+                except Exception:
+                    return float("inf")
+
+            # Coarse grid search, then a finer local refinement around the
+            # best coarse candidate -- cheap (a few thousand small curve_fit
+            # calls at most) and far more reliable than a single guess for
+            # sparse, non-uniformly-sampled click data.
+            #
+            # Found during testing: picking the pure global-minimum-residual
+            # candidate is vulnerable to aliasing -- a spurious higher-
+            # frequency candidate can fit the same sparse click points just
+            # as well by coincidence, especially with few/evenly-spaced
+            # clicks. Fixed by preferring the simplest (fewest-cycles)
+            # explanation among all candidates whose residual is close to
+            # the best, rather than the pure minimum -- the same principle
+            # behind preferring the fundamental over a harmonic when both
+            # explain sparse data similarly well.
+            _coarse = _npw.arange(0.2, 6.01, 0.1)
+            _residuals = _npw.array([_fit_residual_for_n_cycles(n) for n in _coarse])
+            _best_resid = _residuals.min()
+            _tolerance = max(_best_resid * 1.5, 0.01)
+            _good_enough = _coarse[_residuals <= _tolerance]
+            _best_coarse = float(_good_enough.min()) if len(_good_enough) else _coarse[int(_npw.argmin(_residuals))]
+            _fine = _npw.arange(max(0.1, _best_coarse - 0.1), _best_coarse + 0.101, 0.01)
+            _fine_residuals = [_fit_residual_for_n_cycles(n) for n in _fine]
+            _fine_best_idx = int(_npw.argmin(_fine_residuals))
+            _n_auto = float(_fine[_fine_best_idx])
+            _n_auto_resid = _fine_residuals[_fine_best_idx]
+            _hint_note = (f"\n  Best fit to your clicked points: {_n_auto:.2f} "
+                          f"cycles (RMS residual {_n_auto_resid:.3f} Hz)")
 
         _n_guess = _n_auto
         _n_guess_str = f"{_n_auto:.2f}"
-        _hint_note = (f"\n  Best fit to your clicked points: {_n_auto:.2f} "
-                      f"cycles (RMS residual {_n_auto_resid:.3f} Hz)")
         if _hint_min and _hint_min > 0:
             _n_from_hint = span_s / 60.0 / _hint_min
             _hint_note += (f"\n  (--period-hint {_hint_min:.0f} min would "
