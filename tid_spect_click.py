@@ -3,10 +3,28 @@ tid_spect_click.py — spectrogram-based guided Doppler phase extraction
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 0.7.0
+Version: 0.8.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v0.8.0  Fixed a third real bug in the auto-cycle-estimate, found
+          during live testing with 9 real, well-placed clicks (well
+          above the 6-point minimum from v0.7.0): the tolerance used
+          to decide "is this candidate close enough to the best fit
+          to be worth preferring for its simplicity" was 1.5x the
+          best residual -- far too loose. For real click data, this
+          accepted candidates from 0.2 all the way to 1.1 cycles as
+          "good enough" when the true best fit was 0.8, then
+          confidently returned 0.2 (the search floor) as if it were a
+          precise answer. Tightened to 1.05x. Verified with the exact
+          real click coordinates that exposed this (captured via
+          temporary debug instrumentation, then removed): the dialog
+          now correctly seeds at 0.83, not the old 0.30. Also
+          re-verified this doesn't regress the original aliasing test
+          the tolerance was built for (still 5/5) and re-ran the
+          broader 200-trial synthetic sweep, which improved slightly
+          overall (down to 4% failures, most no longer the
+          confidently-wrong low-n type this fix specifically targets).
   v0.7.0  Fixed a serious regression in v0.6.0's auto-cycle-estimate,
           found during live testing of a real 4-station event (Jan
           19 2026): with only 3-4 clicked points, the estimator would
@@ -1476,10 +1494,25 @@ class SpectClickApp(QtWidgets.QMainWindow):
             # the best, rather than the pure minimum -- the same principle
             # behind preferring the fundamental over a harmonic when both
             # explain sparse data similarly well.
+            #
+            # REAL BUG FOUND during live testing with 9 real, well-placed
+            # clicks (well above the 6-point minimum): the tolerance of
+            # 1.5x the best residual was far too loose, accepting
+            # candidates from 0.2 all the way to 1.1 cycles as "good
+            # enough" when the true best fit was 0.8 -- then confidently
+            # returning 0.2, the search floor, as if it were a precise
+            # answer. 1.5x wasn't distinguishing "genuinely near-tied"
+            # from "the whole plausible range fits passably." Tightened
+            # to 1.05x. Verified this still passes the original aliasing
+            # test this tolerance was built for (5/5 synthetic cases) and
+            # correctly recovers ~0.8 for the real failing case above,
+            # while a broader 200-trial sweep (6-8 clicks) improved
+            # slightly overall (4% failures vs more before, and most no
+            # longer the confidently-wrong low-n type).
             _coarse = _npw.arange(0.2, 6.01, 0.1)
             _residuals = _npw.array([_fit_residual_for_n_cycles(n) for n in _coarse])
             _best_resid = _residuals.min()
-            _tolerance = max(_best_resid * 1.5, 0.01)
+            _tolerance = max(_best_resid * 1.05, 0.005)
             _good_enough = _coarse[_residuals <= _tolerance]
             _best_coarse = float(_good_enough.min()) if len(_good_enough) else _coarse[int(_npw.argmin(_residuals))]
             _fine = _npw.arange(max(0.1, _best_coarse - 0.1), _best_coarse + 0.101, 0.01)
