@@ -3,10 +3,34 @@ tid_spect_click.py — spectrogram-based guided Doppler phase extraction
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 0.4.0
+Version: 0.5.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v0.5.0  Fixed a real bug found testing v0.4.0 live (N6RFM_5, June 6
+          2026): after clicking points and pressing F, the plot
+          visibly compressed to a fraction of the window's width.
+          Root cause: t_out (used for both the drawn preview curve
+          and the exported CSV) was unconditionally overridden with
+          the DRF reader's own FULL RECORDING bounds (e.g. the entire
+          24-hour day) whenever --drf-dir was provided -- which is
+          every real invocation, since that flag is always passed.
+          This stretched the preview curve far beyond the zoomed
+          segment actually shown on screen; adding that much-wider
+          curve to the same plot forced the view to widen dramatically
+          to fit it, squeezing the real spectrogram down to a small
+          fraction of the window. The comment describing this code
+          ("extrapolate beyond clicked region") already correctly
+          described the real intent -- extrapolate to the segment,
+          not the whole recording -- so the fix simply removes the
+          erroneous full-bounds override and keeps the already-correct
+          sidecar-derived segment bounds established earlier in the
+          same function. Verified end to end: ran the real
+          _do_wave_fit() against a synthetic 24-hour recording with a
+          ~2.87-hour segment, confirmed both the exported CSV
+          (173 rows, 06:04-08:56) and the actual data passed to the
+          preview curve widget are correctly bounded to the segment,
+          not the full day.
   v0.4.0  Fixed the actual root cause behind a serious bug found
           testing v0.3.0 live (N6RFM_5, June 6 2026): after clicking
           points and pressing F, the window visibly shrank, a stray
@@ -1268,7 +1292,9 @@ class SpectClickApp(QtWidgets.QMainWindow):
         # Use sidecar for full window extent if available,
         # otherwise fall back to segment handles
         _sidecar_path = str(self.img_path).replace(".png", "_axes.json")
-        # t_out spans FULL spectrogram -- extrapolate beyond clicked region
+        # t_out spans the zoomed segment shown on screen -- extrapolate
+        # slightly beyond the clicked points to cover the segment, NOT
+        # the full day.
         _t_out_start = getattr(self, '_full_t0', self.seg_t0)
         _t_out_end   = getattr(self, '_full_t1', self.seg_t1)
         if _osw.path.exists(_sidecar_path):
@@ -1281,25 +1307,28 @@ class SpectClickApp(QtWidgets.QMainWindow):
                 _t_out_end = _math.ceil(_raw_end * 60) / 60
             except Exception:
                 pass
-        # Use DRF bounds for t_out if available -- most reliable
+        # REAL BUG FOUND during live testing: this used to unconditionally
+        # override the correct sidecar-derived segment bounds above with
+        # the DRF reader's own FULL RECORDING bounds (e.g. the entire
+        # day) whenever --drf-dir was provided -- which is every real
+        # invocation, since that flag is always passed. This stretched
+        # both the preview curve drawn on the zoomed spectrogram and the
+        # exported CSV across the whole day instead of just the segment
+        # actually shown on screen. When that full-day curve got added
+        # to the same plot as the (much narrower) zoomed image, the
+        # view had to widen dramatically to fit it, visually squeezing
+        # the real spectrogram down to a small fraction of the window --
+        # confirmed live: "the plot compressed to the right, about 1/3
+        # original size" after pressing F. The comment describing this
+        # block ("extrapolate beyond clicked region") already correctly
+        # described the real intent -- extrapolate to the segment, not
+        # the whole recording -- so this block simply rounds the
+        # already-correct bounds established above to the nearest
+        # minute, matching what used to only happen in the no-drf_dir
+        # fallback case.
         import math as _mth
-        if self.drf_dir is not None:
-            try:
-                import digital_rf as _drft
-                _rdr = _drft.DigitalRFReader(str(self.drf_dir))
-                _ch = _rdr.get_channels()[0]
-                _bds = _rdr.get_bounds(_ch)
-                _sr = float(_rdr.get_properties(_ch)['samples_per_second'])
-                _drf_t0_h = _bds[0] / _sr / 3600 % 24
-                _drf_t1_h = _bds[1] / _sr / 3600 % 24
-                _t_out_start = _mth.floor(_drf_t0_h * 60) / 60
-                _t_out_end   = _mth.ceil(_drf_t1_h  * 60) / 60 + 1/60
-            except Exception:
-                _t_out_start = _mth.floor(_t_out_start * 60) / 60
-                _t_out_end   = _mth.ceil(_t_out_end * 60 + 3) / 60
-        else:
-            _t_out_start = _mth.floor(_t_out_start * 60) / 60
-            _t_out_end   = _mth.ceil(_t_out_end * 60 + 3) / 60
+        _t_out_start = _mth.floor(_t_out_start * 60) / 60
+        _t_out_end   = _mth.ceil(_t_out_end * 60 + 3) / 60
         t_out = _npw.arange(_t_out_start, _t_out_end, 1/60)
         stem = _pl_wf.Path(self.img_path).stem
         parent = _pl_wf.Path(self.img_path).parent
