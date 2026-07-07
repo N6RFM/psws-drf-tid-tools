@@ -192,21 +192,35 @@ step-by-step guide.
 ## Doppler Extraction Methods
 
 `tid_spect_click.py` is the primary interactive extraction tool,
-providing anchor-guided cwt-prophet and wave-fit extraction with
-a visual spectrogram interface.
+providing anchor-guided cwt-prophet, wave-fit, and plain spline
+extraction with a visual spectrogram interface.
 
-Four methods are available, in order of recommended preference:
+Six methods are available in total, in order of recommended
+preference. `tid_dashboard.py`'s dropdown offers all of these
+**except spline**, which requires the CLI directly (see note below):
 
 | Method | Tool | User input | Best for |
 |--------|------|-----------|----------|
 | **Anchor-guided cwt-prophet** | `tid_spect_click.py` | E=accept auto-trace, or click carrier + X | All events; handles E-region contamination |
 | **Wave-fit** | `tid_spect_click.py --wave-only` | Click cycle points + F to fit | Clean signals with ≥1.5 visible cycles |
+| **Spline** | `tid_spect_click.py --no-prophet` | Click ≥2 anchor points + X to export | Irregular/non-sinusoidal traces a wave-fit model can't capture |
 | **Autocorr** | `drf_to_doppler.py --method autocorr` | None (automated) | Clean signals; good general purpose |
 | **FFT peak-tracking** | `drf_to_doppler.py --method fft` | None (automated) | Fast survey; default method |
+| **CWT peak-tracking** | `drf_to_doppler.py --method cwt` | None (automated) | Multi-peak signals; alternative to FFT |
 
-`drf_to_doppler.py` also supports `cwt`, `bandpass`, and
-`sgolay-ridge` extraction — useful for special cases and
-automated validation (see `synthetic_tests/`).
+**Wave-fit vs. spline, precisely:** both are interactive and both use
+`tid_spect_click.py`, but they're not variations of the same thing.
+Wave-fit fits a single sinusoid through your clicked points (assumes
+one clean oscillation); spline interpolates a curve directly through
+your clicked anchor points with no assumption about shape at all —
+useful when the real trace doesn't look like a clean sine wave.
+Config files record whichever one was actually used as `"method":
+"wave-fit"` or `"method": "spline"` respectively — they are not
+interchangeable labels for the same output.
+
+`drf_to_doppler.py` also supports `bandpass` and `sgolay-ridge`
+extraction — useful for special cases and automated validation (see
+`synthetic_tests/`).
 
 
 See `MANUAL_TUTORIAL.md` for the full extraction method comparison

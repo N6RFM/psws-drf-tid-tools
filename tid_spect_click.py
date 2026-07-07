@@ -3,10 +3,26 @@ tid_spect_click.py — spectrogram-based guided Doppler phase extraction
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 0.8.0
+Version: 0.9.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v0.9.0  Fixed a real terminology bug found during a documentation
+          review, not live testing this time: wave-fit's own accepted
+          CSVs were being recorded in the config with "method":
+          "spline" -- but spline is a genuinely separate, real
+          extraction method (_export_spline_csv, anchor-click + PCHIP
+          interpolation directly through the clicks, no sinusoid
+          model at all), completely different from wave-fit (fits a
+          single sinusoid). Reusing that name caused every wave-fit
+          CSV extracted this entire session to be mislabeled in the
+          saved config, including tid_doa.py's own "methods_used"
+          reporting. Corrected _wave_fit_finalize() to record
+          "wave-fit" instead. Verified: confirmed no other code
+          anywhere branches on method=="spline" in a way that would
+          need updating for this (checked explicitly), and confirmed
+          via a real _wave_fit_finalize() run that the saved config
+          now correctly shows "method": "wave-fit".
   v0.8.0  Fixed a third real bug in the auto-cycle-estimate, found
           during live testing with 9 real, well-placed clicks (well
           above the 6-point minimum from v0.7.0): the tolerance used
@@ -1660,13 +1676,16 @@ class SpectClickApp(QtWidgets.QMainWindow):
               f"directory automatically. You don't need to move it "
               f"yourself, even though --show-commands describes a "
               f"different final path.)")
-        # Real bug, found during live testing: this function never called
-        # _save_event_json, unlike _export_spline_csv/_export_prophet_csv
-        # (the other two export paths). --event-json's whole point is to
-        # register the exported file/method in the config automatically --
-        # for wave-fit mode specifically, that never happened, silently,
-        # regardless of which key sequence was used to export.
-        self._save_event_json(str(final), "spline")
+        # REAL TERMINOLOGY BUG FOUND: wave-fit's own accepted CSVs were
+        # being recorded with method "spline" -- but "spline" is a
+        # genuinely separate, real extraction method (_export_spline_csv,
+        # anchor-click + PCHIP interpolation directly through the clicks,
+        # no sinusoid model at all), completely different from wave-fit
+        # (fits a single sinusoid). Reusing that name here caused every
+        # wave-fit CSV all session to be mislabeled in the saved config,
+        # including tid_doa.py's own "methods_used" reporting. Corrected
+        # to record wave-fit's own, correct name.
+        self._save_event_json(str(final), "wave-fit")
         return final
 
     def _wave_fit_accept(self):
@@ -1686,7 +1705,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         Called after X export when --event-json was supplied on the CLI.
         Updates the matching station entry (by name) in-place:
           - "file"   -> relative path to the exported CSV
-          - "method" -> "cwt-prophet" or "spline"
+          - "method" -> "cwt-prophet", "spline", or "wave-fit"
         Also stamps "max_lag_seconds" at top level if not present,
         using the auto-computed value from min_expected_speed_m_s and
         the longest baseline in the station list (rough heuristic —
