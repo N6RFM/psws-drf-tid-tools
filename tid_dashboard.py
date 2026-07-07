@@ -6,10 +6,30 @@ Madrigal TEC cross-check).
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 0.9.1
+Version: 0.10.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v0.10.0 Removed 5 functions that were separate copies of code
+          tid_workflow.py already had -- discover_stations,
+          probe_station_channel_nums, best_channel_num_choice,
+          load_coords_cache, save_coords_cache. One (best_channel_num_
+          choice) even had a docstring admitting the duplication at
+          the time it was written ("Same selection policy as
+          tid_workflow.py's best_channel_num()"). Now imports
+          tid_workflow.py directly and either aliases straight to its
+          functions (discover_stations, best_channel_num_choice,
+          load_coords_cache, save_coords_cache -- identical signatures,
+          zero changes needed) or calls the shared, now-parameterized
+          version (probe_channel_nums, which gained an optional
+          channel= parameter in tid_workflow.py v1.2.2 to cover the
+          one genuine difference that existed -- RX888-style stations
+          with multiple real channels). No functional change from the
+          dashboard's perspective; net -80 lines. Verified: full
+          end-to-end run against the same synthetic multi-channel-num
+          test event used throughout this session, confirming
+          channel-num auto-detection still correctly picks channel 4
+          and the full pipeline still runs with no exceptions.
   v0.9.1  Fixed a display-label mismatch: the "Step 1 -- Interactive
           extraction" subheader showed "spline" for wave-only runs,
           matching a real mislabeling bug in tid_spect_click.py's own
@@ -135,6 +155,16 @@ import streamlit as st
 
 REPO_DIR = Path(__file__).resolve().parent
 
+# Reuse tid_workflow.py's own functions rather than maintaining separate
+# copies -- found during a repo audit that 5 functions here had been
+# copy-pasted from tid_workflow.py instead of imported (one of them,
+# best_channel_num_choice, even had a docstring admitting as much:
+# "Same selection policy as tid_workflow.py's best_channel_num()").
+# Exactly the kind of duplication that makes bugs need fixing twice.
+if str(REPO_DIR) not in sys.path:
+    sys.path.insert(0, str(REPO_DIR))
+import tid_workflow
+
 # ── Settings autosave ──
 # Persists everything except the run button's own state, so re-opening
 # the dashboard doesn't require re-typing Madrigal info / re-picking the
@@ -217,27 +247,7 @@ def projected_lag_s(dist_km, az_toward_deg, baseline_bear_deg, speed_ms):
     return (dist_km * 1000 * proj) / speed_ms
 
 
-# ── Station / channel discovery (mirrors tid_workflow.py's conventions
-#    for the parts it already covers; channel selection -- as opposed to
-#    channel-num selection -- is new, no existing repo tool does this) ──
-
-def discover_stations(event_dir):
-    """Find DRF-readable subdirectories of event_dir. Returns list of Path."""
-    stations = []
-    try:
-        import digital_rf as drf_lib
-    except ImportError:
-        return None  # signals "digital_rf not installed" to the caller
-    for d in sorted(Path(event_dir).iterdir()):
-        if not d.is_dir():
-            continue
-        try:
-            r = drf_lib.DigitalRFReader(str(d))
-            if r.get_channels():
-                stations.append(d)
-        except Exception:
-            continue
-    return stations
+discover_stations = tid_workflow.discover_stations
 
 
 def discover_channels(drf_dir):
@@ -332,102 +342,18 @@ def render_channel_spectrogram(drf_dir, channel, center_dt=None, seconds=600, ch
         return fig
 
 
-def probe_station_channel_nums(drf_dir, channel, target_mhz=10.0):
-    """Probe every channel-num within a specific DRF channel, returning
-    (channel_num_idx, snr_db, freq_hz) tuples sorted by SNR descending.
-
-    Channel-aware equivalent of tid_workflow.py's probe_channel_nums(),
-    which always hardcodes channel[0] -- needed here since a station
-    could have multiple real channels (RX888-style) AND multiple
-    channel-nums within whichever one was actually selected.
-
-    Real-world finding (June 6 2026 event): 3 of 4 stations turned out
-    to be genuine KA9Q-radio/WSPRdaemon receivers with up to 9
-    channel-nums each, and this dashboard previously always silently
-    used channel-num 0 -- often an empty/unused band, not the actual
-    carrier -- producing spectrograms with no visible signal at all.
-    "PSWS data has no channel-nums" (an earlier correction this session)
-    turned out to be true only for some station types, not all.
-    """
-    try:
-        import digital_rf as drf_lib
-        r = drf_lib.DigitalRFReader(str(drf_dir))
-        props = r.get_properties(channel)
-        sr = float(props["samples_per_second"])
-        b0, b1 = r.get_bounds(channel)
-        mid = (b0 + b1) // 2
-        block = int(sr * 60)
-        try:
-            iq = r.read_vector(mid, block, channel)
-        except Exception:
-            iq = r.read_vector(b0, min(block, b1 - b0), channel)
-
-        if iq.ndim == 1:
-            spec = np.abs(np.fft.rfft(iq.real))
-            snr = 20 * np.log10(spec.max() / (np.median(spec) + 1e-12))
-            freq = None
-            for key in ["center_frequencies", "center_frequency", "rf_centerfreq", "centerfreq"]:
-                val = props.get(key, None)
-                if val is not None:
-                    try:
-                        freq = float(np.atleast_1d(val)[0])
-                    except Exception:
-                        pass
-                    break
-            return [(0, float(snr), freq)]
-
-        n_subs = iq.shape[1]
-        freqs = None
-        for key in ["center_frequencies", "center_frequency", "rf_centerfreq",
-                    "centerfreq", "subchannel_center_frequencies"]:
-            val = props.get(key, None)
-            if val is not None:
-                try:
-                    arr = np.atleast_1d(val)
-                    if len(arr) == n_subs:
-                        freqs = arr
-                        break
-                    elif len(arr) == 1:
-                        freqs = np.full(n_subs, float(arr[0]))
-                        break
-                except Exception:
-                    pass
-
-        results = []
-        for sub in range(n_subs):
-            col = iq[:, sub]
-            spec = np.abs(np.fft.fftshift(np.fft.fft(col))) if np.iscomplexobj(col) else np.abs(np.fft.rfft(col))
-            snr = 20 * np.log10(spec.max() / (np.median(spec) + 1e-12))
-            freq = float(freqs[sub]) if freqs is not None else None
-            results.append((sub, float(snr), freq))
-        return sorted(results, key=lambda x: -x[1])
-    except Exception:
-        return [(0, 0.0, None)]
+# probe_station_channel_nums and best_channel_num_choice used to be
+# separate copies of tid_workflow.py's probe_channel_nums()/
+# best_channel_num() -- consolidated. probe_channel_nums() now takes an
+# optional channel= parameter (added for this), covering the one real
+# difference that existed (RX888-style stations with multiple real
+# channels); best_channel_num()'s signature was already identical, so
+# it's aliased directly with no changes needed at all.
+best_channel_num_choice = tid_workflow.best_channel_num
 
 
-def best_channel_num_choice(subs, target_mhz=10.0):
-    """Same selection policy as tid_workflow.py's best_channel_num(): a
-    frequency match within 100 kHz of target_mhz wins; otherwise fall
-    back to highest SNR."""
-    freq_matches = [(sub, snr, freq) for sub, snr, freq in subs if freq is not None]
-    if freq_matches:
-        closest = min(freq_matches, key=lambda x: abs(x[2] / 1e6 - target_mhz))
-        if abs(closest[2] / 1e6 - target_mhz) < 0.1:
-            return closest[0], f"frequency match ({closest[2] / 1e6:.3f} MHz)"
-    best = subs[0]
-    return best[0], f"highest SNR ({best[1]:.1f} dB)"
-
-
-def load_coords_cache(event_dir):
-    p = Path(event_dir) / "station_coords.json"
-    if p.exists():
-        return json.loads(p.read_text())
-    return {}
-
-
-def save_coords_cache(event_dir, cache):
-    p = Path(event_dir) / "station_coords.json"
-    p.write_text(json.dumps(cache, indent=2))
+load_coords_cache = tid_workflow.load_coords_cache
+save_coords_cache = tid_workflow.save_coords_cache
 
 
 def generate_zoomed_spectrogram(event_path, drf_dir, channel, station_name,
@@ -495,8 +421,8 @@ def run_interactive_extraction(config_path, drf_dir, channel, station_name,
     reverting to a wider default range.
 
     channel-num: the confirmed channel-num index for this station (see
-    probe_station_channel_nums/best_channel_num_choice). A previous
-    version of this function hardcoded --channel-num 0 unconditionally
+    tid_workflow.probe_channel_nums()/best_channel_num_choice below). A
+    previous version of this function hardcoded --channel-num 0 unconditionally
     with a comment claiming "PSWS data has no channel-nums" -- true for
     some station types, not all; 3 of 4 real stations tested this
     session turned out to be KA9Q-radio/WSPRdaemon receivers with real
@@ -1068,7 +994,7 @@ keystone_station = next(d for d in stations_preview if d.name == keystone_name)
 # guess to avoid the overview defaulting to channel-num 0.
 _keystone_chans = discover_channels(keystone_station)
 _keystone_channel_guess = _keystone_chans[0] if _keystone_chans else "ch0"
-_keystone_subs = probe_station_channel_nums(keystone_station, _keystone_channel_guess)
+_keystone_subs = tid_workflow.probe_channel_nums(keystone_station, channel=_keystone_channel_guess)
 keystone_channel_num_guess = (
     best_channel_num_choice(_keystone_subs)[0] if len(_keystone_subs) > 1 else None
 )
@@ -1228,9 +1154,9 @@ if not any_multi_channel:
 #    in 3 of 4 real stations tested this session, contrary to an earlier
 #    assumption in this file that PSWS data never has channel-nums). Uses
 #    tid_workflow.py's own probe_channel_nums()/best_channel_num() policy
-#    (frequency match to target_mhz, else highest SNR), channel-aware
-#    (see probe_station_channel_nums above) since the channel confirmed
-#    just above might not be channel[0]. --
+#    (frequency match to target_mhz, else highest SNR), passing channel=
+#    explicitly since the channel confirmed just above might not be
+#    channel[0] -- see the call below. --
 st.subheader("Channel-num selection")
 target_mhz = st.number_input(
     "Target carrier frequency (MHz)", value=10.0, step=0.5,
@@ -1240,7 +1166,7 @@ target_mhz = st.number_input(
 )
 any_multi_channel_num = False
 for s in station_info:
-    subs = probe_station_channel_nums(s["drf_dir"], s.get("channel"), target_mhz=target_mhz)
+    subs = tid_workflow.probe_channel_nums(s["drf_dir"], target_mhz=target_mhz, channel=s.get("channel"))
     if len(subs) <= 1:
         s["channel_num"] = subs[0][0] if subs else None
         continue
