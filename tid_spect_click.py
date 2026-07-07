@@ -3,10 +3,44 @@ tid_spect_click.py — spectrogram-based guided Doppler phase extraction
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 0.5.0
+Version: 0.6.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v0.6.0  The wave-fit cycle-count dialog now seeds itself with a
+          real, data-driven estimate instead of a blind guess of
+          "1.0". Found during live testing of a real event (N6RFM_5,
+          June 6 2026): a manually-entered "1.0" cycles answer was
+          actually wrong (the true count was 2.0), producing a fitted
+          period exactly double what the other two stations in the
+          same event independently measured -- which materially
+          distorted the resulting TID direction-of-arrival result
+          (speed came out non-physical; fixed once the correct cycle
+          count was used). The dialog's only prior fallback for a
+          data-driven estimate required manually supplying an
+          external --period-hint, which virtually nobody does.
+          Now fits the sine model at a range of candidate cycle
+          counts directly against the user's own clicked points
+          (coarse grid search 0.2-6.0, then a finer local refinement)
+          and seeds the dialog with whichever fits best -- eliminating
+          most of the guessing this dialog previously required, while
+          still letting the user override for genuinely ambiguous
+          cases. Also fixed a real aliasing vulnerability found while
+          testing this: picking the pure global-minimum-residual
+          candidate can lock onto a spurious higher-frequency alias
+          that fits the same sparse click points just as well by
+          coincidence (confirmed: 2 of 5 synthetic test cases failed
+          this way before the fix). Fixed by preferring the simplest
+          (fewest-cycles) explanation among all candidates whose
+          residual is close to the best, the same principle behind
+          preferring a fundamental frequency over its harmonic when
+          both explain sparse data similarly well. Verified: 5/5
+          synthetic cases (0.5, 1.0, 1.5, 2.0, 3.0 true cycles) now
+          correctly recovered, and a full end-to-end run through the
+          real _do_wave_fit() correctly seeded the dialog at 1.99 for
+          a synthetic scenario reproducing the exact real N6RFM_5
+          error (clicks spanning 2 true cycles), where the seed used
+          to be a blind "1.0".
   v0.5.0  Fixed a real bug found testing v0.4.0 live (N6RFM_5, June 6
           2026): after clicking points and pressing F, the plot
           visibly compressed to a fraction of the window's width.
@@ -1337,21 +1371,77 @@ class SpectClickApp(QtWidgets.QMainWindow):
         t_seg = click_t
         d_seg = click_d - click_d.mean()
 
-        # Ask user how many cycles they clicked across.
-        # Much clearer than asking for the period: user counts
-        # peaks-to-peaks or troughs-to-troughs in their clicks.
-        # Period = clicked_span / n_cycles.
+        # THE ACTUAL FIX: instead of defaulting the dialog to a blind
+        # guess of "1.0" (or a guess derived from an external, manually-
+        # supplied --period-hint that virtually nobody provides), fit
+        # the sine model at a RANGE of candidate cycle counts directly
+        # against the user's own clicked points, and seed the dialog
+        # with whichever cycle count fits best. This is exactly the
+        # kind of automatic estimate the GUI/dashboard workflow already
+        # used to avoid pure user guessing -- found missing here during
+        # live testing, after a wrong manual "1.0" answer for N6RFM_5
+        # (the true count was 2.0) produced a period exactly double the
+        # other two stations' independently-measured period, which
+        # measurably distorted the resulting TID speed/direction fit.
         _hint_s = getattr(self, '_period_hint_s', None)
         _hint_min = _hint_s / 60.0 if _hint_s else None
+
+        def _fit_residual_for_n_cycles(n_cyc):
+            """RMS residual of the 3-parameter sine fit at this cycle
+            count, evaluated only at the actual clicked points."""
+            T_h_try = span_h / n_cyc
+            def _sine_try(t, A, phi, offset):
+                return A * _npw.sin(2 * _npw.pi / T_h_try * (t - t_centre_est) + phi) + offset
+            try:
+                with _warnings.catch_warnings():
+                    _warnings.simplefilter("ignore")
+                    popt_try, _ = _curve_fit(
+                        _sine_try, click_t, click_d,
+                        p0=[A_guess_est, 0.0, off_guess_est], maxfev=2000)
+                resid = click_d - _sine_try(click_t, *popt_try)
+                return float(_npw.sqrt(_npw.mean(resid ** 2)))
+            except Exception:
+                return float("inf")
+
+        import warnings as _warnings
+        t_centre_est = (t0_mark + t1_mark) / 2.0
+        A_guess_est   = (click_d.max() - click_d.min()) / 2.0
+        off_guess_est = float(_npw.mean(click_d))
+
+        # Coarse grid search, then a finer local refinement around the
+        # best coarse candidate -- cheap (a few thousand small curve_fit
+        # calls at most) and far more reliable than a single guess for
+        # sparse, non-uniformly-sampled click data.
+        #
+        # Found during testing: picking the pure global-minimum-residual
+        # candidate is vulnerable to aliasing -- a spurious higher-
+        # frequency candidate can fit the same sparse click points just
+        # as well by coincidence, especially with few/evenly-spaced
+        # clicks. Fixed by preferring the simplest (fewest-cycles)
+        # explanation among all candidates whose residual is close to
+        # the best, rather than the pure minimum -- the same principle
+        # behind preferring the fundamental over a harmonic when both
+        # explain sparse data similarly well.
+        _coarse = _npw.arange(0.2, 6.01, 0.1)
+        _residuals = _npw.array([_fit_residual_for_n_cycles(n) for n in _coarse])
+        _best_resid = _residuals.min()
+        _tolerance = max(_best_resid * 1.5, 0.01)
+        _good_enough = _coarse[_residuals <= _tolerance]
+        _best_coarse = float(_good_enough.min()) if len(_good_enough) else _coarse[int(_npw.argmin(_residuals))]
+        _fine = _npw.arange(max(0.1, _best_coarse - 0.1), _best_coarse + 0.101, 0.01)
+        _fine_residuals = [_fit_residual_for_n_cycles(n) for n in _fine]
+        _fine_best_idx = int(_npw.argmin(_fine_residuals))
+        _n_auto = float(_fine[_fine_best_idx])
+        _n_auto_resid = _fine_residuals[_fine_best_idx]
+
+        _n_guess = _n_auto
+        _n_guess_str = f"{_n_auto:.2f}"
+        _hint_note = (f"\n  Best fit to your clicked points: {_n_auto:.2f} "
+                      f"cycles (RMS residual {_n_auto_resid:.3f} Hz)")
         if _hint_min and _hint_min > 0:
-            _n_guess = span_s / 60.0 / _hint_min
-            _n_guess_str = f"{_n_guess:.1f}"
-            _hint_note = (f"\n  period-hint {_hint_min:.0f} min "
-                          f"-> {_n_guess:.1f} cycles in your span")
-        else:
-            _n_guess = 1.0
-            _n_guess_str = "1.0"
-            _hint_note = ""
+            _n_from_hint = span_s / 60.0 / _hint_min
+            _hint_note += (f"\n  (--period-hint {_hint_min:.0f} min would "
+                           f"suggest {_n_from_hint:.1f} cycles instead)")
         from PyQt5 import QtWidgets as _QtW
         dlg = _QtW.QInputDialog()
         dlg.setWindowTitle("Wave-fit: how many cycles?")
