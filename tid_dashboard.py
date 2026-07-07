@@ -6,10 +6,18 @@ Madrigal TEC cross-check).
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 0.9.0
+Version: 0.9.1
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v0.9.1  Fixed a display-label mismatch: the "Step 1 -- Interactive
+          extraction" subheader showed "spline" for wave-only runs,
+          matching a real mislabeling bug in tid_spect_click.py's own
+          saved method name (also fixed, see that file's v0.9.0).
+          Purely cosmetic here -- tsc_method_name isn't used for any
+          comparison/matching logic, only display text -- but shown
+          "spline" is genuinely wrong for a wave-fit run, since spline
+          is a separate, real extraction method.
   v0.9.0  Restored channel-num detection and mandatory visual
           confirmation (KA9Q-radio/WSPRdaemon-style receivers), fixing
           a significant real-world bug found during the first live
@@ -1303,7 +1311,7 @@ if run_button:
 
     if is_interactive_method:
         wave_only = method.startswith("wave-fit")
-        tsc_method_name = "spline" if wave_only else "cwt-prophet"
+        tsc_method_name = "wave-fit" if wave_only else "cwt-prophet"
 
         # -- Step 1: write the config FIRST, with stations but no "file"
         #    yet -- tid_spect_click.py's --event-json needs this file to
