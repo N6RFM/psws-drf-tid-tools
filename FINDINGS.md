@@ -3423,3 +3423,70 @@ Idea 1 (constrained FFT search) is the recommended next implementation.
 2. Run CAPT on May 2024 Gwyn event — the real test
 3. Send Gwyn email — Jan 2026 results + CAPT status
 4. find_event_stations.py — better 4th station
+
+---
+
+## Entry 58 — Jan 2026: wave-fit re-extraction (fully-fixed tooling) disagrees with the canonical result on direction, agrees on speed
+
+**Date:** 2026-07-07
+**Branch:** research_gui
+
+### Context
+All 4 stations (N6RFM, AA6BD, AC0G_ND, W7LUX) re-extracted via
+wave-fit, using tid_spect_click.py after 3 rounds of real bug fixes
+this session (v0.6.0-v0.8.0: the auto-cycle-estimate feature itself,
+a minimum-points gate, and a tolerance fix), each found via live
+testing against this exact event. Concrete evidence the fixes work:
+N6RFM and AA6BD's independently-fitted periods now agree exactly
+(58.0 min each), which did not happen with the original, bug-affected
+clicks.
+
+### New result: 3-station (drop AC0G_ND, same station dropped as the canonical result)
+```
+Speed:     319 m/s
+Direction: coming from 107.8° (roughly ESE)
+```
+
+| Diagnostic | This result | Canonical (Entry 57) |
+|---|---|---|
+| Plane-wave residual | 1.6% | 0.4% |
+| Triangle closure | 4.8% | 1.1% |
+| Pairwise corr (min/mean/max) | 0.15/0.18/0.21 | 0.43/0.57/0.70 |
+| Speed | 319 m/s | 304 m/s |
+| Direction | ~108° (ESE) | 10° (NNE) |
+
+### Interpretation
+**Speed agrees well** (319 vs 304 m/s, ~5%) across two independent
+extraction methods (wave-fit vs prophet) and, notably, across two
+different re-clicks of this same event months apart -- a real,
+meaningful cross-validation on the speed magnitude.
+
+**Direction does not agree** -- roughly 90-100° apart (ESE vs NNE),
+far outside anything explainable by extraction noise. The canonical
+result's pairwise correlations (0.43-0.70) are also substantially
+stronger than this wave-fit result's (0.15-0.21), despite both
+correctly dropping the same problem station (AC0G_ND) and both
+passing most of their own diagnostics.
+
+The most likely explanation: the prophet/cwt extraction method
+appears to be producing cleaner per-station Doppler traces for this
+event than a single-sinusoid wave-fit model does -- direction solves
+are far more sensitive to the exact lag pattern across station pairs
+than the speed magnitude is, so weaker per-station correlation could
+plausibly preserve a roughly-correct speed while corrupting the
+direction. This is consistent with the tooling now being verified
+correct (confirmed via the N6RFM/AA6BD period agreement) while the
+underlying real signal at these stations may simply not be
+well-described by a single clean sinusoid over the analysis window --
+a modeling-assumption question, not a code bug.
+
+### Open question
+Not resolved this session: whether a tighter analysis window (fewer
+wave-fit cycles per station, matching the same "reduce cycles to
+disambiguate" approach used successfully on the June 6 event) would
+bring the wave-fit direction back toward the canonical 10° NNE, or
+whether the two methods are genuinely capturing different aspects of
+a more complex real event. AC0G_ND's own anomalous 11.6-minute period
+(vs 29-58 min for the other three) was also not investigated -- worth
+checking whether that reflects the same single-sinusoid modeling
+limitation, more severely, at that specific station.
