@@ -3,10 +3,42 @@ tid_spect_click.py — spectrogram-based guided Doppler phase extraction
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 0.2.0
+Version: 0.3.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v0.3.0  Fixed 3 real bugs found during live testing against a real
+          event (KV0S_MO, June 6 2026):
+          (1) _wave_fit_finalize() never called _save_event_json() --
+              unlike the cwt-prophet and plain-spline export paths,
+              wave-fit mode's --event-json auto-update silently never
+              worked, regardless of which key was used to export.
+              Config now correctly gets "file"/"method" (method:
+              "spline", the existing documented convention for
+              wave-fit-originated CSVs) after accept.
+          (2) X was unconditionally bound to _export_spline_csv, the
+              wrong export function for wave-fit mode -- pressing X
+              while wave-fit clicking silently exported the wrong
+              thing rather than the wave-fit result. Properly disabled
+              (two QShortcuts on the same key are "ambiguous" to Qt
+              and neither fires, so simply adding a second binding
+              without disabling the first would have made X do
+              nothing) and rebound to the correct wave-fit accept,
+              aliasing it to A -- "X = export" is the natural
+              expectation in every other mode, no reason for wave-fit
+              to be the exception.
+          (3) The click-count status bar showed cwt-prophet-mode text
+              ("E=accept auto-trace... export spline") while actually
+              clicking wave-fit points, because the inline status
+              update only checked _no_prophet, never _wave_only --
+              overwriting the correct text _update_status() had just
+              set moments earlier, on every single click.
+          All three verified directly: unit-tested the fixed
+          _wave_fit_finalize against a real config file (confirms
+          file/method now written correctly), and instantiated the
+          real SpectClickApp class to confirm the old X shortcut is
+          properly disabled (not left ambiguously bound) and the new
+          one correctly targets wave-fit accept.
   v0.2.0  Renamed --subchannel to --channel-num throughout (flag,
           constructor parameter, internal drf_to_doppler.py subprocess
           calls). "Subchannel" incorrectly implied a single combined
@@ -651,7 +683,15 @@ class SpectClickApp(QtWidgets.QMainWindow):
             self._preview_spline()
         self._update_status()
         n = len(self.clicks_t)
-        if self._no_prophet:
+        # Real bug, found during live testing: this only checked
+        # _no_prophet, never _wave_only, so wave-fit mode showed
+        # cwt-prophet-mode status text ("E=accept auto-trace... export
+        # spline") while actually clicking wave-fit points -- confusing,
+        # and specifically flagged during a real event test.
+        if getattr(self, "_wave_only", False):
+            self._set_status(
+                f"{n} click(s).  F=fit  A=accept  Z=undo  R=reset  Q=quit")
+        elif self._no_prophet:
             self._set_status(
                 f"{n} anchor(s).  X=export  Z=undo  R=reset  Q=quit")
         else:
@@ -1370,6 +1410,13 @@ class SpectClickApp(QtWidgets.QMainWindow):
               f"directory automatically. You don't need to move it "
               f"yourself, even though --show-commands describes a "
               f"different final path.)")
+        # Real bug, found during live testing: this function never called
+        # _save_event_json, unlike _export_spline_csv/_export_prophet_csv
+        # (the other two export paths). --event-json's whole point is to
+        # register the exported file/method in the config automatically --
+        # for wave-fit mode specifically, that never happened, silently,
+        # regardless of which key sequence was used to export.
+        self._save_event_json(str(final), "spline")
         return final
 
     def _wave_fit_accept(self):
@@ -1481,9 +1528,11 @@ class SpectClickApp(QtWidgets.QMainWindow):
             keys.extend([("W", self._wave_fit_start),
                          ("F", self._wave_fit_execute),
                          ("A", self._wave_fit_accept)])
+        self._shortcut_objs = {}
         for key, cb in keys:
             sc = QtWidgets.QShortcut(QtGui.QKeySequence(key), self, cb)
             sc.setContext(QtCore.Qt.ApplicationShortcut)
+            self._shortcut_objs[key] = sc
 
 
 # ---------------------------------------------------------------------------
@@ -1614,9 +1663,25 @@ def main():
         win._wave_only = True
         # Bind wave-fit keys (not done in __init__ because _wave_only was False)
         from PyQt5 import QtWidgets as _QtW, QtGui as _QtG, QtCore as _QtC2
+        # X was bound in __init__ to _export_spline_csv, the WRONG export
+        # function for wave-fit mode (it exports whatever spline-mode
+        # preview trace exists, not the wave-fit result -- a real bug
+        # found during live testing against a real event: pressing X in
+        # wave-fit mode silently did the wrong thing rather than nothing
+        # or the right thing). Disable that binding before adding a new
+        # one -- two QShortcuts on the same key are "ambiguous" to Qt and
+        # BOTH become inert, so simply adding a second X binding without
+        # disabling the first would make X do nothing at all, which is
+        # not better. Rebind X to the correct wave-fit accept, aliasing
+        # it to behave the same as A, since "X = export" is the natural
+        # expectation regardless of mode.
+        old_x = getattr(win, "_shortcut_objs", {}).get("X")
+        if old_x is not None:
+            old_x.setEnabled(False)
         for key, cb in [("W", win._wave_fit_start),
                         ("F", win._wave_fit_execute),
-                        ("A", win._wave_fit_accept)]:
+                        ("A", win._wave_fit_accept),
+                        ("X", win._wave_fit_accept)]:
             sc = _QtW.QShortcut(_QtG.QKeySequence(key), win, cb)
             sc.setContext(_QtC2.Qt.ApplicationShortcut)
         from PyQt5 import QtCore as _QtC
