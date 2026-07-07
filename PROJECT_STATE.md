@@ -2870,3 +2870,146 @@ since main never had them.
    using --channel-num correctly this time
 4. fetch_madrigal_tec_closure.py still pending its own live-data
    graduation test (see #93)
+---
+## 100. tid_spect_click.py v0.3.0-v0.7.0: 5 real bugs found in live wave-fit testing; tid_workflow.py --ylim-half-range; first real tid_doa.py runs surface real methodology findings -- 2026-07-07
+
+### What happened
+Systematic CLI testing continued from entry #99, using the fixed
+channel-num detection to actually complete wave-fit extraction for
+real stations and run tid_doa.py for the first time this session.
+Surfaced 5 distinct, real bugs in tid_spect_click.py -- each found by
+actually using the tool against real data, not by inspection.
+
+### tid_spect_click.py v0.3.0: 3 bugs in wave-fit mode's --event-json
+(1) _wave_fit_finalize() never called _save_event_json() -- wave-fit
+    exports silently never registered in the config, unlike
+    cwt-prophet/spline exports which did.
+(2) X was bound to _export_spline_csv (wrong function) in wave-fit
+    mode -- pressing X silently exported the wrong thing.
+(3) Click-count status bar showed cwt-prophet-mode text in wave-fit
+    mode, overwriting the correct text moments after it was set.
+
+### v0.4.0: the actual root cause behind (2) and a worse symptom
+Testing v0.3.0 live (N6RFM_5) surfaced something more serious: after
+clicking and pressing F, the window visibly shrank and a stray blue
+cwt-prophet auto-trace appeared, despite --wave-only. Root cause:
+_wave_only/_no_prophet were hardcoded False in __init__, with main()
+only setting the real values as post-construction attributes AFTER
+the constructor had already run -- every guard inside __init__,
+including the auto-run-Prophet-on-open check, always saw False. Fixed
+by accepting both as real constructor parameters, set correctly
+before anything depending on them runs. Let the whole v0.3.0 X-key
+workaround be deleted too, since _install_shortcuts() now branches
+correctly from the start.
+
+### v0.5.0: preview curve stretched across the full day, not the segment
+Testing v0.4.0 live surfaced a second, unrelated bug: after pressing
+F, the plot compressed into a fraction of the window. t_out (used for
+both the drawn preview curve and the exported CSV) was being
+unconditionally overridden with the DRF reader's own FULL RECORDING
+bounds whenever --drf-dir was provided -- which is every real
+invocation. Fixed by removing the erroneous override; the comment
+describing the code ("extrapolate beyond clicked region") already
+correctly described the intended, narrower behavior.
+
+### v0.6.0: auto-cycle-estimate replaces a blind "1.0" guess
+User feedback, not a bug report: the wave-fit dialog's cycle-count
+guess needed to be genuinely eliminated the way an earlier GUI
+approach did, not left as a guess. A wrong manual "1.0" answer for
+N6RFM_5 (true count was 2.0) had produced a period exactly double the
+other two stations' independently-measured period, measurably
+distorting a real DOA result. Fixed by fitting the sine model at a
+range of candidate cycle counts directly against the user's clicked
+points and seeding the dialog with whichever fits best. Also fixed a
+real aliasing vulnerability found while building this (picking the
+pure best-residual candidate can lock onto a spurious harmonic) by
+preferring the simplest explanation among similarly-good fits.
+
+### v0.7.0: serious regression in v0.6.0, found on the very next real test
+Live testing against a real 4-station event (Jan 19) surfaced that
+with only 3-4 clicked points, the v0.6.0 estimator confidently
+converged to 0.20 (the search grid's own floor) regardless of the
+true cycle count, with false precision. Measured empirically across
+400 synthetic trials: 3 clicks failed 100% of the time, 4 clicks 61%,
+5 clicks 32%, 6+ dropped to single digits. Fixed with a minimum-points
+gate -- below 6 clicks, falls back honestly to the old "1.0" default
+with a clear explanation, rather than presenting an unreliable number
+confidently.
+
+### tid_workflow.py v1.2.0
+Added --ylim-half-range (default 5.0), replacing 7 hardcoded
+--ylim=-5,5 calls, same real-world finding as the dashboard's own
+v0.8.1: a real TID signal often only varies over a much smaller range,
+making the default look flat/squished.
+
+### Docs updated
+WORKFLOW_TUTORIAL.md and MANUAL_TUTORIAL.md: --ylim narrowing note
+added at the actual zoomed-spectrogram steps (not the full-day
+overview step, where a wide default is fine). docs/COOKBOOK.md: the
+wave-fit key-binding table was already stale even before this
+session's changes (described a dialog phrasing that didn't match the
+real tool) -- corrected, and the new auto-cycle-estimate/6-point
+minimum documented.
+
+### Real methodology findings from the first live tid_doa.py runs
+- June 6, 3 stations (JJMP/KV0S_MO/N6RFM_5): full window gave an
+  unphysical 65 m/s result, flagged by the tool's own diagnostics.
+  Narrowing to ~1.7 wave cycles improved it to 120.7 m/s (correct
+  MSTID range) with all 5 diagnostics passing -- but a second attempt
+  at the same narrowed window, after only a small change to N6RFM_5's
+  wave-fit, swung wildly to 394 m/s and nearly the opposite direction.
+  This extreme sensitivity, plus the tool's own "suggested drop:
+  n6rfm_5" recommendation, points to N6RFM_5 being a weak anchor in
+  this specific 3-station geometry -- not something further parameter
+  tuning fixes. AC0G_ND (still unclicked) is the natural 4th station
+  to test dropping N6RFM_5 while keeping >=3 for the solve.
+- Diagnostic [6]'s FFT-based period measurement has a real resolution
+  ceiling: for an N-sample window at dt seconds, the longest
+  resolvable period is exactly N*dt (the fundamental bin). A station
+  showing a period at exactly this value may be hitting the ceiling,
+  not necessarily reporting a genuine, different period -- confirmed
+  this arithmetically (76.0 min reported for a 76-sample, 60s-cadence
+  window matches N*dt exactly).
+- Jan 19, 4 stations (aa6bd/ac0g_nd/n6rfm/w7lux), run via the full
+  guided tid_workflow.py for the first time this session: result was
+  poor (3 of 5 diagnostics failed, correlations 0.035-0.368, period
+  spread 127%). Given this predates the v0.7.0 fix and likely
+  reflects under-clicked wave-fits (few points per station), this
+  result should be treated as invalid and NOT used as a real finding
+  about the Jan 19 event -- re-run once all 4 stations are re-clicked
+  with 6+ points each.
+
+### A found-but-not-yet-fixed bug
+tid_workflow.py's console-logging setup does
+`(event_dir / "runs").mkdir(exist_ok=True)` without `parents=True` --
+fails with FileNotFoundError if event_dir itself doesn't exist yet
+(confirmed live: happened when pointing --event-dir at a not-yet-
+created fresh directory). Worked around this session by using an
+existing directory instead; the underlying code is not yet fixed.
+
+### Housekeeping
+Deleted 7 stale merged-PR branches from GitHub, none of which were
+cleaned up as they were merged (docs/ylim-half-range-tutorial-notes,
+feature/dashboard-interactive-extraction, fix/analyze-event-channel-num,
+fix/dashboard-ylim-control, fix/subchannel-to-channel-num-terminology,
+fix/tid-spect-click-wave-fit-event-json, fix/tid-workflow-ylim-half-range).
+Only main and research_gui remain on GitHub now.
+
+### Open items
+1. Fix tid_workflow.py's missing parents=True mkdir bug (found this
+   session, not yet fixed)
+2. June 6 event: bring AC0G_ND into the 4-station array (still
+   unclicked) to test dropping N6RFM_5, given its demonstrated
+   instability in the 3-station fit
+3. Jan 19 event: re-click all 4 stations with 6+ points each now that
+   v0.7.0 is in place, then re-run tid_doa.py -- the current result
+   predates the fix and should not be trusted
+4. The box-select prototype (test_box_select.py, not part of the
+   toolkit) validated the core idea -- picking time AND Doppler range
+   together in one glance is genuinely better than the old two-step
+   flow, and caught real, non-obvious things (a genuine plot_fraction
+   coordinate bug in the prototype itself, the value of a revert
+   function, real UI ambiguity in RectROI's own corner decorations).
+   No decision yet on folding this into the real tid_quicklook.py.
+5. fetch_madrigal_tec_closure.py still pending its own live-data
+   graduation test (see #93)
