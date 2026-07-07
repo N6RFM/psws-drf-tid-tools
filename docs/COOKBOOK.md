@@ -406,10 +406,27 @@ On open, the tool goes straight to wave-fit mode. Key bindings:
 
     Click   Mark a point on the TID cycle (brown diamond marker)
     F       Fit sinusoidal model to clicked points
-            (dialog asks: 1=half cycle, 2=full cycle, custom multiplier)
+            (dialog asks how many complete cycles your clicks span --
+            see below)
     A       Accept candidate fit — writes final {stn}_wave_tid.csv
+    X       Same as A (accept) -- works either key
     W       Redo wave-fit (discards candidate, clear markers)
     Q       Quit without saving
+
+**The cycle-count dialog:** after pressing F, a dialog asks how many
+complete TID cycles your clicked points span (e.g. 0.5 = half cycle,
+1.0 = one full, 1.5 = one and a half). Click **6 or more points**
+before pressing F and the dialog auto-seeds itself with a real,
+data-driven estimate -- it fits the sine model at a range of
+candidate cycle counts directly against your own clicks and suggests
+whichever fits best, so you're confirming a number rather than
+guessing one from scratch. Below 6 points this estimate isn't
+reliable enough to attempt (a 3-parameter sine fit against only 3-5
+points is fundamentally underdetermined), so the dialog falls back to
+a plain "1.0" default instead -- count cycles yourself by eye in that
+case, or add more clicks and redo the fit. Either way, always check
+the suggested number against what you can actually see on the
+spectrogram before accepting.
 
 Output: `station_wave_tid.csv`
 
