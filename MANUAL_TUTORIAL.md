@@ -176,6 +176,11 @@ python3 drf_spectrogram.py ./n6rfm \
     --callsign N6RFM --grid EM12jw
 ```
 
+Narrow `--ylim` (e.g. `--ylim=-2,2`) if the real signal only varies
+over a much smaller range than +/-5 Hz -- the default can make it
+look flat/squished and hard to visually assess or click precisely in
+the steps below.
+
 ---
 
 ## Step 5 -- Doppler extraction
