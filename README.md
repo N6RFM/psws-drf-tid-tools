@@ -219,8 +219,14 @@ Config files record whichever one was actually used as `"method":
 interchangeable labels for the same output.
 
 `drf_to_doppler.py` also supports `bandpass` and `sgolay-ridge`
-extraction — useful for special cases and automated validation (see
-`synthetic_tests/`).
+extraction — special-case methods, not part of the primary 6 above.
+`bandpass` is validated via `synthetic_tests/` (27/29 conditions
+passing as expected, comparable accuracy to cwt/fft). `sgolay-ridge`
+requires `--corridor`, a JSON file written by `tid_spect_click.py`
+(press X in the GUI) — it refines an existing carrier track rather
+than extracting one standalone, so it needs a prior interactive
+session before it can run at all. Not currently covered by the
+automated synthetic test suite for this reason.
 
 
 See `MANUAL_TUTORIAL.md` for the full extraction method comparison
