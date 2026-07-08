@@ -3257,3 +3257,83 @@ correctly (PASS, 4.8% speed error, 1.0deg az error).
    on folding into the real tid_quicklook.py (see #100)
 5. fetch_madrigal_tec_closure.py still pending its own live-data
    graduation test (see #93)
+---
+## 104. tid_doa.py v1.3.0: real core-algorithm fix found via the synthetic test suite -- cross-correlation peak refinement was unstable near a flat correlation curve -- 2026-07-08
+
+### What happened
+The user's first genuinely comprehensive scripted CLI test using the
+now-fixed synthetic_tests infrastructure (--automated --methods
+autocorr,cwt,fft, 87 test/method combinations across 29 conditions)
+surfaced a real, previously-unknown bug in tid_doa.py itself -- not
+just a wave-fit/dashboard terminology issue like the last several
+entries, but a genuine sub-sample lag-estimation instability in the
+core DOA solver's cross-correlation step.
+
+### The finding
+fast_tid (a 500->800 m/s speed sweep, explicitly documented in
+test_conditions.py as an "alias-safe upper bound" test) showed
+cwt/fft failing at 19.9% speed error while autocorr passed
+comfortably at 14.5% -- on the SAME underlying synthetic data. Direct
+investigation (not guesswork): extracted the same station with both
+methods, confirmed per-station traces agreed almost perfectly (zero
+lag, ~0.005 Hz std noise, no systematic bias) -- ruling out a
+per-station extraction quality difference. Checked all 3 pairwise
+cross-correlation lags directly: two pairs agreed closely between
+methods, but one specific pair (AA6BD-W7LUX) diverged by 117.6
+seconds between autocorr's and cwt's results.
+
+Root cause, confirmed against the real correlation values: the true
+underlying peak sat almost exactly halfway between two adjacent
+60-second sample bins. autocorr's raw argmax landed on one bin, cwt's
+landed on the adjacent one -- a coin-flip driven by tiny, non-
+systematic per-method extraction noise. The existing 3-point parabolic
+sub-sample refinement then refined AWAY from each method's own
+anchor bin, toward the competing one -- both refinements were
+individually correct given their own starting point, but this meant
+the two methods diverged further apart after "refinement" (117.6s)
+than their raw, unrefined bins had been (60s).
+
+### The fix
+Replaced the rigid 3-point parabolic fit in
+cross_correlate_lag_candidates() with a wider least-squares fit (5
+points where available), which incorporates both competing bins into
+the same estimate rather than depending on which one wins the
+coin-flip-close argmax comparison.
+
+### Verification
+Extremely thorough given this touches a core, widely-used function:
+- The specific failing pair converged to within 2.3s (was 117.6s)
+- Full automated suite run TWICE independently -- once during
+  investigation, once by the user on real hardware after applying
+  the fix locally (per their own request, before committing anything)
+- Both runs: Total 87, Pass 80, Unexpected 0 (was Unexpected 2)
+- Both original fast_tid failures resolved (19.9%->4.2% speed error)
+- Several other conditions also improved, some substantially
+  (two_wave: 13.6%->0.0%)
+- No case of degraded accuracy found anywhere across all 87 combinations
+- Two stress tests (very_low_snr, eregion) now have autocorr
+  succeeding at scenarios designed to be too degraded for reliable
+  extraction -- the algorithm outperforming what those tests
+  anticipated, not a new problem; correctly remains uncounted as
+  "unexpected" either way, since stress-test outcomes were never
+  counted in that metric
+
+### Process note
+The user asked to test locally before committing anything -- applied
+the downloaded file directly (backing up the original first), ran
+the full suite independently, then only proceeded to the git branch/
+commit/push sequence after confirming the result themselves. Good
+practice worth continuing for future core-algorithm changes.
+
+### Open items
+1. AC0G_ND's anomalous 11.6-minute period (Jan 19 event) -- still not
+   investigated (see #101)
+2. June 6 event: AC0G_ND still needs its own click to test dropping
+   N6RFM there (see #100, #101)
+3. The box-select prototype (test_box_select.py) -- still no decision
+   on folding into the real tid_quicklook.py (see #100)
+4. The remaining 22 of 29 synthetic test conditions haven't been
+   individually spot-checked beyond the full-suite summary counts --
+   worth a closer look at any with notably large before/after deltas
+5. fetch_madrigal_tec_closure.py still pending its own live-data
+   graduation test (see #93)
