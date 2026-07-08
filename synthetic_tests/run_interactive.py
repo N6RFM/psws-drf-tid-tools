@@ -1,14 +1,28 @@
 #!/usr/bin/env python3
 """
 run_interactive.py -- One-command launcher for interactive extraction
-(cwt-prophet or wave-fit) on synthetic test events.
+(cwt-prophet, wave-fit, or spline) on synthetic test events.
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.0.1
+Version: 1.1.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.1.0  Real bug fix, not just live testing this time: --method
+          "spline" here actually invoked --wave-only the whole time
+          (a genuinely different method -- fits a single sinusoid,
+          vs. spline's anchor-click + PCHIP interpolation with no
+          model assumption at all). choices=["cwt-prophet", "spline"]
+          meant this script had NO way to test the real spline method
+          at all, ever. Renamed the existing (mislabeled) choice to
+          "wave-fit", matching what it actually does, and added a
+          genuine "spline" choice that invokes --no-prophet (the real
+          tool's actual spline invocation, per README.md). Also fixed
+          the candidate-CSV search, which never looked for
+          *_spline_tid.csv at all -- would have silently reported "no
+          output CSV found" for any real spline test run, even a
+          successful one.
   v1.0.1  Renamed --subchannel to --channel-num in the drf_spectrogram.py
           subprocess call, matching that tool's own rename. "Subchannel"
           incorrectly implied a single combined signal demultiplexed
@@ -26,7 +40,11 @@ Usage:
     # All stations, cwt-prophet
     python3 run_interactive.py --test nominal --method cwt-prophet
 
-    # All stations, wave-fit
+    # All stations, wave-fit (fits a single sinusoid)
+    python3 run_interactive.py --test nominal --method wave-fit
+
+    # All stations, spline (anchor-click + PCHIP interpolation, no
+    # sinusoid assumption -- for traces a wave-fit model can't capture)
     python3 run_interactive.py --test nominal --method spline
 
     # Specific stations only
@@ -50,7 +68,7 @@ What it does for each station:
 
 Options:
   --test NAME       Test condition name (e.g. nominal)
-  --method METHOD   cwt-prophet or spline (wave-fit)
+  --method METHOD   cwt-prophet, wave-fit, or spline
   --stations A,B    Comma-separated station names (default: all)
   --force           Re-extract even if CSV already exists
   --all             Run all test conditions sequentially
@@ -148,8 +166,10 @@ def run_spect_click(spectrogram_png, drf_dir, station_name,
         "--name",        station_name,
         "--period-hint", str(int(period_hint_s)),
     ]
-    if method == "spline":
+    if method == "wave-fit":
         cmd.append("--wave-only")
+    elif method == "spline":
+        cmd.append("--no-prophet")
 
     print(f"\n  [{ts()}] Opening {method} for {station_name}...")
     print(f"  Spectrogram: {spectrogram_png.name}")
@@ -179,11 +199,18 @@ def run_spect_click(spectrogram_png, drf_dir, station_name,
     if ref_png.exists():
         subprocess.Popen(["eog", str(ref_png)])
         print(f"  [{ts()}] Reference (with true Doppler): {ref_png.name}")
-    if method == "spline":
+    if method == "wave-fit":
         print("  TIP: See reference image for true carrier location.")
         print("  Click 5+ points on the bright carrier band across "
               "full window.")
         print("  Press F to fit, confirm cycles, press A to accept.")
+    elif method == "spline":
+        print("  TIP: See reference image for true carrier location.")
+        print("  Click points directly ON the carrier -- the spline "
+              "curve passes exactly through your clicks, with no "
+              "sinusoid assumption at all.")
+        print("  Press X to export once you've anchored enough points "
+              "to trace the whole window.")
     else:
         print("  TIP: See reference image (red dashed = true Doppler).")
         print("  Verify the cyan auto-trace follows the carrier.")
@@ -193,14 +220,21 @@ def run_spect_click(spectrogram_png, drf_dir, station_name,
 
     r = subprocess.run(cmd)  # blocks until window closes
 
-    # Find output CSV (tid_spect_click.py writes alongside the PNG)
+    # Find output CSV (tid_spect_click.py writes alongside the PNG).
+    # REAL BUG FOUND while fixing the wave-fit/spline mislabeling above:
+    # this never looked for *_spline_tid.csv at all -- would have
+    # silently reported "no output CSV found" for any real spline run,
+    # even a fully successful one, since spline mode never had a
+    # matching candidate pattern here.
     spect_dir = spectrogram_png.parent
     candidates = [
         spect_dir / f"{station_name}_spectrogram_wave_tid.csv",
         spect_dir / f"{station_name}_spectrogram_prophet_tid.csv",
+        spect_dir / f"{station_name}_spectrogram_spline_tid.csv",
         spect_dir / f"{station_name}_spectrogram_guided.csv",
         spect_dir / f"{spectrogram_png.stem}_wave_tid.csv",
         spect_dir / f"{spectrogram_png.stem}_prophet_tid.csv",
+        spect_dir / f"{spectrogram_png.stem}_spline_tid.csv",
     ]
     found = next((c for c in candidates if c.exists()), None)
     if found:
@@ -260,7 +294,8 @@ def run_one_interactive(test_name, method, station_filter=None,
           f"{', '.join(s['name'] for s in stations)}")
     print(f"Window: {t_start_hhmm} - {t_end_hhmm} UTC\n")
 
-    method_suffix = "cwt-prophet" if method == "cwt-prophet" else "spline"
+    method_suffix = {"cwt-prophet": "cwt-prophet", "wave-fit": "wave-fit",
+                     "spline": "spline"}.get(method, method)
     completed_csvs = {}
 
     for i, s in enumerate(stations, 1):
@@ -321,10 +356,10 @@ def main():
                     help="Test condition name (e.g. nominal)")
     ap.add_argument("--all", action="store_true",
                     help="Run all test conditions sequentially")
-    ap.add_argument("--method", default="spline",
-                    choices=["cwt-prophet", "spline"],
+    ap.add_argument("--method", default="wave-fit",
+                    choices=["cwt-prophet", "wave-fit", "spline"],
                     # Note: cwt-prophet is very slow on synthetic data
-                    help="Extraction method (default: cwt-prophet)")
+                    help="Extraction method (default: wave-fit)")
     ap.add_argument("--stations", metavar="A,B,C",
                     help="Comma-separated station names (default: all)")
     ap.add_argument("--force", action="store_true",
