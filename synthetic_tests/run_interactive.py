@@ -5,10 +5,33 @@ run_interactive.py -- One-command launcher for interactive extraction
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.1.0
+Version: 1.2.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.2.0  Fixed a real bug found live testing multiple interactive
+          methods against the same station in sequence (wave-fit,
+          then cwt-prophet, on the same synthetic test condition):
+          the output-CSV candidate search checked every method's
+          filename pattern unconditionally, regardless of which
+          method was actually just run. Running wave-fit left its
+          _wave_tid.csv file behind in the plots directory; the
+          subsequent cwt-prophet run's search then found that stale
+          file first (earlier in the fixed check-order) instead of
+          its own freshly-created _prophet_tid.csv sitting right next
+          to it. Confirmed directly: the two saved destination CSVs
+          for a real, independent cwt-prophet click session ended up
+          byte-identical to the earlier wave-fit run's file. Fixed by
+          making the candidate search method-aware -- only searching
+          for the pattern(s) the CURRENT method could actually have
+          produced (wave-fit: wave_tid only; spline: spline_tid only;
+          cwt-prophet: prophet_tid, falling back to spline_tid if X
+          was pressed instead of E), rather than every method's
+          pattern regardless of which one is running. Verified
+          directly against the exact failing scenario (a stale
+          wave_tid.csv coexisting with a genuine prophet_tid.csv):
+          confirmed the search now correctly picks the current
+          method's own file every time.
   v1.1.0  Real bug fix, not just live testing this time: --method
           "spline" here actually invoked --wave-only the whole time
           (a genuinely different method -- fits a single sinusoid,
@@ -221,21 +244,35 @@ def run_spect_click(spectrogram_png, drf_dir, station_name,
     r = subprocess.run(cmd)  # blocks until window closes
 
     # Find output CSV (tid_spect_click.py writes alongside the PNG).
-    # REAL BUG FOUND while fixing the wave-fit/spline mislabeling above:
-    # this never looked for *_spline_tid.csv at all -- would have
-    # silently reported "no output CSV found" for any real spline run,
-    # even a fully successful one, since spline mode never had a
-    # matching candidate pattern here.
+    #
+    # REAL BUG FOUND testing this live: this used to check ALL methods'
+    # filename patterns unconditionally, in a fixed order, regardless of
+    # which method was actually being run. Running wave-fit then
+    # cwt-prophet on the SAME station (exactly the scenario of testing
+    # multiple methods against one synthetic condition) left the
+    # wave-fit run's _wave_tid.csv file behind in the plots directory;
+    # the cwt-prophet run's search then found THAT stale file first
+    # (it was earlier in the checked-in-order list) instead of the
+    # cwt-prophet run's own freshly-created _prophet_tid.csv, even
+    # though the correct file existed right alongside it. Confirmed
+    # directly: the two saved CSVs were byte-identical despite a real,
+    # independent cwt-prophet session having just run.
+    #
+    # Fixed by only searching for the patterns the CURRENT method could
+    # actually have produced, rather than every method's pattern.
     spect_dir = spectrogram_png.parent
-    candidates = [
-        spect_dir / f"{station_name}_spectrogram_wave_tid.csv",
-        spect_dir / f"{station_name}_spectrogram_prophet_tid.csv",
-        spect_dir / f"{station_name}_spectrogram_spline_tid.csv",
-        spect_dir / f"{station_name}_spectrogram_guided.csv",
-        spect_dir / f"{spectrogram_png.stem}_wave_tid.csv",
-        spect_dir / f"{spectrogram_png.stem}_prophet_tid.csv",
-        spect_dir / f"{spectrogram_png.stem}_spline_tid.csv",
-    ]
+    if method == "wave-fit":
+        method_patterns = ["wave_tid"]
+    elif method == "spline":
+        method_patterns = ["spline_tid"]
+    else:  # cwt-prophet: E accepts the auto-trace (prophet_tid), X falls
+           # back to a plain spline export (spline_tid)
+        method_patterns = ["prophet_tid", "spline_tid"]
+    candidates = []
+    for pat in method_patterns:
+        candidates.append(spect_dir / f"{station_name}_spectrogram_{pat}.csv")
+        candidates.append(spect_dir / f"{spectrogram_png.stem}_{pat}.csv")
+    candidates.append(spect_dir / f"{station_name}_spectrogram_guided.csv")
     found = next((c for c in candidates if c.exists()), None)
     if found:
         print(f"  [{ts()}] Output: {found.name}")

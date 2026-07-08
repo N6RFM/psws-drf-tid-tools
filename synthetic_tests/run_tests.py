@@ -5,10 +5,18 @@ validation suite.
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.1.0
+Version: 1.2.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.2.0  Fixed the same method-awareness bug just fixed in
+          run_interactive.py v1.2.0 (see that file's changelog for
+          the full story): the plots-directory candidate search here
+          also checked every method's filename pattern unconditionally,
+          letting a stale wave-fit file from an earlier run get picked
+          up during a later cwt-prophet run on the same station. Fixed
+          the same way -- candidate search now only looks for the
+          patterns the CURRENT method could actually have produced.
   v1.1.0  Real bug fix found while extending run_interactive.py's own
           wave-fit/spline terminology fix to this file: the actual
           evaluation-side file search (not just --show-commands'
@@ -209,24 +217,37 @@ def run_one_test(tc, method, output_root, verbose=True):
         csv_path = event_dir / f"{s['name'].lower()}_{method}.csv"
         if method in INTERACTIVE_METHODS:
             # Don't run extraction -- user must have run tid_spect_click.py
-            # tid_spect_click.py writes CSV alongside the spectrogram PNG
-            # so also check plots dir for <station>_spectrogram_wave_tid.csv
-            # (wave-fit), <station>_spectrogram_prophet_tid.csv (cwt-prophet),
-            # or <station>_spectrogram_spline_tid.csv (spline). REAL BUG
-            # FOUND while fixing the wave-fit/spline terminology mislabeling
-            # elsewhere in this file: the spline pattern was missing here
-            # entirely -- a real spline extraction would have silently gone
-            # unfound, evaluated as if the station had no data at all.
+            # tid_spect_click.py writes CSV alongside the spectrogram PNG,
+            # so also check plots dir for it if the final destination
+            # doesn't exist yet.
+            #
+            # REAL BUG FOUND testing this live: this used to check ALL
+            # methods' filename patterns unconditionally, regardless of
+            # which method was actually being run. Running wave-fit then
+            # cwt-prophet on the SAME station left the wave-fit run's
+            # _wave_tid.csv file behind in the plots directory; a
+            # subsequent cwt-prophet run's search found that stale file
+            # first (checked earlier in the fixed list) instead of its
+            # own freshly-created _prophet_tid.csv sitting right next to
+            # it. Confirmed directly: the two saved destination CSVs
+            # ended up byte-identical despite a real, independent
+            # cwt-prophet session having just run. Fixed by only
+            # searching for the patterns the CURRENT method could
+            # actually have produced.
             if not csv_path.exists():
                 plots_dir = pathlib.Path(__file__).parent / 'plots' / name
                 stn_lower = s['name'].lower()
-                # Look for tid_spect_click.py output in plots dir
-                candidates = [
-                    plots_dir / f"{s['name']}_spectrogram_wave_tid.csv",
-                    plots_dir / f"{s['name']}_spectrogram_prophet_tid.csv",
-                    plots_dir / f"{s['name']}_spectrogram_spline_tid.csv",
-                    plots_dir / f"{s['name']}_spectrogram_guided.csv",
-                ]
+                if method == "wave-fit":
+                    method_patterns = ["wave_tid"]
+                elif method == "spline":
+                    method_patterns = ["spline_tid"]
+                else:  # cwt-prophet: E accepts the auto-trace
+                       # (prophet_tid), X falls back to a plain spline
+                       # export (spline_tid)
+                    method_patterns = ["prophet_tid", "spline_tid"]
+                candidates = [plots_dir / f"{s['name']}_spectrogram_{p}.csv"
+                              for p in method_patterns]
+                candidates.append(plots_dir / f"{s['name']}_spectrogram_guided.csv")
                 found = next((c for c in candidates if c.exists()), None)
                 if found:
                     import shutil
