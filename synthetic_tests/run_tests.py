@@ -5,10 +5,36 @@ validation suite.
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.0.2
+Version: 1.1.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.1.0  Real bug fix found while extending run_interactive.py's own
+          wave-fit/spline terminology fix to this file: the actual
+          evaluation-side file search (not just --show-commands'
+          printed instructions) never looked for
+          *_spectrogram_spline_tid.csv at all -- a real, successful
+          spline extraction would have silently gone unfound and been
+          evaluated as if the station had no data at all. Also fixed
+          --show-commands, which generated a wave-fit command
+          correctly labeled "wave-fit (--wave-only)" but then
+          destined its output for a file named "spline.csv" and told
+          the user to evaluate it via --methods spline -- the same
+          mislabeling bug as tid_spect_click.py's own v0.9.0 fix, just
+          showing up here as generated instructions rather than saved
+          config. Now generates a genuinely separate third command
+          block for the real spline method (--no-prophet), with its
+          own correctly-named destination file. Also fixed a
+          pre-existing, separate inaccuracy noticed while doing this:
+          the cwt-prophet command block's own comment described its
+          typical output filename as "_wave_tid.csv" (wave-fit's
+          filename), when it should say "_prophet_tid.csv".
+          Verified: ran the real evaluation pipeline against fake
+          spline output CSVs placed at the exact expected location,
+          confirmed the fix correctly finds and copies them
+          ("SYN_AA6BD: copied SYN_AA6BD_spectrogram_spline_tid.csv ->
+          syn_aa6bd_spline.csv") -- before this fix, that file could
+          never have been found regardless of extraction success.
   v1.0.2  Renamed run_extraction()'s subchannel parameter and the
           --subchannel drf_to_doppler.py subprocess arg to channel_num/
           --channel-num, matching that tool's own rename. "Subchannel"
@@ -170,8 +196,9 @@ def run_one_test(tc, method, output_root, verbose=True):
     station_cfgs = []
     csvs = {}
 
-    # Interactive methods (cwt-prophet, spline) -- look for pre-existing
-    # CSV from tid_spect_click.py rather than running extraction
+    # Interactive methods (cwt-prophet, wave-fit, spline) -- look for
+    # pre-existing CSV from tid_spect_click.py rather than running
+    # extraction
     INTERACTIVE_METHODS = {"cwt-prophet", "spline", "wave-fit"}
 
     # Extract Doppler for each station
@@ -184,7 +211,12 @@ def run_one_test(tc, method, output_root, verbose=True):
             # Don't run extraction -- user must have run tid_spect_click.py
             # tid_spect_click.py writes CSV alongside the spectrogram PNG
             # so also check plots dir for <station>_spectrogram_wave_tid.csv
-            # (wave-fit) or <station>_spectrogram_prophet_tid.csv (cwt-prophet)
+            # (wave-fit), <station>_spectrogram_prophet_tid.csv (cwt-prophet),
+            # or <station>_spectrogram_spline_tid.csv (spline). REAL BUG
+            # FOUND while fixing the wave-fit/spline terminology mislabeling
+            # elsewhere in this file: the spline pattern was missing here
+            # entirely -- a real spline extraction would have silently gone
+            # unfound, evaluated as if the station had no data at all.
             if not csv_path.exists():
                 plots_dir = pathlib.Path(__file__).parent / 'plots' / name
                 stn_lower = s['name'].lower()
@@ -192,6 +224,7 @@ def run_one_test(tc, method, output_root, verbose=True):
                 candidates = [
                     plots_dir / f"{s['name']}_spectrogram_wave_tid.csv",
                     plots_dir / f"{s['name']}_spectrogram_prophet_tid.csv",
+                    plots_dir / f"{s['name']}_spectrogram_spline_tid.csv",
                     plots_dir / f"{s['name']}_spectrogram_guided.csv",
                 ]
                 found = next((c for c in candidates if c.exists()), None)
@@ -339,8 +372,9 @@ def _show_interactive_commands(test_name, output_root, results_dir):
                   if test_name else TEST_CONDITIONS)
 
     print('=== Interactive extraction commands ===')
-    print('Run these to extract with cwt-prophet or wave-fit,')
-    print('then evaluate with --methods cwt-prophet or --methods spline')
+    print('Run these to extract with cwt-prophet, wave-fit, or spline,')
+    print('then evaluate with --methods cwt-prophet, --methods wave-fit, '
+          'or --methods spline')
     print()
 
     for tc in conditions:
@@ -379,6 +413,7 @@ def _show_interactive_commands(test_name, output_root, results_dir):
                 print()
 
             out_csv_prophet = event_dir / f'{stn.lower()}_cwt-prophet.csv'
+            out_csv_wavefit = event_dir / f'{stn.lower()}_wave-fit.csv'
             out_csv_spline  = event_dir / f'{stn.lower()}_spline.csv'
 
             axes_json = png.with_name(png.stem + '_axes.json')
@@ -393,25 +428,43 @@ def _show_interactive_commands(test_name, output_root, results_dir):
             print(f'    --name {stn} \\' )
             print(f'    --period-hint {period_min*60:.0f}')
             print(f'  # tid_spect_click.py saves next to the spectrogram PNG '
-                  f'first (e.g. {png.with_name(png.stem + "_wave_tid.csv")});')
+                  f'first (e.g. {png.with_name(png.stem + "_prophet_tid.csv")});')
             print(f'  # this run_tests.py --methods cwt-prophet evaluation '
                   f'step below finds it there and copies it to:')
             print(f'  #   {out_csv_prophet}')
             print()
-            print(f'  # {stn} -- wave-fit (--wave-only): {sidecar_note}')
+            print(f'  # {stn} -- wave-fit (--wave-only, fits a single '
+                  f'sinusoid): {sidecar_note}')
             print(f'  python3 {spect_click} \\' )
             print(f'    --spectrogram {png} \\' )
             print(f'    --drf-dir {drf_dir} \\' )
             print(f'    --name {stn} \\' )
             print(f'    --period-hint {period_min*60:.0f} \\' )
             print(f'    --wave-only')
-            print(f'  # Same pattern: saved next to the PNG first, then '
-                  f'--methods spline below auto-copies it to:')
+            print(f'  # Same pattern: saved next to the PNG first '
+                  f'(e.g. {png.with_name(png.stem + "_wave_tid.csv")}), '
+                  f'then --methods wave-fit below auto-copies it to:')
+            print(f'  #   {out_csv_wavefit}')
+            print()
+            print(f'  # {stn} -- spline (--no-prophet, anchor-click + PCHIP '
+                  f'interpolation, no sinusoid assumption at all): '
+                  f'{sidecar_note}')
+            print(f'  python3 {spect_click} \\' )
+            print(f'    --spectrogram {png} \\' )
+            print(f'    --drf-dir {drf_dir} \\' )
+            print(f'    --name {stn} \\' )
+            print(f'    --period-hint {period_min*60:.0f} \\' )
+            print(f'    --no-prophet')
+            print(f'  # Click points directly on the carrier, press X to '
+                  f'export -- saved next to the PNG first '
+                  f'(e.g. {png.with_name(png.stem + "_spline_tid.csv")}), '
+                  f'then --methods spline below auto-copies it to:')
             print(f'  #   {out_csv_spline}')
             print()
 
         print(f'  # After extraction, evaluate:')
         print(f'  python3 run_tests.py --test {name} --methods cwt-prophet')
+        print(f'  python3 run_tests.py --test {name} --methods wave-fit')
         print(f'  python3 run_tests.py --test {name} --methods spline')
         print()
 
@@ -432,9 +485,10 @@ def main():
                     help="List all test conditions and exit")
     ap.add_argument("--show-commands", action="store_true",
                     help="Print tid_spect_click.py commands for interactive "
-                         "extraction (cwt-prophet, spline/wave-fit) without "
+                         "extraction (cwt-prophet, wave-fit, spline) without "
                          "running them. Run these manually, then use "
-                         "--methods cwt-prophet or --methods spline to evaluate.")
+                         "--methods cwt-prophet, --methods wave-fit, or "
+                         "--methods spline to evaluate.")
     args = ap.parse_args()
 
     if args.show_commands:
