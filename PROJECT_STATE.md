@@ -3408,3 +3408,60 @@ issue in real time, rather than after merging.
    on folding into the real tid_quicklook.py (see #100)
 6. fetch_madrigal_tec_closure.py still pending its own live-data
    graduation test (see #93)
+---
+## 106. All extraction methods now tested (or explicitly documented as untestable): bandpass validated, sgolay-ridge requires an interactive prerequisite -- 2026-07-08
+
+### What happened
+Closing out the "test all extraction methods" arc: checked whether
+the two remaining, previously-untested drf_to_doppler.py methods
+(bandpass, sgolay-ridge) could be run through the synthetic test
+suite at all, since neither had ever been tried.
+
+### bandpass: works, validated
+Confirmed --methods bandpass runs correctly through the automated
+test suite with no code changes needed. Ran the full 29-condition
+sweep: Total 29, Pass 27, Unexpected 0. Accuracy essentially matches
+cwt/fft on every condition (e.g. nominal 4.8%, fast_tid 4.2%),
+consistent with its documented design (bandpass-filtered FFT peak
+detection).
+
+### sgolay-ridge: not currently testable, by design
+--method sgolay-ridge requires --corridor, a JSON file only produced
+by tid_spect_click.py when the user presses X in the GUI. Unlike the
+other automated methods, sgolay-ridge REFINES an existing carrier
+track rather than extracting one standalone -- it has no way to run
+without a prior interactive session. Confirmed nothing in the current
+test infrastructure generates a corridor file. Discussed 3 options
+(build proper synthetic corridor-generation, test manually once,
+or document as untested) -- chose to document and move on rather
+than build out infrastructure for a method that fundamentally
+requires interactive input.
+
+README.md updated to reflect this precisely: bandpass now described
+as validated (with its actual pass rate), sgolay-ridge described as
+requiring the interactive prerequisite, rather than the two being
+left undifferentiated as "also supports X and Y."
+
+### Complete testing picture, all 8 real extraction methods
+| Method | Status |
+|---|---|
+| autocorr, cwt, fft | Fully automated, 87 combinations tested (entries #103-104) |
+| bandpass | Fully automated, 29 conditions tested (this entry) |
+| wave-fit, cwt-prophet, spline | Interactive, tested on nominal (entry #105) |
+| sgolay-ridge | Requires interactive prerequisite -- not currently testable |
+
+### Open items
+1. cwt-prophet's notably higher error (24.8%) vs wave-fit (0.4%) and
+   spline (13.3%) on the same station/condition -- not yet investigated
+   (see #105)
+2. Only the "nominal" condition has been tested with the interactive
+   methods so far -- broader coverage across other conditions not yet
+   done (see #105)
+3. AC0G_ND's anomalous 11.6-minute period (Jan 19 event) -- still not
+   investigated (see #101)
+4. June 6 event: AC0G_ND still needs its own click to test dropping
+   N6RFM there (see #100, #101)
+5. The box-select prototype (test_box_select.py) -- still no decision
+   on folding into the real tid_quicklook.py (see #100)
+6. fetch_madrigal_tec_closure.py still pending its own live-data
+   graduation test (see #93)
