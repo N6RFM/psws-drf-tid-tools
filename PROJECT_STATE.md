@@ -3337,3 +3337,74 @@ practice worth continuing for future core-algorithm changes.
    worth a closer look at any with notably large before/after deltas
 5. fetch_madrigal_tec_closure.py still pending its own live-data
    graduation test (see #93)
+---
+## 105. First interactive-method testing since the terminology fixes: wave-fit passes cleanly (0.4% error); found and fixed a real stale-file-reuse bug affecting cwt-prophet/spline -- 2026-07-08
+
+### What happened
+First real use of the now-fully-fixed synthetic_tests interactive
+pipeline (run_interactive.py, all 3 methods correctly distinguished
+since the wave-fit/spline terminology work) against the nominal test
+condition. Confirmed wave-fit works cleanly end to end, then found a
+real, separate bug testing cwt-prophet immediately afterward on the
+same station.
+
+### wave-fit: clean pass
+All 3 stations clicked (6+ points each), periods extracted close to
+the true 60-minute period (65-67 min). DOA result: 498.0 m/s @ 30.8°
+vs truth 500.0 m/s @ 30.0° -- 0.4% speed error, 0.8deg azimuth error.
+Genuinely strong accuracy, better than the ~4.8% typical for automated
+methods on this same condition.
+
+### Bug found: cwt-prophet silently reused wave-fit's stale output file
+Running cwt-prophet immediately after wave-fit on the same station
+produced a result byte-identical to the wave-fit run (498.0 m/s @
+30.8°, confirmed via diff -q) despite the user genuinely clicking
+through 3 real cwt-prophet sessions. Root cause: run_interactive.py's
+and run_tests.py's output-CSV candidate search checked every
+interactive method's filename pattern unconditionally, regardless of
+which method was actually just run. wave-fit's _wave_tid.csv file was
+still sitting in the plots directory; cwt-prophet's search found that
+stale file first (earlier in the fixed check-order) instead of its
+own freshly-created _prophet_tid.csv sitting right next to it.
+
+Fixed in both files by making the candidate search method-aware --
+only searching for the pattern(s) the current method could actually
+have produced. Verified against the exact failing scenario in
+isolation, then live: re-ran all 3 interactive methods (wave-fit,
+cwt-prophet, spline) against the same station in sequence and
+confirmed all 3 saved CSVs are now genuinely distinct.
+
+### Results after the fix (nominal test condition, same station set)
+- wave-fit: 498.0 m/s @ 30.8deg -- 0.4% speed err, 0.8deg az err
+- cwt-prophet: 376.1 m/s @ 26.3deg -- 24.8% speed err, 3.7deg az err
+  (passes under the wider 25% manual-method threshold)
+- spline: 433.6 m/s @ 26.5deg -- 13.3% speed err, 3.5deg az err
+
+cwt-prophet's higher error compared to wave-fit's is plausible given
+click precision directly affects manual-method accuracy, and hasn't
+been investigated further -- not yet clear whether this reflects
+genuine per-click precision differences on this test run specifically
+or something more systematic worth a closer look.
+
+### Process note
+User's own request to test the fix locally before committing (same
+practice as the tid_doa.py fix) caught this bug directly -- applying
+the downloaded files to a live branch and immediately re-running the
+exact multi-method sequence that had just misbehaved surfaced the
+issue in real time, rather than after merging.
+
+### Open items
+1. cwt-prophet's notably higher error (24.8%) vs wave-fit (0.4%) and
+   spline (13.3%) on the same station/condition -- not yet investigated,
+   may just be click-precision variability on this one run
+2. Only the "nominal" condition has been tested with the interactive
+   methods so far -- broader coverage across other conditions not yet
+   done
+3. AC0G_ND's anomalous 11.6-minute period (Jan 19 event) -- still not
+   investigated (see #101)
+4. June 6 event: AC0G_ND still needs its own click to test dropping
+   N6RFM there (see #100, #101)
+5. The box-select prototype (test_box_select.py) -- still no decision
+   on folding into the real tid_quicklook.py (see #100)
+6. fetch_madrigal_tec_closure.py still pending its own live-data
+   graduation test (see #93)
