@@ -143,11 +143,11 @@ eog plots/nominal/SYN_AA6BD_spectrogram.png
 
 ---
 
-## Quick start — interactive methods (wave-fit)
+## Quick start — interactive methods (wave-fit, spline)
 
 > **cwt-prophet on synthetic data:** The Prophet model hangs on pure
 > sinusoidal signals. Use cwt-prophet on **real HamSCI events only**.
-> For synthetic testing, use `--method spline` (wave-fit) instead.
+> For synthetic testing, use `--method wave-fit` instead.
 
 Interactive methods require a display and user clicks on the spectrogram.
 The workflow for each test condition is:
@@ -178,9 +178,10 @@ python3 run_tests.py --show-commands --test nominal
 ```
 
 This prints the exact `tid_spect_click.py` command for each station
-and method, noting whether a sidecar `_axes.json` is available.
+and method (cwt-prophet, wave-fit, and spline), noting whether a
+sidecar `_axes.json` is available.
 
-### Step 3: Run cwt-prophet or wave-fit
+### Step 3: Run cwt-prophet, wave-fit, or spline
 
 Run each printed command. The spectrogram opens with the true TID
 Doppler shown as a **red dashed line** — use it as your reference.
@@ -189,15 +190,30 @@ Doppler shown as a **red dashed line** — use it as your reference.
 - Press **E** to accept the auto-detected trace
 - Or click on the carrier to anchor, then press **E**
 
-**For wave-fit (`--wave-only`):**
+**For wave-fit (`--wave-only`)** — fits a single sinusoid, best for
+clean signals with a clear repeating oscillation:
 - Click **5 or more points** on the bright carrier band
 - Spread clicks across the full window (t=0 to t=end)
 - Click peaks, troughs, and zero-crossings
-- Press **F** to fit — a dialog asks "how many cycles did you span?"
-  Count your peak-to-peak intervals and enter the number
-  (period-hint is pre-filled — just confirm if correct)
-- Check the blue fitted curve covers the full window and follows the carrier
-- Press **A** to accept, **W** to redo, **Q** to auto-accept and exit
+- Press **F** to fit — a dialog seeds itself with a data-driven cycle
+  count estimate (fit directly against your own clicks) if you clicked
+  6 or more points; below that, it falls back to a plain default and
+  you'll need to count peak-to-peak intervals yourself. Either way,
+  check the suggested number against what you can actually see before
+  accepting.
+- Check the fitted curve covers the full window and follows the carrier
+- Press **A** (or **X**) to accept, **W** to redo, **Q** to auto-accept
+  and exit
+
+**For spline (`--no-prophet`)** — interpolates directly through your
+clicked points with no sinusoid assumption at all; use this for traces
+a wave-fit model can't capture (irregular, non-sinusoidal, or multiple
+overlapping oscillations):
+- Click points directly **on** the carrier — the spline passes exactly
+  through each click, so precision matters more here than in wave-fit
+- Click enough points to trace the whole window's shape, not just a
+  few anchors
+- Press **X** to export once you're satisfied with the traced shape
 
 Output CSV is saved alongside the spectrogram PNG. The test runner
 copies it automatically to the events directory.
@@ -205,6 +221,8 @@ copies it automatically to the events directory.
 ### Step 4: Evaluate
 
 ```bash
+python3 run_tests.py --test nominal --methods wave-fit
+# or, if you used spline instead:
 python3 run_tests.py --test nominal --methods spline
 ```
 
@@ -239,7 +257,7 @@ limitations:
 | Alias demo | Azimuth error > 30° (wrong-period lag confirmed) | `slow_tid_alias`, `az_east_alias`, `wide_array_alias` |
 | Stress | Speed error > threshold OR flags ≥ 2 | `very_low_snr`, `stress_worst`, `eregion` |
 
-### For manual methods (cwt-prophet, wave-fit)
+### For manual methods (cwt-prophet, wave-fit, spline)
 
 Speed threshold 25%, azimuth threshold 15° — wider than automated
 methods to account for click-precision variability.
