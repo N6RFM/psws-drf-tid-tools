@@ -3192,3 +3192,68 @@ research_gui remain on GitHub.
    in this specific pass were addressed; worth a fuller pass later
 5. fetch_madrigal_tec_closure.py still pending its own live-data
    graduation test (see #93)
+---
+## 103. synthetic_tests: same wave-fit/spline mislabeling bug found in the test infrastructure, fixed across both files -- 2026-07-08
+
+### What happened
+Direct follow-on from entry #102's wave-fit/spline terminology fix:
+extending the same audit to synthetic_tests/, since the goal was to
+comprehensively test the CLI against synthetic data, and testing
+"everything works" against a test harness carrying the same
+terminology bug would have been misleading.
+
+### The same bug, found in a different place
+run_interactive.py's --method "spline" choice actually invoked
+--wave-only the whole time -- its argparse choices list literally
+excluded "wave-fit" as an option, meaning this script had zero way to
+test the real spline method (anchor-click + PCHIP interpolation, no
+sinusoid assumption at all) at all, ever.
+
+run_tests.py had the identical bug in two places: the actual
+evaluation-side file search (not just --show-commands' printed
+instructions) never looked for *_spectrogram_spline_tid.csv at all --
+a real, successful spline extraction would have silently gone unfound
+and been evaluated as if the station had no data. --show-commands
+generated a wave-fit command correctly labeled "wave-fit (--wave-only)"
+but then destined its output for a file named "spline.csv" and told
+the user to evaluate it via --methods spline.
+
+Also fixed a separate, pre-existing inaccuracy noticed while doing
+this: the cwt-prophet command block's own comment described its
+typical output filename as "_wave_tid.csv" (wave-fit's filename)
+instead of "_prophet_tid.csv".
+
+### What's now fixed
+- run_interactive.py: renamed the mislabeled "spline" choice to
+  "wave-fit", added a genuine "spline" choice (--no-prophet), fixed
+  the candidate-CSV search
+- run_tests.py: added the missing spline candidate pattern to the
+  real evaluation-side search, fixed --show-commands to generate a
+  genuinely separate third command block for spline with its own
+  correctly-named destination file, fixed the cwt-prophet filename
+  comment
+
+### Verification
+Ran the real evaluation pipeline against fake spline output CSVs
+placed at the exact expected location: confirmed the fix correctly
+finds and copies them ("SYN_AA6BD: copied
+SYN_AA6BD_spectrogram_spline_tid.csv -> syn_aa6bd_spline.csv") --
+before this fix, that file could never have been found regardless of
+extraction success. Also ran the automated test suite end to end
+(--methods autocorr) to confirm the baseline pipeline still works
+correctly (PASS, 4.8% speed error, 1.0deg az error).
+
+### Open items
+1. Now that the test infrastructure correctly distinguishes all 3
+   interactive methods, the actual comprehensive scripted CLI test
+   run (the original ask) hasn't happened yet -- this session's work
+   was entirely the necessary prerequisite fix, not the test run
+   itself
+2. AC0G_ND's anomalous 11.6-minute period (Jan 19 event) -- still not
+   investigated (see #101)
+3. June 6 event: AC0G_ND still needs its own click to test dropping
+   N6RFM there (see #100, #101)
+4. The box-select prototype (test_box_select.py) -- still no decision
+   on folding into the real tid_quicklook.py (see #100)
+5. fetch_madrigal_tec_closure.py still pending its own live-data
+   graduation test (see #93)
