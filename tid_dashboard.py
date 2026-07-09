@@ -6,10 +6,108 @@ Madrigal TEC cross-check).
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 0.10.0
+Version: 0.13.2
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v0.13.2 Gave the keystone station selector its own proper subheader,
+          matching every other major section (Overview spectrogram,
+          Event window, etc.) -- it was previously just a plain
+          selectbox label with no visual weight of its own, easy to
+          miss entirely on the page. Moved the longer explanation
+          into a shorter selectbox label underneath the subheader,
+          same pattern used elsewhere.
+  v0.13.1 Keystone station selection now defaults from "what the user
+          says it is" first: checks wf_state["my_station"] (a new,
+          dashboard-introduced key -- tid_workflow.py itself never
+          reads or writes it, so purely additive, nothing to
+          conflict with) before falling back to the dashboard's own
+          separate settings cache, before falling back to whichever
+          station sorts first alphabetically. Found live: an event
+          previously run via tid_workflow.py --my-station on the CLI
+          showed the wrong keystone in a fresh dashboard session,
+          since --my-station is a per-invocation CLI flag that was
+          never persisted anywhere for the dashboard to read. This
+          fix doesn't retroactively know a past CLI --my-station
+          choice (nothing recorded it), but a keystone chosen once,
+          via either the dashboard or a future CLI resume that adopts
+          the same key, now persists correctly from then on. Verified:
+          confirmed a fresh session with no saved preference defaults
+          to alphabetically-first as before, and a fresh session after
+          saving a different choice correctly remembers it.
+  v0.13.0 Phase 2 continued: overview spectrogram and event window
+          now also read/write the shared state file. Overview
+          spectrogram checks state FIRST -- if tid_workflow.py (this
+          dashboard or a direct CLI --resume run) already generated
+          this station's overview, reuses that file directly rather
+          than generating a second, differently-named copy (genuine
+          bidirectional reuse, not just read-only awareness). Event
+          window is handled differently, deliberately: it stays a
+          genuinely interactive slider either way, since adjusting the
+          window is a normal thing to want on a return visit -- so
+          resuming means "default to where I left off," not "skip the
+          widget." Converts between the dashboard's real datetimes and
+          tid_workflow.py's own fractional-hours-since-midnight
+          convention, saves back only when the selection actually
+          changes (avoids disk I/O on every rerun), and clips a stale
+          saved window to the station's actual current recorded
+          bounds rather than erroring if they've since changed.
+          Verified: confirmed the overview step reuses a pre-existing
+          CLI-generated file with no dashboard-named copy created:
+          confirmed the window slider defaults to the full range with
+          no saved state, narrowed and saved correctly mid-session,
+          and a completely fresh session correctly defaulted to that
+          saved, narrowed window instead of the full range again.
+  v0.12.0 Phase 2 of the shared-state integration: the channel-num
+          selection step now genuinely reads from and writes to
+          tid_workflow_state.json, the concrete "don't make the user
+          repeat themselves" payoff Phase 1 only laid the groundwork
+          for. Read side: a station already confirmed in a prior
+          session (dashboard or tid_workflow.py --resume directly --
+          both share the same file) skips the interactive
+          confirmation UI entirely, using the saved channel-num
+          instead. Write side: once every station is confirmed,
+          builds and persists the exact station dict shape
+          tid_workflow.py's own _confirm_channel_num() produces
+          (receiver_lat/lon, ipp_lat/lon via its own midpoint() and
+          --tx-lat/--tx-lon defaults, grid via its own KNOWN_STATIONS
+          lookup, date_str via its own get_date_from_drf()) --
+          reusing all of these directly rather than approximating the
+          shape, since a subsequent tid_workflow.py --resume run needs
+          these fields to be genuinely correct, not just name/
+          channel_num. tid_workflow.py itself remains completely
+          unmodified. Verified: two independent, genuinely separate
+          AppTest sessions against the same event directory -- first
+          session confirms a real multi-channel-num station (1
+          checkbox needed) and saves; second, completely fresh
+          session against the same directory needs zero confirmation
+          checkboxes and correctly shows all 3 stations' cached
+          values. Also fixed DASHBOARD_VERSION to match.
+  v0.11.0 Phase 1 of making the dashboard genuinely resumable and
+          interoperable with tid_workflow.py: reads/writes the exact
+          same tid_workflow_state.json file, via tid_workflow.py's own
+          load_state()/save_state() (imported, not reimplemented). On
+          entering a valid event directory, checks for existing saved
+          progress and shows a resume banner -- per-station progress
+          table (mirroring show_resume_menu's own dedup logic, since
+          "spline"/"wave"/etc. all map through one step for different
+          methods) plus a Continue/Start-fresh choice. "Start fresh"
+          matches tid_workflow.py's own choice 5 exactly: state = {},
+          immediately saved to disk, not just ignored for the session.
+          tid_workflow.py itself is completely unmodified -- its own
+          per-step skip checks (e.g. "if wave_key not in state") will
+          work unchanged once later steps are wired to read/write
+          these same keys (follow-on work, not yet done in this
+          version -- this phase only adds detection and the resume/
+          fresh choice, not full step-by-step state integration).
+          Also fixed DASHBOARD_VERSION, a separate display constant
+          that had drifted 2 versions behind this docstring's own
+          version and was showing stale info in the actual UI caption.
+          Verified: full AppTest run against a real synthetic DRF
+          event plus a realistic saved state file, confirming the
+          banner renders the correct per-station progress with no
+          exceptions, and that clicking "Start fresh" + "Confirm"
+          genuinely clears the state file to {} on disk.
   v0.10.0 Removed 5 functions that were separate copies of code
           tid_workflow.py already had -- discover_stations,
           probe_station_channel_nums, best_channel_num_choice,
@@ -144,7 +242,7 @@ import re
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 import matplotlib
@@ -730,6 +828,91 @@ def render_tec_summary(verdict, interp_section, out_dir):
             st.image(str(img_path), caption=img_name)
 
 
+# ── Resume state (shared with tid_workflow.py's own --resume) ─────────────
+#
+# Reads/writes the EXACT SAME tid_workflow_state.json file tid_workflow.py
+# itself reads/writes, via its own load_state()/save_state() (imported,
+# not reimplemented) -- a dashboard session and a CLI session are meant to
+# be fully interchangeable, each able to pick up exactly where the other
+# left off. tid_workflow.py's own code is not modified anywhere to support
+# this: it already skips any step whose state key is already present
+# (e.g. "if wave_key not in state:"), so as long as the dashboard reads/
+# writes those same keys (wired up step by step in follow-on work), it
+# naturally interoperates without needing any changes on the CLI side.
+#
+# The one wrinkle: tid_workflow.py's own resume menu is built for a
+# person typing at a terminal (show_resume_menu(), input()-driven) --
+# not a stable, callable API, and deliberately not treated as one here.
+# This renders the same per-station progress picture and offers the
+# same "start fresh" semantics (state = {}, immediately saved -- matches
+# choice "5" in show_resume_menu exactly, genuinely clearing the file on
+# disk, not just ignoring it for this session) as native Streamlit
+# controls instead of feeding stdin to a spawned process.
+
+STATE_STEP_LABELS = {
+    "fullday":  "Overview spectrogram",
+    "window":   "Event window",
+    "zoom":     "Zoomed spectrogram",
+    "spline":   "Extraction (cwt-prophet/spline/sgolay-ridge)",
+    "wave":     "Extraction (wave-fit)",
+    "capt":     "Extraction (CAPT)",
+    "fft":      "Extraction (fft)",
+    "autocorr": "Extraction (autocorr)",
+    "cwt":      "Extraction (cwt)",
+}
+
+
+def render_resume_banner(event_path):
+    """Check for an existing tid_workflow_state.json in event_path. If
+    found, show a resume summary (mirroring show_resume_menu's own
+    per-station progress display) with Continue/Start-fresh choice.
+    Returns the active state dict either way -- {} for a fresh start
+    (no file yet, or the user chose to clear it) or the loaded state
+    to build on.
+    """
+    state_file = event_path / "tid_workflow_state.json"
+    state = tid_workflow.load_state(state_file)
+    if not state:
+        return {}
+
+    stations = state.get("stations", [])
+    method = state.get("extraction_method", "not yet chosen")
+    with st.container(border=True):
+        st.subheader("Saved progress found")
+        st.caption(f"{state_file} -- {len(stations)} station(s), "
+                   f"method={method}")
+        if stations:
+            rows = []
+            for stn in stations:
+                key = stn["name"].lower()
+                done = [label for suffix, label in STATE_STEP_LABELS.items()
+                        if f"{key}_{suffix}" in state]
+                # De-duplicate, preserving first-seen order (mirrors
+                # show_resume_menu's own dict.fromkeys dedup, needed
+                # since "spline"/"wave"/etc. all map through the same
+                # step in different methods)
+                done = list(dict.fromkeys(done))
+                rows.append({"Station": stn["name"],
+                             "Progress": ", ".join(done) if done else "(not started)"})
+            st.dataframe(rows, hide_index=True, width="stretch")
+        choice = st.radio(
+            "How do you want to proceed?",
+            ["Continue from where I left off", "Start completely fresh"],
+            horizontal=True, key="_resume_choice",
+        )
+        if choice == "Start completely fresh":
+            st.warning("This clears the saved state file immediately -- "
+                       "matches tid_workflow.py --resume's own choice 5 "
+                       "exactly (not just ignoring it for this session).")
+            if st.button("Confirm: clear saved state and start fresh"):
+                tid_workflow.save_state(state_file, {})
+                st.rerun()
+            # Until confirmed, keep showing the existing state rather
+            # than silently discarding it on every rerun.
+            return state
+        return state
+
+
 def run_and_display_doa(config_path, live_log_fn, extra_args=None, header="Direction of arrival"):
     """Run tid_doa.py against an existing config, display its result, and
     return the parsed doa dict (or None on failure). Shared by the main
@@ -819,7 +1002,7 @@ def run_and_display_tec(config_path, doa, stations_subset, tec_script, out_dir,
 
 # ── Streamlit UI ──
 
-DASHBOARD_VERSION = "v0.9.0"
+DASHBOARD_VERSION = "v0.13.2"
 
 st.set_page_config(page_title="TID Pipeline Dashboard", layout="wide")
 st.title("TID Direction-of-Arrival Pipeline")
@@ -972,18 +1155,35 @@ if len(stations_preview) < 3:
 if not stations_preview:
     st.stop()
 
+# Phase 1 of the state-file integration: detect and offer to resume any
+# saved tid_workflow.py progress for this event directory. Later steps
+# (not yet wired up) will read/write against this same dict so that
+# completed work shows cached results instead of redoing it.
+wf_state = render_resume_banner(event_path)
+
 # -- Keystone station: the one whose recording bounds/spectrogram anchor
 #    the event-window slider. User-selectable rather than always the
 #    first one found in directory listing order (which has no relation
 #    to data quality or which station is most useful to orient from). --
+st.subheader("Keystone station")
 station_names = [d.name for d in stations_preview]
-_saved_keystone = _settings.get("keystone_station")
+# Priority: shared state (wf_state["my_station"] -- a new, dashboard-
+# introduced key; tid_workflow.py itself never reads or writes it, so
+# this is purely additive, nothing to conflict with) takes precedence
+# over the dashboard's own separate settings cache, which in turn
+# takes precedence over defaulting to whichever station happens to
+# sort first. This is what lets a keystone choice made once persist
+# correctly regardless of which session or tool set it.
+_saved_keystone = wf_state.get("my_station") or _settings.get("keystone_station")
 default_idx = station_names.index(_saved_keystone) if _saved_keystone in station_names else 0
 keystone_name = st.selectbox(
-    "Keystone station (used for the overview spectrogram and event-window bounds)",
+    "Used for the overview spectrogram and event-window bounds",
     station_names, index=default_idx,
 )
 keystone_station = next(d for d in stations_preview if d.name == keystone_name)
+if wf_state.get("my_station") != keystone_name:
+    wf_state["my_station"] = keystone_name
+    tid_workflow.save_state(event_path / "tid_workflow_state.json", wf_state)
 
 # Provisional (NOT yet user-confirmed) channel-num guess for the keystone
 # station, used only to orient the overview spectrogram below so it has
@@ -1031,10 +1231,28 @@ st.caption(f"Full-window spectrogram for **{keystone_station.name}** with the "
            f"highlight updates.")
 spectrogram_placeholder = st.empty()
 
-overview_png, axes_path, overview_ok, overview_out = generate_overview_spectrogram(
-    event_path, keystone_station, _keystone_channel_guess, keystone_station.name,
-    channel_num=keystone_channel_num_guess)
-if not overview_png:
+# Phase 2 continued: check the shared state first. If tid_workflow.py
+# (this dashboard or a direct CLI --resume run) already generated this
+# station's overview, reuse that file directly rather than generating
+# a second, differently-named copy -- genuine bidirectional reuse, not
+# just read-only awareness of the CLI's own work.
+_keystone_key = keystone_station.name.lower()
+_cached_fullday = wf_state.get(f"{_keystone_key}_fullday")
+if _cached_fullday and Path(_cached_fullday).exists():
+    overview_png = Path(_cached_fullday)
+    _cached_axes = overview_png.with_name(overview_png.stem + "_axes.json")
+    axes_path = _cached_axes if _cached_axes.exists() else None
+    overview_ok = axes_path is not None
+    overview_out = "(reusing tid_workflow.py's own overview spectrogram)"
+else:
+    overview_png, axes_path, overview_ok, overview_out = generate_overview_spectrogram(
+        event_path, keystone_station, _keystone_channel_guess, keystone_station.name,
+        channel_num=keystone_channel_num_guess)
+    if overview_ok:
+        wf_state[f"{_keystone_key}_fullday"] = str(overview_png)
+        tid_workflow.save_state(event_path / "tid_workflow_state.json", wf_state)
+
+if not overview_ok:
     spectrogram_placeholder.warning("Could not generate overview spectrogram -- see details below.")
     with st.expander("drf_spectrogram.py output"):
         st.code(overview_out)
@@ -1050,10 +1268,35 @@ st.caption(
     f"Full recorded range for **{keystone_station.name}**: "
     f"{bounds_start.isoformat()} to {bounds_end.isoformat()}"
 )
+# Phase 2 continued: default the slider from a saved window if one
+# exists, rather than always defaulting to the full recorded range.
+# Unlike channel-num, this step stays a genuinely interactive slider
+# either way -- resuming means "start where I left off," not "skip
+# the widget entirely," since adjusting the window is a normal, even
+# expected thing to want to do on a return visit.
+_saved_window = wf_state.get(f"{_keystone_key}_window")
+_default_start, _default_end = bounds_start, bounds_end
+if _saved_window and "t_start_utc_hours" in _saved_window:
+    try:
+        _ref_date = datetime.strptime(
+            wf_state.get("date_str") or bounds_start.strftime("%Y-%m-%d"),
+            "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        _default_start = _ref_date + timedelta(hours=_saved_window["t_start_utc_hours"])
+        _default_end = _ref_date + timedelta(hours=_saved_window["t_end_utc_hours"])
+        # Saved values may be stale relative to this station's actual
+        # recorded bounds (e.g. a shorter re-recording) -- clip rather
+        # than let the slider silently reject an out-of-range default.
+        _default_start = max(_default_start, bounds_start)
+        _default_end = min(_default_end, bounds_end)
+        if _default_start >= _default_end:
+            _default_start, _default_end = bounds_start, bounds_end
+    except (ValueError, KeyError, TypeError):
+        pass  # fall back to the full range rather than error on odd saved data
+
 window = st.slider(
     "Select the TID event window",
     min_value=bounds_start, max_value=bounds_end,
-    value=(bounds_start, bounds_end), format="MM/DD HH:mm",
+    value=(_default_start, _default_end), format="MM/DD HH:mm",
 )
 event_start_dt, event_end_dt = window
 event_start = event_start_dt.isoformat()
@@ -1061,6 +1304,19 @@ event_end = event_end_dt.isoformat()
 event_mid_dt = event_start_dt + (event_end_dt - event_start_dt) / 2
 st.caption(f"Selected: **{event_start}** to **{event_end}** "
            f"({(event_end_dt - event_start_dt).total_seconds() / 60:.0f} min)")
+
+# Save back whenever the selection actually changes -- comparing
+# against what's already saved avoids a write (and disk I/O) on every
+# rerun when nothing changed.
+_midnight = event_start_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+_new_window = {
+    "spectrogram_png": Path(overview_png).name if overview_png else None,
+    "t_start_utc_hours": (event_start_dt - _midnight).total_seconds() / 3600,
+    "t_end_utc_hours": (event_end_dt - _midnight).total_seconds() / 3600,
+}
+if _new_window != {**(_saved_window or {}), "spectrogram_png": _new_window["spectrogram_png"]}:
+    wf_state[f"{_keystone_key}_window"] = _new_window
+    tid_workflow.save_state(event_path / "tid_workflow_state.json", wf_state)
 
 # Now that the slider value is known, fill in the placeholder created
 # above -- this is what makes the highlight appear to live-update as you
@@ -1164,8 +1420,25 @@ target_mhz = st.number_input(
          "for stations recording multiple carriers at once (e.g. WWV "
          "5/10/15/20 MHz). Default 10.0 = WWV 10 MHz, the usual target.",
 )
+# Phase 2 of the shared-state integration: skip re-confirming a
+# station's channel-num if it was already confirmed and saved in a
+# prior session (either via this dashboard or tid_workflow.py --resume
+# directly -- both write/read the exact same "stations" list shape).
+# This is the concrete "don't make the user repeat themselves" payoff
+# for this specific step.
+_wf_stations_by_name = {s["name"].upper(): s
+                        for s in wf_state.get("stations", [])}
 any_multi_channel_num = False
 for s in station_info:
+    _saved = _wf_stations_by_name.get(s["name"].upper())
+    if _saved and _saved.get("channel_num") is not None:
+        s["channel_num"] = _saved["channel_num"]
+        st.caption(f"**{s['name']}** -- using previously-confirmed "
+                   f"channel-num {_saved['channel_num']} (from saved "
+                   f"session). To re-confirm, use \"Start completely "
+                   f"fresh\" in the saved-progress banner above.")
+        continue
+
     subs = tid_workflow.probe_channel_nums(s["drf_dir"], target_mhz=target_mhz, channel=s.get("channel"))
     if len(subs) <= 1:
         s["channel_num"] = subs[0][0] if subs else None
@@ -1208,6 +1481,42 @@ if not any_multi_channel_num:
 if not all_confirmed:
     st.warning("Confirm the channel/channel-num selection for every station flagged above before running -- "
                "the Run full pipeline button (sidebar) will stop with an error if you click it before that.")
+
+# Save-back side of the Phase 2 integration: once a station's channel-num
+# is settled (either just-confirmed above, or already-cached from a prior
+# session), persist it into the shared state file in the EXACT shape
+# tid_workflow.py's own _confirm_channel_num() builds -- reusing its own
+# get_station_coords()/midpoint()/KNOWN_STATIONS/get_date_from_drf()
+# rather than approximating this shape, since a subsequent tid_workflow.py
+# --resume run (or another dashboard session) needs receiver_lat/lon,
+# ipp_lat/lon, and grid to be genuinely present and correct, not just
+# name/channel_num. Only writes once every station has all_confirmed ==
+# True, so a half-confirmed run never persists a station missing its
+# confirmation.
+if all_confirmed and station_info:
+    _date_str = tid_workflow.get_date_from_drf(Path(station_info[0]["drf_dir"])) or ""
+    _updated_stations = {s["name"].upper(): s for s in wf_state.get("stations", [])}
+    for s in station_info:
+        _name_up = s["name"].upper()
+        if _name_up in _updated_stations and _updated_stations[_name_up].get("channel_num") == s.get("channel_num"):
+            continue  # unchanged from what's already saved -- nothing to do
+        rx_lat, rx_lon = tid_workflow.get_station_coords(s["name"], Path(s["drf_dir"]), event_dir=event_path)
+        grid_sq = "?"
+        for k, (la, lo, gr) in tid_workflow.KNOWN_STATIONS.items():
+            if k in _name_up or _name_up in k:
+                grid_sq = gr
+                break
+        ipp_lat, ipp_lon = tid_workflow.midpoint(rx_lat, rx_lon, 40.68, -105.04)  # WWV Fort Collins, matches tid_workflow.py's own --tx-lat/--tx-lon defaults
+        _updated_stations[_name_up] = {
+            "name": s["name"], "drf_dir": s["drf_dir"],
+            "channel_num": s.get("channel_num"),
+            "receiver_lat": rx_lat, "receiver_lon": rx_lon,
+            "ipp_lat": ipp_lat, "ipp_lon": ipp_lon,
+            "grid": grid_sq, "date_str": _date_str,
+        }
+    wf_state["stations"] = list(_updated_stations.values())
+    wf_state["date_str"] = _date_str
+    tid_workflow.save_state(event_path / "tid_workflow_state.json", wf_state)
 
 log_box = st.expander("Raw subprocess log", expanded=False)
 

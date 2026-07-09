@@ -32,6 +32,20 @@ convention as `tid_workflow.py --event-dir`); station coordinates,
 channel confirmation, and the event-window spectrogram all appear live
 as you type — nothing runs until you click "Run full pipeline."
 
+### Does the dashboard remember my progress if I come back later?
+
+Yes — it reads and writes the exact same `tid_workflow_state.json`
+file `tid_workflow.py --resume` uses, so a session started in one is
+fully resumable from the other. Entering an event directory with
+existing saved progress shows a summary of what's already done per
+station, with the choice to continue or start completely fresh
+(clearing the file, same as `tid_workflow.py`'s own equivalent
+choice). Channel-num confirmation, the event window, and which
+station is the keystone all persist this way: returning to an event
+shows what you already confirmed instead of asking again, and the
+window slider defaults to your last selection instead of the full
+recorded range.
+
 ### How do I pick an extraction method in the dashboard?
 
 One dropdown in the sidebar, five methods: `autocorr`, `cwt`, `fft`

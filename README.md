@@ -172,6 +172,20 @@ browser can't be granted access to a remote machine's desktop), and
 the browser tab blocks while each native window is open, same as any
 other slow step in the pipeline.
 
+**Resumable, and shared with the CLI:** the dashboard reads and writes
+the exact same `tid_workflow_state.json` file `tid_workflow.py --resume`
+itself uses — a session started via one is fully resumable from the
+other. Entering an event directory with existing saved progress shows
+a summary of what's already done per station, with the option to
+continue or start completely fresh (clearing the file, same as
+`tid_workflow.py`'s own choice for this). Channel-num confirmation,
+the event window, and keystone-station selection all persist this
+way, so returning to an event doesn't mean re-confirming or
+re-selecting things you already settled — each just shows what you
+already chose, or (for the window) defaults there instead of back to
+the full recorded range. `tid_workflow.py` itself is unmodified by
+any of this.
+
 The Madrigal cross-check step is optional (toggle in the sidebar) and
 can be skipped if you just want speed/azimuth.
 
