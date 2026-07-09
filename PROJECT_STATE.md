@@ -3465,3 +3465,96 @@ left undifferentiated as "also supports X and Y."
    on folding into the real tid_quicklook.py (see #100)
 6. fetch_madrigal_tec_closure.py still pending its own live-data
    graduation test (see #93)
+---
+## 107. Dashboard made genuinely resumable, sharing state directly with tid_workflow.py: Phase 1+2 of the GUI-as-thin-wrapper architecture -- 2026-07-09
+
+### What happened
+Direct architectural request: the dashboard should be little more
+than a thin wrapper over the CLI, not a second, separately-maintained
+engine -- and needs to support starting fresh or resuming at
+different steps, the same way tid_workflow.py's own --resume already
+does. Resolved a real architectural fork before writing any code:
+whether to drive tid_workflow.py's own interactive --resume menu via
+stdin (a literal console wrapper), or have the dashboard read/write
+the same state file natively. Chose the latter -- tid_workflow.py's
+own input()-driven resume menu is built for a person typing at a
+terminal, not a stable API, while the state file itself is a genuine,
+well-defined contract already designed for exactly this kind of
+interoperability. tid_workflow.py itself remains completely
+unmodified throughout all of this.
+
+### What got built (tid_dashboard.py v0.11.0 -> v0.13.2)
+- v0.11.0 (Phase 1): detects existing saved progress in
+  tid_workflow_state.json on entering an event directory, shows a
+  resume banner (per-station progress table, mirroring
+  show_resume_menu's own dedup logic) with Continue/Start-fresh
+  choice. Start-fresh matches tid_workflow.py's own choice 5 exactly
+  (state = {}, immediately saved to disk).
+- v0.12.0 (Phase 2): channel-num selection reads from and writes to
+  the shared state. A station already confirmed in a prior session
+  (dashboard or CLI, either one) skips the interactive confirmation
+  UI entirely. Write side builds the exact station dict shape
+  tid_workflow.py's own _confirm_channel_num() produces -- reusing
+  its own get_station_coords()/midpoint()/KNOWN_STATIONS/
+  get_date_from_drf() directly rather than approximating the shape,
+  since a subsequent CLI resume needs receiver_lat/lon, ipp_lat/lon,
+  and grid to be genuinely correct.
+- v0.13.0: overview spectrogram checks state first, genuinely reusing
+  a file tid_workflow.py itself already generated rather than
+  creating a second, differently-named copy. Event window handled
+  deliberately differently from channel-num -- stays a real,
+  interactive slider either way (adjusting the window is a normal
+  thing to want on return), but defaults from a saved selection
+  instead of always the full recorded range, converting between real
+  datetimes and tid_workflow.py's own fractional-hours-since-midnight
+  convention.
+- v0.13.1: keystone station selection checks a new, additive
+  wf_state["my_station"] key first. Found live: an event previously
+  run via tid_workflow.py --my-station on the CLI showed the wrong
+  keystone in a fresh dashboard session, since that flag is a
+  per-invocation CLI argument tid_workflow.py never persists anywhere.
+- v0.13.2: gave the keystone selector its own proper subheader after
+  live feedback that it was easy to miss on the page as a plain
+  selectbox label.
+
+### Verification
+Extensive at every step, not just at the end: full AppTest runs
+against real synthetic DRF events for each piece (resume banner
+progress table and start-fresh file-clearing; channel-num
+confirmation genuinely skipped on a second, independent session,
+with the exact tid_workflow.py-shaped dict verified; overview
+spectrogram reuse with zero dashboard-generated duplicates; window
+slider defaulting correctly across sessions; keystone choice
+persisting correctly). Also tested live by the user against the real
+Jan 19 2026 event -- a genuinely messy, multi-session state file
+predating this work -- at each phase, confirming real-world behavior
+matched the synthetic results. The keystone bug (v0.13.1) and the
+label-visibility issue (v0.13.2) were both found this way, live,
+not in the synthetic testing.
+
+### Docs
+README.md and docs/COOKBOOK.md both updated with an accurate
+description of what's actually implemented (resumability, per-step
+persistence) -- explicitly not overstating scope to include add/drop-
+stations, which remains a separate, not-yet-built phase.
+
+### Open items
+1. Add/drop-stations (Phase 3, per the original plan) -- not yet
+   built. Design already sketched during architecture discussion:
+   "add" would run the channel-num-confirmation flow for just the new
+   station and append to wf_state["stations"]; "drop" removes an
+   entry. Neither would touch other stations' progress.
+2. Extraction step (wave-fit/cwt-prophet/spline/automated methods)
+   and DOA step are not yet wired to the shared state -- remaining
+   scope of the original Phase 2 plan
+3. cwt-prophet's notably higher error (24.8%) vs wave-fit (0.4%) and
+   spline (13.3%) on the same station/condition -- still not
+   investigated (see #105)
+4. AC0G_ND's anomalous 11.6-minute period (Jan 19 event) -- still not
+   investigated (see #101)
+5. June 6 event: AC0G_ND still needs its own click to test dropping
+   N6RFM there (see #100, #101)
+6. The box-select prototype (test_box_select.py) -- still no decision
+   on folding into the real tid_quicklook.py (see #100)
+7. fetch_madrigal_tec_closure.py still pending its own live-data
+   graduation test (see #93)
