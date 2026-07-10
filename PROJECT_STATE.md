@@ -3662,3 +3662,145 @@ overlap-based DOA window, alongside the earlier Phase 1/2 additions.
    on folding into the real tid_quicklook.py (see #100)
 6. fetch_madrigal_tec_closure.py still pending its own live-data
    graduation test (see #93)
+---
+## 109. Dashboard live-testing marathon: 6 real bugs found and fixed, culminating in a significant pre-existing coordinate-fallback bug (v0.17.0-v0.21.1) -- 2026-07-10
+
+### What happened
+An extended, intense stretch of live testing against the real Jan 19
+2026 event (and a deliberately-created _test_copy directory) surfaced
+6 distinct, real bugs and prompted 3 genuine UX improvements, each
+found, root-caused, fixed, and verified in turn. tid_workflow.py
+remains completely unmodified throughout every version below --
+several genuinely tempting shortcuts (modifying it, or restructuring
+around its interactive resume menu) were avoided in favor of staying
+within the state-file-sharing architecture established in earlier
+entries.
+
+### 6 real bugs found and fixed
+- v0.17.0/v0.17.1: "Start completely fresh" only ever cleared the
+  state file, never the actual intermediate/derived files
+  (spectrograms, extraction CSVs, config, run logs) -- meaning stale
+  leftover files from a previous attempt could still get silently
+  picked back up even after a "fresh" reset. Now deletes everything
+  except the DRF station directories themselves (identified via
+  tid_workflow.discover_stations(), not a separate heuristic), shown
+  explicitly before the button appears given how destructive this is.
+- v0.18.0: discover_stations() was being called twice -- once for the
+  delete-list computation, once for the main script's own station
+  discovery -- exactly at the moment a user would be viewing (and
+  waiting on) the delete confirmation screen. Fixed by reusing the
+  already-discovered list.
+- v0.19.0: a genuinely tricky one. A user's saved active_stations
+  correctly excluded a station, yet the "Stations" multiselect kept
+  showing it as included, even immediately after confirming "start
+  fresh" (which is supposed to preserve exactly this). Root cause took
+  real digging: the multiselect saved to the file whenever its
+  current value differed from disk, which ran on EVERY rerun, not
+  just genuine interactions -- so a stale in-browser value would
+  immediately clobber a file that had just been correctly updated,
+  before the fix ever got a chance to matter. Two earlier attempts
+  within this same investigation didn't hold up under direct testing
+  (default= only applies on a widget's first-ever render in a
+  session; setting session_state directly while also passing default=
+  silently does nothing, since Streamlit explicitly disallows the
+  combination). Properly fixed with on_change, which only fires on a
+  genuine, direct user interaction, never an ordinary rerun.
+- v0.20.1/v0.20.2: a fixed-position status indicator (meant to stay
+  visible while scrolling, since Streamlit's own spinner and an
+  earlier in-flow banner both didn't) confirmed NOT working live on
+  the first attempt -- still top-right, wrong size, wrong color,
+  meaning what was showing was still Streamlit's own native spinner.
+  Root cause: plain CSS position: fixed inside an st.markdown block is
+  relative to whatever ancestor has its own CSS transform, not the
+  real viewport -- a known gotcha, and Streamlit's own app container
+  has exactly that. Fixed by escaping Streamlit's container structure
+  entirely via a script appending directly to
+  window.parent.document.body.
+- v0.21.1: the most significant find of this stretch, and one that
+  predates this whole session's work entirely. All-identical DOA
+  midpoints across every station traced to the "Station coordinates"
+  section having its own, separate, incomplete fallback logic --
+  skipping straight from "cache and DRF metadata both failed" to a
+  manual, 0.0-defaulted input widget, entirely missing the
+  KNOWN_STATIONS callsign-database fallback that tid_workflow.py's
+  own get_station_coords() already has. Real hardware doesn't always
+  embed lat/lon metadata in the DRF recording itself, so this path
+  got hit for real stations whose correct coordinates were sitting
+  right there in KNOWN_STATIONS the whole time -- and once 0.0/0.0 got
+  saved to the coords cache once (likely from the very original
+  guided CLI setup, long before this session), it silently persisted
+  across every future session and every directory copy from then on.
+  Also a violation of the "reuse tid_workflow.py's shared logic"
+  principle this whole effort has followed. Fixed by adding the
+  missing KNOWN_STATIONS check directly (not calling
+  get_station_coords() itself, since its own final fallback is an
+  interactive input() that can't work inside Streamlit). Verified
+  directly against the real event: after clearing the stale cache,
+  all 4 stations' coordinates and the resulting DOA midpoints came
+  back correct and genuinely distinct, matching known-correct values
+  exactly.
+
+### 3 genuine UX improvements
+- v0.20.0: a direct, explicit "Which station should be presented
+  first for interactive clicking?" control, added after the automatic
+  keystone-first ordering (from an earlier entry) proved hard to
+  verify reliably in practice from the user's side, even though it
+  worked correctly in every test run here.
+- v0.20.3/v0.21.0: a clear "Setup complete -- click Run full pipeline"
+  message, plus better in-place guidance explaining why channel-num
+  confirmation has to happen before extraction (the zoomed
+  spectrogram used for clicking is itself generated FROM that
+  specific channel-num, so it can't be deferred), plus an
+  always-visible sidebar "Process overview" of the whole flow.
+  Deliberately did NOT restructure to interleave channel-num
+  confirmation into the extraction loop per-station -- discussed
+  directly, and agreed a much bigger, riskier change given Streamlit
+  reruns the whole script top-to-bottom on every interaction rather
+  than supporting genuinely pausable, per-station steps.
+
+### An environment issue, unrelated to any of the above
+A segfault was hit mid-session after a Streamlit reinstall. Traced
+with a real gdb backtrace (not guesswork) to pyarrow's bundled
+mimalloc allocator crashing during thread-initialization on one of
+Streamlit's own internal threads -- a known class of issue with
+pyarrow's allocator in certain environments. Worked around with
+ARROW_DEFAULT_MEMORY_POOL=system. Also found scipy had gone missing
+from the venv during the same reinstall; requirements.txt and
+requirements-optional.txt reinstalled cleanly to restore everything.
+
+### Process note
+This stretch involved real, sustained user frustration -- confusion
+about processing order, a "fix" that didn't visibly work, a pipeline
+that seemed to do nothing, an environment crash unrelated to any of
+the code. Nearly every complaint corresponded to a genuine, fixable
+gap rather than a misunderstanding, continuing the pattern from the
+previous entry. Two things in particular stood out: first, a fix
+that passes every available sandbox check (compiles, no exceptions,
+right content produced) can still be completely wrong in ways only
+real, direct visual/behavioral confirmation catches -- true of both
+the position:fixed CSS attempt and, to a lesser extent, the
+multiselect fix's first two attempts. Second, the most valuable bug
+found this entire stretch (the coordinate fallback) predated this
+whole session's work and had nothing to do with anything built here
+-- it surfaced only because live testing against real data, repeated
+enough times under enough different conditions, eventually exercised
+a code path synthetic testing alone had never touched.
+
+### Open items
+1. The 3-station Jan 19 comparison from an earlier entry (319 m/s @
+   108 deg from direct testing) still hasn't been cleanly
+   re-verified with a careful, unhurried re-click -- now further
+   complicated by the coordinate-fallback bug having potentially
+   affected earlier comparison points too; worth redoing from a
+   clean baseline
+2. AC0G_ND's anomalous 11.6-minute period (Jan 19 event) -- still not
+   investigated (see #101)
+3. June 6 event: AC0G_ND still needs its own click to test dropping
+   N6RFM there (see #100, #101)
+4. cwt-prophet's notably higher error (24.8%) vs wave-fit (0.4%) and
+   spline (13.3%) on the nominal synthetic condition -- still not
+   investigated (see #105)
+5. The box-select prototype (test_box_select.py) -- still no decision
+   on folding into the real tid_quicklook.py (see #100)
+6. fetch_madrigal_tec_closure.py still pending its own live-data
+   graduation test (see #93)
