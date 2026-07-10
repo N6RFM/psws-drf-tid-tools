@@ -41,14 +41,26 @@ existing saved progress shows a summary of what's already done per
 station, with the choice to continue or start completely fresh
 (clearing the file, same as `tid_workflow.py`'s own equivalent
 choice, except your station exclusions are kept either way — more on
-that below). Channel-num confirmation, the event window, which
+that below — and it also deletes every intermediate/derived file in
+the event directory, not just the state file: spectrograms,
+extraction CSVs, config files, run logs. Only the DRF station
+directories themselves are left untouched, identified the same way
+real station discovery works elsewhere, not a separate heuristic.
+Exactly what will be deleted is shown before the button appears,
+since this is a real, irreversible filesystem operation — added
+after leftover stale files from a previous attempt kept getting
+picked back up even once the state file itself was cleared).
+Channel-num confirmation, the event window, which
 station is the keystone, and extraction itself all persist this way:
 returning to an event shows what you already confirmed instead of
 asking again, the window slider defaults to your last selection
 instead of the full recorded range, and a station already extracted
 is reused rather than re-run — the real time-saver, since extraction
 is the slow step. The keystone station is also processed first
-through every step, the whole reason for picking one. One more thing
+through every step, the whole reason for picking one -- and for
+interactive methods specifically, a "Clicking order" control lets you
+pick directly which station's window opens first, rather than
+depending on keystone selection to influence it indirectly. One more thing
 worth knowing: the event window actually sent to `tid_doa.py` is the
 real overlap of what was extracted for each station, not simply the
 slider selection — which only guides where extraction happens —

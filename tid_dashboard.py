@@ -6,10 +6,217 @@ Madrigal TEC cross-check).
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 0.16.3
+Version: 0.21.1
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v0.21.1 Fixed a real, pre-existing bug found live (predates this
+          session's work entirely): all-identical DOA midpoints and
+          zero coordinates traced to the "Station coordinates" section
+          having its own, separate, incomplete fallback logic that
+          skipped straight from "cache and DRF metadata both failed"
+          to a manual, 0.0-defaulted input widget -- entirely missing
+          the KNOWN_STATIONS callsign-database fallback that
+          tid_workflow.py's own get_station_coords() already has.
+          Real hardware doesn't always embed lat/lon metadata in the
+          DRF recording itself, so this path was hit for real stations
+          whose correct coordinates were sitting right there in
+          KNOWN_STATIONS the whole time -- and once 0.0/0.0 got saved
+          to the coords cache once, it silently persisted across every
+          future session (and every cp -r copy of the event
+          directory) from then on. Also a violation of the "reuse
+          tid_workflow.py's shared logic" principle this whole effort
+          has followed -- fixed by adding the missing KNOWN_STATIONS
+          check directly (not calling get_station_coords() itself,
+          since its own final fallback is an interactive input() that
+          can't work inside Streamlit). Verified against the exact bug
+          scenario: stations with no DRF metadata coordinates at all,
+          confirmed the correct KNOWN_STATIONS coordinates get found
+          and saved instead of falling to the manual-entry widget.
+  v0.21.0 Better guidance requested directly after genuine confusion
+          about why channel-num confirmation appears when it does, and
+          why it can't just wait until the clicking step. Rather than
+          actually restructuring the pipeline to interleave it
+          per-station during extraction (a much bigger, riskier change
+          given Streamlit reruns the whole script top-to-bottom on
+          every interaction, not a pausable state machine) -- added
+          clearer explanation in place: the channel-num section now
+          explains why this has to happen before extraction (the
+          zoomed spectrogram used for clicking is itself generated
+          FROM this specific channel-num, so it can't be deferred to
+          that step) and that it's a genuine one-time, permanent
+          confirmation per station. Also added an always-visible
+          "Process overview" in the sidebar listing the whole flow in
+          order, so there's a fixed reference regardless of how far
+          down the main body the page has scrolled. Verified: both
+          appear correctly with no exceptions.
+  v0.20.3 Added a clear, prominent "Setup complete -- click Run full
+          pipeline in the sidebar" message once every active station
+          is confirmed. Raised directly: nothing on the page ever
+          said this, easy to lose track of where the actual trigger
+          is (a sidebar button) after several setup steps in the main
+          body, especially the one-time channel-num confirmation
+          screen that only appears for stations that need it.
+          Verified: confirmed it appears correctly once all stations
+          are confirmed, no exceptions.
+  v0.20.2 v0.20.1's fixed-position badge confirmed NOT working live:
+          still top-right, wrong size, wrong color -- meaning what was
+          actually visible was still Streamlit's own native spinner,
+          not this element. Root cause: plain CSS position: fixed
+          inside an st.markdown block is relative to whatever ancestor
+          has its own CSS transform, not the real browser viewport --
+          and Streamlit's own app container commonly has exactly that,
+          a well-known gotcha for this kind of injected UI. Fixed by
+          escaping Streamlit's container structure entirely: a small
+          script appends the badge directly to
+          window.parent.document.body, so position: fixed is
+          genuinely relative to the real viewport this time. Also
+          added cleanup for when the pipeline isn't running, since the
+          badge would otherwise persist on screen after completion
+          until some unrelated interaction triggered the next rerun.
+          Sandbox testing can only confirm this runs with no
+          exceptions and produces the right script content -- it
+          cannot confirm actual browser rendering, which is exactly
+          what went wrong with v0.20.1 despite passing the same kind
+          of check. Needs real, direct visual confirmation.
+  v0.20.1 Raised again after v0.18.1's in-flow status banner: it still
+          scrolls out of view exactly like Streamlit's own spinner
+          once the user scrolls down to actually watch progress in a
+          lower section -- the most likely thing to do during a
+          long-running step. Added a small, fixed-position indicator
+          (bottom-right corner) via independent CSS/HTML that stays
+          visible regardless of scroll position -- not touching
+          Streamlit's own DOM at all, so no version-dependency risk,
+          unlike styling its built-in spinner would have been. Kept
+          the original in-flow banner too, still useful for anyone at
+          the top of the page. Verified: confirmed the fixed-position
+          HTML renders with no exceptions during a real pipeline run.
+  v0.20.0 Added a direct, explicit "Which station should be presented
+          first for interactive clicking?" control, requested directly
+          after the automatic keystone-first ordering (v0.16.1) proved
+          hard to verify reliably in practice. Only shown for
+          interactive methods (wave-fit, cwt-prophet), defaults to the
+          keystone station for convenience, but the user picks
+          directly rather than relying on it as a side effect of
+          keystone selection. Reorders station_info immediately before
+          the extraction loop runs. Verified concretely, not just by
+          inspection: explicitly chose a non-default station and
+          confirmed the actual extraction loop processes it first,
+          checking its own live progress messages directly rather
+          than any intermediate state.
+  v0.19.1 Reported live as slow: the "start fresh" delete-list
+          computation called discover_stations() a second time,
+          redundant with the main script's own discovery call that
+          happens right before render_resume_banner() runs -- exactly
+          at the moment a user is viewing the delete confirmation,
+          i.e. exactly when slowness would be most noticed. Fixed by
+          passing the already-discovered station list in instead of
+          re-discovering it. Could not reproduce a large difference
+          against small synthetic test data (discover_stations itself
+          measured at ~0.008s for 4 stations there), so this may not
+          fully explain what was seen against larger, real DRF
+          recordings -- but it's a confirmed, real redundancy worth
+          removing regardless. Verified no regression: full
+          start-fresh flow still completes with no exceptions.
+  v0.19.0 Fixed a real, significant bug found live: a user's saved
+          active_stations correctly excluded a station, yet the
+          "Stations" multiselect kept showing it as included anyway,
+          even immediately after confirming "Start completely fresh"
+          (which is supposed to preserve exactly this). Root cause
+          took real digging to find and was deeper than it first
+          looked: the multiselect saved to the state file whenever
+          its current value differed from what was on disk -- which
+          ran on EVERY rerun, not just genuine user interactions. A
+          stale widget value left over from earlier in the same
+          browser tab would immediately overwrite a file that had
+          JUST been correctly updated by something else (start-fresh's
+          own preservation logic), clobbering it back to the stale
+          value before the fix ever got a chance to matter. Two
+          earlier attempts at a fix within this same investigation
+          didn't hold up under direct testing: passing default= to
+          the widget only ever applies on that widget's genuinely
+          first-ever render in a session, not on subsequent reruns;
+          and setting session_state directly while ALSO passing
+          default= triggers a Streamlit warning and appears to
+          silently do nothing, since the two are explicitly
+          incompatible. Properly fixed with on_change instead --
+          Streamlit only calls this on a genuine, direct user
+          interaction with the widget, never on an ordinary rerun,
+          which is the only reliable way to distinguish "the user
+          just changed their selection" from "this widget's memory
+          happens to differ from a file that changed for some other
+          reason." Verified thoroughly given how much prior debugging
+          this took: confirmed start-fresh's preservation now
+          survives correctly with no clobbering, and separately
+          confirmed a genuine user-initiated exclusion still saves
+          correctly via the same widget.
+  v0.18.1 Added a prominent, dashboard-controlled status banner that
+          appears immediately when "Run full pipeline" starts.
+          Requested directly after Streamlit's own built-in "running"
+          spinner (top-right of the browser tab) turned out too
+          subtle to notice reliably. Deliberately not styling that
+          spinner via injected CSS -- it's an internal, undocumented
+          UI element, and depending on version-specific selectors
+          could silently break on a future Streamlit update. This
+          banner is fully under the dashboard's own control instead.
+          Verified: confirmed it appears correctly on a real pipeline
+          run with no exceptions.
+  v0.18.0 Fixed a real bug found live: copying or renaming an event
+          directory (cp -r, for testing or backup) copies the state
+          file's own contents too -- including its cached, absolute
+          file paths, which still point at the ORIGINAL location, not
+          the new one. Every "skip if cached" check that only tested
+          path existence would silently keep reading from (and
+          writing extraction results into) the original directory
+          even when the dashboard was pointed at a completely
+          different, copied one. Confirmed live: a dashboard run
+          against a _test_copy directory produced a run log written
+          to the real, original event directory instead. Added
+          is_valid_cached_path(), checking a cached path is both
+          reachable AND actually under the current event directory --
+          a stale cross-directory reference is now treated the same
+          as no cached result at all, forcing fresh
+          extraction/generation for the directory actually open
+          rather than silently reusing something belonging to a
+          different one. Applied everywhere a cached path gets
+          trusted: overview spectrogram, and both extraction paths
+          (automated and interactive). Matters more now that "start
+          completely fresh" can delete files (v0.17.0) -- silently
+          operating on the wrong directory would have made that
+          genuinely risky, not just confusing. Verified: unit-tested
+          against the exact stale/valid path scenarios directly, then
+          full end-to-end with a real copied-directory setup mirroring
+          the exact bug -- confirmed the dashboard now generates a
+          fresh file within the correct, current directory instead of
+          continuing to reference the original.
+  v0.17.1 Made the delete-and-start-fresh confirm button visually
+          prominent (type="primary", the same convention already
+          used for "Run full pipeline") -- previously a plain,
+          easy-to-miss button for a real, irreversible filesystem
+          operation.
+  v0.17.0 "Start completely fresh" now deletes every intermediate/
+          derived file and directory in the event directory, not just
+          the state file -- spectrograms, extraction CSVs, config
+          files, run logs, everything -- leaving only the DRF station
+          directories themselves untouched (identified via
+          tid_workflow.discover_stations(), the same function used
+          for real station discovery elsewhere, not a separate
+          heuristic). Requested directly: a cleared state file could
+          still point at, or a subsequent run could still stumble
+          into, genuinely stale leftover files from a previous
+          attempt (mismatched spectrograms, old CSVs) even after the
+          state itself was wiped -- "start fresh" should mean fresh,
+          not just "a fresh state possibly still surrounded by stale
+          files." Shows exactly what will be deleted before the
+          button is pressed, given this is a real, irreversible
+          filesystem operation. Verified: set up a realistic event
+          with 2 real DRF directories and 5 intermediate files/dirs,
+          confirmed the deletion list correctly excluded the DRF
+          directories and included everything else (even catching
+          files the dashboard generated during the test run itself,
+          before confirming), and confirmed the old, stale files were
+          genuinely gone after confirming, with the DRF data and
+          freshly-regenerated derived files both intact.
   v0.16.3 Fixed a real bug found live: tid_doa.py crashed with
           FileNotFoundError on a bare filename with no directory at
           all (n6rfm_zoomed_spectrogram_wave_tid.csv). tid_spect_click.py's
@@ -1009,7 +1216,7 @@ STATE_STEP_LABELS = {
 }
 
 
-def render_resume_banner(event_path):
+def render_resume_banner(event_path, stations_preview):
     """Check for an existing tid_workflow_state.json in event_path. If
     found, show a resume summary (mirroring show_resume_menu's own
     per-station progress display) with Continue/Start-fresh choice.
@@ -1048,6 +1255,25 @@ def render_resume_banner(event_path):
             horizontal=True, key="_resume_choice",
         )
         if choice == "Start completely fresh":
+            # Identify DRF station directories to preserve -- everything
+            # else at the top level of event_path is a derived/
+            # intermediate file or directory (spectrograms, extraction
+            # CSVs, config files, run logs, etc.) and gets deleted, not
+            # just the state file. Found live to matter: leftover
+            # intermediate files from a previous attempt kept getting
+            # silently picked back up (stale spectrograms, mismatched
+            # CSVs), even after the state file itself was cleared --
+            # "start fresh" should mean fresh, not "fresh state pointing
+            # at possibly-stale files."
+            # Uses the already-discovered stations_preview passed in --
+            # avoids calling discover_stations() a second time, which
+            # this used to do unconditionally every time this delete-
+            # list needed computing (i.e. every time this exact branch
+            # renders), on top of the main script's own discovery call
+            # right before this function runs.
+            _drf_dirs = {d.name for d in stations_preview}
+            _to_delete = [p for p in sorted(event_path.iterdir())
+                          if p.name not in _drf_dirs]
             st.warning("This clears the saved state file -- matches "
                        "tid_workflow.py --resume's own choice 5 (not just "
                        "ignoring it for this session) -- except for which "
@@ -1061,17 +1287,80 @@ def render_resume_banner(event_path):
                        "never reads or writes, so keeping it doesn't "
                        "conflict with matching the CLI's own reset for the "
                        "state it actually knows about.")
-            if st.button("Confirm: clear saved state and start fresh"):
+            if _to_delete:
+                st.error(f"This will also **permanently delete** the "
+                          f"{len(_to_delete)} item(s) below from "
+                          f"`{event_path}` -- every DRF station directory "
+                          f"is left untouched; everything else is treated "
+                          f"as regenerable intermediate output.")
+                with st.expander(f"Items that will be deleted ({len(_to_delete)})", expanded=True):
+                    for p in _to_delete:
+                        st.write(f"- `{p.name}`" + ("/" if p.is_dir() else ""))
+            if st.button("Confirm: delete intermediate files and start fresh",
+                         type="primary"):
+                import shutil
+                for p in _to_delete:
+                    if p.is_dir():
+                        shutil.rmtree(p)
+                    else:
+                        p.unlink()
                 _kept_active = state.get("active_stations")
                 _fresh = {}
                 if _kept_active:
                     _fresh["active_stations"] = _kept_active
                 tid_workflow.save_state(state_file, _fresh)
+                # REAL BUG FOUND live: the "Stations" multiselect has no
+                # explicit key, so Streamlit's own widget session-state
+                # persists across every rerun in the same browser tab,
+                # completely independent of what's in the file --
+                # default= only ever applies on that widget's genuinely
+                # first-ever render in a session. Confirmed directly: a
+                # user's saved active_stations correctly excluded a
+                # station, yet the multiselect kept showing it as
+                # included anyway, because the browser tab's own memory
+                # of an earlier render never got refreshed -- and merely
+                # popping this key wasn't enough either, since the
+                # multiselect's own "save if changed" logic could still
+                # fire using its stale value before the pop's effect was
+                # fully in place, clobbering the very state just saved
+                # here. Explicitly SETTING the session-state to the
+                # correct, preserved list removes the ambiguity entirely.
+                st.session_state["_active_stations_multiselect"] = \
+                    _kept_active if _kept_active else sorted(_drf_dirs)
                 st.rerun()
             # Until confirmed, keep showing the existing state rather
             # than silently discarding it on every rerun.
             return state
         return state
+
+
+def is_valid_cached_path(path_str, event_path):
+    """Check a cached file path from wf_state is genuinely usable: exists
+    AND is actually under the CURRENT event_path.
+
+    REAL BUG FOUND live: copying or renaming an event directory (cp -r,
+    for testing or backup) copies the state file's own CONTENTS too --
+    including its cached, absolute file paths, which still point at the
+    ORIGINAL location, not the new one. Every "skip if cached" check
+    that only tested path existence would silently keep reading from
+    (and, worse, silently keep writing extraction results INTO) the
+    original directory even when the dashboard was pointed at a
+    completely different, copied one -- exactly the kind of confusion
+    the new delete-on-start-fresh feature makes genuinely risky, not
+    just misleading. A stale cached path is now treated the same as no
+    cached path at all -- forces a fresh extraction/generation for
+    THIS event_path rather than silently reusing something that
+    belongs to a different directory.
+    """
+    if not path_str:
+        return False
+    p = Path(path_str)
+    if not p.exists():
+        return False
+    try:
+        return p.resolve().is_relative_to(event_path.resolve())
+    except (OSError, ValueError):
+        return False
 
 
 def compute_overlap_window(csv_paths):
@@ -1199,7 +1488,7 @@ def run_and_display_tec(config_path, doa, stations_subset, tec_script, out_dir,
 
 # ── Streamlit UI ──
 
-DASHBOARD_VERSION = "v0.16.3"
+DASHBOARD_VERSION = "v0.21.1"
 
 st.set_page_config(page_title="TID Pipeline Dashboard", layout="wide")
 st.title("TID Direction-of-Arrival Pipeline")
@@ -1249,6 +1538,24 @@ with st.sidebar:
         help="Opens a native folder-picker on this machine (only works "
              "when running streamlit locally, not for a remote/hosted server).",
     )
+
+    with st.expander("📋 Process overview -- what happens, in order"):
+        st.markdown(
+            "1. **Stations** -- confirm which discovered stations are "
+            "active for this run\n"
+            "2. **Keystone station** -- pick which one anchors the "
+            "overview spectrogram and event-window bounds\n"
+            "3. **Event window** -- select the TID window on the "
+            "overview spectrogram\n"
+            "4. **Channel-num selection** -- a ONE-TIME, per-station "
+            "confirmation, only shown for stations recording multiple "
+            "carriers at once (most stations skip this entirely)\n"
+            "5. **Run full pipeline** (button below) -- extraction, "
+            "DOA, and (if enabled) the Madrigal cross-check\n\n"
+            "Steps 1-4 happen in the main area of the page; this button "
+            "is the one that actually starts the real work."
+        )
+
 
     if st.session_state.get("_browse_failed"):
         st.caption("Folder dialog unavailable or cancelled -- type the path "
@@ -1356,7 +1663,7 @@ if not stations_preview:
 # saved tid_workflow.py progress for this event directory. Later steps
 # (not yet wired up) will read/write against this same dict so that
 # completed work shows cached results instead of redoing it.
-wf_state = render_resume_banner(event_path)
+wf_state = render_resume_banner(event_path, stations_preview)
 
 # Phase 3: add/drop stations. discover_stations() already finds every
 # DRF directory physically present in event_path -- there was
@@ -1381,12 +1688,38 @@ st.caption("All DRF station directories found in this event directory. "
            "progress, if any, is kept either way -- re-including a "
            "station later won't mean re-confirming it) -- or newly add "
            "one back in.")
+# session_state is the SOLE source of truth here -- deliberately no
+# default= parameter. Streamlit explicitly warns against combining
+# default= with direct session_state manipulation for the same widget
+# and silently ignores one of them when both are present, which is
+# exactly what broke the "start completely fresh" fix below: setting
+# session_state directly there had no effect as long as default= was
+# also present. Only initialize on a genuinely first-ever render.
+#
+# REAL BUG FOUND live, and it took real digging to find: saving
+# whenever the widget's current value differed from the file (the
+# original approach) ran on EVERY rerun, not just genuine user
+# interactions -- so a stale widget value left over from earlier in
+# the same browser tab would immediately overwrite a file that had
+# JUST been correctly updated by something else (start-fresh's own
+# preservation logic, confirmed directly: the file was clobbered back
+# to the stale, all-stations value on the very next rerun, before the
+# start-fresh fix ever got a chance to matter). on_change only fires
+# on a genuine, direct user interaction with THIS widget, never on an
+# ordinary rerun -- the only reliable way to distinguish "the user
+# just changed their selection" from "this widget's memory happens to
+# differ from a file that changed for some other reason."
+def _save_active_stations():
+    _s = tid_workflow.load_state(event_path / "tid_workflow_state.json")
+    _s["active_stations"] = st.session_state["_active_stations_multiselect"]
+    tid_workflow.save_state(event_path / "tid_workflow_state.json", _s)
+
+if "_active_stations_multiselect" not in st.session_state:
+    st.session_state["_active_stations_multiselect"] = _default_active
 _active_names = st.multiselect(
-    "Active stations", _all_discovered_names, default=_default_active,
+    "Active stations", _all_discovered_names,
+    key="_active_stations_multiselect", on_change=_save_active_stations,
 )
-if set(_active_names) != set(_saved_active_stations or _all_discovered_names):
-    wf_state["active_stations"] = _active_names
-    tid_workflow.save_state(event_path / "tid_workflow_state.json", wf_state)
 stations_preview = [d for d in stations_preview if d.name in _active_names]
 if len(stations_preview) < 3:
     st.warning(f"Only {len(stations_preview)} active station(s) -- "
@@ -1481,7 +1814,7 @@ spectrogram_placeholder = st.empty()
 # just read-only awareness of the CLI's own work.
 _keystone_key = keystone_station.name.lower()
 _cached_fullday = wf_state.get(f"{_keystone_key}_fullday")
-if _cached_fullday and Path(_cached_fullday).exists():
+if is_valid_cached_path(_cached_fullday, event_path):
     overview_png = Path(_cached_fullday)
     _cached_axes = overview_png.with_name(overview_png.stem + "_axes.json")
     axes_path = _cached_axes if _cached_axes.exists() else None
@@ -1583,6 +1916,26 @@ for d in stations_preview:
     else:
         lat, lon = get_drf_metadata_coords(d)
     if lat is None:
+        # REAL BUG FOUND live: this used to skip straight from "cache
+        # and DRF metadata both failed" to a manual, 0.0-defaulted
+        # input widget -- entirely missing the KNOWN_STATIONS
+        # callsign-database fallback that tid_workflow.py's own
+        # get_station_coords() already has, silently saving 0.0/0.0
+        # into the coords cache for any station without embedded DRF
+        # metadata (real hardware doesn't always write this), even
+        # when the correct coordinates were sitting right there in
+        # KNOWN_STATIONS the whole time. Not calling
+        # get_station_coords() directly here since its own final
+        # fallback is an interactive input() that can't work inside
+        # Streamlit -- so the KNOWN_STATIONS check is added directly,
+        # reusing the same dict tid_workflow.py itself uses rather
+        # than duplicating its data, stopping short of that last step.
+        _key = name.upper().replace("-", "_")
+        _known = next(((la, lo) for k, (la, lo, gr) in tid_workflow.KNOWN_STATIONS.items()
+                        if k in _key or _key in k), None)
+        if _known:
+            lat, lon = _known
+    if lat is None:
         needs_manual.append(name)
         station_info.append({"name": name, "drf_dir": str(d), "lat": None, "lon": None})
     else:
@@ -1590,7 +1943,7 @@ for d in stations_preview:
         cache.setdefault(name.upper(), {"lat": lat, "lon": lon})
 
 if needs_manual:
-    st.warning(f"No cached/metadata coordinates for: {', '.join(needs_manual)}. Enter manually below.")
+    st.warning(f"No cached/metadata/callsign-database coordinates for: {', '.join(needs_manual)}. Enter manually below.")
     for s in station_info:
         if s["lat"] is None:
             c1, c2 = st.columns(2)
@@ -1657,6 +2010,18 @@ if not any_multi_channel:
 #    explicitly since the channel confirmed just above might not be
 #    channel[0] -- see the call below. --
 st.subheader("Channel-num selection")
+st.caption("Some receivers (commonly RX888-style wideband setups) record "
+           "several carrier frequencies at once into the same recording -- "
+           "\"channel-num\" is which one of those is your actual target "
+           "(e.g. WWV 10 MHz). This has to be confirmed before extraction "
+           "can run for that station, since extraction needs to know "
+           "which specific frequency to pull the Doppler trace from -- "
+           "not something that can wait until the clicking step, since "
+           "the zoomed spectrogram used for clicking is itself generated "
+           "from this specific channel-num. This only ever happens ONCE "
+           "per station -- confirmed here, it's remembered permanently "
+           "(see the saved-progress banner above) and this section won't "
+           "ask again for that station, in this or any future session.")
 target_mhz = st.number_input(
     "Target carrier frequency (MHz)", value=10.0, step=0.5,
     help="Used to auto-pick the channel-num closest to this frequency, "
@@ -1724,6 +2089,16 @@ if not any_multi_channel_num:
 if not all_confirmed:
     st.warning("Confirm the channel/channel-num selection for every station flagged above before running -- "
                "the Run full pipeline button (sidebar) will stop with an error if you click it before that.")
+else:
+    # REAL GAP raised directly: nothing on the page ever clearly said
+    # "setup is done, here's what to do next" -- easy to lose track
+    # of where the actual trigger is (a button in the SIDEBAR, easy to
+    # miss if scrolled away from) after several setup steps in the
+    # main body. This is the one, unmissable place that should say so.
+    st.success("✅ **Setup complete for every active station.** Click "
+               "**\"Run full pipeline\"** in the sidebar (left side of "
+               "the page) to extract, compute DOA, and (if enabled) "
+               "run the Madrigal cross-check.")
 
 # Save-back side of the Phase 2 integration: once a station's channel-num
 # is settled (either just-confirmed above, or already-cached from a prior
@@ -1771,6 +2146,44 @@ def log(msg):
 
 config_path = event_path / "tid_workflow_event.json"
 
+if is_interactive_method and station_info:
+    # Direct, explicit control requested after the automatic
+    # keystone-first ordering proved hard to verify reliably in
+    # practice: rather than relying on which station happens to get
+    # dealt with first as a side effect of keystone selection, let the
+    # user directly pick which station's clicking window opens first.
+    _station_names_for_order = [s["name"] for s in station_info]
+    _default_first = keystone_station.name if keystone_station.name in _station_names_for_order else _station_names_for_order[0]
+    st.subheader("Clicking order")
+    first_station_name = st.selectbox(
+        "Which station should be presented first for interactive clicking?",
+        _station_names_for_order,
+        index=_station_names_for_order.index(_default_first),
+        key="_first_clicking_station",
+    )
+    station_info = (
+        [s for s in station_info if s["name"] == first_station_name] +
+        [s for s in station_info if s["name"] != first_station_name]
+    )
+
+if not run_button:
+    # Removes the fixed-position "pipeline running" badge (see below)
+    # if present -- the pipeline block only executes once per button
+    # click, so without this the badge would otherwise persist on
+    # screen after completion until some unrelated interaction
+    # happened to trigger the next rerun.
+    st.markdown(
+        """
+        <script>
+        (function() {
+            var existing = window.parent.document.getElementById("tid-pipeline-running-badge");
+            if (existing) { existing.remove(); }
+        })();
+        </script>
+        """,
+        unsafe_allow_html=True,
+    )
+
 if run_button:
     if run_madrigal and not (user_name and user_email and user_affil):
         st.error("Madrigal user name/email/affiliation are required (free registration, no account needed) "
@@ -1784,6 +2197,60 @@ if run_button:
                   "station flagged above (see 'Channel selection' and "
                   "'Channel-num selection' sections) before running.")
         st.stop()
+
+    # Prominent, reliable status banner -- requested directly after
+    # Streamlit's own built-in "running" spinner (top-right of the
+    # browser tab) turned out too subtle to notice reliably. That
+    # spinner is an internal, undocumented UI element; styling it via
+    # injected CSS would mean depending on version-specific selectors
+    # that could silently break on a future Streamlit update. This is
+    # fully under the dashboard's own control instead, and can say
+    # something more useful than just "busy" -- visible immediately on
+    # every rerun, since Streamlit reruns the whole script top-to-
+    # bottom on each interaction, well before the slow steps below
+    # actually finish.
+    st.info("🔄 **Pipeline running** -- progress streams in below as each "
+            "step completes.")
+
+    # REAL GAP FOUND, twice now: v0.18.1's in-flow banner scrolled out
+    # of view like Streamlit's own spinner; the first fixed-position
+    # attempt (plain CSS via st.markdown) STILL wasn't visible
+    # correctly -- confirmed live: wrong corner, wrong size, wrong
+    # color, meaning what was actually showing was still Streamlit's
+    # own native spinner, not this element at all. Root cause: plain
+    # position: fixed inside an st.markdown block is relative to
+    # whatever ancestor has its own CSS transform, not the real
+    # browser viewport -- and Streamlit's own app container commonly
+    # has exactly that, a well-known CSS gotcha for exactly this kind
+    # of injected UI. Fixed properly this time: a small script appends
+    # the badge directly to window.parent.document.body, escaping
+    # Streamlit's iframe/container structure entirely, so position:
+    # fixed is genuinely relative to the real viewport. Removes any
+    # previously-injected badge by id first so reruns replace it
+    # rather than stacking duplicates.
+    st.markdown(
+        """
+        <script>
+        (function() {
+            var doc = window.parent.document;
+            var existing = doc.getElementById("tid-pipeline-running-badge");
+            if (existing) { existing.remove(); }
+            var badge = doc.createElement("div");
+            badge.id = "tid-pipeline-running-badge";
+            badge.innerHTML = "🔄 Pipeline running&hellip;";
+            badge.style.cssText =
+                "position: fixed; bottom: 20px; right: 20px; z-index: 999999; " +
+                "background-color: #ff4b4b; color: white; " +
+                "padding: 12px 20px; border-radius: 24px; " +
+                "font-size: 16px; font-weight: 600; " +
+                "box-shadow: 0 2px 10px rgba(0,0,0,0.4); " +
+                "font-family: sans-serif;";
+            doc.body.appendChild(badge);
+        })();
+        </script>
+        """,
+        unsafe_allow_html=True,
+    )
 
     config_path = event_path / "tid_workflow_event.json"
 
@@ -1825,7 +2292,7 @@ if run_button:
         for i, s in enumerate(station_info):
             _stn_key = s["name"].lower()
             _cached = wf_state.get(f"{_stn_key}_{_extraction_state_suffix}")
-            if _cached and Path(_cached).exists():
+            if is_valid_cached_path(_cached, event_path):
                 st.write(f"**{s['name']}** -- using previously-extracted "
                          f"`{Path(_cached).name}` (from saved session). "
                          f"To redo, use \"Start completely fresh\" in the "
@@ -1957,7 +2424,7 @@ if run_button:
             _stn_key = s["name"].lower()
             out_csv = event_path / f"{_stn_key}_{method}.csv"
             _cached = wf_state.get(f"{_stn_key}_{_method_key}")
-            if _cached and Path(_cached).exists():
+            if is_valid_cached_path(_cached, event_path):
                 st.write(f"{_stn_key}: using previously-extracted "
                          f"`{Path(_cached).name}` (from saved session). "
                          f"To redo, use \"Start completely fresh\" in the "

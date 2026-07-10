@@ -178,7 +178,12 @@ itself uses — a session started via one is fully resumable from the
 other. Entering an event directory with existing saved progress shows
 a summary of what's already done per station, with the option to
 continue or start completely fresh (clearing the file, same as
-`tid_workflow.py`'s own choice for this). Channel-num confirmation,
+`tid_workflow.py`'s own choice for this — and also deleting every
+intermediate/derived file in the event directory, spectrograms,
+extraction CSVs, config files, run logs and all, leaving only the
+DRF station directories themselves untouched — shown explicitly
+before it happens, given it's a real, irreversible filesystem
+operation). Channel-num confirmation,
 the event window, keystone-station selection, and — the part that
 actually saves real time — extraction itself all persist this way:
 a station already extracted in a prior run (dashboard or CLI, either
@@ -193,7 +198,11 @@ tomorrow. `tid_workflow.py` itself is unmodified by any of this.
 
 A few more details worth knowing: the keystone station is processed
 first through every step (channel-num confirmation, extraction) —
-the whole reason for selecting one. "Start completely fresh" clears
+the whole reason for selecting one. For interactive extraction
+methods specifically, a separate "Clicking order" control lets you
+directly pick which station's window opens first, rather than relying
+on keystone selection as an indirect way to influence it. "Start
+completely fresh" clears
 the saved state but keeps your station exclusions, since a full
 reset silently pulling an excluded station back into the active set
 (forcing its channel-num confirmation all over again) turned out to
