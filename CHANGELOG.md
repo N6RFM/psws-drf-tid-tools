@@ -1,3 +1,143 @@
+## v4.1.0 -- 2026-07-10
+
+### Major changes
+
+#### `tid_dashboard.py`: genuinely resumable, sharing state directly with `tid_workflow.py` (v0.11.0-v0.21.1)
+The dashboard was previously a second, separately-maintained engine
+with no memory between sessions -- every visit meant re-confirming
+channel-nums, re-selecting the event window, and re-running extraction
+from scratch, even for a station already fully processed. It now
+reads and writes the exact same `tid_workflow_state.json` file
+`tid_workflow.py --resume` itself uses, so a session started via one
+is fully resumable from the other. `tid_workflow.py` itself remains
+completely unmodified throughout everything below -- its own
+per-step skip checks work unchanged once the dashboard writes those
+same keys; nothing here is a special case for tid_workflow.py to
+accommodate.
+
+Entering an event directory with existing saved progress shows a
+summary of what's already done per station, with the choice to
+continue or start completely fresh. "Start completely fresh" matches
+`tid_workflow.py`'s own equivalent choice (clearing the state file)
+and additionally deletes every intermediate/derived file in the event
+directory -- spectrograms, extraction CSVs, config, run logs --
+leaving only the DRF station directories themselves untouched, shown
+explicitly before the button appears given how destructive this is.
+Station exclusions specifically survive a full reset, since silently
+pulling an excluded station back into the active set (forcing its
+channel-num confirmation all over again) turned out to be genuinely
+disruptive in practice.
+
+Channel-num confirmation, the event window, keystone-station
+selection, and extraction itself all persist this way. A station
+already extracted in a prior run (dashboard or CLI, either one) is
+reused rather than re-run -- the real time-saver, since extraction is
+the slow step. Every discovered station can be individually excluded
+or re-included for a given run without touching that station's own
+saved progress. The keystone station is processed first through every
+step; for interactive extraction methods, a separate "Clicking order"
+control also lets the user pick directly which station's window opens
+first, rather than depending on keystone selection to influence it
+indirectly. The event window actually sent to `tid_doa.py` is computed
+from the real overlap of what was extracted for each station, not
+simply the slider selection -- matching `tid_workflow.py`'s own, more
+robust approach, and resolving a real, confirmed discrepancy this
+surfaced against an earlier direct CLI run.
+
+#### `tid_dashboard.py`: a real, pre-existing coordinate-fallback bug fixed (v0.21.1)
+The most significant single bug found in this stretch, and one that
+predates all of the above -- unrelated to any of this release's own
+new work. All-identical DOA midpoints across every station in a real
+event traced to the "Station coordinates" section having its own,
+separate, incomplete fallback logic: it skipped straight from "cache
+and DRF metadata both failed" to a manual, 0.0-defaulted input widget,
+entirely missing the `KNOWN_STATIONS` callsign-database fallback that
+`tid_workflow.py`'s own `get_station_coords()` already has. Real
+hardware doesn't always embed lat/lon metadata in the DRF recording
+itself, so this path got hit for real stations whose correct
+coordinates were sitting right there in `KNOWN_STATIONS` the whole
+time -- and once 0.0/0.0 got saved to the coordinate cache once
+(likely from the very original guided CLI setup, long before this),
+it silently persisted across every future session and every directory
+copy from then on. Fixed by adding the missing `KNOWN_STATIONS` check
+directly, verified against the real event: all 4 stations' coordinates
+and the resulting DOA midpoints came back correct and genuinely
+distinct afterward, matching known-correct values exactly.
+
+#### `tid_doa.py` v1.3.0: cross-correlation peak refinement fix
+A systematic investigation of a synthetic-test speed-estimation
+discrepancy found that the old 3-point parabolic sub-sample lag
+refinement was unstable whenever the true correlation peak sat almost
+exactly between two adjacent sample bins: tiny, non-systematic
+per-method extraction noise could flip which of two nearly-tied bins
+won the discrete argmax, after which the refinement moved AWAY from
+that bin -- so two extraction methods could each refine correctly
+relative to their own anchor and still end up nearly a full
+sample-width apart. Replaced with a wider least-squares fit
+incorporating both competing bins simultaneously. One real station
+pair's lag discrepancy dropped from 117.6s to 2.3s; a full 87-condition
+synthetic suite went from 2 unexpected failures to 0, with several
+other conditions also improving and none degrading.
+
+#### Wave-fit/spline terminology, fixed everywhere it appeared
+"Spline" is a genuinely separate extraction method from "wave-fit,"
+not an alternate name for the same output -- found conflated in
+`tid_spect_click.py`, then the exact same bug independently in
+`synthetic_tests/run_tests.py` and `run_interactive.py`, then again in
+`tid_dashboard.py`'s consolidated code. Each occurrence corrected the
+method label actually written to `event.json`/CSVs and updated
+matching documentation, rather than papering over the display only.
+
+#### `tid_spect_click.py`: multiple real bugs found via live testing (v0.3.0-v0.9.0)
+Fixed in sequence against real events (KV0S_MO June 6 2026, then Jan
+19 2026): wave-fit mode's event-json never updating on accept, a key
+bound to the wrong function, wrong status-bar text; the actual root
+cause of a stray prophet-auto-trace bug (constructor flags hardcoded
+`False`, only set after construction); a preview curve stretching
+across the full day instead of the selected window; and a genuine
+auto-cycle-estimate feature (seeding the wave-fit dialog with a real
+fit instead of a blind "1.0" guess) that went through two further
+regression fixes of its own after live testing -- a convergence
+failure with fewer than 6 clicked points, and a tolerance so loose it
+accepted nearly the whole search range.
+
+#### `tid_workflow.py` v1.2.0-v1.2.2
+Added `--ylim-half-range`, replacing 7 hardcoded `--ylim=-5,5` calls
+that couldn't be adjusted for a station with a wider or narrower
+Doppler spread. Fixed a `FileNotFoundError` on a fresh `--event-dir`
+that didn't exist yet (missing `parents=True` on two `mkdir()` calls).
+Minor consolidation support added for `tid_dashboard.py`'s benefit
+(an optional `channel=` parameter on `probe_channel_nums`, public
+names for what were private cache-helper functions) -- used by the
+dashboard consolidation below, not by `tid_workflow.py` itself.
+
+#### `tid_dashboard.py`: duplicate code consolidated into `tid_workflow.py`'s shared functions
+Removed 5 functions that were separate, drifting copies of
+`tid_workflow.py` code (`discover_stations`, `probe_station_channel_nums`,
+`best_channel_num_choice`, `load_coords_cache`, `save_coords_cache`),
+importing the shared versions instead. Net -80 lines, zero functional
+change, verified via a full end-to-end synthetic multi-channel-num
+test.
+
+#### `synthetic_tests`: method-aware candidate search
+Found live, testing multiple interactive methods against the same
+station in sequence: the output-CSV candidate search checked every
+method's filename pattern unconditionally, so a wave-fit run's
+leftover file could get silently picked up by a following cwt-prophet
+run on the same station. Fixed in both `run_tests.py` and
+`run_interactive.py` by only searching for the pattern the current
+method could actually have produced.
+
+### Verification note
+Every fix above was verified concretely rather than by inspection
+alone -- direct comparison against real event data, full synthetic
+test suite runs (comprehensively, not spot-checked), and for several
+of the dashboard fixes, deliberately recreating the exact failing
+scenario (a stale cross-directory file reference, a widget's
+in-browser memory outliving a file it should have matched, a status
+indicator confirmed not actually visible live despite passing every
+available sandbox check) before considering it resolved.
+
 ## v4.0.0 -- 2026-07-06
 
 ### Breaking changes
