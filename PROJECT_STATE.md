@@ -3558,3 +3558,107 @@ stations, which remains a separate, not-yet-built phase.
    on folding into the real tid_quicklook.py (see #100)
 7. fetch_madrigal_tec_closure.py still pending its own live-data
    graduation test (see #93)
+---
+## 108. Dashboard Phase 2/3 complete: extraction/DOA wiring, add/drop-stations, and 4 real bugs found via live testing against the real Jan 19 event -- 2026-07-10
+
+### What happened
+Completed the remaining scope of the shared-state architecture
+(entry #107): extraction/DOA wiring and add/drop-stations. Then live
+testing against the real Jan 19 2026 event -- not synthetic data --
+surfaced 4 distinct, real bugs in quick succession, each found,
+root-caused, fixed, and verified in turn rather than batched up
+speculatively. tid_workflow.py itself remains completely unmodified
+throughout all of this.
+
+### What got built (tid_dashboard.py v0.14.0 -> v0.16.3)
+- v0.14.0: extraction and DOA wired to the shared state -- the real
+  substance the whole effort was building toward. Both automated and
+  interactive extraction check state first and skip an already-done
+  station entirely. Verified by moving the underlying scripts off
+  disk entirely and confirming the pipeline still succeeded purely
+  by reusing cached results.
+- v0.15.0: Phase 3, add/drop stations -- a multiselect filtering
+  which discovered stations are active for a run, persisted as a
+  new, purely-additive "active_stations" key.
+
+### 4 real bugs found live (not in synthetic testing)
+- v0.15.1: tid_doa.py crashed with KeyError: 'file' when the
+  interactive path skipped a cached station -- the config file's
+  "file" field is normally only written by tid_spect_click.py's own
+  --event-json mechanism, which never runs for a skipped station.
+  Fixed by updating the config directly in that case.
+- v0.16.0: a real, confirmed discrepancy -- 40.8 m/s at 171 degrees
+  vs 319 m/s at 108 degrees for the exact same 3 stations and exact
+  same extracted CSVs as an earlier direct tid_workflow.py run.
+  Traced to a genuine design difference: the dashboard always used
+  the slider selection directly as the DOA config's event window,
+  while tid_workflow.py's own DOA step computes this from the actual
+  overlap of what was really extracted -- more robust, immune to
+  slider-snapping and per-station click timing. Replicated that
+  specific inline logic (not separately importable without modifying
+  tid_workflow.py) as compute_overlap_window(); both extraction paths
+  now use it instead of the slider selection.
+- v0.16.1: selecting a keystone had zero effect on processing order
+  -- a keystone picked specifically to be dealt with first could
+  still end up processed last, since everything just followed
+  stations_preview's own alphabetical order regardless. Reordered to
+  put the keystone first immediately after selection.
+- v0.16.2: "Start completely fresh" now preserves active_stations
+  instead of wiping it along with everything else. Found live to be
+  genuinely disruptive in practice, in the moment: excluding a
+  station, then doing an unrelated full reset, silently pulled the
+  excluded station back into the active set and forced its
+  channel-num confirmation all over again -- exactly the opposite of
+  what the user was trying to do at the time, and exactly the
+  repeat-yourself friction this whole session was meant to
+  eliminate. Notable: this exact tradeoff was discussed explicitly
+  during v0.15.0's design and the user said the full-wipe behavior
+  was fine at the time -- reversed once actually experienced in
+  practice under real pressure, not a case of the earlier answer
+  being wrong so much as a genuine gap between how a design decision
+  sounds in the abstract and how it feels once it's actually gotten
+  in someone's way.
+- v0.16.3: tid_doa.py crashed with FileNotFoundError on a bare
+  relative filename with no directory at all
+  (n6rfm_zoomed_spectrogram_wave_tid.csv). tid_spect_click.py's own
+  --event-json write can leave a relative path in the config -- fine
+  if tid_doa.py happens to run from the event directory itself, but
+  not when spawned from here. Now resolves every station's file path
+  to absolute before tid_doa.py ever sees the config.
+
+### Process note
+This stretch involved real, visible user frustration -- a full reset
+not behaving as expected, confusion about processing order, a
+pipeline that appeared to do nothing. Each complaint turned out to
+correspond to a genuine, fixable gap rather than a misunderstanding:
+the keystone-ordering gap, the start-fresh-wipes-exclusions gap, and
+the silently-blocked-run-button gap were all real. Worth remembering
+for future work on this dashboard: frustration during live testing of
+a new, complex feature is often a strong signal pointing directly at
+where the design doesn't yet match real usage, not noise to route
+around.
+
+### Docs
+README.md and docs/COOKBOOK.md updated to document keystone-first
+processing, start-fresh's exclusion-preserving behavior, and the
+overlap-based DOA window, alongside the earlier Phase 1/2 additions.
+
+### Open items
+1. The 3-station Jan 19 comparison this stretch was trying to verify
+   (319 m/s @ 108 deg from earlier direct testing) was never cleanly
+   re-confirmed -- the "start fresh" wipe forced fresh wave-fit clicks
+   for N6RFM/AA6BD/W7LUX under time pressure, and the resulting
+   34.9 m/s @ 171 deg result looks like a reflection of rushed
+   clicking rather than a remaining code issue, but this hasn't been
+   independently confirmed with a careful, unhurried re-click
+2. AC0G_ND's anomalous 11.6-minute period (Jan 19 event) -- still not
+   investigated (see #101)
+3. June 6 event: AC0G_ND still needs its own click to test dropping
+   N6RFM there (see #100, #101)
+4. cwt-prophet's notably higher error (24.8%) vs wave-fit (0.4%) and
+   spline (13.3%) on the nominal synthetic condition -- still not
+   investigated (see #105)
+5. The box-select prototype (test_box_select.py) -- still no decision
+   on folding into the real tid_quicklook.py (see #100)
+6. fetch_madrigal_tec_closure.py still pending its own live-data
+   graduation test (see #93)
