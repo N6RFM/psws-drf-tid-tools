@@ -179,12 +179,29 @@ other. Entering an event directory with existing saved progress shows
 a summary of what's already done per station, with the option to
 continue or start completely fresh (clearing the file, same as
 `tid_workflow.py`'s own choice for this). Channel-num confirmation,
-the event window, and keystone-station selection all persist this
-way, so returning to an event doesn't mean re-confirming or
-re-selecting things you already settled — each just shows what you
-already chose, or (for the window) defaults there instead of back to
-the full recorded range. `tid_workflow.py` itself is unmodified by
-any of this.
+the event window, keystone-station selection, and — the part that
+actually saves real time — extraction itself all persist this way:
+a station already extracted in a prior run (dashboard or CLI, either
+one) is reused rather than re-run, which matters since extraction is
+the genuinely slow step. Returning to an event doesn't mean
+re-confirming, re-selecting, or re-extracting things you already
+settled. Every discovered station can also be individually excluded
+or re-included for a given run (a multiselect right after the resume
+summary) without touching that station's own saved progress —
+dropping one today doesn't mean re-confirming it if you bring it back
+tomorrow. `tid_workflow.py` itself is unmodified by any of this.
+
+A few more details worth knowing: the keystone station is processed
+first through every step (channel-num confirmation, extraction) —
+the whole reason for selecting one. "Start completely fresh" clears
+the saved state but keeps your station exclusions, since a full
+reset silently pulling an excluded station back into the active set
+(forcing its channel-num confirmation all over again) turned out to
+be genuinely disruptive rather than helpful. And the event window
+actually sent to `tid_doa.py` is computed from the real overlap of
+what was extracted for each station — not simply the window-selection
+slider, which only guides where extraction happens — matching
+`tid_workflow.py`'s own, more robust approach.
 
 The Madrigal cross-check step is optional (toggle in the sidebar) and
 can be skipped if you just want speed/azimuth.

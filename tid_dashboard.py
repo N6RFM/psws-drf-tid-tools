@@ -6,10 +6,157 @@ Madrigal TEC cross-check).
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 0.13.2
+Version: 0.16.3
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v0.16.3 Fixed a real bug found live: tid_doa.py crashed with
+          FileNotFoundError on a bare filename with no directory at
+          all (n6rfm_zoomed_spectrogram_wave_tid.csv). tid_spect_click.py's
+          own --event-json write can leave a relative path in the
+          config file -- fine if tid_doa.py happens to run from the
+          event directory itself, but it doesn't when spawned from
+          here. Resolves every station's file path in the config to
+          absolute right before tid_doa.py ever sees it, regardless
+          of which mechanism wrote it (tid_spect_click.py itself, or
+          the dashboard's own skip-logic for a cached station).
+          Verified against the exact failing scenario: a relative
+          filename with no directory, confirmed it resolves correctly
+          and the resulting path is reachable.
+  v0.16.2 "Start completely fresh" now preserves active_stations
+          instead of wiping it along with everything else. Found
+          live, genuinely disruptive in practice: excluding a station
+          via the multiselect, then later doing a full reset for an
+          unrelated reason, silently pulled the excluded station back
+          into the active set and forced its channel-num confirmation
+          all over again -- exactly the repeat-yourself friction this
+          whole session was meant to eliminate, and specifically the
+          opposite of what "start completely fresh" was being used
+          for at the time. active_stations is a dashboard-introduced
+          key tid_workflow.py itself never reads or writes, so
+          preserving it doesn't conflict with matching the CLI's own
+          choice-5 reset for the state it actually knows about.
+          Verified: confirmed active_stations survives start-fresh
+          while every other key is genuinely cleared.
+  v0.16.1 Fixed a real gap found live: selecting a keystone station
+          had zero effect on processing order -- channel-num
+          confirmation and extraction both just followed
+          stations_preview's own alphabetical discovery order
+          regardless of keystone choice, meaning a keystone picked
+          specifically to be dealt with first could still end up
+          processed last. Reordered stations_preview to put the
+          selected keystone first immediately after keystone
+          selection, so every downstream step (which all just
+          iterate over stations_preview/station_info in whatever
+          order they're given) naturally follows without needing its
+          own keystone-awareness. Verified: selected a non-
+          alphabetically-first station as keystone and confirmed the
+          channel-num confirmation section now correctly processes
+          it first.
+  v0.16.0 Fixed a real, confirmed discrepancy found live: a dashboard
+          run against the real Jan 19 2026 event produced 40.8 m/s at
+          171 degrees, meaningfully different from 319 m/s at 108
+          degrees for the exact same 3 stations and exact same
+          extracted CSVs via tid_workflow.py's own guided run earlier.
+          Traced to a real design difference, not the v0.15.1 bug:
+          the dashboard has always used the user's event-window
+          slider selection directly as event_start_utc/event_end_utc
+          in the final DOA config. tid_workflow.py's own DOA step
+          computes this differently and more robustly -- the actual
+          overlapping time range across what was really extracted
+          (max of each station's own data start, min of each
+          station's own data end), not any pre-selected window. Added
+          compute_overlap_window(), replicating this specific,
+          simple, generic snippet directly (it's inline logic within
+          a larger function in tid_workflow.py, not a separate,
+          importable helper, and that file is not to be modified to
+          expose one) -- both extraction paths now use this computed
+          overlap for the final config's event_start_utc/
+          event_end_utc instead of the slider selection, which now
+          only guides where extraction happens, matching
+          tid_workflow.py's own semantics exactly. Verified: unit-
+          tested the function against known, offset time ranges, then
+          full end-to-end with a fake extraction script deliberately
+          offsetting each station's actual data range -- confirmed the
+          final config's event window differs correctly from the full
+          slider selection, reflecting the genuine per-station overlap
+          instead.
+  v0.15.1 Fixed a real bug found live testing v0.14.0/v0.15.0 against
+          the real Jan 19 event: tid_doa.py crashed with KeyError:
+          'file' whenever the interactive extraction path skipped a
+          cached station. Root cause: the config file's "file" field
+          for the interactive path is only ever written by
+          tid_spect_click.py's own --event-json mechanism -- which
+          never runs for a station skipped via the new caching logic,
+          so the config file kept whatever it had before (nothing,
+          for a never-yet-run station) even though station_info's own
+          in-memory dict was correctly updated. The automated
+          extraction path doesn't have this problem -- it builds its
+          config directly from station_info after the extraction
+          loop completes, at which point every station's "file" is
+          already correct regardless of cache hit or miss. Fixed by
+          updating the config file directly when skipping a cached
+          station in the interactive path, replicating what
+          tid_spect_click.py's own _save_event_json would have
+          written. Verified: recreated the exact failing scenario
+          (all stations cached, both tid_spect_click.py and
+          drf_spectrogram.py removed from disk entirely) and
+          confirmed the config file now correctly shows the right
+          file path for every station, with zero exceptions.
+  v0.15.0 Phase 3: add/drop stations. discover_stations() already
+          finds every DRF directory physically present in an event
+          directory -- there was previously no way to exclude one
+          from the pipeline once found. Added a multiselect right
+          after the resume banner, defaulting to all discovered
+          stations (matching prior behavior exactly if left
+          untouched), letting the user exclude or re-include any of
+          them for this run. Persists as a new "active_stations" key
+          in the shared state. Deliberately does NOT touch or clear
+          an excluded station's own saved progress elsewhere in
+          state -- re-including it later doesn't mean re-confirming
+          its channel-num or anything else about it, since that
+          progress was never cleared, just filtered out of the
+          active set. tid_workflow.py itself remains unmodified;
+          this key is purely additive, same as my_station in v0.13.1.
+          Verified: confirmed all-active-by-default matches prior
+          behavior, confirmed excluding a station correctly filters
+          it out of the channel-num section, confirmed a fresh
+          session correctly remembers the exclusion, and confirmed
+          re-including a previously-excluded station works cleanly
+          with no exceptions.
+
+          This completes the originally-scoped Phase 1-3 architecture:
+          the dashboard now supports starting fresh or resuming at any
+          step, including adding or dropping stations, all via the
+          exact state file tid_workflow.py itself reads and writes,
+          with tid_workflow.py completely unmodified throughout.
+  v0.14.0 Extraction and DOA now wired to the shared state -- the real
+          substance the whole Phase 2 effort was building toward,
+          since extraction is the genuinely slow step (the dashboard's
+          own caption already said so) and previously had zero
+          skip-if-already-done logic despite a comment claiming
+          otherwise ("Stations that already succeeded will reuse
+          their exported file" was aspirational, not implemented).
+          Both automated (autocorr/cwt/fft/bandpass/sgolay-ridge, via
+          "{stn}_{method}", matching tid_workflow.py's own key
+          convention including its .replace('-', '_') for hyphenated
+          method names) and interactive (wave-fit via "{stn}_wave",
+          cwt-prophet via "{stn}_spline") extraction now check the
+          shared state first and skip a station entirely if its
+          result is already there and the file still exists. DOA
+          handled differently, deliberately: it's fast, so this
+          doesn't skip re-running it, just records doa_done=True in
+          the shared state afterward for tid_workflow.py's own
+          --resume awareness of this step having happened.
+          Verified concretely, not just by inspection: ran the full
+          pipeline once with the real extraction script working
+          normally, confirmed results saved to state, THEN MOVED THE
+          UNDERLYING SCRIPT AWAY ENTIRELY (drf_to_doppler.py for
+          automated, both tid_spect_click.py and drf_spectrogram.py
+          for interactive) and re-ran -- confirmed the pipeline still
+          succeeded with zero exceptions purely by reusing cached
+          results, proving the code path never even attempted to call
+          the (now-missing) script for an already-done station.
   v0.13.2 Gave the keystone station selector its own proper subheader,
           matching every other major section (Overview spectrogram,
           Event window, etc.) -- it was previously just a plain
@@ -901,16 +1048,66 @@ def render_resume_banner(event_path):
             horizontal=True, key="_resume_choice",
         )
         if choice == "Start completely fresh":
-            st.warning("This clears the saved state file immediately -- "
-                       "matches tid_workflow.py --resume's own choice 5 "
-                       "exactly (not just ignoring it for this session).")
+            st.warning("This clears the saved state file -- matches "
+                       "tid_workflow.py --resume's own choice 5 (not just "
+                       "ignoring it for this session) -- except for which "
+                       "stations are active, which is kept as-is. Found "
+                       "live to be genuinely disruptive otherwise: a full "
+                       "wipe forced re-confirming a station's channel-num "
+                       "solely because it got pulled back into the active "
+                       "set by the same wipe, defeating the entire point "
+                       "of excluding it in the first place. active_stations "
+                       "is a dashboard-introduced key tid_workflow.py itself "
+                       "never reads or writes, so keeping it doesn't "
+                       "conflict with matching the CLI's own reset for the "
+                       "state it actually knows about.")
             if st.button("Confirm: clear saved state and start fresh"):
-                tid_workflow.save_state(state_file, {})
+                _kept_active = state.get("active_stations")
+                _fresh = {}
+                if _kept_active:
+                    _fresh["active_stations"] = _kept_active
+                tid_workflow.save_state(state_file, _fresh)
                 st.rerun()
             # Until confirmed, keep showing the existing state rather
             # than silently discarding it on every rerun.
             return state
         return state
+
+
+def compute_overlap_window(csv_paths):
+    """Compute the actual overlapping time range across a set of
+    extracted CSVs -- the same thing tid_workflow.py's own DOA step
+    does inline (max of each file's own start, min of each file's own
+    end), replicated here rather than imported since it's inline logic
+    within a larger function there, not a separate helper, and
+    tid_workflow.py itself is not to be modified to expose it as one.
+
+    Found live: the dashboard previously used the user's slider
+    selection directly as event_start_utc/event_end_utc in the final
+    DOA config, a different (and less robust) approach than
+    tid_workflow.py's own -- it computes this from what was ACTUALLY
+    extracted, which won't exactly match any pre-selected window once
+    per-station click/segment timing enters the picture, and is
+    immune to a station's real recording bounds clipping a saved
+    window choice slightly (exactly what caused a real, confirmed
+    discrepancy against tid_workflow.py's own DOA result for the same
+    stations and same extracted files).
+
+    Returns (t_start, t_end) as pandas Timestamps, or (None, None) if
+    any file can't be read.
+    """
+    import pandas as pd
+    mins, maxs = [], []
+    for p in csv_paths:
+        try:
+            df = pd.read_csv(p, parse_dates=["timestamp_utc"])
+            mins.append(df.timestamp_utc.min())
+            maxs.append(df.timestamp_utc.max())
+        except Exception:
+            return None, None
+    if not mins:
+        return None, None
+    return max(mins), min(maxs)
 
 
 def run_and_display_doa(config_path, live_log_fn, extra_args=None, header="Direction of arrival"):
@@ -1002,7 +1199,7 @@ def run_and_display_tec(config_path, doa, stations_subset, tec_script, out_dir,
 
 # ── Streamlit UI ──
 
-DASHBOARD_VERSION = "v0.13.2"
+DASHBOARD_VERSION = "v0.16.3"
 
 st.set_page_config(page_title="TID Pipeline Dashboard", layout="wide")
 st.title("TID Direction-of-Arrival Pipeline")
@@ -1161,6 +1358,42 @@ if not stations_preview:
 # completed work shows cached results instead of redoing it.
 wf_state = render_resume_banner(event_path)
 
+# Phase 3: add/drop stations. discover_stations() already finds every
+# DRF directory physically present in event_path -- there was
+# previously no way to exclude one from the pipeline once found, and
+# no CLI-level equivalent needed changing to support this (tid_workflow.py's
+# own --stations filter already does the same kind of thing, just as a
+# one-shot CLI argument rather than a persistent, revisitable choice).
+# Excluding a station here only filters it out of THIS run -- it does
+# NOT touch or clear that station's own saved progress in wf_state, so
+# re-including it later doesn't mean re-confirming anything about it.
+_all_discovered_names = [d.name for d in stations_preview]
+_saved_active_stations = wf_state.get("active_stations")
+if _saved_active_stations:
+    _default_active = [n for n in _all_discovered_names if n in _saved_active_stations]
+    if not _default_active:  # saved list no longer matches anything discovered
+        _default_active = _all_discovered_names
+else:
+    _default_active = _all_discovered_names
+st.subheader("Stations")
+st.caption("All DRF station directories found in this event directory. "
+           "Uncheck any to exclude them from this run (their own saved "
+           "progress, if any, is kept either way -- re-including a "
+           "station later won't mean re-confirming it) -- or newly add "
+           "one back in.")
+_active_names = st.multiselect(
+    "Active stations", _all_discovered_names, default=_default_active,
+)
+if set(_active_names) != set(_saved_active_stations or _all_discovered_names):
+    wf_state["active_stations"] = _active_names
+    tid_workflow.save_state(event_path / "tid_workflow_state.json", wf_state)
+stations_preview = [d for d in stations_preview if d.name in _active_names]
+if len(stations_preview) < 3:
+    st.warning(f"Only {len(stations_preview)} active station(s) -- "
+               f"need at least 3 for a DOA fit.")
+if not stations_preview:
+    st.stop()
+
 # -- Keystone station: the one whose recording bounds/spectrogram anchor
 #    the event-window slider. User-selectable rather than always the
 #    first one found in directory listing order (which has no relation
@@ -1184,6 +1417,16 @@ keystone_station = next(d for d in stations_preview if d.name == keystone_name)
 if wf_state.get("my_station") != keystone_name:
     wf_state["my_station"] = keystone_name
     tid_workflow.save_state(event_path / "tid_workflow_state.json", wf_state)
+
+# Found live: selecting a keystone had no effect on processing order at
+# all -- channel-num confirmation and extraction both just followed
+# stations_preview's own alphabetical discovery order regardless, so a
+# keystone chosen specifically to be dealt with first could still end
+# up last. The whole point of picking a keystone is to work with it
+# first; reorder here so every downstream step (which all just iterate
+# over stations_preview/station_info in whatever order they're given)
+# naturally does that instead of needing its own keystone-awareness.
+stations_preview = [keystone_station] + [d for d in stations_preview if d.name != keystone_name]
 
 # Provisional (NOT yet user-confirmed) channel-num guess for the keystone
 # station, used only to orient the overview spectrogram below so it has
@@ -1575,7 +1818,36 @@ if run_button:
                  "you close each window, then moves to the next station.")
 
         extraction_ok = True
+        # Matches tid_workflow.py's own key convention: wave-fit output
+        # goes under "{stn}_wave", cwt-prophet (and plain spline, if ever
+        # wired here) under "{stn}_spline".
+        _extraction_state_suffix = "wave" if wave_only else "spline"
         for i, s in enumerate(station_info):
+            _stn_key = s["name"].lower()
+            _cached = wf_state.get(f"{_stn_key}_{_extraction_state_suffix}")
+            if _cached and Path(_cached).exists():
+                st.write(f"**{s['name']}** -- using previously-extracted "
+                         f"`{Path(_cached).name}` (from saved session). "
+                         f"To redo, use \"Start completely fresh\" in the "
+                         f"saved-progress banner above.")
+                s["file"] = str(_cached)
+                # REAL BUG FOUND live: tid_doa.py crashed with
+                # KeyError: 'file' because this branch only updated
+                # station_info's own in-memory dict -- the actual
+                # config_path JSON file (what tid_doa.py reads) only
+                # ever gets its "file" field written by
+                # tid_spect_click.py's own --event-json mechanism,
+                # which never runs for a station skipped here. Update
+                # the config file directly ourselves in that case.
+                _cfg = json.loads(config_path.read_text())
+                for _cfg_stn in _cfg.get("stations", []):
+                    if _cfg_stn.get("name") == s["name"]:
+                        _cfg_stn["file"] = str(_cached)
+                        _cfg_stn["method"] = _extraction_state_suffix
+                        break
+                config_path.write_text(json.dumps(_cfg, indent=2))
+                continue
+
             st.write(f"**{s['name']}** -- generating zoomed spectrogram for "
                      f"the selected event window...")
             zoom_png, zoom_axes, zoom_ok, zoom_out = generate_zoomed_spectrogram(
@@ -1609,8 +1881,11 @@ if run_button:
                 extraction_ok = False
             else:
                 st.success(f"{s['name']}: exported -> `{updated_file}`")
-                s["file"] = str((event_path / updated_file).resolve()) \
+                _resolved_file = str((event_path / updated_file).resolve()) \
                     if not Path(updated_file).is_absolute() else updated_file
+                s["file"] = _resolved_file
+                wf_state[f"{_stn_key}_{_extraction_state_suffix}"] = _resolved_file
+                tid_workflow.save_state(event_path / "tid_workflow_state.json", wf_state)
 
         if not extraction_ok:
             st.error("Not all stations were successfully extracted -- fix "
@@ -1621,13 +1896,46 @@ if run_button:
             st.stop()
         st.success("Interactive extraction complete for all stations.")
 
-        # -- Step 2: config already updated in place by tid_spect_click.py
-        #    (via --event-json) -- just re-read and display it, nothing
-        #    to write ourselves. --
+        # -- Step 2: config's "file"/"method" fields are already updated
+        #    in place -- either by tid_spect_click.py itself (via
+        #    --event-json) or by our own skip-logic above for a cached
+        #    station. event_start_utc/event_end_utc, however, still
+        #    holds the slider selection written before extraction --
+        #    update those to the actual overlap across what was really
+        #    extracted, matching tid_workflow.py's own approach (see
+        #    compute_overlap_window's docstring for why this matters:
+        #    found live, a real, confirmed discrepancy against
+        #    tid_workflow.py's own DOA result for the same stations and
+        #    same extracted files, traced to exactly this). --
         st.subheader("Step 2 -- Event config")
         config = json.loads(config_path.read_text())
-        st.write(f"`{config_path}` already updated by tid_spect_click.py "
-                 f"as each station was exported.")
+        # REAL BUG FOUND live: tid_doa.py crashed with FileNotFoundError
+        # on a bare filename with no directory at all
+        # (n6rfm_zoomed_spectrogram_wave_tid.csv). tid_spect_click.py's
+        # own --event-json write can leave a relative path in the
+        # config -- fine if tid_doa.py happens to run from the event
+        # directory itself, but it doesn't when spawned from here.
+        # Resolve every station's file path to absolute before tid_doa.py
+        # ever sees the config, regardless of which mechanism wrote it
+        # (tid_spect_click.py itself, or our own skip-logic above).
+        for _cfg_stn in config.get("stations", []):
+            _f = _cfg_stn.get("file")
+            if _f and not Path(_f).is_absolute():
+                _cfg_stn["file"] = str((event_path / _f).resolve())
+        _overlap_start, _overlap_end = compute_overlap_window(
+            [s["file"] for s in station_info])
+        if _overlap_start is None:
+            st.error("Could not compute the extracted data's overlapping "
+                      "time range -- see raw subprocess log.")
+            st.stop()
+        config["event_start_utc"] = _overlap_start.isoformat()
+        config["event_end_utc"] = _overlap_end.isoformat()
+        config_path.write_text(json.dumps(config, indent=2))
+        st.write(f"`{config_path}` updated by tid_spect_click.py as each "
+                 f"station was exported; event window updated here to the "
+                 f"actual overlap across all extracted files "
+                 f"({_overlap_start} to {_overlap_end}), matching "
+                 f"tid_workflow.py's own approach.")
         with st.expander("View config"):
             st.json(config)
 
@@ -1636,11 +1944,27 @@ if run_button:
         st.subheader(f"Step 1 -- Doppler extraction ({method})")
         st.caption("Output streams live below as each station extracts -- this is "
                    "the slow step for a wide event window; a full 24h window at "
-                   "10s decimation can genuinely take several minutes per station.")
+                   "10s decimation can genuinely take several minutes per station. "
+                   "A station already extracted with this method in a prior run "
+                   "reuses that result instead of repeating it.")
         prog = st.progress(0.0)
         extraction_ok = True
+        # Matches tid_workflow.py's own key convention exactly (its
+        # extraction step does the same .replace('-', '_') for method
+        # names like sgolay-ridge).
+        _method_key = method.replace('-', '_')
         for i, s in enumerate(station_info):
-            out_csv = event_path / f"{s['name'].lower()}_{method}.csv"
+            _stn_key = s["name"].lower()
+            out_csv = event_path / f"{_stn_key}_{method}.csv"
+            _cached = wf_state.get(f"{_stn_key}_{_method_key}")
+            if _cached and Path(_cached).exists():
+                st.write(f"{_stn_key}: using previously-extracted "
+                         f"`{Path(_cached).name}` (from saved session). "
+                         f"To redo, use \"Start completely fresh\" in the "
+                         f"saved-progress banner above.")
+                s["file"] = str(_cached)
+                prog.progress((i + 1) / len(station_info))
+                continue
             args = [
                 sys.executable, str(REPO_DIR / "drf_to_doppler.py"),
                 s["drf_dir"],
@@ -1661,6 +1985,8 @@ if run_button:
             else:
                 st.write(f"{s['name']}: -> `{out_csv.name}`")
                 s["file"] = str(out_csv)
+                wf_state[f"{_stn_key}_{_method_key}"] = str(out_csv)
+                tid_workflow.save_state(event_path / "tid_workflow_state.json", wf_state)
             prog.progress((i + 1) / len(station_info))
         if not extraction_ok:
             st.stop()
@@ -1668,9 +1994,19 @@ if run_button:
 
         # ── Step 2: write event config ──
         st.subheader("Step 2 -- Event config")
+        _overlap_start, _overlap_end = compute_overlap_window([s["file"] for s in station_info])
+        if _overlap_start is None:
+            st.error("Could not compute the extracted data's overlapping "
+                      "time range -- see raw subprocess log.")
+            st.stop()
+        st.caption(f"Event window for the DOA config is the actual overlap "
+                   f"across all extracted files ({_overlap_start} to "
+                   f"{_overlap_end}), matching tid_workflow.py's own approach "
+                   f"-- not simply the slider selection above, which only "
+                   f"guides extraction itself.")
         config = {
-            "event_start_utc": event_start,
-            "event_end_utc": event_end,
+            "event_start_utc": _overlap_start.isoformat(),
+            "event_end_utc": _overlap_end.isoformat(),
             "resample_seconds": 60,
             "use_bandpass": False,
             "use_ipp": True,
@@ -1692,6 +2028,13 @@ if run_button:
         st.stop()
     st.session_state["cached_doa"] = doa
     st.session_state["cached_tec"] = None  # cleared unless Step 4 below sets it
+    # DOA is fast enough that re-running it isn't wasteful the way
+    # re-extraction would be, so this doesn't skip re-running -- it
+    # just keeps the shared state accurate for tid_workflow.py's own
+    # --resume awareness of this step having happened.
+    if not wf_state.get("doa_done"):
+        wf_state["doa_done"] = True
+        tid_workflow.save_state(event_path / "tid_workflow_state.json", wf_state)
 
     # ── Step 4: Madrigal TEC cross-check (optional) ──
     if not run_madrigal:

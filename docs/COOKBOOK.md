@@ -40,11 +40,32 @@ fully resumable from the other. Entering an event directory with
 existing saved progress shows a summary of what's already done per
 station, with the choice to continue or start completely fresh
 (clearing the file, same as `tid_workflow.py`'s own equivalent
-choice). Channel-num confirmation, the event window, and which
-station is the keystone all persist this way: returning to an event
-shows what you already confirmed instead of asking again, and the
-window slider defaults to your last selection instead of the full
-recorded range.
+choice, except your station exclusions are kept either way — more on
+that below). Channel-num confirmation, the event window, which
+station is the keystone, and extraction itself all persist this way:
+returning to an event shows what you already confirmed instead of
+asking again, the window slider defaults to your last selection
+instead of the full recorded range, and a station already extracted
+is reused rather than re-run — the real time-saver, since extraction
+is the slow step. The keystone station is also processed first
+through every step, the whole reason for picking one. One more thing
+worth knowing: the event window actually sent to `tid_doa.py` is the
+real overlap of what was extracted for each station, not simply the
+slider selection — which only guides where extraction happens —
+matching `tid_workflow.py`'s own approach.
+
+### How do I exclude a station from a run without losing its progress?
+
+A multiselect right after the saved-progress summary lists every DRF
+station directory found in the event folder — uncheck any to exclude
+it from this run. Unlike [dropping a station to re-run just the DOA
+fit](#how-do-i-drop-a-station-and-re-run-in-the-dashboard) (a
+later-stage, DOA-only tool for isolating a bad result after
+extraction), this is an earlier-stage choice that skips a station
+through the *entire* pipeline, extraction included. Either way,
+excluding a station never touches its own saved progress — bringing
+it back later (check the box again) doesn't mean re-confirming its
+channel-num or anything else about it.
 
 ### How do I pick an extraction method in the dashboard?
 
