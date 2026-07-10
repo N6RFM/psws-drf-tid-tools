@@ -3804,3 +3804,62 @@ a code path synthetic testing alone had never touched.
    on folding into the real tid_quicklook.py (see #100)
 6. fetch_madrigal_tec_closure.py still pending its own live-data
    graduation test (see #93)
+---
+## 110. Can the dashboard examine synthetic test data? Yes, already, with zero code changes needed -- 2026-07-10
+
+### The question
+Asked directly: is using tid_dashboard.py to examine data in
+synthetic_tests/events/ possible as-is, or would it need a major
+rewrite?
+
+### The answer: already possible, verified directly
+Confirmed rather than assumed. The dashboard's own "Event directory"
+input accepts any directory containing DRF station subdirectories --
+the same convention tid_workflow.py --event-dir uses -- and doesn't
+distinguish real recordings from synthetic ones in any way; it just
+reads whatever digital_rf reports. synthetic_tests/synthetic_drf.py
+already embeds real latitude/longitude metadata into each synthetic
+station's DRF properties, the same attrs read_drf_metadata() expects,
+so the "Station coordinates" section picks these up cleanly too --
+no manual-entry fallback needed.
+
+Verified directly: pointed the dashboard's event-directory input at
+the existing synthetic_tests/events/synthetic_nominal/ directory (a
+real, already-generated synthetic event from earlier testing this
+session, complete with pre-existing extraction CSVs and config files
+from prior run_tests.py runs). Every dashboard section rendered
+correctly with zero exceptions -- Stations, Keystone station, Overview
+spectrogram, Event window, Station coordinates (correctly resolved,
+no manual-entry warning), Channel selection, Channel-num selection.
+
+### Practical implication
+This means the dashboard can be used as a genuine, visual alternative
+to run_tests.py/run_interactive.py for exploring a specific synthetic
+condition -- clicking through wave-fit/cwt-prophet extraction on
+synthetic data with the same real spectrogram-viewing UI used for
+real events, or just visually inspecting what a given synthetic
+condition's spectrograms/window/extraction actually look like,
+without needing to touch the CLI test harness at all for that
+specific, interactive purpose. Doesn't replace run_tests.py's own
+comprehensive automated sweep -- that remains the right tool for
+running many conditions/methods at once -- but for looking closely at
+one specific condition, the dashboard already works today.
+
+### Open items
+1. The 3-station Jan 19 comparison from an earlier entry (319 m/s @
+   108 deg from direct testing) still hasn't been cleanly
+   re-verified with a careful, unhurried re-click -- now further
+   complicated by the coordinate-fallback bug having potentially
+   affected earlier comparison points too; worth redoing from a
+   clean baseline
+2. AC0G_ND's anomalous 11.6-minute period (Jan 19 event) -- still not
+   investigated (see #101)
+3. June 6 event: AC0G_ND still needs its own click to test dropping
+   N6RFM there (see #100, #101)
+4. cwt-prophet's notably higher error (24.8%) vs wave-fit (0.4%) and
+   spline (13.3%) on the nominal synthetic condition -- still not
+   investigated (see #105)
+5. The box-select prototype (test_box_select.py) -- still no decision
+   on folding into the real tid_quicklook.py (see #100)
+6. fetch_madrigal_tec_closure.py still pending its own live-data
+   graduation test (see #93)
