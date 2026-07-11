@@ -3949,3 +3949,75 @@ framed.
    on folding into the real tid_quicklook.py (see #100)
 5. fetch_madrigal_tec_closure.py still pending its own live-data
    graduation test (see #93)
+---
+## 112. 2 of 3 'genuinely shared' UX priorities done: spectrogram title '?' fix, tid_spect_click.py close-safety-net extended to all 3 modes -- 2026-07-11
+
+### What happened
+Worked through the first 2 of 3 "genuinely shared" items from entry
+#111's priority list. Kept on research_gui for now rather than
+promoted to main immediately -- a deliberate choice, not yet released
+publicly.
+
+### drf_spectrogram.py v1.4.0: the "?" title fix
+Root cause: plot titles showed "?" for callsign/grid/frequency
+whenever a station's DRF recording had no populated digital_metadata
+subdirectory -- a separate mechanism from drf_properties.h5's own
+lat/lon attrs, so a station could have coordinates readable just fine
+(the earlier coordinate-fallback fix, entry #109) while still showing
+"?" in its own title. Falls back to tid_workflow.py's own
+KNOWN_STATIONS database for callsign/grid, reused directly. Added
+--target-freq-mhz, matching the existing --callsign/--grid override
+pattern, since frequency isn't something KNOWN_STATIONS tracks.
+
+tid_dashboard.py v0.21.2 wires both spectrogram-generation functions
+to pass this through. tid_workflow.py's own 6 call sites left
+untouched per the established "keep it as-is" principle -- still
+benefits from the KNOWN_STATIONS fallback regardless, just not the
+frequency override specifically.
+
+Verified directly on the real Jan 19 event: "Doppler spectrogram -
+N6RFM (EM12jw) at 10.000 MHz, 2026-01-19" instead of "? (?) at ?".
+
+### tid_spect_click.py v0.10.0: close-safety-net extended
+The close-safety-net (auto-finalizing pending work when the window
+closes by any means) previously only covered wave-fit mode.
+cwt-prophet and spline had no equivalent protection at all -- a user
+who clicked anchors or let the background prophet computation finish,
+but never pressed the accept key, would just silently lose that work
+on close. Extended to all three modes, reusing the existing export
+functions directly rather than duplicating logic.
+
+### A real, unrelated environmental issue found along the way
+Testing this live surfaced a genuinely separate problem: the
+close-safety-net test initially appeared to fail entirely ("no output
+CSV found"), traced through several dead ends before finding the
+actual cause -- the prophet Python package had gone missing from the
+venv (likely lost during the earlier segfault/pyarrow-mimalloc
+reinstall episode), unrelated to any of this session's own code
+changes. Also hit the same "stale duplicate download" pattern seen
+several times before this session (a browser download-naming
+collision leaving an older, un-fixed copy as the literal filename
+while the real fix sat in a "(1)" suffixed one) -- worth remembering
+as a recurring, generic gotcha whenever a fix "isn't working" despite
+every check passing. Once prophet was reinstalled, confirmed directly:
+closing the window without pressing E correctly auto-exported the
+prophet CSV anyway.
+
+### Open items
+1. Item #3 from entry #111's priority list not yet started: ANSI-
+   colored diagnostics in tid_doa.py
+2. Item #4: investigate cwt-prophet's accuracy gap (24.8% vs
+   wave-fit's 0.4% on the nominal synthetic condition) -- still open
+   since entry #105
+3. Item #5: --compare capability for tid_doa.py run logs -- not
+   started
+4. AC0G_ND's anomalous 11.6-minute period (Jan 19 event) -- still not
+   investigated (see #101)
+5. June 6 event: AC0G_ND still needs its own click to test dropping
+   N6RFM there (see #100, #101)
+6. The 3-station Jan 19 comparison via the dashboard (319 m/s @ 108
+   deg) never cleanly re-verified with a careful, unhurried re-click
+7. The box-select prototype (test_box_select.py) -- still no decision
+   on folding into the real tid_quicklook.py (see #100)
+8. fetch_madrigal_tec_closure.py still pending its own live-data
+   graduation test (see #93)
