@@ -6,10 +6,28 @@ Madrigal TEC cross-check).
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 0.21.1
+Version: 0.21.2
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v0.21.2 Wired both spectrogram-generation functions to pass
+          --target-freq-mhz through to drf_spectrogram.py's own new
+          fallback (v1.4.0), fixing "?" in generated titles for
+          stations lacking digital_metadata. generate_zoomed_spectrogram
+          uses the actual, user-configurable target_mhz value (defined
+          by the time it's called, in the extraction step);
+          generate_overview_spectrogram uses a fixed 10.0 MHz default,
+          since it's called earlier in the script flow, before
+          target_mhz itself is ever defined in Channel-num selection.
+          tid_workflow.py's own 6 drf_spectrogram.py call sites left
+          untouched, per the established "keep tid_workflow.py as-is"
+          principle -- its titles still benefit from drf_spectrogram.py's
+          own KNOWN_STATIONS callsign/grid fallback regardless, just
+          not from this specific frequency override. Verified end-to-
+          end: confirmed the dashboard's own generated overview
+          spectrogram title shows the correct callsign, grid, and
+          frequency for a station with no digital_metadata, not just
+          via a standalone drf_spectrogram.py call.
   v0.21.1 Fixed a real, pre-existing bug found live (predates this
           session's work entirely): all-identical DOA midpoints and
           zero coordinates traced to the "Station coordinates" section
@@ -810,7 +828,7 @@ save_coords_cache = tid_workflow.save_coords_cache
 
 def generate_zoomed_spectrogram(event_path, drf_dir, channel, station_name,
                                  event_start_dt, event_end_dt, ylim_half_range=None,
-                                 channel_num=None):
+                                 channel_num=None, target_mhz=None):
     """Generate a spectrogram zoomed to the actual event window (not the
     full-day overview) -- this is what tid_spect_click.py's wave-fit/
     cwt-prophet clicking is meant to be done against, same as
@@ -847,6 +865,8 @@ def generate_zoomed_spectrogram(event_path, drf_dir, channel, station_name,
         args += ["--channel", channel]
     if channel_num is not None:
         args += ["--channel-num", str(channel_num)]
+    if target_mhz is not None:
+        args += ["--target-freq-mhz", str(target_mhz)]
     if ylim_half_range:
         args.append(f"--ylim=-{ylim_half_range},{ylim_half_range}")
     ok, out = run_cmd(args)
@@ -927,7 +947,7 @@ def run_interactive_extraction(config_path, drf_dir, channel, station_name,
     return ok, out, updated_file
 
 
-def generate_overview_spectrogram(event_path, drf_dir, channel, station_name, channel_num=None):
+def generate_overview_spectrogram(event_path, drf_dir, channel, station_name, channel_num=None, target_mhz=None):
     """Generate (or reuse a cached) full-window overview spectrogram via the
     repo's own drf_spectrogram.py, so users can visually locate the TID
     before picking a window -- rather than the dashboard reimplementing
@@ -962,6 +982,8 @@ def generate_overview_spectrogram(event_path, drf_dir, channel, station_name, ch
         args += ["--channel", channel]
     if channel_num is not None:
         args += ["--channel-num", str(channel_num)]
+    if target_mhz is not None:
+        args += ["--target-freq-mhz", str(target_mhz)]
     ok, out = run_cmd(args)
     ok = ok and png_path.exists() and axes_path.exists()
     return (png_path if ok else None), (axes_path if ok else None), ok, out
@@ -1488,7 +1510,7 @@ def run_and_display_tec(config_path, doa, stations_subset, tec_script, out_dir,
 
 # ── Streamlit UI ──
 
-DASHBOARD_VERSION = "v0.21.1"
+DASHBOARD_VERSION = "v0.21.2"
 
 st.set_page_config(page_title="TID Pipeline Dashboard", layout="wide")
 st.title("TID Direction-of-Arrival Pipeline")
@@ -1823,7 +1845,7 @@ if is_valid_cached_path(_cached_fullday, event_path):
 else:
     overview_png, axes_path, overview_ok, overview_out = generate_overview_spectrogram(
         event_path, keystone_station, _keystone_channel_guess, keystone_station.name,
-        channel_num=keystone_channel_num_guess)
+        channel_num=keystone_channel_num_guess, target_mhz=10.0)
     if overview_ok:
         wf_state[f"{_keystone_key}_fullday"] = str(overview_png)
         tid_workflow.save_state(event_path / "tid_workflow_state.json", wf_state)
@@ -2320,7 +2342,7 @@ if run_button:
             zoom_png, zoom_axes, zoom_ok, zoom_out = generate_zoomed_spectrogram(
                 event_path, s["drf_dir"], s.get("channel"), s["name"],
                 event_start_dt, event_end_dt, ylim_half_range=ylim_half_range,
-                channel_num=s.get("channel_num"))
+                channel_num=s.get("channel_num"), target_mhz=target_mhz)
             log(f"$ drf_spectrogram.py (zoomed, {s['name']})\n{zoom_out}")
             if not zoom_png:
                 st.error(f"{s['name']}: could not generate zoomed spectrogram -- "

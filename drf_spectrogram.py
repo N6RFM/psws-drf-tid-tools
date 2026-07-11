@@ -3,13 +3,36 @@ drf_spectrogram.py — render an annotated Doppler spectrogram from DRF I/Q
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.3.0
+Version: 1.4.0
 License: MIT (do whatever you want, no warranty).
 
 Based on the spectrogram approach used by AB4EJ (W. Engelke, University of
 Alabama) in plotspectrum_V4a.py.
 
 Change log:
+  v1.4.0  Fixed a real, confirmed bug: plot titles showed "?" for
+          callsign/grid/frequency whenever a station's DRF recording
+          had no populated digital_metadata subdirectory -- a separate
+          mechanism from drf_properties.h5's own lat/lon attrs, so a
+          station could have coordinates readable just fine while
+          still showing "?" in its own title. Falls back to
+          tid_workflow.py's own KNOWN_STATIONS database for callsign/
+          grid (reused directly, not duplicated, same pattern as an
+          earlier coordinate-fallback fix elsewhere in this project).
+          Also fixed the docstring version and the --version flag
+          having drifted out of sync (1.3.0 vs 1.2.0). Added
+          --target-freq-mhz, matching the existing --callsign/--grid
+          override pattern, since the frequency shown in the title
+          isn't something KNOWN_STATIONS tracks and isn't safely
+          guessable the same way (different stations may genuinely be
+          tuned to different WWV frequencies). Verified directly:
+          recreated the exact bug scenario (a station with coordinates
+          but no digital_metadata subdirectory) and confirmed the
+          generated title now shows the correct callsign, grid, and
+          (with the override) frequency instead of "?" -- both via a
+          direct standalone call and through the dashboard's own
+          generate_overview_spectrogram/generate_zoomed_spectrogram
+          wiring.
   v1.3.0  Renamed --subchannel to --channel-num throughout. "Subchannel"
           incorrectly implied a single combined signal demultiplexed
           into related sub-streams (like ATSC TV subchannels); what's
@@ -384,11 +407,20 @@ def main():
     ap.add_argument("--grid", default=None,
                     help="Override the grid square in the auto-generated "
                          "title.")
+    ap.add_argument("--target-freq-mhz", type=float, default=None,
+                    help="Override the target carrier frequency (MHz) shown "
+                         "in the auto-generated title. Useful when the DRF "
+                         "metadata's center_frequencies field is missing -- "
+                         "the same underlying gap --callsign/--grid handle "
+                         "for those two fields, but not safely guessable "
+                         "the same way, since different stations may "
+                         "genuinely be tuned to different WWV frequencies "
+                         "(2.5/5/10/15/20/25 MHz).")
     ap.add_argument("--dpi", type=int, default=140,
                     help="Output PNG resolution in dots per inch. "
                          "Default: 140. Use 200-300 for publication quality.")
     ap.add_argument("--version", action="version",
-                    version="%(prog)s 1.2.0")
+                    version="%(prog)s 1.4.0")
     args = ap.parse_args()
 
     if not _HAVE_DRF:
@@ -434,11 +466,39 @@ def main():
         except Exception as e:
             print(f"  (metadata read failed: {e})")
 
+    # REAL BUG FOUND live: callsign/grid showed as "?" in the plot
+    # title for stations whose DRF recording has no populated
+    # digital_metadata subdirectory (a separate mechanism from
+    # drf_properties.h5's own lat/lon attrs -- a station can have
+    # coordinates readable just fine while still lacking this,
+    # explaining why the coordinate lookup worked but the title
+    # didn't). Falls back to tid_workflow.py's own KNOWN_STATIONS
+    # database -- reused directly, not duplicated, same pattern as
+    # the coordinate-fallback fix -- keyed off the station name
+    # derived from the DRF directory's own name, the same convention
+    # used everywhere else in this project.
+    if callsign == "?" or grid == "?":
+        try:
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            import tid_workflow
+            stn_key = os.path.basename(os.path.normpath(args.drf_dir)).upper()
+            for k, (_, _, gr) in tid_workflow.KNOWN_STATIONS.items():
+                if k in stn_key or stn_key in k:
+                    if callsign == "?":
+                        callsign = k
+                    if grid == "?":
+                        grid = gr
+                    break
+        except Exception as e:
+            print(f"  (KNOWN_STATIONS fallback failed: {e})")
+
     # CLI overrides take precedence over metadata
     if args.callsign:
         callsign = args.callsign
     if args.grid:
         grid = args.grid
+    if args.target_freq_mhz is not None:
+        target_freq = args.target_freq_mhz
     # Determine analysis window
     midnight_utc = record_start_utc.replace(hour=0, minute=0, second=0,
                                             microsecond=0)
