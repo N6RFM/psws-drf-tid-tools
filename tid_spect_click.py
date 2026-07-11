@@ -3,10 +3,30 @@ tid_spect_click.py — spectrogram-based guided Doppler phase extraction
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 0.9.0
+Version: 0.10.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v0.10.0 Extended the close-safety-net (auto-finalizing pending work
+          when the window closes by any means) to cwt-prophet and
+          spline modes -- previously only wave-fit mode had this
+          protection, meaning a user who clicked anchors (or let the
+          background prophet computation finish) but never pressed
+          the accept key in either of the other two modes would just
+          silently lose that work on close, with no warning, unlike
+          wave-fit right next to it. cwt-prophet now auto-exports the
+          completed background prophet trace; spline auto-exports via
+          whatever anchor clicks were made so far. Both reuse the
+          existing export functions directly (_export_prophet_csv,
+          _export_spline_csv), which already no-op safely if nothing
+          is ready yet -- no new logic duplicated, same functions the
+          accept keys themselves call. Explicitly pressing the accept
+          key first still works exactly as before in every mode; this
+          only fires for whatever's left un-exported at close time.
+          Verified directly against all 4 relevant scenarios (each of
+          the 3 modes, plus wave-fit's own pre-existing "nothing
+          pending" case) using mocked state, confirming each correctly
+          calls exactly the right function and none of the others.
   v0.9.0  Fixed a real terminology bug found during a documentation
           review, not live testing this time: wave-fit's own accepted
           CSVs were being recorded in the config with "method":
@@ -1012,7 +1032,21 @@ class SpectClickApp(QtWidgets.QMainWindow):
 
         def _run():
             try:
-                _sp.run(cmd, stdout=_sp.PIPE, stderr=_sp.PIPE, timeout=180)
+                result = _sp.run(cmd, stdout=_sp.PIPE, stderr=_sp.PIPE, timeout=180)
+                # REAL GAP FOUND live: this subprocess's captured
+                # output was silently discarded on failure, leaving
+                # "no output CSV found" with zero diagnostic
+                # information -- no way to tell WHY drf_to_doppler.py
+                # failed without manually re-running the exact same
+                # command by hand. Surface it now whenever the
+                # expected output file doesn't show up.
+                if not _os2.path.exists(out_csv):
+                    print(f"  cwt-prophet subprocess produced no output "
+                          f"(return code {result.returncode})")
+                    if result.stdout:
+                        print(f"  stdout: {result.stdout.decode(errors='replace')}")
+                    if result.stderr:
+                        print(f"  stderr: {result.stderr.decode(errors='replace')}")
             except Exception as _e:
                 print(f"  Prophet preview exception: {_e}")
             finally:
@@ -1775,14 +1809,34 @@ class SpectClickApp(QtWidgets.QMainWindow):
 
 
     def closeEvent(self, event):
-        """Safety net: if a wave-fit candidate is still pending
-        (F was pressed but A never was) when the window closes -- by
-        any means, not just the Q shortcut -- auto-accept it rather
-        than silently losing it. Explicitly pressing A first still
-        works exactly as before; this only fires for whatever's left
-        unaccepted at close time."""
-        if getattr(self, "_wave_only", False) and getattr(self, "_wave_candidate", None):
-            self._wave_fit_finalize(auto=True)
+        """Safety net: auto-finalize whatever's pending when the window
+        closes by any means, not just the accept-key shortcut, rather
+        than silently losing it.
+
+        REAL GAP FOUND: this previously only covered wave-fit mode (F
+        pressed but A never was). cwt-prophet and spline had no
+        equivalent protection at all -- a user who clicked anchors (or
+        let the background prophet computation finish) but never
+        pressed the accept key would just lose that work silently on
+        close, with no warning and no safety net, unlike wave-fit mode
+        right next to it. Extended to all three interactive methods:
+        - wave-fit: unchanged, exactly as before
+        - cwt-prophet: auto-exports the completed background prophet
+          trace (_export_prophet_csv already no-ops safely if nothing
+          is ready yet, so this is safe to call unconditionally)
+        - spline: auto-exports via the anchor clicks made so far
+          (_export_spline_csv already no-ops safely below 2 clicks)
+        Explicitly pressing the accept key first still works exactly
+        as before in every mode; this only fires for whatever's left
+        un-exported at close time.
+        """
+        if getattr(self, "_wave_only", False):
+            if getattr(self, "_wave_candidate", None):
+                self._wave_fit_finalize(auto=True)
+        elif getattr(self, "_no_prophet", False):
+            self._export_spline_csv()
+        else:
+            self._export_prophet_csv()
         super().closeEvent(event)
 
     def _install_shortcuts(self):
