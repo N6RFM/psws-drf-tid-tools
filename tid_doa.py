@@ -4,10 +4,31 @@ tid_doa.py — multi-station TID direction-of-arrival analyzer
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.3.0
+Version: 1.4.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.4.0  Added ANSI-colored terminal output for the RESULT DIAGNOSTICS
+          block (item #3 from the post-v4.1.0 UX priority list, see
+          PROJECT_STATE #111) -- each diagnostic's header is now
+          green/red based on pass/fail, flag lines are colored to
+          match (red for the 5 real diagnostics, yellow for the two
+          informational-only ones so they read as distinct from an
+          actual flag), and the final summary line is bold red when
+          anything's flagged. Color only ever applies when genuinely
+          printing to an interactive terminal (sys.stdout.isatty()),
+          never unconditionally -- format_diagnostics()'s returned
+          text (also written verbatim to the run-log file, and
+          consumed by the dashboard's own subprocess.run(...,
+          capture_output=True) calls) stays exactly as plain as
+          before regardless of this change, since coloring only
+          happens on a second, separate call made just for what
+          actually gets printed. Verified: colorize=False produces
+          byte-identical output to the pre-change version (confirmed
+          directly against the prior committed version, not just by
+          inspection); colorize=True verified against 7 specific
+          coloring expectations across headers, per-line SNR flags,
+          and the summary line, all passing.
   v1.3.0  Replaced the rigid 3-point parabolic sub-sample lag refinement
           in cross_correlate_lag_candidates() with a wider least-squares
           fit (5 points where available). Found via direct investigation
@@ -758,7 +779,30 @@ def _triangle_closures(pairs):
     return out
 
 
-def format_diagnostics(result, station_periods=None, station_snrs=None):
+_ANSI_RED = "\033[91m"
+_ANSI_YELLOW = "\033[93m"
+_ANSI_GREEN = "\033[92m"
+_ANSI_BOLD = "\033[1m"
+_ANSI_RESET = "\033[0m"
+
+
+def _c(text, color, enabled):
+    """Wrap text in an ANSI color code, or return it unchanged if
+    disabled -- used so format_diagnostics() can be called two ways
+    from the same result: colorize=True for an interactive terminal
+    (checked via sys.stdout.isatty() at the call site, never
+    unconditionally, so this never pollutes a piped/redirected output
+    or the run-log file with raw escape codes), colorize=False for
+    everything else -- the run-log file in particular, which shares
+    this exact same diag_text with what gets printed and must stay
+    plain regardless of how the print call itself is colored."""
+    if not enabled:
+        return text
+    return f"{color}{text}{_ANSI_RESET}"
+
+
+def format_diagnostics(result, station_periods=None, station_snrs=None,
+                        colorize=False):
     """Return (text_block, n_flagged). Observational; never a verdict.
     station_periods: optional list of (name, period_s) tuples computed
     from FFT of each station's Doppler series by run(). When supplied,
@@ -772,14 +816,15 @@ def format_diagnostics(result, station_periods=None, station_snrs=None):
     L.append("")
 
     svr = result.get("sv_ratio", float("inf"))
-    L.append("[1] Geometry conditioning")
+    _flag1 = not (svr < DIAG_SV_RATIO_MAX)
+    L.append(_c("[1] Geometry conditioning", _ANSI_RED if _flag1 else _ANSI_GREEN, colorize))
     L.append(f"    Singular-value ratio:  {svr:.1f}")
     L.append(f"    Typical good range:    < ~{DIAG_SV_RATIO_MAX:.0f}  "
              f"(higher = near-collinear midpoints,")
     L.append("                           direction poorly constrained)")
-    if not (svr < DIAG_SV_RATIO_MAX):
+    if _flag1:
         flagged += 1
-        L.append("    >> OUTSIDE typical range. Array geometry may not")
+        L.append(_c("    >> OUTSIDE typical range. Array geometry may not", _ANSI_RED, colorize))
         L.append("       separate speed from heading well; treat the")
         L.append("       direction with caution.")
     L.append("")
@@ -789,15 +834,16 @@ def format_diagnostics(result, station_periods=None, station_snrs=None):
     mean_abs_lag = (sum(abs(p["lag_s"]) for p in pairs) / len(pairs)
                     if pairs else float("nan"))
     frac = (rms / mean_abs_lag) if mean_abs_lag and mean_abs_lag > 0 else float("nan")
-    L.append("[2] Plane-wave fit residual")
+    _flag2 = not (frac < DIAG_RESID_FRAC_MAX)
+    L.append(_c("[2] Plane-wave fit residual", _ANSI_RED if _flag2 else _ANSI_GREEN, colorize))
     L.append(f"    RMS lag residual:      {rms:.0f} s  "
              f"({frac*100:.1f}% of mean abs lag {mean_abs_lag:.0f} s)")
     L.append(f"    Typical good range:    < ~{DIAG_RESID_FRAC_MAX*100:.0f}%  "
              f"(higher = lags not consistent")
     L.append("                           with a single coherent wave)")
-    if not (frac < DIAG_RESID_FRAC_MAX):
+    if _flag2:
         flagged += 1
-        L.append("    >> OUTSIDE typical range. A single plane wave does")
+        L.append(_c("    >> OUTSIDE typical range. A single plane wave does", _ANSI_RED, colorize))
         L.append("       not explain the lags well: possible noise or")
         L.append("       multiple superimposed waves.")
     L.append("")
@@ -806,16 +852,16 @@ def format_diagnostics(result, station_periods=None, station_snrs=None):
     if corrs:
         cmin, cmax = min(corrs), max(corrs)
         cmean = sum(corrs) / len(corrs)
-        L.append("[3] Pairwise correlation")
+        weak = [f"{p['i']}->{p['j']} {p['corr']:.3f}"
+                for p in pairs if p["corr"] < DIAG_CORR_WEAK]
+        L.append(_c("[3] Pairwise correlation", _ANSI_RED if weak else _ANSI_GREEN, colorize))
         L.append(f"    {len(corrs)} pairs: min {cmin:.3f}, mean "
                  f"{cmean:.3f}, max {cmax:.3f}")
         L.append(f"    Guideline:             pairs < {DIAG_CORR_WEAK:.2f} "
                  f"are weak; target >0.7")
-        weak = [f"{p['i']}->{p['j']} {p['corr']:.3f}"
-                for p in pairs if p["corr"] < DIAG_CORR_WEAK]
         if weak:
             flagged += 1
-            L.append(f"    >> {len(weak)} weak pair(s): " + "; ".join(weak))
+            L.append(_c(f"    >> {len(weak)} weak pair(s): " + "; ".join(weak), _ANSI_RED, colorize))
             # Count weak-pair appearances per station
             from collections import Counter
             weak_count = Counter()
@@ -835,15 +881,16 @@ def format_diagnostics(result, station_periods=None, station_snrs=None):
                     key=lambda t: (abs(t[1]) / t[2]) if t[2] > 0 else 0)
         tri, cl, ml = worst
         frac_cl = (abs(cl) / ml) if ml > 0 else float("inf")
-        L.append("[4] Triangle closure")
+        _flag4 = not (frac_cl < 0.15)
+        L.append(_c("[4] Triangle closure", _ANSI_RED if _flag4 else _ANSI_GREEN, colorize))
         L.append(f"    {len(closures)} triple(s), worst: {abs(cl):.0f} s  "
                  f"({frac_cl*100:.1f}% of mean leg)")
         L.append("    Typical good range:    < ~15%  (higher = at least")
         L.append("                           one pair lag is a wrong peak)")
-        if not (frac_cl < 0.15):
+        if _flag4:
             flagged += 1
-            L.append(f"    >> OUTSIDE typical range (triple "
-                     f"{tri[0]}/{tri[1]}/{tri[2]}). One pair correlation")
+            L.append(_c(f"    >> OUTSIDE typical range (triple "
+                     f"{tri[0]}/{tri[1]}/{tri[2]}). One pair correlation", _ANSI_RED, colorize))
             L.append("       likely locked a wrong peak; check the pairwise")
             L.append("       table; a window tighten or drop may help.")
             # Suggest which station in the worst triple to drop
@@ -868,14 +915,15 @@ def format_diagnostics(result, station_periods=None, station_snrs=None):
         L.append("")
 
     sp = result.get("speed_m_s", float("nan"))
-    L.append("[5] Phase speed")
+    _flag5 = not (DIAG_SPEED_LO < sp < DIAG_SPEED_HI)
+    L.append(_c("[5] Phase speed", _ANSI_RED if _flag5 else _ANSI_GREEN, colorize))
     L.append(f"    Result:                {sp:.0f} m/s")
     L.append(f"    Typical TID range:     {DIAG_SPEED_LO:.0f}-"
              f"{DIAG_SPEED_HI:.0f} m/s (LSTID); 100-300 (MSTID)")
-    if not (DIAG_SPEED_LO < sp < DIAG_SPEED_HI):
+    if _flag5:
         flagged += 1
         rel = "ABOVE" if sp >= DIAG_SPEED_HI else "BELOW"
-        L.append(f"    >> {rel} typical TID speeds. If combined with")
+        L.append(_c(f"    >> {rel} typical TID speeds. If combined with", _ANSI_RED, colorize))
         L.append("       other flags, this pattern is characteristic of")
         L.append("       contaminated lags rather than a real wave.")
     L.append("")
@@ -941,10 +989,10 @@ def format_diagnostics(result, station_periods=None, station_snrs=None):
             L.append("       wave speed (fewer cycles = shorter relative lags).")
             L.append("")
     if flagged == 0:
-        L.append("  >> All five diagnostics fall within typical ranges.")
+        L.append(_c("  >> All five diagnostics fall within typical ranges.", _ANSI_GREEN, colorize))
     else:
-        L.append(f"  >> {flagged} of 5 diagnostic(s) outside typical "
-                 f"ranges.")
+        L.append(_c(f"  >> {flagged} of 5 diagnostic(s) outside typical "
+                 f"ranges.", _ANSI_BOLD + _ANSI_RED, colorize))
         L.append("     This result merits scrutiny before use; see the")
         L.append("     flagged items above.")
     L.append("")
@@ -967,7 +1015,7 @@ def format_diagnostics(result, station_periods=None, station_snrs=None):
         L.append(f"    Spread: {spread_pct:.1f}%  "
                  f"(min {pmin/60:.1f} min, max {pmax/60:.1f} min)")
         if spread_pct > 15:
-            L.append("    >> Spread > 15%: period variability across stations")
+            L.append(_c("    >> Spread > 15%: period variability across stations", _ANSI_YELLOW, colorize))
             L.append("       may explain an elevated plane-wave RMS residual")
             L.append("       without requiring a second wave.")
             L.append("       Consider re-extracting with a tighter analysis")
@@ -989,30 +1037,30 @@ def format_diagnostics(result, station_periods=None, station_snrs=None):
         for nm, snr_db in station_snrs:
             flag = ""
             if snr_db < SNR_FLAG_DB:
-                flag = "  << POOR"
+                flag = _c("  << POOR", _ANSI_RED, colorize)
                 low_snr_stns.append((nm, snr_db, "poor"))
             elif snr_db < SNR_WARN_DB:
-                flag = "  << LOW"
+                flag = _c("  << LOW", _ANSI_YELLOW, colorize)
                 low_snr_stns.append((nm, snr_db, "low"))
             L.append(f"    {nm}: {snr_db:.1f} dB{flag}")
         if low_snr_stns:
             poor = [n for n, s, c in low_snr_stns if c == "poor"]
             low  = [n for n, s, c in low_snr_stns if c == "low"]
             if poor:
-                L.append(f"    >> POOR SNR (< {SNR_FLAG_DB:.0f} dB) at: "
-                         f"{', '.join(poor)}.")
+                L.append(_c(f"    >> POOR SNR (< {SNR_FLAG_DB:.0f} dB) at: "
+                         f"{', '.join(poor)}.", _ANSI_RED, colorize))
                 L.append("       Lag estimates for these stations are "
                          "likely noise-driven.")
                 L.append("       The DOA result is unreliable regardless "
                          "of the flag count above.")
             elif low:
-                L.append(f"    >> LOW SNR (< {SNR_WARN_DB:.0f} dB) at: "
-                         f"{', '.join(low)}.")
+                L.append(_c(f"    >> LOW SNR (< {SNR_WARN_DB:.0f} dB) at: "
+                         f"{', '.join(low)}.", _ANSI_YELLOW, colorize))
                 L.append("       Consider re-extracting or dropping "
                          "these stations.")
         else:
-            L.append(f"    All stations above {SNR_WARN_DB:.0f} dB -- "
-                     "extraction quality acceptable.")
+            L.append(_c(f"    All stations above {SNR_WARN_DB:.0f} dB -- "
+                     "extraction quality acceptable.", _ANSI_GREEN, colorize))
 
         L.append("")
     L.append("Reminder: these are internal consistency checks. They")
@@ -1302,8 +1350,24 @@ def run(config):
             else None,
             station_snrs=_station_snrs if len(_station_snrs) >= 1
             else None)
+        # ANSI color only when genuinely printing to an interactive
+        # terminal -- never unconditionally, since this exact same
+        # diag_text also gets written to the run-log file below, and
+        # piped/redirected/captured output (including the dashboard's
+        # own subprocess.run(..., capture_output=True) calls) would
+        # otherwise show raw, unreadable escape codes instead of text.
+        if sys.stdout.isatty():
+            print_text, _ = format_diagnostics(
+                result,
+                station_periods=_station_periods if len(_station_periods) >= 2
+                else None,
+                station_snrs=_station_snrs if len(_station_snrs) >= 1
+                else None,
+                colorize=True)
+        else:
+            print_text = diag_text
         print()
-        print(diag_text)
+        print(print_text)
 
     if not globals().get("_NO_RUNLOG", False):
         try:
@@ -1370,7 +1434,7 @@ def _cli():
                          "(repeatable, case-insensitive). E.g. "
                          "--drop W7LUX --drop AC0G_ND")
     ap.add_argument("--version", action="version",
-                    version="%(prog)s 1.2.0")
+                    version="%(prog)s 1.4.0")
     return ap.parse_args()
 
 
