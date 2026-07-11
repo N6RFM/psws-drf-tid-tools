@@ -64,8 +64,18 @@ The reference event is the **X1.9 solar flare and subsequent LSTID of
 git clone https://github.com/N6RFM/psws-drf-tid-tools.git
 cd psws-drf-tid-tools
 pip install -r requirements.txt
-pip install -r requirements-optional.txt   # for nicer maps
+pip install -r requirements-optional.txt
 ```
+
+Despite the name, `requirements-optional.txt` isn't just cosmetic --
+it provides `prophet` (needed for cwt-prophet, the *recommended*
+interactive extraction method), `streamlit` (needed for the entire
+dashboard GUI), plus nicer maps (`cartopy`) and a couple of narrower,
+single-script dependencies (`astropy`, `madrigalWeb`). If a venv ever
+needs to be rebuilt from scratch (e.g. after a corrupted install),
+run **both** `pip install` lines again -- skipping the second one
+silently breaks cwt-prophet and the dashboard, not just map styling.
+
 ### Recommended: use a virtual environment
 
 The toolkit's dependencies (particularly `digital_rf`, `cartopy`, and
@@ -77,8 +87,16 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 pip install -r requirements-optional.txt
-python3 drf_inspect.py --version
+python3 check_install.py
 ```
+
+`check_install.py` verifies every dependency this toolkit actually
+imports is present, split into required (core scripts won't run at
+all without these) and optional (specific features degrade without
+these, everything else still works) -- worth running any time a venv
+gets rebuilt from scratch, since a partial reinstall can otherwise go
+unnoticed until a specific feature happens to be exercised and fails
+with a confusing, buried error.
 
 When done: `deactivate`. To resume: `source .venv/bin/activate`.
 
