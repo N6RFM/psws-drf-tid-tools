@@ -1,3 +1,106 @@
+## v4.2.0 -- 2026-07-11
+
+### Major changes
+
+#### `drf_spectrogram.py` v1.4.0 and `tid_dashboard.py` v0.21.2: the "?" spectrogram title fixed
+Plot titles showed "?" for callsign/grid/frequency whenever a
+station's DRF recording had no populated `digital_metadata`
+subdirectory -- a separate mechanism from `drf_properties.h5`'s own
+lat/lon attrs, so a station could have coordinates readable just fine
+while still showing "?" in its own title. Now falls back to
+`tid_workflow.py`'s own `KNOWN_STATIONS` database for callsign/grid,
+reused directly rather than duplicated. Added `--target-freq-mhz`,
+matching the existing `--callsign`/`--grid` override pattern, since
+frequency isn't something `KNOWN_STATIONS` tracks and isn't safely
+guessable the same way (different stations may genuinely be tuned to
+different WWV frequencies). `tid_dashboard.py` wires both of its own
+spectrogram-generation functions to use this; `tid_workflow.py`'s own
+6 call sites were intentionally left untouched, per this project's
+established "keep it as-is" principle -- their titles still benefit
+from the `KNOWN_STATIONS` fallback regardless, just not the frequency
+override specifically.
+
+#### `tid_spect_click.py` v0.10.0: close-safety-net extended to all three interactive methods
+A safety net that auto-finalizes pending work when the extraction
+window closes by any means (not just the accept-key shortcut)
+previously only covered wave-fit mode. cwt-prophet and spline had no
+equivalent protection -- a user who clicked anchors, or let the
+background prophet computation finish, but never pressed the accept
+key, would silently lose that work on close. Extended to all three
+modes, reusing the existing export functions directly rather than
+duplicating logic.
+
+#### `tid_doa.py` v1.4.0: ANSI-colored terminal diagnostics
+Each of the 5 real diagnostics in the RESULT DIAGNOSTICS block now
+gets a green/red header based on pass/fail, with matching flag lines;
+the 2 informational-only diagnostics (period spread, per-station SNR)
+use yellow so they read as distinct from an actual verdict flag.
+Color only ever applies when genuinely printing to an interactive
+terminal (`sys.stdout.isatty()`) -- the run-log file this same text
+also gets written to, and the dashboard's own captured subprocess
+output, both stay exactly as plain as before.
+
+#### `tid_doa_compare.py` v1.1.0 (new): side-by-side comparison of `tid_doa.py` run logs
+`tid_doa.py` already writes a self-contained, timestamped run log per
+invocation (CLI or GUI). This new companion script compares two or
+more of them directly -- a compact, one-row-per-run view for larger
+counts (verified against a real, 52-log directory accumulated across
+weeks of testing, after an initial wide side-by-side design proved
+unreadable at that scale), a detailed side-by-side view for a
+handful. Only ever reads what `tid_doa.py` already wrote; recomputes
+nothing.
+
+#### `check_install.py` (new): dependency verification
+Checks every package this toolkit actually imports (cross-checked
+directly via an AST scan of the whole codebase, not hand-maintained),
+split into required (core scripts won't run without these) and
+optional (specific features degrade, everything else still works),
+with clear per-package fix guidance.
+
+#### Requirements files: a real numpy/astropy version conflict fixed
+Both `requirements.txt` and `requirements-optional.txt` were already
+accurate in *content* -- every genuine import correctly mapped to one
+file or the other. Two real problems were found through live testing
+rather than inspection alone: README.md's own install instructions
+described `requirements-optional.txt` as "for nicer maps," making it
+sound skippable, when it also provides `prophet` (needed for the
+*recommended* interactive extraction method) and `streamlit` (needed
+for the entire dashboard) -- corrected directly. Separately,
+installing `astropy` without a version cap pulled in 8.0.1, which
+requires `numpy>=2.0`, silently breaking compatibility with this
+project's own `scipy` (`numpy<2.3`) -- confirmed via pip's own
+dependency-conflict output on a real machine. Fixed at the root:
+`astropy` capped to `<7.0`, `numpy` capped to `<2.3` directly in
+`requirements.txt` so this can't resurface via a different
+unconstrained dependency later.
+
+#### `drf_to_doppler.py` v1.5.0: a persistent cosmetic warning suppressed
+`prophet`'s own `plot` submodule logs an "Importing plotly failed"
+warning on every import regardless of whether plotting is ever used
+-- this project never uses prophet's interactive plotting. Suppressed
+at the specific logger, not globally.
+
+### Resolved without a code change
+`cwt-prophet`'s previously-flagged accuracy gap (24.8% error vs
+wave-fit's 0.4% on a synthetic baseline condition) was investigated
+directly: re-running the same extraction fresh, bypassing the
+interactive GUI and test-harness entirely, showed accuracy fully in
+line with other methods (4.9% error, all diagnostics clean). The
+original figure most likely reflected a stale-CSV mixup from a
+test-harness bug that was independently found and fixed for an
+unrelated reason at almost exactly the same time -- no genuine
+`cwt-prophet` accuracy problem found.
+
+### Verification note
+Every fix above was verified concretely -- against real event data, a
+completely independent second machine in several cases, synthetic
+data with a fixed random seed to rule out noise-driven variability,
+and (for the numpy/astropy conflict specifically) a real, previously-
+working environment rather than a fresh sandbox, since that class of
+bug doesn't reproduce in a clean install. See this project's own
+research-branch findings for the full investigation history behind
+each of these.
+
 ## v4.1.0 -- 2026-07-10
 
 ### Major changes
