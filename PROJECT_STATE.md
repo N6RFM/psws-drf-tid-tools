@@ -4259,3 +4259,64 @@ scale, cross-package version conflicts) only exist in that context.
    the astropy/numpy conflict this entry found would have been caught
    earlier by that, though it's a meaningfully bigger scope than the
    current presence-only check
+---
+## 116. Requirements files consolidated into one; 'recommended' framing removed from cwt-prophet everywhere it appeared -- 2026-07-11
+
+### What happened
+Two related, user-requested fixes done together.
+
+### Requirements consolidation
+requirements.txt and requirements-optional.txt merged into a single
+requirements.txt. Since one file can't selectively skip lines the way
+two separate files could, everything now installs together via one
+pip install -r requirements.txt -- removes the exact failure mode
+from entry #115 (a partial reinstall silently dropping prophet/
+streamlit because the second file sounded skippable). requirements-
+optional.txt removed entirely.
+
+### "Recommended" framing removed
+cwt-prophet was described as "recommended" relative to this
+toolkit's other extraction methods (wave-fit, autocorr, cwt, fft,
+spline, bandpass, sgolay-ridge) in README.md, tid_workflow.py's own
+interactive menu label, check_install.py's dependency description,
+and 6 places across WORKFLOW_TUTORIAL.md. All removed -- cwt-prophet
+is one of several methods, not a recommended default.
+
+Two narrower, genuinely-justified claims were kept but reworded
+rather than deleted, since they're substantively different from
+"cwt-prophet over other methods" -- they're about which key to press
+*within* an already-selected cwt-prophet session (E vs X):
+docs/METHODOLOGY.md's explanation of why E typically outperforms raw
+spline keeps its full technical reasoning, just without the word
+"recommended"; docs/COOKBOOK.md's adjacent "most reliable results"
+overstatement was softened for the same reason.
+
+CHANGELOG.md's own historical entries were intentionally left
+untouched, as accurate records of what was true at each point in the
+project's history, not current-state documentation.
+
+check_install.py bumped to v1.1.0, tid_workflow.py to v1.2.3 (cosmetic
+text-only change, no logic touched, consistent with that file's
+established "keep it as-is" principle otherwise). Verified: both
+compile, check_install.py runs correctly against the consolidated
+file, all markdown fences remain balanced.
+
+### Also fixed along the way
+A stale git-push credential (unrelated to gh's own auth, left over
+from before the earlier token-rotation cleanup) caused a
+"password authentication is not supported" failure on push. Fixed
+with `gh auth setup-git`, which configures git's own credential
+helper to use gh's already-valid, correctly-scoped token instead of
+whatever stale one was cached.
+
+### Open items
+1. AC0G_ND's anomalous 11.6-minute period (Jan 19 event) -- still not
+   investigated (see #101)
+2. June 6 event: AC0G_ND still needs its own click to test dropping
+   N6RFM there (see #100, #101)
+3. The 3-station Jan 19 comparison via the dashboard (319 m/s @ 108
+   deg) never cleanly re-verified with a careful, unhurried re-click
+4. The box-select prototype (test_box_select.py) -- still no decision
+   on folding into the real tid_quicklook.py (see #100)
+5. fetch_madrigal_tec_closure.py still pending its own live-data
+   graduation test (see #93)
