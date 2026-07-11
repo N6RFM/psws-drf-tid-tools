@@ -4,10 +4,19 @@ drf_to_doppler.py — extract a Doppler-vs-time CSV from Digital RF I/Q data
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.4.0
+Version: 1.5.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.5.0  Suppressed a harmless but persistent "Importing plotly
+          failed" warning that prophet's own plot submodule logs on
+          every single import, regardless of whether plotting is ever
+          used -- this project never uses prophet's interactive
+          plotting at all. Suppressed at the specific prophet.plot
+          logger only, not globally, so nothing unrelated gets
+          hidden. Verified: no warning in either the standalone
+          --method cwt-prophet path or check_install.py's own import
+          check.
   v1.4.0  Renamed --subchannel to --channel-num throughout (flag,
           variable, docstring prose). "Subchannel" incorrectly implied
           a single combined signal demultiplexed into related sub-
@@ -638,6 +647,14 @@ def estimate_carrier_freq_cwt_prophet(iq_block, fs_hz, search_band_hz=5.0,
     Requires: pip install prophet
     """
     try:
+        import logging as _logging
+        # prophet.plot logs an "Importing plotly failed" warning on
+        # every import regardless of whether plotting is ever used --
+        # cosmetic noise from prophet's own internal submodule, since
+        # this project never uses prophet's interactive plotting at
+        # all. Suppressed at the specific logger, not globally, so it
+        # doesn't hide anything unrelated.
+        _logging.getLogger("prophet.plot").setLevel(_logging.CRITICAL)
         from prophet import Prophet as _Prophet
         import pandas as _pd
     except ImportError:
@@ -1115,7 +1132,7 @@ def main():
                          "(Doppler trace + SNR). Recommended for sanity-"
                          "checking before downstream analysis.")
     ap.add_argument("--version", action="version",
-                    version="%(prog)s 1.3.0")
+                    version="%(prog)s 1.5.0")
     args = ap.parse_args()
 
     t_start = parse_iso(args.start)
@@ -1208,6 +1225,8 @@ def main():
                 getattr(args, 'corridor_width', 0.4))
             print(f"  Seeded Prophet with {len(_pts)} anchor(s) from {args.anchors}")
             try:
+                import logging as _logging2
+                _logging2.getLogger("prophet.plot").setLevel(_logging2.CRITICAL)
                 from prophet import Prophet as _ProphetInit
                 import pandas as _pd_init
                 import logging as _log_init
