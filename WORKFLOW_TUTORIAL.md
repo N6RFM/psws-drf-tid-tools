@@ -111,7 +111,7 @@ After all stations are confirmed, choose the extraction method
 and DOA coordinate system:
 
     Extraction method:
-      1. cwt-prophet   (recommended)
+      1. cwt-prophet   (anchor-guided)
       2. fft           (automated)
       3. autocorr      (automated)
       4. cwt           (automated, CWT multi-peak tracker)
@@ -126,7 +126,7 @@ and press X to export your trace.
 
 | Method | Best for | Requires GUI |
 |--------|----------|-------------|
-| cwt-prophet | All stations (recommended) | Yes |
+| cwt-prophet | All stations | Yes |
 | wave-fit | Clean sinusoidal signals (≥0.5 cycles, ≥1.5 recommended) | Yes |
 | autocorr | Clean stations, automated | No |
 | cwt | Multi-peak ambiguous carriers, automated | No |
@@ -186,7 +186,7 @@ contamination level, and how many TID cycles are visible.
 
 ---
 
-#### Option A: cwt-prophet extraction — recommended
+#### Option A: cwt-prophet extraction
 
 A `tid_spect_click` window opens showing the zoomed spectrogram.
 Use `--event-json event.json` to auto-update the event config on export.
@@ -302,7 +302,7 @@ E-region contamination is present — use Option A
 
 | Option | Key/command | Output file |
 |--------|-------------|-------------|
-| A (cwt-prophet, recommended) | E key | `<station>_prophet_tid.csv` |
+| A (cwt-prophet) | E key | `<station>_prophet_tid.csv` |
 | A (raw spline) | X key | `<station>_spline_tid.csv` |
 | B (wave-fit) | A key (accept) | `<station>_wave_tid.csv` |
 | C (automated) | drf_to_doppler.py | `<station>_<method>_tid.csv` |
@@ -417,7 +417,7 @@ python3 drf_spectrogram.py ./n6rfm --channel-num 0 \
 #      over a much smaller range than +/-5 Hz -- the default can make
 #      it look flat/squished and hard to visually assess or click
 
-# 5a. cwt-prophet extraction (recommended)
+# 5a. cwt-prophet extraction
 #     Pass 0 auto-runs. E=accept auto-trace, X=export clicked trace
 python3 tid_spect_click.py --spectrogram n6rfm_zoom.png \
     --name N6RFM --drf-dir ./n6rfm --channel-num 0 \
@@ -515,7 +515,7 @@ slightly different DOA results.
    On export (E or X key), the event JSON is updated automatically
    with the CSV path and method.
 
-2. Press **E** to export the prophet trace directly (recommended),
+2. Press **E** to export the prophet trace directly,
    or **X** to export a spline. Both update the event JSON.
 
 3. Commit the `_prophet_preview.csv` files along with the event JSON.
