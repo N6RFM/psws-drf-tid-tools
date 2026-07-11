@@ -3863,3 +3863,89 @@ one specific condition, the dashboard already works today.
    on folding into the real tid_quicklook.py (see #100)
 6. fetch_madrigal_tec_closure.py still pending its own live-data
    graduation test (see #93)
+---
+## 111. Post-v4.1.0 UX improvement brainstorm and shared/GUI-only classification, with a priority order -- 2026-07-11
+
+### Context
+Following the v4.1.0 release, a broad "what can we do to improve the
+user experience" discussion produced a set of concrete candidates.
+Each was then classified by whether it's genuinely shared code (fix
+once, both interfaces benefit), an adaptable idea (same underlying
+concept, different implementation per interface), or GUI-only with no
+sensible CLI equivalent -- since several of the original suggestions
+turned out to be CLI-relevant too, not dashboard-specific as first
+framed.
+
+### The full candidate list, as originally proposed
+- cwt-prophet's notably higher error (24.8%) vs wave-fit (0.4%) on the
+  nominal synthetic condition -- flagged in entry #105, never
+  investigated
+- Recovering gracefully when tid_spect_click.py is closed without
+  pressing accept -- currently just reports failure and stops
+- Result diagnostics are text-dense -- a visual (color-coded strip,
+  small chart) would let someone assess a result at a glance
+- No way to compare two DOA results side-by-side without manually
+  re-reading old terminal output
+- The "?" cosmetic issue in spectrogram titles (station name/callsign
+  showing as "?") -- flagged early in the previous session, still
+  unfixed
+- Tooltip/help-text coverage is inconsistent across dashboard inputs
+
+### Classification
+**Genuinely shared** (same underlying tool/code, fix once):
+- The "?" spectrogram title issue -- drf_spectrogram.py itself, called
+  identically by both interfaces
+- cwt-prophet's accuracy question -- tid_spect_click.py's own
+  extraction algorithm, shared code, not reimplemented per interface
+- tid_spect_click.py's exit behavior on close-without-accept -- both
+  interfaces spawn the same tool the same way; a clearer exit
+  code/message from the tool itself would let both the CLI's --resume
+  menu and the dashboard react better, rather than fixing this twice
+
+**Adaptable** (same idea, different implementation per interface):
+- Visual diagnostics -- GUI gets a real color-coded chart;
+  tid_doa.py itself could adopt ANSI terminal colors for the same
+  pass/fail signal at the terminal
+- Comparing results -- tid_doa.py already writes a timestamped run
+  log per invocation, CLI or GUI. A shared --compare capability in
+  tid_doa.py (or a small companion script) would be the CLI-native
+  version; a GUI "pin runs to compare" feature would be a visual
+  wrapper around that same underlying comparison
+
+**GUI-only, no sensible CLI equivalent:**
+- Tooltip coverage -- the CLI's real equivalent is argparse --help
+  text consistency, a different artifact worth auditing separately,
+  not a shared fix
+
+### Priority order, with reasoning
+1. Fix the "?" spectrogram title issue -- smallest, most isolated,
+   lowest-risk, already flagged as unresolved; good first win
+2. Clarify tid_spect_click.py's exit behavior (closed-without-accept
+   vs genuine crash) -- well-defined scope, one function's exit path,
+   benefits every workflow that spawns this tool
+3. ANSI-colored diagnostics in tid_doa.py -- small, isolated to
+   existing diagnostic-output formatting, no new logic. Also gives
+   the eventual GUI visual-diagnostics work something concrete to
+   build on rather than designing both from scratch simultaneously
+4. Investigate cwt-prophet's accuracy gap -- investigation-first,
+   scope unknown until looked at, but has been sitting open since
+   entry #105 without ever being checked; worth resolving one way or
+   another before it becomes background noise
+5. --compare capability for tid_doa.py run logs -- the biggest,
+   newest piece of actual feature work, not a fix. Makes sense to
+   build once the above are settled, since it's the foundation the
+   GUI's "pin runs to compare" idea would sit on top of
+
+### Open items
+1. AC0G_ND's anomalous 11.6-minute period (Jan 19 event) -- still not
+   investigated (see #101)
+2. June 6 event: AC0G_ND still needs its own click to test dropping
+   N6RFM there (see #100, #101)
+3. The 3-station Jan 19 comparison via the dashboard (319 m/s @ 108
+   deg from earlier direct testing) never cleanly re-verified with a
+   careful, unhurried re-click -- worth redoing now that the
+   coordinate-fallback bug (see #109) is fixed
+4. The box-select prototype (test_box_select.py) -- still no decision
+   on folding into the real tid_quicklook.py (see #100)
+5. fetch_madrigal_tec_closure.py still pending its own live-data
+   graduation test (see #93)
