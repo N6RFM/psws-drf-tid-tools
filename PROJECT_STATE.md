@@ -4087,3 +4087,78 @@ further code changes needed -- the fix that would have resolved this
    on folding into the real tid_quicklook.py (see #100)
 6. fetch_madrigal_tec_closure.py still pending its own live-data
    graduation test (see #93)
+---
+## 114. Entry #111's full UX priority list now complete: tid_doa_compare.py, the last item, found real bugs at real scale -- 2026-07-11
+
+### What happened
+tid_doa_compare.py v1.1.0 -- a new companion script for side-by-side
+comparison of tid_doa.py run logs, item #5 and the final item from
+entry #111's priority list. All 5 items from that list are now done
+(items #1-3 in entry #112, #4 in entry #113, this entry closes #5).
+
+### Design
+A separate script rather than a new tid_doa.py flag, since comparing
+already-written logs is a genuinely different mode of operation than
+running a new DOA computation from a station config. Only ever reads
+what tid_doa.py already wrote -- recomputes nothing. Reuses
+tid_doa.py's own ANSI color helpers directly rather than duplicating
+them.
+
+### Bugs found through actually testing it, not just building it
+Two found in sandbox testing: station-name comparison was
+case-sensitive when it shouldn't be (different run configs can
+legitimately use different case conventions for the same physical
+station); a genuinely nonexistent log path crashed with an uncaught
+traceback instead of the graceful skip-and-warn the docstring
+promised.
+
+A third, more significant one found only once tested against real,
+accumulated data: asked for a live test against a real event's
+runs/ directory, which turned out to hold 52 logs accumulated across
+weeks of testing since July 3rd. The original wide, side-by-side
+table design (each run as its own column) didn't degrade gracefully
+at that scale -- it produced a genuinely unusable wall of text, not
+just an inconvenient one. Root cause was a design assumption (a
+handful of runs at a time) that never got stress-tested against how
+a runs/ directory actually accumulates over real, sustained use.
+Fixed with a compact, one-row-per-run view that kicks in
+automatically above 4 runs. A column-width bug was also caught in the
+same pass (timestamp field width exactly matched the timestamp
+string's own length, leaving zero visible gap before the next
+column) -- confirmed only visible at this scale, since a 2-3 column
+side-by-side table has enough incidental whitespace elsewhere to mask
+a single missing character.
+
+### Verification
+Confirmed directly against the real, 52-log runs/ directory: clean,
+properly aligned, fully readable output at full scale, not just in a
+synthetic sandbox test with a handful of logs.
+
+### Process note
+The genuinely most valuable bug this entry found (the scale problem)
+was invisible in every sandbox test run before it -- a handful of
+freshly-generated logs will always look fine in a wide table. It only
+surfaced once tested against the kind of real, messy, long-accumulated
+data an actual user's directory naturally builds up. Continues a
+pattern from earlier entries in this project: the sandbox is good for
+catching logic errors and confirming a fix works as designed, but
+some classes of bug (accumulation over time, scale, real directory
+structure) are only found by testing against what real, sustained use
+actually produces.
+
+### Open items
+1. AC0G_ND's anomalous 11.6-minute period (Jan 19 event) -- still not
+   investigated (see #101)
+2. June 6 event: AC0G_ND still needs its own click to test dropping
+   N6RFM there (see #100, #101)
+3. The 3-station Jan 19 comparison via the dashboard (319 m/s @ 108
+   deg) never cleanly re-verified with a careful, unhurried re-click
+4. The box-select prototype (test_box_select.py) -- still no decision
+   on folding into the real tid_quicklook.py (see #100)
+5. fetch_madrigal_tec_closure.py still pending its own live-data
+   graduation test (see #93)
+6. Everything from entry #111's original priority list is now
+   complete and sitting on research_gui -- worth deciding when to
+   promote the accumulated work (spectrogram titles, close-safety-net,
+   ANSI diagnostics, cwt-prophet resolution, this comparison tool) to
+   main
