@@ -4021,3 +4021,69 @@ prophet CSV anyway.
    on folding into the real tid_quicklook.py (see #100)
 8. fetch_madrigal_tec_closure.py still pending its own live-data
    graduation test (see #93)
+---
+## 113. Item #4 resolved: cwt-prophet's accuracy gap was likely an artifact of the already-fixed candidate-search bug, not a real issue -- 2026-07-11
+
+### The question
+Entry #105 flagged cwt-prophet's notably higher error (24.8%) vs
+wave-fit (0.4%) on the nominal synthetic condition, unresolved since.
+Item #4 on entry #111's priority list.
+
+### Investigation
+Regenerated the nominal condition fresh and ran drf_to_doppler.py
+--method cwt-prophet directly on all 3 stations, bypassing the
+interactive GUI and the synthetic-test harness's own candidate-search
+logic entirely (calling the extraction script directly, not through
+run_tests.py/run_interactive.py). Result against ground truth (500
+m/s @ 30 deg): 524.7 m/s @ 29.4 deg -- 4.9% speed error, 0.6 deg
+azimuth error, all 5 tid_doa.py diagnostics passing cleanly, 0.0%
+period spread across stations, ~58.7 dB SNR at all 3. Comparable to
+autocorr's own 4.8% error on the same condition. Confirmed the
+synthetic data generator uses a fixed random seed (42), ruling out
+run-to-run noise variability as an explanation -- also re-ran the
+same extraction through the pre-v1.3.0 tid_doa.py (before this
+session's cross-correlation peak-refinement fix) for comparison: 7.1%
+error, still nowhere near 24.8%, ruling out that fix as the
+explanation too.
+
+### Likely explanation
+Entry #105 itself documented and fixed a real bug (commit d0d6ffa,
+2026-07-08): the synthetic-test harness's own output-CSV candidate
+search checked every method's filename pattern unconditionally,
+regardless of which method was actually just run -- confirmed
+directly at the time that a cwt-prophet run's saved CSV ended up
+byte-identical to an earlier wave-fit run's leftover file due to
+this. Given the timing (this bug was live and unfixed at the point
+the 24.8% figure was first measured) and that a bypassing-the-harness
+direct re-test now shows accuracy fully in line with other methods,
+the most likely explanation is that the original 24.8% measurement
+reflects a stale-file mixup from that exact bug rather than a genuine
+cwt-prophet accuracy problem. Can't definitively prove the exact
+provenance of that specific historical number without the original
+run's raw logs, which no longer exist -- but every mechanism that
+could explain a real, reproducible cwt-prophet-specific accuracy gap
+has now been ruled out directly (noise seed, the cross-correlation
+fix, a fresh from-scratch re-test), while the one bug whose known
+symptom exactly matches (stale CSV reuse between methods) was already
+independently found and fixed for an unrelated reason at almost
+exactly the same time.
+
+### Conclusion
+Treating this as resolved. cwt-prophet's genuine accuracy, verified
+directly, is good and comparable to other extraction methods. No
+further code changes needed -- the fix that would have resolved this
+(if the hypothesis above is correct) was already made in entry #105.
+
+### Open items
+1. Item #5 from entry #111's priority list not yet started: --compare
+   capability for tid_doa.py run logs
+2. AC0G_ND's anomalous 11.6-minute period (Jan 19 event) -- still not
+   investigated (see #101)
+3. June 6 event: AC0G_ND still needs its own click to test dropping
+   N6RFM there (see #100, #101)
+4. The 3-station Jan 19 comparison via the dashboard (319 m/s @ 108
+   deg) never cleanly re-verified with a careful, unhurried re-click
+5. The box-select prototype (test_box_select.py) -- still no decision
+   on folding into the real tid_quicklook.py (see #100)
+6. fetch_madrigal_tec_closure.py still pending its own live-data
+   graduation test (see #93)
