@@ -926,6 +926,26 @@ a different identifier than the internal numeric ID
 `.psws_station_cache.json` uses. Also refreshed weekly; force a refresh
 with `--no-cache`.
 
+### How do I compare two DOA results side by side?
+
+`tid_doa.py` already writes a self-contained, timestamped run log to
+`<event_dir>/runs/<timestamp>_run.log` on every invocation (CLI or
+GUI, since the dashboard's own pipeline calls `tid_doa.py` the same
+way). Rather than re-reading old terminal output or opening two log
+files by hand, use `tid_doa_compare.py`:
+
+```bash
+tid_doa_compare.py run1.log run2.log [run3.log ...]
+tid_doa_compare.py --dir /path/to/event/runs          # 2 most recent
+tid_doa_compare.py --dir /path/to/event/runs --all     # every run found
+```
+
+Shows speed/heading/diagnostics side by side, highlights differences
+in yellow, and flags when the two runs used different station sets
+(since a speed/heading difference there may just reflect a different
+array geometry, not a change in extraction quality). Only ever reads
+what `tid_doa.py` already wrote -- recomputes nothing.
+
 ### What about generated files? Should I commit them?
 
 No. The `.gitignore` excludes `*.csv`, `*.png` (except in `docs/`),
