@@ -4,10 +4,17 @@ check_install.py — verify psws-drf-tid-tools' dependencies are installed
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.0.0
+Version: 1.1.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.1.0  Updated for the requirements.txt/requirements-optional.txt
+          consolidation into a single requirements.txt -- the missing-
+          optional-dependency fix message now points to the one file
+          rather than the removed second one. Also removed "(the
+          recommended interactive method)" from prophet's own
+          description -- cwt-prophet is one of several extraction
+          methods, not a recommended default.
   v1.0.0  Initial release, written directly in response to hitting the
           same missing-dependency problem twice in one session: a
           venv rebuilt after a segfault (see PROJECT_STATE, this
@@ -59,8 +66,8 @@ REQUIRED = [
 
 OPTIONAL = [
     ("prophet", "prophet",
-     "cwt-prophet extraction (the recommended interactive method) -- "
-     "falls back to cwt-only without it"),
+     "cwt-prophet extraction, one of several interactive extraction "
+     "methods -- falls back to cwt-only without it"),
     ("streamlit", "streamlit",
      "tid_dashboard.py (the entire browser-based GUI) -- CLI tools "
      "still work fine without it"),
@@ -137,10 +144,11 @@ def main():
         print("\n=== MISSING OPTIONAL DEPENDENCIES ===")
         for pip_name, breaks in missing_optional:
             print(f"  {pip_name}: breaks {breaks}")
-        print(f"\n  Fix: pip install -r requirements-optional.txt")
-        print("  (Despite the name, this isn't purely cosmetic -- it "
-              "includes prophet and streamlit, both load-bearing for "
-              "specific major features.)")
+        print(f"\n  Fix: pip install -r requirements.txt")
+        print("  (These are listed alongside the required packages in "
+              "the same file -- a partial reinstall of just some lines "
+              "can leave specific features, like this one, silently "
+              "broken.)")
 
     if not missing_required and not missing_optional:
         print("All dependencies present.")

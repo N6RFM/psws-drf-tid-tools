@@ -40,9 +40,8 @@ lets you:
 - find which other stations were on the air during your event of interest
 - inspect a DRF recording and identify the correct channel-num for comparative
   analysis
-- extract Doppler-vs-time CSVs from raw I/Q using four methods:
-  anchor-guided cwt-prophet (recommended), wave-fit, autocorr,
-  and FFT peak-tracking
+- extract Doppler-vs-time CSVs from raw I/Q using several methods:
+  anchor-guided cwt-prophet, wave-fit, autocorr, and FFT peak-tracking
 - render annotated Doppler spectrograms with optional overlay of
   extracted Doppler traces for visual method assessment
 - run the complete analysis pipeline in one guided interactive session
@@ -64,17 +63,15 @@ The reference event is the **X1.9 solar flare and subsequent LSTID of
 git clone https://github.com/N6RFM/psws-drf-tid-tools.git
 cd psws-drf-tid-tools
 pip install -r requirements.txt
-pip install -r requirements-optional.txt
 ```
 
-Despite the name, `requirements-optional.txt` isn't just cosmetic --
-it provides `prophet` (needed for cwt-prophet, the *recommended*
-interactive extraction method), `streamlit` (needed for the entire
-dashboard GUI), plus nicer maps (`cartopy`) and a couple of narrower,
-single-script dependencies (`astropy`, `madrigalWeb`). If a venv ever
-needs to be rebuilt from scratch (e.g. after a corrupted install),
-run **both** `pip install` lines again -- skipping the second one
-silently breaks cwt-prophet and the dashboard, not just map styling.
+A handful of packages in `requirements.txt` only affect specific
+scripts or extraction methods rather than the whole toolkit --
+`prophet` (the cwt-prophet extraction method, one of several
+available), `streamlit` (the dashboard GUI), `cartopy` (nicer maps),
+`astropy` and `madrigalWeb` (single-script dependencies) -- each
+noted individually in the file itself. Everything installs together
+with the one command above.
 
 ### Recommended: use a virtual environment
 
@@ -86,7 +83,6 @@ conflict with packages already installed on your system.
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-pip install -r requirements-optional.txt
 python3 check_install.py
 ```
 
@@ -331,7 +327,6 @@ psws-drf-tid-tools/
 ├── LICENSE                     MIT
 ├── CITATION.cff
 ├── requirements.txt
-├── requirements-optional.txt
 │
 ├── tid_workflow.py             guided 8-step workflow
 ├── tid_quicklook.py            interactive TID window selector

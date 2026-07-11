@@ -4,10 +4,17 @@ tid_workflow.py — guided TID direction-of-arrival workflow
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.2.2
+Version: 1.2.3
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.2.3  Removed "(anchor-guided — recommended)" label from the
+          cwt-prophet menu option -- cwt-prophet is one of several
+          extraction methods (alongside wave-fit, autocorr, and cwt),
+          not a recommended default; the label overstated its status
+          relative to the others. Purely cosmetic text change, no
+          behavior/logic touched, consistent with this file's own
+          established "keep it as-is" principle for everything else.
   v1.2.2  Supports tid_dashboard.py v0.10.0's consolidation, removing
           5 functions there that were separate copies of this file's
           own code. probe_channel_nums() gained an optional channel=
@@ -835,7 +842,7 @@ def run_workflow(args):
     # ── Method selection ─────────────────────────────────────────────────
     if "extraction_method" not in state:
         print("\nExtraction method:")
-        print("  1. cwt-prophet   (anchor-guided — recommended)")
+        print("  1. cwt-prophet   (anchor-guided)")
         print("  2. autocorr      (automated, Gwyn G3ZIL method)")
         print("  3. cwt           (automated, CWT multi-peak tracker)")
         print("  4. wave-fit      (sine fit to clicked cycle points)")
