@@ -4162,3 +4162,100 @@ actually produces.
    promote the accumulated work (spectrogram titles, close-safety-net,
    ANSI diagnostics, cwt-prophet resolution, this comparison tool) to
    main
+---
+## 115. Requirements audit: files were already accurate, real gap was a misleading README comment, plus a genuine numpy/astropy conflict found live -- 2026-07-11
+
+### The ask
+Make sure requirements.txt and requirements-optional.txt are up to
+date, given the need to reinstall these for a venv that got
+corrupted (the earlier segfault/pyarrow-mimalloc episode).
+
+### Finding: the files themselves were already accurate
+Cross-checked every genuine third-party import across the whole
+codebase directly (an AST scan of every .py file, not just hand-
+reading the requirements files) against both files. Every real
+import mapped correctly. pytest showed up as a real import but is
+intentionally documented separately in synthetic_tests/README.md,
+since it's a dev-only test dependency, not something end users of
+the main tools need -- a correct, intentional separation, not a gap.
+
+### The real gap: a misleading README comment
+README.md's own installation instructions read "pip install -r
+requirements-optional.txt   # for nicer maps" -- making that file
+sound purely cosmetic and skippable. It actually also provides
+prophet (needed for cwt-prophet, the *recommended* interactive
+extraction method) and streamlit (needed for the entire dashboard).
+Very likely exactly what happened during the earlier venv-rebuild
+episode: someone reasonably skipped a line that sounded optional,
+and prophet went missing silently, only surfacing later as a
+confusing, buried error deep inside cwt-prophet extraction. Fixed the
+comment directly, explicit that skipping it breaks real
+functionality.
+
+### New: check_install.py
+Verifies every dependency this toolkit actually imports, split into
+required (core scripts won't run at all without these) and optional
+(specific features degrade, everything else works fine), with clear
+per-package fix guidance. Correct exit codes verified directly
+(0 if only optional missing, 1 if anything required is missing),
+including via an injected fake missing dependency to exercise the
+failure path without needing a genuinely broken environment.
+
+### A second, more serious problem found only through live testing
+Asked directly "what about astropy" after check_install.py flagged it
+as genuinely missing on a real machine. Installing it without a
+version cap pulled in astropy 8.0.1, which itself requires numpy>=2.0
+-- silently upgrading numpy from 1.26.4 to 2.5.1 and breaking
+compatibility with this project's own scipy (needs numpy<2.3),
+confirmed directly via pip's own dependency-conflict warnings and a
+live scipy import warning. This would never have been caught by
+sandbox testing alone -- it required someone with a real, previously-
+working environment installing a new package and hitting a genuine
+conflict.
+
+Fixed at the root, not just patched around: astropy capped to <7.0 in
+requirements-optional.txt, and numpy capped to <2.3 in requirements.txt
+directly (the more general fix, so this can't resurface via some
+other, different unconstrained dependency in the future) -- since pip
+doesn't always see both requirements files' constraints together when
+installed as two separate commands, as this project's own install
+instructions do. Verified end to end on the real machine this was
+found on: numpy downgraded back to 1.26.4, astropy reinstalled at a
+compatible 6.1.7, check_install.py reporting a fully clean result
+afterward.
+
+### Also fixed: a persistent cosmetic prophet warning
+"ERROR:prophet.plot:Importing plotly failed" printed on every single
+prophet import throughout this whole session, including inside
+check_install.py's own otherwise-clean output. Harmless (this project
+never uses prophet's interactive plotting), but noisy enough to be
+worth suppressing at the specific prophet.plot logger (not globally)
+before the first real release of check_install.py, and in
+drf_to_doppler.py at both places prophet gets imported.
+
+### Process note
+The most valuable finding here (the numpy/astropy conflict) was
+invisible in every sandbox check performed before live testing --
+confirming importability alone doesn't catch a version-compatibility
+conflict between two packages that both import fine individually.
+Continues a now-repeated pattern in this project: real value keeps
+coming from testing against a genuine, previously-working environment
+rather than a fresh sandbox, since some classes of bug (accumulation,
+scale, cross-package version conflicts) only exist in that context.
+
+### Open items
+1. AC0G_ND's anomalous 11.6-minute period (Jan 19 event) -- still not
+   investigated (see #101)
+2. June 6 event: AC0G_ND still needs its own click to test dropping
+   N6RFM there (see #100, #101)
+3. The 3-station Jan 19 comparison via the dashboard (319 m/s @ 108
+   deg) never cleanly re-verified with a careful, unhurried re-click
+4. The box-select prototype (test_box_select.py) -- still no decision
+   on folding into the real tid_quicklook.py (see #100)
+5. fetch_madrigal_tec_closure.py still pending its own live-data
+   graduation test (see #93)
+6. Consider whether check_install.py should eventually check version
+   *compatibility* between installed packages, not just presence --
+   the astropy/numpy conflict this entry found would have been caught
+   earlier by that, though it's a meaningfully bigger scope than the
+   current presence-only check
