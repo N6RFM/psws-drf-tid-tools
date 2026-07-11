@@ -1,7 +1,14 @@
 # Core dependencies for psws-drf-tid-tools
 # All scripts assume Python 3.10 or newer.
 
-numpy>=1.24
+# numpy is capped below 2.3 to match what scipy (below) actually
+# supports -- confirmed directly: an unconstrained optional dependency
+# (astropy) silently pulled numpy up to 2.5.1 during a real install,
+# breaking scipy without any error until scipy was actually used.
+# pip doesn't always see requirements.txt and requirements-optional.txt
+# together when installed as two separate commands, so this needs to
+# be pinned here explicitly, not left to what pip happens to resolve.
+numpy>=1.24,<2.3
 scipy>=1.10
 pandas>=2.0
 matplotlib>=3.7

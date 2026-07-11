@@ -18,7 +18,12 @@ prophet>=1.1
 # Without astropy, hf_int.py still runs, falling back to scipy's
 # signal.lombscargle with an approximate power-threshold heuristic
 # instead of a real statistical confidence check.
-astropy>=5.0
+# Capped below 7.0: astropy>=7.0 requires numpy>=2.0, which conflicts
+# with this project's own scipy requirement (scipy<1.14 needs
+# numpy<2.3, and even where that overlaps, an unconstrained upgrade
+# to numpy 2.x broke a real, confirmed installation directly -- not a
+# hypothetical concern).
+astropy>=5.0,<7.0
 
 # Required by fetch_madrigal_tec.py (GPS TEC cross-correlation for
 # independent DOA corroboration) — hard requirement for that script
