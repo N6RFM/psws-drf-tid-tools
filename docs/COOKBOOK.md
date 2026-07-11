@@ -405,11 +405,11 @@ The legend shows inter-method Pearson r and RMS diff. r > 0.95 and
 RMS < 0.10 Hz means both methods are equivalent — use FFT. See
 `docs/METHODOLOGY.md` Step 1b for the full decision guide.
 
-### How do I use the anchor-guided cwt-prophet extraction (recommended)?
+### How do I use the anchor-guided cwt-prophet extraction?
 
-The anchor-guided cwt-prophet tool gives the most reliable results, especially
-for stations with E-region contamination. Launch via `tid_workflow.py`
-(recommended, method 1) or directly:
+The anchor-guided cwt-prophet tool is one of several extraction methods,
+often useful for stations with E-region contamination. Launch via
+`tid_workflow.py` (method 1) or directly:
 
 ```bash
 python3 tid_spect_click.py \

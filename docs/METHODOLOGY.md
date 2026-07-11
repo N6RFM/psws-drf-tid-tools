@@ -231,7 +231,7 @@ lags, the anchor-guided cwt-prophet gives the most reliable results.
 3. If not, the user clicks along the correct carrier from left to
    right, then presses **X** to export the clicked trace.
 
-**Why this is recommended over raw spline (X key):** Prophet uses
+**Why E typically outperforms raw spline (X key):** Prophet uses
 the full spectral context and time-series continuity to produce a
 smooth carrier estimate. The anchor clicks correct only the regions
 where Prophet fails — most of the trace is Prophet's own work,
@@ -243,7 +243,7 @@ on click density and placement.
 R=reset.
 
 **Output:**
-- E key: `{stn}_prophet_tid.csv` (recommended — smooth, guided)
+- E key: `{stn}_prophet_tid.csv` (smooth, guided)
 - X key: `{stn}_spline_tid.csv` (raw spline — fallback)
 
 See `WORKFLOW_TUTORIAL.md` Step 6 (Option A) for the full workflow.
