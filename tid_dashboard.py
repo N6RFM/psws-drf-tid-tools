@@ -6,10 +6,26 @@ Madrigal TEC cross-check).
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 0.22.0
+Version: 0.23.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v0.23.0 Removed the "Script variant" choice between
+          fetch_madrigal_tec.py and fetch_madrigal_tec_closure.py --
+          the experimental fork's loop-closure logic was promoted
+          directly into fetch_madrigal_tec.py v1.2.0 (see its own
+          changelog), which is now retired as a standalone file.
+          Only one script remains, so the dashboard always uses it;
+          simplified 4 call sites accordingly. Caught a real, latent
+          bug in the same pass: a stale "tec_variant" reference left
+          in the settings-save dict would have been a NameError the
+          first time settings got saved after removing the variable
+          it referenced -- Python doesn't statically check variable
+          existence, so py_compile alone didn't catch this, only a
+          grep sweep for the removed variable's name did. Verified:
+          full dashboard AppTest confirms no exceptions, the Madrigal
+          checkbox and its settings still render correctly, and the
+          "Script variant" radio button is genuinely gone.
   v0.22.0 Wired spline up as a selectable "Extraction method" option,
           matching wave-fit/cwt-prophet's existing interactive
           pattern. Genuinely missing before this -- ALL_METHODS only
@@ -622,8 +638,8 @@ USAGE
       5. Write a tid_workflow_event.json-compatible config
       6. Run tid_doa.py, parse speed/azimuth/diagnostics
       7. Compute predicted per-pair lags from the DOA result's own
-         geometry, then run fetch_madrigal_tec.py (or the experimental
-         fetch_madrigal_tec_closure.py fork) as an independent
+         geometry, then run fetch_madrigal_tec.py (loop-closure peak
+         disambiguation built in as of v1.2.0) as an independent
          cross-check, auto-filling --doa-speed/--doa-azimuth-from/
          --doa-lags so nothing has to be retyped by hand.
 
@@ -1539,7 +1555,7 @@ def run_and_display_tec(config_path, doa, stations_subset, tec_script, out_dir,
 
 # ── Streamlit UI ──
 
-DASHBOARD_VERSION = "v0.22.0"
+DASHBOARD_VERSION = "v0.23.0"
 
 st.set_page_config(page_title="TID Pipeline Dashboard", layout="wide")
 st.title("TID Direction-of-Arrival Pipeline")
@@ -1654,13 +1670,6 @@ with st.sidebar:
              "or Madrigal is unreachable/the TEC data isn't posted yet.",
     )
     if run_madrigal:
-        tec_options = ["fetch_madrigal_tec.py (stable)",
-                        "fetch_madrigal_tec_closure.py (experimental -- see PROJECT_STATE)"]
-        tec_variant = st.radio(
-            "Script variant", tec_options,
-            index=tec_options.index(_settings.get("tec_variant", tec_options[0]))
-            if _settings.get("tec_variant") in tec_options else 0,
-        )
         user_name = st.text_input("Madrigal user name", value=_settings.get("user_name", ""))
         user_email = st.text_input("Madrigal user email", value=_settings.get("user_email", ""))
         user_affil = st.text_input("Madrigal affiliation", value=_settings.get("user_affil", "psws-drf-tid-tools"))
@@ -1674,7 +1683,6 @@ with st.sidebar:
                  "confirmation.",
         )
     else:
-        tec_variant = _settings.get("tec_variant", "fetch_madrigal_tec.py (stable)")
         user_name = _settings.get("user_name", "")
         user_email = _settings.get("user_email", "")
         user_affil = _settings.get("user_affil", "psws-drf-tid-tools")
@@ -1835,7 +1843,6 @@ save_settings_if_changed({
     "run_madrigal": run_madrigal,
     "tec_tolerance_min": tec_tolerance_min,
     "ylim_half_range": ylim_half_range if ylim_half_range is not None else _settings.get("ylim_half_range", 2.0),
-    "tec_variant": tec_variant,
     "user_name": user_name,
     "user_email": user_email,
     "user_affil": user_affil,
@@ -2572,8 +2579,7 @@ if run_button:
                 "Pipeline complete -- DOA result above is the final output.")
         st.balloons()
     else:
-        tec_script = ("fetch_madrigal_tec_closure.py"
-                      if "closure" in tec_variant else "fetch_madrigal_tec.py")
+        tec_script = "fetch_madrigal_tec.py"
         tec_out_dir = event_path / f"evaluation_{tec_script.replace('.py', '')}"
         verdict, interp_section = run_and_display_tec(
             config_path, doa, station_info, tec_script, tec_out_dir,
@@ -2645,8 +2651,7 @@ if config_path.exists():
                     header="Direction of arrival (dropped station re-run)")
                 if new_doa is not None and rerun_madrigal_too:
                     remaining = [s for s in _cfg_stations if s["name"] not in drop_names]
-                    tec_script_rerun = ("fetch_madrigal_tec_closure.py"
-                                        if "closure" in tec_variant else "fetch_madrigal_tec.py")
+                    tec_script_rerun = "fetch_madrigal_tec.py"
                     rerun_out_dir = event_path / f"evaluation_{tec_script_rerun.replace('.py', '')}_dropped"
                     run_and_display_tec(
                         config_path, new_doa, remaining, tec_script_rerun, rerun_out_dir,

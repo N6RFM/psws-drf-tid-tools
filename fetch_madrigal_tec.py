@@ -100,10 +100,49 @@ WORKED EXAMPLE — Jan 2026 LSTID:
   not the true wave speed. The GPS TEC confirms NNE propagation direction.
 
 Created by N6RFM with help from Claude AI.
-Version: 1.1.0
+Version: 1.2.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.2.0  Promoted loop-closure cross-correlation peak disambiguation
+          from fetch_madrigal_tec_closure.py (experimental fork, now
+          retired) into this file directly, replacing the plain-argmax
+          picker. Cross-correlation peak-picking (plain argmax) can
+          silently choose the wrong lobe when two peaks are close in
+          height -- e.g. a residual lag=0 storm-background peak
+          sitting near the true secondary TID peak. find_candidate_peaks()
+          keeps every local max within a small margin of the global
+          max instead of just the top one; resolve_loop_closure() picks
+          whichever combination across all station-pair candidates
+          minimizes total triangle-closure residual (lag(A,B) +
+          lag(B,C) - lag(A,C) ~= 0 for every triple), and reports any
+          pair where that differs from the naive argmax choice. The
+          xcorr plot now marks a rejected argmax pick (if any) with a
+          gray dotted line; the report gets a new LOOP CLOSURE
+          DIAGNOSTICS section.
+
+          Promoted per PROJECT_STATE entry #93's own graduation
+          criteria, both now satisfied: (1) a negative-control run
+          against the known-good Jan 2026 event showed 0 flips (no
+          false positives on data with no genuine ambiguity); (2) a
+          live run against the June 2026 event produced a real flip
+          (JJMP->KJ6MKI: argmax picked +52min, closure-consistent
+          choice was -48min), confirmed correct on visual inspection
+          of the xcorr plot AND independently corroborated by the
+          other two, unambiguous pairs in the same triangle (their
+          own lags summed to -40min, 8min from the closure choice vs
+          92min from the rejected argmax pick) -- not just internally
+          self-consistent math, physically corroborated by data the
+          closure logic itself never touched.
+
+          Verified: the promoted find_candidate_peaks()/
+          resolve_loop_closure() functions tested directly against
+          synthetic data reproducing the exact real ambiguous case
+          observed on live June 2026 data (a taller, incorrect argmax
+          peak at +52min and a shorter, correct one at -48min, with
+          two independent unambiguous pairs) -- confirmed the promoted
+          code correctly flips to -48min and reports exactly one flip,
+          matching the real, live-data behavior exactly.
   v1.1.0  Added DOA CROSS-CHECK INTERPRETATION: an automated verdict
           (CONSISTENT / MOSTLY CONSISTENT / INCONSISTENT) summarizing
           agreement between DOA-predicted and GPS-TEC-observed lags,
@@ -135,7 +174,7 @@ except ImportError:
     print("ERROR: madrigalWeb not installed. Run: pip install madrigalWeb")
     sys.exit(1)
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 MADRIGAL_URL = "https://cedar.openmadrigal.org/"
 GPS_TEC_CODE = 8000      # Madrigal instrument code for GPS TEC
 GRIDDED_KINDAT = 3500    # kindat for gridded global TEC
@@ -358,6 +397,126 @@ def plot_detrended(det, ev_start_h, ev_end_h, date_str,
     print(f"  Saved: {out_path.name}")
 
 
+def find_candidate_peaks(lags, xc, prominence=0.15, max_candidates=2):
+    """
+    Find up to `max_candidates` local maxima in a cross-correlation function,
+    ranked by correlation value (descending).
+
+    This exists because np.argmax alone silently picks whichever lobe is
+    tallest even when a second lobe is nearly as tall (e.g. a residual
+    lag=0 storm-background peak sitting close in height to the true
+    secondary TID peak). When that happens the "peak" reported for a pair
+    can flip almost arbitrarily between runs/pairs, and downstream triangle
+    closure (see resolve_loop_closure) breaks.
+
+    Returns a list of (lag_min, corr_value) tuples, best first, containing
+    every local max within `prominence` of the global max (up to
+    max_candidates). If the correlation has no interior local maxima
+    (monotonic within the window), returns just the global max.
+    """
+    peaks = []
+    for i in range(1, len(xc) - 1):
+        if xc[i] > xc[i - 1] and xc[i] > xc[i + 1]:
+            peaks.append((lags[i], xc[i]))
+    if not peaks:
+        i = int(np.argmax(xc))
+        return [(lags[i], xc[i])]
+    peaks.sort(key=lambda p: -p[1])
+    top = [peaks[0]]
+    for lag, val in peaks[1:]:
+        if len(top) >= max_candidates:
+            break
+        if val >= peaks[0][1] - prominence:
+            top.append((lag, val))
+    return top
+
+
+def resolve_loop_closure(candidates):
+    """
+    Disambiguate ambiguous cross-correlation peaks using triangle closure.
+
+    For any three stations A, B, C, the pairwise lags should satisfy
+    lag(A,B) + lag(B,C) - lag(A,C) ~= 0 if all three lags are correctly
+    picked (a wave field is internally consistent; a peak-picker error on
+    one pair breaks closure for every triangle that pair participates in).
+
+    Inputs:
+        candidates - dict {(s1, s2): [(lag_min, corr_val), ...]}, each
+                     list sorted best-first (as returned by
+                     find_candidate_peaks). Pairs with only one candidate
+                     are unambiguous and are not searched over.
+
+    Returns:
+        (chosen, diagnostics, flips, mean_sq_residual)
+
+        chosen      - dict {(s1, s2): lag_min} using the combination of
+                      candidates that minimizes total triangle closure
+                      residual across all triangles.
+        diagnostics - list of (a, b, c, residual_min) per closed triangle
+                      using the chosen lags.
+        flips       - list of (pair, default_lag, chosen_lag) for any pair
+                      where the closure-consistent choice differs from the
+                      naive global-argmax choice (candidates[pair][0]).
+        mean_sq_residual - mean squared closure residual (minutes^2) for
+                      the chosen combination, across all closed triangles.
+    """
+    import itertools
+
+    pair_keys = list(candidates.keys())
+    options_per_pair = [candidates[k] for k in pair_keys]
+    stations = sorted({s for pair in pair_keys for s in pair})
+    triangles = list(itertools.combinations(stations, 3))
+
+    def get_lag(chosen, s1, s2):
+        if (s1, s2) in chosen:
+            return chosen[(s1, s2)]
+        if (s2, s1) in chosen:
+            return -chosen[(s2, s1)]
+        return None
+
+    best_cost, best_choice = None, None
+    for combo in itertools.product(*[range(len(o)) for o in options_per_pair]):
+        chosen = {pair_keys[i]: options_per_pair[i][combo[i]][0]
+                  for i in range(len(pair_keys))}
+        cost, n_tri = 0.0, 0
+        for a, b, c in triangles:
+            lag_ab = get_lag(chosen, a, b)
+            lag_bc = get_lag(chosen, b, c)
+            lag_ac = get_lag(chosen, a, c)
+            if None in (lag_ab, lag_bc, lag_ac):
+                continue
+            resid = lag_ab + lag_bc - lag_ac
+            cost += resid ** 2
+            n_tri += 1
+        if n_tri == 0:
+            continue
+        cost /= n_tri
+        if best_cost is None or cost < best_cost:
+            best_cost, best_choice = cost, chosen
+
+    if best_choice is None:
+        # No closable triangles (fewer than 3 stations) — nothing to resolve.
+        return ({k: v[0][0] for k, v in candidates.items()}, [], [], None)
+
+    diagnostics = []
+    for a, b, c in triangles:
+        lag_ab = get_lag(best_choice, a, b)
+        lag_bc = get_lag(best_choice, b, c)
+        lag_ac = get_lag(best_choice, a, c)
+        if None in (lag_ab, lag_bc, lag_ac):
+            continue
+        diagnostics.append((a, b, c, lag_ab + lag_bc - lag_ac))
+
+    flips = []
+    for k in pair_keys:
+        default_lag = candidates[k][0][0]
+        chosen_lag = best_choice[k]
+        if abs(default_lag - chosen_lag) > 1e-6:
+            flips.append((k, default_lag, chosen_lag))
+
+    return best_choice, diagnostics, flips, best_cost
+
+
 def plot_xcorr_all(det, ev_start_h, ev_end_h, doa_lags, date_str, out_path):
     names = list(det.keys())
     pairs = [(names[i], names[j])
@@ -371,18 +530,47 @@ def plot_xcorr_all(det, ev_start_h, ev_end_h, doa_lags, date_str, out_path):
     axes = np.array(axes).reshape(-1)
     t_c = np.arange(ev_start_h, ev_end_h + 1/60, 1/60)
 
-    results = []
-    for ax, (s1, s2) in zip(axes, pairs):
+    # First pass: compute raw cross-correlations and candidate peaks for
+    # every pair, so we can resolve ambiguous picks via loop closure
+    # *before* deciding what to plot/report as "the" peak.
+    xc_by_pair = {}
+    candidates = {}
+    for s1, s2 in pairs:
         if s1 not in det or s2 not in det:
-            ax.axis('off'); continue
+            continue
         d1 = np.interp(t_c, det[s1][0], det[s1][1])
         d2 = np.interp(t_c, det[s2][0], det[s2][1])
-        lags, xc, peak = xcorr_lags(d1, d2)
+        lags, xc, _ = xcorr_lags(d1, d2)
+        xc_by_pair[(s1, s2)] = (lags, xc)
+        candidates[(s1, s2)] = find_candidate_peaks(lags, xc)
+
+    chosen, closure_diag, flips, mean_sq_resid = resolve_loop_closure(candidates)
+
+    if flips:
+        print("  Loop-closure disambiguation changed the following peak picks:")
+        for (s1, s2), default_lag, chosen_lag in flips:
+            print(f"    {s1}->{s2}: argmax picked {default_lag:.0f}m, "
+                  f"closure-consistent choice is {chosen_lag:.0f}m")
+    if mean_sq_resid is not None:
+        print(f"  Mean triangle-closure residual (chosen picks): "
+              f"{np.sqrt(mean_sq_resid):.1f} min RMS")
+
+    results = []
+    for ax, (s1, s2) in zip(axes, pairs):
+        if (s1, s2) not in xc_by_pair:
+            ax.axis('off'); continue
+        lags, xc = xc_by_pair[(s1, s2)]
+        peak = chosen[(s1, s2)]
+        default_peak = candidates[(s1, s2)][0][0]
         doa_s = doa_lags.get((s1,s2), doa_lags.get((s2,s1), None))
 
         ax.plot(lags, xc, 'b-', lw=1)
         ax.axvline(peak, color='red', lw=1.5, ls='--',
                    label=f'GPS peak={peak:.0f}m')
+        if abs(default_peak - peak) > 1e-6:
+            # Flag the alternate (naive argmax) pick that closure rejected.
+            ax.axvline(default_peak, color='gray', lw=1.2, ls=':',
+                       label=f'argmax (rejected)={default_peak:.0f}m')
         if doa_s is not None:
             ax.axvline(doa_s/60, color='orange', lw=1.5, ls='--',
                        label=f'DOA={doa_s/60:.1f}m')
@@ -398,13 +586,14 @@ def plot_xcorr_all(det, ev_start_h, ev_end_h, doa_lags, date_str, out_path):
         ax.axis('off')
 
     plt.suptitle(f'GPS TEC cross-correlations — {date_str}\n'
-                 f'Red=GPS TEC peak  Orange=DOA spline prediction',
+                 f'Red=GPS TEC peak (closure-resolved)  '
+                 f'Gray dotted=rejected argmax  Orange=DOA spline prediction',
                  fontsize=10)
     plt.tight_layout()
     plt.savefig(str(out_path), dpi=130)
     plt.close()
     print(f"  Saved: {out_path.name}")
-    return results
+    return results, closure_diag, flips
 
 
 # ── Report ────────────────────────────────────────────────────────────────
@@ -524,7 +713,7 @@ def print_and_append_interpretation(lines, interp):
 def write_report(out_path, date_str, ev_start, ev_end,
                  stations, binned, det, xcorr_results,
                  doa_lags, doa_speed, doa_az_from, madrigal_file,
-                 tec_tolerance_min=20.0):
+                 closure_diag=None, flips=None, tec_tolerance_min=20.0):
 
     lines = [
         "=" * 68,
@@ -573,6 +762,37 @@ def write_report(out_path, date_str, ev_start, ev_end,
         doa_str = f"{doa_min:.1f}" if doa_min else "---"
         lines.append(f"  {s1}→{s2:10s}  {peak_min:>12.0f}  "
                      f"{doa_str:>12s}  {diff:>10s}")
+
+    if closure_diag:
+        lines += ["", "LOOP CLOSURE DIAGNOSTICS:", ""]
+        lines.append(
+            "  Checks lag(A,B) + lag(B,C) - lag(A,C) ~= 0 for every station "
+            "triple.")
+        lines.append(
+            "  Large residuals mean at least one pair's cross-correlation "
+            "peak was")
+        lines.append(
+            "  ambiguous (two comparable-height lobes) and the wrong one "
+            "may have")
+        lines.append("  been picked for that pair.")
+        lines.append("")
+        lines.append(f"  {'Triangle':30s}  {'Residual (min)':>15s}")
+        lines.append("  " + "-" * 48)
+        for a, b, c, resid in closure_diag:
+            flag = "  <-- check" if abs(resid) > 10 else ""
+            lines.append(f"  {a}-{b}-{c:20s}  {resid:>15.1f}{flag}")
+
+        if flips:
+            lines += ["", "  Peak picks changed by closure resolution:"]
+            for (s1, s2), default_lag, chosen_lag in flips:
+                lines.append(
+                    f"    {s1}->{s2}: argmax picked {default_lag:.0f} min, "
+                    f"closure-consistent choice is {chosen_lag:.0f} min "
+                    f"(see gray dotted line in xcorr plot)")
+        else:
+            lines.append("")
+            lines.append("  No ambiguous peaks found — all pairs had a "
+                          "single dominant lobe.")
 
     if doa_speed and doa_az_from and xcorr_results:
         lines += ["", "SPEED ESTIMATES FROM GPS TEC LAGS:"]
@@ -789,7 +1009,7 @@ def main():
                    primary, doa_lags,
                    out / "madrigal_tec_detrended.png")
 
-    xcorr_results = plot_xcorr_all(
+    xcorr_results, closure_diag, flips = plot_xcorr_all(
         det, ev_s_h, ev_e_h, doa_lags, args.date,
         out / "madrigal_tec_xcorr.png")
 
@@ -800,7 +1020,7 @@ def main():
         args.date, ev_start, ev_end,
         stations, binned, det, xcorr_results,
         doa_lags, args.doa_speed, args.doa_azimuth_from, fname,
-        tec_tolerance_min=args.tec_tolerance_min)
+        closure_diag, flips, tec_tolerance_min=args.tec_tolerance_min)
 
     print(f"\n{'='*55}")
     print(f"Done. Outputs in: {out.resolve()}")
