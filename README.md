@@ -126,6 +126,22 @@ its DRF data via the PSWS download API, and organizes it into the
 `docs/COOKBOOK.md` for the full option list, or `MANUAL_TUTORIAL.md`
 for the manual download steps if you'd rather use the web UI directly.
 
+**A note on `ch0` and "channel-num", since these are easy to conflate.**
+Every station's data lives in exactly one folder, always named `ch0`
+-- that never changes, including for stations that record several
+frequencies at once (rx888/WSPRDaemon/KA9Q-radio-style receivers).
+"Channel-num" is *not* a second folder to find or download separately
+-- it's a column index inside `ch0`'s own files. A station recording
+9 simultaneous WWV frequencies still has just one `ch0` folder; those
+9 frequencies are 9 parallel columns sharing one file, one download,
+one common time axis, purely for storage convenience on the receiver's
+end. Selecting "channel-num 4" tells every tool downstream (spectrogram
+generation, extraction, everything) which column to read out of that
+one shared folder -- it has no effect on what gets downloaded, and
+there is never a `ch1`, `ch4`, etc. to look for. See
+`docs/COOKBOOK.md`'s "How do I extract from a multi-channel-num
+station?" for the practical side of this.
+
 ### Recommended: guided workflow
 
 ```bash

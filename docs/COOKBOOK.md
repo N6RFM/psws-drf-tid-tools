@@ -351,6 +351,41 @@ python3 drf_to_doppler.py ./station_dir \
 | `--decim-seconds 10` | TID analysis (default, good resolution) |
 | `--decim-seconds 1`  | Prompt flare signatures (SFD/SWF), high time res |
 
+### What's the difference between "channel" and "channel-num"?
+
+Easy to conflate, and worth being explicit about since it comes up
+constantly with multi-frequency receivers.
+
+**"Channel"** means a real DRF subdirectory -- `ch0`, `ch1`, etc.
+Every station this project has ever worked with only has one, always
+named `ch0`, regardless of how many frequencies it records. A second,
+sibling folder for a "second channel" essentially never comes up here.
+
+**"Channel-num"** means a column index *inside* `ch0`'s own data
+files -- not a folder at all. Some receivers (rx888/WSPRDaemon/
+KA9Q-radio-style) record several independent, unrelated WWV
+frequencies into that single `ch0` folder as parallel data columns,
+purely for storage convenience since they share one common time axis.
+A station with 9 of these packed frequencies (e.g. 2.5, 3.33, 5,
+7.85, 10, 14.67, 15, 20, 25 MHz) still has exactly one `ch0` folder on
+disk -- verify directly:
+
+```bash
+python3 -c "
+import digital_rf as drf
+r = drf.DigitalRFReader('./ac0g_nd')
+iq = r.read_vector(r.get_bounds('ch0')[0], 100, 'ch0')
+print(iq.shape)   # (100, 9) for a 9-channel-num station, (100,) for single
+"
+```
+
+`--channel-num 4` doesn't point any tool at a different folder --
+it tells every downstream step (spectrogram generation, extraction,
+everything) which column to read out of `ch0`'s one, shared file.
+This is also why `download_companions.py` only ever needs to fetch
+`ch0` once per station regardless of how many channel-nums it has --
+every column is already sitting in that one download.
+
 ### How do I extract from a multi-channel-num station?
 
 Pass `--channel-num N` where N is what `drf_inspect.py` reported:
