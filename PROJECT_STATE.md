@@ -4699,3 +4699,62 @@ after a long session with many branch switches.
    have existed locally, never committed anywhere
 4. bandpass and sgolay-ridge remain unwired in the dashboard, same gap
    spline had before entry #117
+---
+## 121. Keystone-first "getting your data" walkthrough added to README and Cookbook; fixed a real --out-dir omission -- 2026-07-12
+
+### What was raised, directly
+The existing quick-start jumped straight into "if you only have your
+own station's data, discover companions" without ever explaining how
+a new user gets any station's data in the first place, what the
+realistic starting point even is, or where downloaded data should go.
+
+### A real, confirmed risk, not hypothetical
+Checked directly before writing anything: download_companions.py's
+own --out-dir argument defaults to "." (current directory). The
+quick-start's own sequence has the user `cd psws-drf-tid-tools` first,
+then run download_companions.py in the very next section with no
+--out-dir shown at all -- meaning following the docs exactly as
+written could genuinely download DRF data (plus scratch zips, a
+manifest file) straight into the repo's own checkout, mixed in with
+the code.
+
+### README.md
+Old "Before you begin -- find companion stations" section replaced
+with "Getting your data: keystone station first, then companions" --
+starting from the realistic point (something interesting noticed
+somewhere, that station is the keystone), through:
+1. mkdir a working directory outside the repo
+   (~/Downloads/tid_event_YYYYMMDD, matching this project's own real
+   analysis directories throughout)
+2. download the keystone's own data (download_companions.py works for
+   any PSWS nickname, including your own -- no separate tool needed)
+3. read its coordinates back out with drf_inspect.py rather than
+   looking them up separately (confirmed directly: it only ever
+   prints lat/long, not receiver_lat/receiver_lon -- fixed an
+   inaccurate hedge from an earlier draft before shipping)
+4. find companions with those coordinates
+5. download the companions too, into the same directory
+
+Every step has its own real, runnable command block, confirmed
+directly on request rather than assumed. Also updated the later
+guided-workflow example to use the same concrete
+~/Downloads/tid_event_20260119 path instead of a vague /path/to/
+placeholder, so the whole document tells one consistent story.
+
+### docs/COOKBOOK.md
+Matching "Getting started" FAQ entry added at the very top (before
+even the dashboard section) for the same "where do I start" question.
+Every download_companions.py example in the file given --out-dir
+explicitly, with a direct, explained warning about what omitting it
+actually does -- not just a fixed example, but a stated reason.
+
+### Open items
+1. AC0G_ND's anomalous 11.6-minute period (Jan 19 event) -- still not
+   investigated (see #101)
+2. The 3-station Jan 19 comparison via the dashboard (319 m/s @ 108
+   deg) never cleanly re-verified with a careful, unhurried re-click
+3. The box-select prototype (test_box_select.py) -- still no decision
+   on folding into the real tid_quicklook.py; confirmed to only ever
+   have existed locally, never committed anywhere
+4. bandpass and sgolay-ridge remain unwired in the dashboard, same gap
+   spline had before entry #117
