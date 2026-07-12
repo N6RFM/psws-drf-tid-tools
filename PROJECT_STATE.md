@@ -4320,3 +4320,67 @@ whatever stale one was cached.
    on folding into the real tid_quicklook.py (see #100)
 5. fetch_madrigal_tec_closure.py still pending its own live-data
    graduation test (see #93)
+---
+## 117. Spline extraction wired into the dashboard as a 6th method; README's stale method-count references fixed -- 2026-07-12
+
+### The question
+Asked directly why spline wasn't part of the GUI. Investigation
+confirmed a genuine gap, not a deliberate design choice: the
+dashboard's ALL_METHODS list only ever included 5 methods (autocorr,
+cwt, fft, wave-fit, cwt-prophet). spline (tid_spect_click.py's own
+--no-prophet mode: skip the Pass 0 auto-run, rely entirely on manual
+anchor clicks) was never wired up at all, despite full underlying
+support already existing -- bandpass and sgolay-ridge are similarly
+unwired (mentioned only in comments), but the fix was scoped to
+spline specifically, matching wave-fit/cwt-prophet's existing
+interactive pattern.
+
+### Implementation
+Extended the dashboard's binary wave_only/tsc_method_name derivation
+to a proper 3-way check; added a no_prophet parameter to
+run_interactive_extraction, threaded through to tid_spect_click.py's
+own --no-prophet flag the same way --wave-only already worked. The
+existing _extraction_state_suffix logic ("wave" vs "spline") already
+correctly covered this new mode without any changes needed, since
+both cwt-prophet's own X-key fallback and this dedicated spline mode
+produce the same "_spline_tid.csv" filename via the same underlying
+tid_spect_click.py function -- confirmed by reading the actual
+mechanism directly, not assumed from the shared name.
+
+### Verification
+The 3-way method-derivation logic and subprocess args construction
+both tested directly against all 3 interactive methods (correct
+wave_only/no_prophet/tsc_method_name for each; cwt-prophet gets
+neither flag, wave-fit gets --wave-only, spline gets --no-prophet).
+Full dashboard AppTest confirms the dropdown shows all 6 methods
+including the new one and selecting it produces no exceptions.
+
+### README fixes found along the way
+Two stale, hardcoded method counts ("all five", "all 5") went out of
+date the instant spline was added. Both changed to just say "all"
+per direct instruction, so this can't drift out of sync the same way
+again. Also added spline to the dashboard usage section's list of
+interactive methods, which was still only naming wave-fit/cwt-prophet.
+
+### Process note
+Hit the same stale-duplicate-download pattern as several times
+before this session (a browser download-naming collision leaving an
+older, unfixed file at the literal filename while the real fix sat
+in a "(1)"-suffixed one) -- caught immediately this time since the
+grep verification step is now routine, not an afterthought.
+
+### Open items
+1. AC0G_ND's anomalous 11.6-minute period (Jan 19 event) -- still not
+   investigated (see #101)
+2. June 6 event: AC0G_ND still needs its own click to test dropping
+   N6RFM there (see #100, #101)
+3. The 3-station Jan 19 comparison via the dashboard (319 m/s @ 108
+   deg) never cleanly re-verified with a careful, unhurried re-click
+4. The box-select prototype (test_box_select.py) -- still no decision
+   on folding into the real tid_quicklook.py (see #100)
+5. fetch_madrigal_tec_closure.py still pending its own live-data
+   graduation test (see #93)
+6. bandpass and sgolay-ridge remain unwired in the dashboard, same as
+   spline was before this entry -- only mentioned in comments, no
+   selectable option. Not addressed here since the ask was
+   specifically about spline; worth a similar pass if desired later.
