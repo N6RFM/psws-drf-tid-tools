@@ -4608,3 +4608,94 @@ session) that no longer existed on disk; the actual, irreplaceable
    have existed locally, never committed anywhere
 4. bandpass and sgolay-ridge remain unwired in the dashboard, same gap
    spline had before entry #117
+---
+## 120. download_companions.py auto-retry for frequency-filter mismatch; channel vs channel-num documented after a real, extended live confusion -- 2026-07-12
+
+### The confusion, and how it resolved
+Working with a fresh download of the Jan 19 event, a fair question
+came up: "why weren't all channels for AC0G_ND downloaded, only ch0?"
+This led into an extended, genuinely useful investigation:
+
+1. Confirmed via git log that download_companions.py has never, in
+   any commit since its creation, had logic to download multiple real
+   DRF channels at once -- not a regression, always single-channel
+   (default ch0) per run by design.
+2. Confirmed directly, via digital_rf, that AC0G_ND's real data
+   genuinely has 9 packed channel-nums (read shape (100, 9) for a
+   100-sample read), settling a legitimate follow-up concern that the
+   file-size math ("31MB vs 34MB for a single-channel station, that
+   doesn't look 9x bigger") didn't add up -- it didn't, because
+   AC0G_ND's receiver (KA9Q_DXE_WWV) compresses on write while the
+   Grape-style single-channel stations (aa6bd/n6rfm/w7lux) don't;
+   raw IQ volume genuinely is ~9x larger for AC0G_ND (863999 samples x
+   9 columns x 8 bytes ~= 62MB) even though on-disk size lands in a
+   similar range by coincidence.
+3. The actual, root misunderstanding: "channel" (a real DRF
+   subdirectory, always ch0 for every station this project has ever
+   worked with) and "channel-num" (a column index *inside* ch0's own
+   files, used by multi-frequency receivers to pack several
+   independent frequencies into one shared recording) were being
+   conflated -- expecting a "ch4" folder to exist for "channel-num 4"
+   is a reasonable-sounding but incorrect mental model neither doc
+   ever explicitly ruled out.
+
+### Live-verified, not just re-explained
+Before touching documentation, confirmed the actual mechanism
+end-to-end with a real CLI run (tid_workflow.py) against this same,
+freshly-downloaded AC0G_ND data: all 9 channel-num thumbnails
+generated correctly, each with its own distinct frequency/SNR
+matching drf_inspect.py's own independent report exactly (e.g.
+channel-num 4 = 10.000 MHz = the correctly auto-suggested WWV target),
+then correctly carried that channel-num through full-day spectrogram,
+window selection, and wave-fit extraction. Confirms the channel-num
+tile picker mechanism (built earlier this session, entry #119) is
+correct for a real, live, genuinely-multi-channel-num station, not
+just synthetic test data.
+
+### README.md / docs/COOKBOOK.md
+Both updated with an explicit, standalone statement of the channel vs
+channel-num distinction -- not left implicit in usage examples, which
+is exactly where the real confusion took hold. COOKBOOK.md's new FAQ
+entry includes a copy-pasteable digital_rf snippet so a future reader
+can verify the (100, 9)-shape fact themselves rather than take it on
+faith.
+
+### download_companions.py v1.2.0: real UX fix
+Raised directly: "the whole point of this workflow was to make this
+very easy and almost seamless." A station hitting "no matching
+observations" with --frequency applied (the expected, common case for
+multi-channel-num stations, whose comma-separated frequency field can
+never exact-match a bare value) used to just print a manual-retry
+suggestion, requiring the user to notice the failure and run a second
+command by hand. Now auto-retries automatically in the same run --
+download_one() returns a new "NO_MATCH_WITH_FREQ" sentinel (distinct
+from a genuine failure or rate-limiting) so the caller knows exactly
+when a retry is likely to help. Verified twice: a mocked-API test
+confirming the sentinel/retry logic in isolation, then a live run
+against the real PSWS API for two genuinely multi-channel-num
+stations (AA6BD, W7LUX) that previously needed a manual second
+command -- both now succeed automatically in one run, producing
+identical output to the old two-step process.
+
+### A near-miss, caught before it mattered
+Immediately before committing the doc changes, git diff --stat showed
+what looked like a massive, unrelated deletion of the entire
+examples/ directory. Stopped immediately rather than proceeding --
+confirmed via a completely fresh clone that examples/ is genuinely,
+safely committed on the real remote main, meaning this was purely a
+local working-tree discrepancy on the user's own machine, not
+anything actually at risk. git checkout main -- examples/ resolved it
+before any commit happened. Worth recording as a reminder that
+git diff --stat should be read carefully before staging, especially
+after a long session with many branch switches.
+
+### Open items
+1. AC0G_ND's anomalous 11.6-minute period (Jan 19 event) -- still not
+   investigated (see #101)
+2. The 3-station Jan 19 comparison via the dashboard (319 m/s @ 108
+   deg) never cleanly re-verified with a careful, unhurried re-click
+3. The box-select prototype (test_box_select.py) -- still no decision
+   on folding into the real tid_quicklook.py; confirmed to only ever
+   have existed locally, never committed anywhere
+4. bandpass and sgolay-ridge remain unwired in the dashboard, same gap
+   spline had before entry #117
