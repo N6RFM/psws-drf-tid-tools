@@ -4485,3 +4485,126 @@ diagnostics were sufficient on their own.
 4. bandpass and sgolay-ridge remain unwired in the dashboard, same
    gap spline had before entry #117 -- only mentioned in comments, no
    selectable option
+---
+## 119. Channel-num tile picker redesign; two real metadata-reading bugs found and fixed; a PR that missed its own last commit, caught and corrected -- 2026-07-12
+
+### What was raised, directly
+The channel-num confirmation UX was "a very unpleasant experience":
+confronted with picking a channel-num before even having assessed the
+TID window for the keystone station, using a single, short (10-minute)
+spectrogram cropped to a pre-guessed, "presumed TID region" rather
+than the full day needed to actually judge each option -- "a typically
+bad guess based on SNR which is the wrong way to do this."
+
+### Redesign (tid_dashboard.py v0.24.0)
+New tile-grid picker: full-day thumbnails for every channel-num
+option, generated via the same generate_overview_spectrogram() already
+used elsewhere (lower --dpi for speed), shown together in an
+st.dialog modal popup rather than one-at-a-time via radio button.
+Selecting a tile is itself the confirmation -- no separate checkbox.
+"Maybe even by looking at a new window with tiles" -- st.dialog is
+Streamlit's own modal-popup mechanism (stable since 1.37.0), not a
+literal new browser tab (that would need a different mechanism
+entirely and lose easy access to shared session state), but achieves
+the same "doesn't eat main-page space" goal.
+
+Keystone's own channel-num confirmation moved to run before the
+overview spectrogram -- previously only a provisional, auto-guessed
+value was used there, so a wrong guess meant "assess the TID window"
+silently showed the wrong band's noise, with no way to tell without
+separately jumping ahead to the later Channel-num selection section
+first. Now mandatory and blocking (st.stop()) for a multi-channel-num
+keystone. Verified directly via AppTest: an unconfirmed keystone
+correctly halts before ever reaching the overview section; an
+already-confirmed one (fresh session, realistic pre-existing saved
+state) proceeds through the full, reordered sequence correctly.
+
+requirements.txt: streamlit>=1.30 -> >=1.37 (st.dialog's predecessor,
+st.experimental_dialog, was later removed entirely -- no working
+fallback below 1.37).
+
+### Real bugs found via live testing (not caught by any local test)
+1. st.dialog's own scrolling is unreliable with long content -- a
+   confirmed, open Streamlit bug (streamlit/streamlit#12716). Fixed
+   with an explicit, fixed-height st.container(height=600) instead of
+   relying on the dialog's native overflow handling.
+2. tid_workflow.py v1.3.0: probe_channel_nums() only ever checked
+   drf_properties.h5 for center_frequencies, never the separate
+   DigitalMetadataReader store where KA9Q-radio/WSPRdaemon-style
+   captures actually write it -- every tile showed "freq unknown"
+   despite the real data being present. A second round of live
+   testing then found a unit mismatch in the same fix: that store's
+   center_frequencies is in MHz, not Hz (confirmed against
+   drf_spectrogram.py's own working code, which already displays this
+   field with no /1e6 conversion) -- without the correction, every
+   frequency showed as "0.000 MHz" instead of failing loudly.
+3. get_drf_metadata_coords() had the identical missing-source bug for
+   coordinates -- 3 of 5 stations in a live event showed 0/0. The
+   first attempted fix introduced a second, genuine bug: a NameError
+   from os.path being used in a file that never imports os anywhere
+   (pathlib.Path is this file's own convention throughout) --
+   silently caught by the function's own broad except-and-return-None,
+   exactly mimicking "no coordinates found" rather than crashing
+   obviously. An isolated sandbox test script masked this completely
+   during development (it had its own separate "import os"). Only
+   found by adding temporary, live st.write() diagnostics directly
+   into the running dashboard and reading the real traceback.
+4. Found unprompted while investigating #3: the Station coordinates
+   section's cache-saving logic unconditionally saved every station's
+   current lat/lon on every render -- including a still-unconfirmed
+   manual-entry widget's own 0.0/0.0 default, before the user had
+   typed anything. This permanently poisoned the persistent cache and
+   silently undid any attempt to clear a stale entry, since the very
+   next render just wrote the default straight back. This is why a
+   correct fix (#3) initially appeared not to work even after a fully
+   clean process restart -- the cache had been re-poisoned by this
+   separate, pre-existing bug before the corrected function ever got
+   a chance to run again.
+5. Raised directly, and fixed: channel-num thumbnails were landing as
+   18 loose files (9 PNGs + 9 axes JSON) directly in the main event
+   directory, rather than tid_workflow.py's own already-established
+   "<station>_channel_nums/" subfolder convention. No reason for the
+   dashboard to organize this differently than the CLI.
+
+### A process failure, caught and corrected
+The #5 fix was built, tested, and shipped -- but never actually
+copied into the working tree before "let's push what we have first"
+led to committing and merging PR #341. That PR captured the prior
+version (v0.24.4) instead of the intended v0.24.5; confirmed
+directly afterward by grepping the freshly-pulled main branch and
+finding both the wrong version number and the subfolder code
+completely absent. A second, small, corrective PR (#342) shipped the
+same v0.24.5 content -- this time verified present on disk via grep
+*before* staging or committing anything, not just assumed from having
+sent the file once already. research_gui resynced from the corrected
+main; live end-to-end test (open the picker, ls the resulting
+subfolder) confirmed all 18 files land in the right place before
+calling this closed.
+
+### A non-bug, run to ground
+A concern that a specific June 6 station had multiple real DRF
+channels (ch0/ch1, not channel-nums) that the dashboard was somehow
+missing turned out, on direct investigation
+(`find ... -iname "ch*" -type d`), to be unfounded -- every station in
+that event genuinely has exactly one ch0 directory. Worth recording
+that this was checked and ruled out concretely, not just dropped.
+
+### Also confirmed, unprompted
+During the coordinate-cache debugging, verified directly (du -sh,
+file count) that no raw DRF recording data was ever at risk --
+a user concern that recent changes had "corrupted and deleted"
+station data turned out to be about an old, pre-existing,
+CLI-generated thumbnail directory (unrelated to anything built this
+session) that no longer existed on disk; the actual, irreplaceable
+26-file, 21MB raw recording was untouched throughout.
+
+### Open items
+1. AC0G_ND's anomalous 11.6-minute period (Jan 19 event) -- still not
+   investigated (see #101)
+2. The 3-station Jan 19 comparison via the dashboard (319 m/s @ 108
+   deg) never cleanly re-verified with a careful, unhurried re-click
+3. The box-select prototype (test_box_select.py) -- still no decision
+   on folding into the real tid_quicklook.py; confirmed to only ever
+   have existed locally, never committed anywhere
+4. bandpass and sgolay-ridge remain unwired in the dashboard, same gap
+   spline had before entry #117
