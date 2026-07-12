@@ -352,11 +352,8 @@ psws-drf-tid-tools/
 ├── run_madrigal_tools.py       combined Madrigal TEC + LSTID wrapper
 ├── fetch_ae_index.py           fetch + plot AE index (WDC Kyoto)
 ├── fetch_kp_index.py           fetch + plot Kp index (WDC Kyoto)
-├── fetch_madrigal_tec.py       Madrigal GPS TEC retrieval + xcorr
-├── fetch_madrigal_tec_closure.py  experimental fork of the above adding
-│                               loop-closure peak disambiguation
-│                               (experimental; not yet validated on a
-│                               live Madrigal pull)
+├── fetch_madrigal_tec.py       Madrigal GPS TEC retrieval + xcorr,
+│                               with loop-closure peak disambiguation
 ├── evaluate_external.py        external space weather evaluation of DOA
 │                               results (Kp/AE + guidance for manual sources)
 │
