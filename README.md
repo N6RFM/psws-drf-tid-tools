@@ -100,10 +100,48 @@ When done: `deactivate`. To resume: `source .venv/bin/activate`.
 
 ## Analysis Workflow
 
-### Before you begin — find companion stations
+### Getting your data: keystone station first, then companions
 
-If you only have data from your own station, discover which other
-HamSCI PSWS stations recorded the same event:
+**Realistic starting point:** you noticed something interesting --
+maybe on your own station's spectrogram, maybe browsing
+[pswsnetwork.eng.ua.edu](https://pswsnetwork.eng.ua.edu/). Whichever
+station's data first caught your attention is your **keystone**
+station -- the one this toolkit's own guided workflow and dashboard
+both use to pick the TID event window everything else gets measured
+against.
+
+**First, set up a working directory *outside* this repo.** Every
+example from here on uses one, matching the naming this project's own
+real analyses use throughout (`tid_event_YYYYMMDD`) -- data files,
+downloaded stations, generated spectrograms, and CSVs all land here,
+never inside `psws-drf-tid-tools/` itself:
+
+```bash
+mkdir -p ~/Downloads/tid_event_20260119
+```
+
+**1. Download your keystone station's own data.** `download_companions.py`
+works for any PSWS station nickname, including your own -- there's no
+separate tool or step for "the keystone" specifically:
+
+```bash
+python3 download_companions.py --date 2026-01-19 \
+    --stations N6RFM \
+    --out-dir ~/Downloads/tid_event_20260119
+```
+
+**2. Get its coordinates**, needed for the next step -- `drf_inspect.py`
+reads them straight from the data you just downloaded, no need to look
+them up separately:
+
+```bash
+python3 drf_inspect.py ~/Downloads/tid_event_20260119/n6rfm
+```
+
+Look for `lat`/`long` under "Station metadata" in the output.
+
+**3. Find companion stations** that may have recorded the same event,
+using those coordinates:
 
 ```bash
 python3 find_event_stations.py \
@@ -112,19 +150,26 @@ python3 find_event_stations.py \
     --my-call N6RFM
 ```
 
-Download DRF data for the top candidates from https://pswsnetwork.eng.ua.edu/,
-or automate this step with `download_companions.py`:
+**4. Download the companions too, into the same directory:**
 
 ```bash
 python3 download_companions.py --date 2026-01-19 \
-    --stations N6RFM AA6BD W7LUX AC0G_ND
+    --stations AA6BD W7LUX AC0G_ND \
+    --out-dir ~/Downloads/tid_event_20260119
 ```
+
+(Steps 1 and 4 could be combined into one `--stations N6RFM AA6BD
+W7LUX AC0G_ND` call if you already know the full station list --
+they're split here to match the realistic order: you only know your
+own station until step 3 tells you who else to look at.)
 
 This resolves each station nickname to its PSWS Station ID, downloads
 its DRF data via the PSWS download API, and organizes it into the
-`<station>/ch0/...` layout the rest of the pipeline expects. See
-`docs/COOKBOOK.md` for the full option list, or `MANUAL_TUTORIAL.md`
-for the manual download steps if you'd rather use the web UI directly.
+`<station>/ch0/...` layout the rest of the pipeline expects -- landing
+entirely inside `~/Downloads/tid_event_20260119/`, never inside this
+repo's own directory. See `docs/COOKBOOK.md` for the full option list,
+or `MANUAL_TUTORIAL.md` for the manual download steps if you'd rather
+use the web UI directly.
 
 **A note on `ch0` and "channel-num", since these are easy to conflate.**
 Every station's data lives in exactly one folder, always named `ch0`
@@ -146,7 +191,7 @@ station?" for the practical side of this.
 
 ```bash
 python3 tid_workflow.py \
-    --event-dir /path/to/tid_event_20260119 \
+    --event-dir ~/Downloads/tid_event_20260119 \
     --stations N6RFM,AA6BD,W7LUX,AC0G_ND \
     --max-lag 30
 ```
