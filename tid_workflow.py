@@ -4,10 +4,41 @@ tid_workflow.py — guided TID direction-of-arrival workflow
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.2.3
+Version: 1.3.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.3.0  probe_channel_nums() now also checks the separate
+          DigitalMetadataReader store ("<drf_dir>/<channel>/metadata/")
+          for center_frequencies, not just drf_properties.h5. Found via
+          real testing: a 9-channel-num station showed "freq unknown"
+          for every single option in the dashboard's new tile picker,
+          despite a genuine, complete center_frequencies array actually
+          being present -- just in this other metadata store
+          (KA9Q-radio/WSPRdaemon-style captures write callsign/grid/
+          lat/lon/center_frequencies there, not into drf_properties.h5
+          at all). tid_doa_config.py's own read_drf_metadata() already
+          reads this correctly elsewhere in the repo, but hardcodes
+          "ch0" rather than accepting a channel argument -- would be
+          wrong here for any station whose real channel isn't ch0
+          (RX888-style multi-real-channel stations), so this reads it
+          directly using the channel actually passed to this function,
+          falling back to the existing drf_properties.h5 check when the
+          separate store isn't present. This store's own
+          center_frequencies is in MHz, not Hz like drf_properties.h5's
+          field -- confirmed directly against drf_spectrogram.py's own
+          working code, which already displays this same field's values
+          with no /1e6 conversion at all. Converted at the read point so
+          this function's own established Hz return convention (see
+          docstring: "freq_hz") stays correct for every caller. Caught
+          live: without this, the dashboard's channel-num tile picker
+          showed "0.000 MHz" for every option -- the data was being
+          found correctly (no longer None), just off by a factor of
+          1e6. Verified: tested directly against synthetic data
+          reproducing the exact real structure (a 9-channel-num station
+          with center_frequencies in the separate digital_metadata
+          store, values matching real JJMP data exactly) -- every
+          channel-num correctly reports its real frequency.
   v1.2.3  Removed "(anchor-guided — recommended)" label from the
           cwt-prophet menu option -- cwt-prophet is one of several
           extraction methods (alongside wave-fit, autocorr, and cwt),
@@ -272,6 +303,50 @@ def probe_channel_nums(drf_dir, target_mhz=10.0, channel=None):
         sr = float(props["samples_per_second"])
         b0, b1 = r.get_bounds(ch)
 
+        # Real per-channel-num frequencies live in a SEPARATE metadata
+        # store (DigitalMetadataReader, "<drf_dir>/<ch>/metadata/") for
+        # KA9Q-radio/WSPRdaemon-style captures -- NOT in drf_properties.h5
+        # (r.get_properties() above), which is what this function checked
+        # exclusively before. Found via real testing: a station with 9
+        # channel-nums showed "freq unknown" for every single one despite
+        # a genuine center_frequencies array actually being present, just
+        # in this other store. tid_doa_config.py's own read_drf_metadata()
+        # already reads this correctly elsewhere in the repo, but
+        # hardcodes "ch0" rather than accepting a channel argument, which
+        # would be wrong here for any station whose real channel isn't
+        # ch0 (RX888-style multi-real-channel stations) -- so this reads
+        # it directly instead, using the channel this function was
+        # actually given.
+        dmd_freqs = None
+        try:
+            metadata_dir = os.path.join(str(drf_dir), ch, "metadata")
+            if os.path.isdir(metadata_dir):
+                mreader = drf_lib.DigitalMetadataReader(metadata_dir)
+                mb0, mb1 = mreader.get_bounds()
+                sample = mreader.read(mb0, mb0 + 1)
+                if sample:
+                    meta = list(sample.values())[0]
+                    val = meta.get("center_frequencies")
+                    if val is not None:
+                        # This store's center_frequencies is in MHz, NOT
+                        # Hz -- confirmed directly against
+                        # drf_spectrogram.py's own working code, which
+                        # displays this same field's values with no /1e6
+                        # conversion at all (its "freq_str" is already
+                        # correct in MHz). Found via real testing: without
+                        # this conversion, every tile in the dashboard's
+                        # channel-num picker showed "0.000 MHz" instead of
+                        # a real value -- the data WAS being found (no
+                        # longer None), just off by 1e6. Converted here so
+                        # this function's own established Hz return
+                        # convention (see docstring: "freq_hz") stays
+                        # correct for every existing caller, none of which
+                        # should need to know this store's own internal
+                        # unit convention differs from drf_properties.h5's.
+                        dmd_freqs = np.atleast_1d(val).astype(float) * 1e6
+        except Exception:
+            pass
+
         # Read probe block from middle of recording
         mid = (b0 + b1) // 2
         block = int(sr * 60)
@@ -284,40 +359,46 @@ def probe_channel_nums(drf_dir, target_mhz=10.0, channel=None):
         if iq.ndim == 1:
             spec = np.abs(np.fft.rfft(iq.real))
             snr = 20 * np.log10(spec.max() / (np.median(spec) + 1e-12))
-            # Try to get center frequency from metadata
             freq = None
-            for key in ["center_frequencies", "center_frequency",
-                        "rf_centerfreq", "centerfreq"]:
-                val = props.get(key, None)
-                if val is not None:
-                    try:
-                        freq = float(np.atleast_1d(val)[0])
-                    except Exception:
-                        pass
-                    break
+            if dmd_freqs is not None and len(dmd_freqs) >= 1:
+                freq = float(dmd_freqs[0])
+            if freq is None:
+                for key in ["center_frequencies", "center_frequency",
+                            "rf_centerfreq", "centerfreq"]:
+                    val = props.get(key, None)
+                    if val is not None:
+                        try:
+                            freq = float(np.atleast_1d(val)[0])
+                        except Exception:
+                            pass
+                        break
             return [(0, float(snr), freq)]
 
         # Multi-channel
         n_subs = iq.shape[1]
         results = []
 
-        # Get frequency array from metadata - try multiple key names
+        # Get frequency array: digital_metadata store first (see above),
+        # falling back to drf_properties.h5 if that isn't available.
         freqs = None
-        for key in ["center_frequencies", "center_frequency",
-                    "rf_centerfreq", "centerfreq", "subchannel_center_frequencies"]:
-            val = props.get(key, None)
-            if val is not None:
-                try:
-                    arr = np.atleast_1d(val)
-                    if len(arr) == n_subs:
-                        freqs = arr
-                        break
-                    elif len(arr) == 1:
-                        # Single freq — same for all channel-nums
-                        freqs = np.full(n_subs, float(arr[0]))
-                        break
-                except Exception:
-                    pass
+        if dmd_freqs is not None and len(dmd_freqs) == n_subs:
+            freqs = dmd_freqs
+        if freqs is None:
+            for key in ["center_frequencies", "center_frequency",
+                        "rf_centerfreq", "centerfreq", "subchannel_center_frequencies"]:
+                val = props.get(key, None)
+                if val is not None:
+                    try:
+                        arr = np.atleast_1d(val)
+                        if len(arr) == n_subs:
+                            freqs = arr
+                            break
+                        elif len(arr) == 1:
+                            # Single freq — same for all channel-nums
+                            freqs = np.full(n_subs, float(arr[0]))
+                            break
+                    except Exception:
+                        pass
 
         for sub in range(n_subs):
             col = iq[:, sub]
