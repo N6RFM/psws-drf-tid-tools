@@ -7,10 +7,28 @@ Community add-on for psws-drf-tid-tools
 (https://github.com/N6RFM/psws-drf-tid-tools)
 
 Created by N6RFM with help from Claude AI.
-Version: 1.1.0
+Version: 1.2.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.2.0  A station hitting "no matching observations" with a
+          --frequency filter applied (the expected, common case for
+          multi-channel-num rx888/WSPRdaemon stations, whose
+          comma-separated frequency field can never exact-match a bare
+          value) used to just print a suggestion to manually re-run
+          that one station without --frequency -- requiring the user
+          to notice the failure and run a second command by hand.
+          Raised directly: "the whole point of this workflow was to
+          make this very easy and almost seamless." Now auto-retries
+          automatically, in the same run, the moment this specific
+          case is detected -- download_one() returns a new
+          "NO_MATCH_WITH_FREQ" sentinel (distinct from a genuine
+          failure) specifically so the caller can tell the difference
+          and retry only when it's actually likely to help. Verified
+          directly: mocked the API to return 404 for a
+          frequency-filtered request and 200 for the same request
+          without one, confirmed the sentinel is returned correctly
+          and the retry succeeds.
   v1.1.0  Reworded "subchannel" references to "channel-num" (and fixed
           an internal inconsistency where the same warning message
           mixed "multi-subchannel" and "multi-channel" for the same
@@ -288,7 +306,11 @@ def api_exclusive_end_date(end_date_str):
 def download_one(session, nickname, station_id, start_date, end_date,
                   frequency, scratch_dir):
     """Download the ZIP for one station/date-range. Returns the local zip
-    path, or None on failure (already printed a message).
+    path, "RATE_LIMITED" (HTTP 429 -- caller should stop entirely),
+    "NO_MATCH_WITH_FREQ" (HTTP 404 with a frequency filter applied --
+    caller should auto-retry without one, since this usually means a
+    multi-channel-num station whose comma-separated frequency field
+    can't exact-match), or None (any other failure, already printed).
 
     start_date/end_date here are the user-facing INCLUSIVE range (e.g.
     both "2026-06-25" for a single day). The actual API call uses
@@ -317,9 +339,7 @@ def download_one(session, nickname, station_id, start_date, end_date,
               f"({start_date}..{end_date}"
               f"{', '+str(frequency)+' MHz' if frequency else ''}).")
         if frequency:
-            print(f"    (if {nickname} is a multi-channel-num rx888/"
-                  f"WSPRdaemon station, retry just this one without "
-                  f"--frequency -- see the warning above)")
+            return "NO_MATCH_WITH_FREQ"
         return None
     if r.status_code == 400:
         print(f"  ERROR: bad request (400): {r.text[:300]}")
@@ -556,19 +576,19 @@ def main():
           f"{f' @ {args.frequency} MHz' if args.frequency else ''}\n")
 
     if args.frequency:
-        print("WARNING: --frequency does an exact-string match against "
+        print("NOTE: --frequency does an exact-string match against "
               "the API's center-frequency field. Multi-channel-num "
               "rx888/WSPRdaemon stations store this as a comma-separated "
               "list (e.g. \"10.000 MHz, 5.000 MHz, ...\") which will NOT "
               "match a bare value like '10', so the API may silently "
               "report \"no matching observations\" for a station that "
-              "actually does have your target frequency. If a station "
-              "you expect to have data keeps coming back empty, re-run "
-              "for just that station with --frequency omitted -- this "
-              "downloads the full multi-channel-num file (often ~3 GB "
-              "instead of ~30-50 MB) but is the only filter-safe option "
-              "for those stations. Use drf_inspect.py --frequency <MHz> "
-              "afterward to find the right --channel-num index.\n")
+              "actually does have your target frequency. This script "
+              "auto-retries any such station without --frequency in "
+              "the same run (downloading the full multi-channel-num "
+              "file, often ~3 GB instead of ~30-50 MB, since that's the "
+              "only filter-safe option for those stations), so no "
+              "manual re-run is needed. Use drf_inspect.py --frequency "
+              "<MHz> afterward to find the right --channel-num index.\n")
 
     id_table = get_station_id_table(session, use_cache=not args.no_cache)
 
@@ -618,7 +638,35 @@ def main():
                                  args.frequency, scratch_dir)
         if zip_path == "RATE_LIMITED":
             break
-        if zip_path is None:
+        if zip_path == "NO_MATCH_WITH_FREQ":
+            # REAL UX GAP FOUND live, raised directly: this used to just
+            # print a suggestion ("retry just this one without
+            # --frequency") and require the user to notice the failure,
+            # then manually run a second command for the affected
+            # station(s) -- exactly the opposite of "very easy and
+            # almost seamless" this whole workflow exists for.
+            # Multi-channel-num rx888/WSPRdaemon stations store their
+            # center-frequency as a comma-separated list that the API's
+            # exact-string --frequency filter can never match, so this
+            # case is expected/common, not exceptional -- auto-retrying
+            # immediately, in the same run, is the right default rather
+            # than a manual escape hatch.
+            print(f"    Retrying {nick} without --frequency "
+                  f"(likely a multi-channel-num station whose "
+                  f"comma-separated frequency list can't exact-match "
+                  f"'{args.frequency}')...")
+            time.sleep(args.sleep_seconds)
+            n_requests += 1
+            if n_requests > DAILY_RATE_LIMIT:
+                print("  Reached the published 100 requests/day limit "
+                      "for this run. Stopping; re-run tomorrow for the "
+                      "rest.")
+                break
+            zip_path = download_one(session, nick, sid, start_date, end_date,
+                                     None, scratch_dir)
+            if zip_path == "RATE_LIMITED":
+                break
+        if zip_path is None or zip_path == "NO_MATCH_WITH_FREQ":
             continue
 
         dests = organize_one(zip_path, nick, args.out_dir, args.channel,
