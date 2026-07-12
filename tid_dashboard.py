@@ -6,10 +6,36 @@ Madrigal TEC cross-check).
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 0.21.2
+Version: 0.22.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v0.22.0 Wired spline up as a selectable "Extraction method" option,
+          matching wave-fit/cwt-prophet's existing interactive
+          pattern. Genuinely missing before this -- ALL_METHODS only
+          ever listed 5 methods; spline (tid_spect_click.py's own
+          --no-prophet mode: skip the Pass 0 auto-run, rely entirely
+          on manual anchor clicks) was never wired up at all, despite
+          full underlying support already existing. Extended the
+          binary wave_only/tsc_method_name derivation to a proper
+          3-way check; added a no_prophet parameter to
+          run_interactive_extraction, threaded through to
+          tid_spect_click.py's own --no-prophet flag the same way
+          --wave-only already worked. The existing
+          _extraction_state_suffix logic ("wave" vs "spline") already
+          correctly covered this new mode without changes, since both
+          cwt-prophet's own X-key fallback and this dedicated spline
+          mode produce the same "_spline_tid.csv" filename via the
+          same tid_spect_click.py function -- confirmed this by
+          reading the actual underlying mechanism, not assumed.
+          Verified: the 3-way method-derivation logic tested directly
+          against all 3 interactive methods: correct
+          wave_only/no_prophet/tsc_method_name for each; subprocess
+          args construction verified directly too (cwt-prophet gets
+          neither flag, wave-fit gets --wave-only, spline gets
+          --no-prophet); full dashboard AppTest confirms the dropdown
+          shows all 6 methods including the new one and selecting it
+          produces no exceptions.
   v0.21.2 Wired both spectrogram-generation functions to pass
           --target-freq-mhz through to drf_spectrogram.py's own new
           fallback (v1.4.0), fixing "?" in generated titles for
@@ -876,7 +902,8 @@ def generate_zoomed_spectrogram(event_path, drf_dir, channel, station_name,
 
 def run_interactive_extraction(config_path, drf_dir, channel, station_name,
                                 spectrogram_png, period_hint_s, wave_only,
-                                ylim_half_range=None, channel_num=None):
+                                ylim_half_range=None, channel_num=None,
+                                no_prophet=False):
     """Launch tid_spect_click.py's native window for one station and
     block until it's closed. Uses --event-json so the tool itself
     writes the resulting CSV path into our config (matched by station
@@ -923,6 +950,8 @@ def run_interactive_extraction(config_path, drf_dir, channel, station_name,
         args.append(f"--ylim=-{ylim_half_range},{ylim_half_range}")
     if wave_only:
         args.append("--wave-only")
+    if no_prophet:
+        args.append("--no-prophet")
 
     try:
         proc = subprocess.run(args, cwd=REPO_DIR, capture_output=True,
@@ -1510,7 +1539,7 @@ def run_and_display_tec(config_path, doa, stations_subset, tec_script, out_dir,
 
 # ── Streamlit UI ──
 
-DASHBOARD_VERSION = "v0.21.2"
+DASHBOARD_VERSION = "v0.22.0"
 
 st.set_page_config(page_title="TID Pipeline Dashboard", layout="wide")
 st.title("TID Direction-of-Arrival Pipeline")
@@ -1584,20 +1613,23 @@ with st.sidebar:
                    "manually above instead. (Needs python3-tk installed and "
                    "a local desktop display -- not available over SSH/remote.)")
 
-    ALL_METHODS = ["autocorr", "cwt", "fft", "wave-fit (interactive)", "cwt-prophet (interactive)"]
+    ALL_METHODS = ["autocorr", "cwt", "fft", "wave-fit (interactive)", "cwt-prophet (interactive)", "spline (interactive)"]
     method = st.selectbox(
         "Extraction method",
         ALL_METHODS,
         index=ALL_METHODS.index(_settings.get("method", "autocorr"))
         if _settings.get("method") in ALL_METHODS else 0,
-        help="autocorr/cwt/fft run automatically. wave-fit and "
-             "cwt-prophet open tid_spect_click.py's native window per "
+        help="autocorr/cwt/fft run automatically. wave-fit, cwt-prophet, "
+             "and spline all open tid_spect_click.py's native window per "
              "station -- you click, fit, and close it yourself; the "
-             "dashboard waits and picks up the result. All stations use "
-             "the same method for a given run -- mixing methods across "
-             "stations in one run isn't supported yet.",
+             "dashboard waits and picks up the result. cwt-prophet also "
+             "auto-runs a background trace on open (Pass 0); spline skips "
+             "that and relies entirely on your own anchor clicks (X key "
+             "to export). All stations use the same method for a given "
+             "run -- mixing methods across stations in one run isn't "
+             "supported yet.",
     )
-    is_interactive_method = method in ("wave-fit (interactive)", "cwt-prophet (interactive)")
+    is_interactive_method = method in ("wave-fit (interactive)", "cwt-prophet (interactive)", "spline (interactive)")
 
     ylim_half_range = None
     if is_interactive_method:
@@ -2278,7 +2310,13 @@ if run_button:
 
     if is_interactive_method:
         wave_only = method.startswith("wave-fit")
-        tsc_method_name = "wave-fit" if wave_only else "cwt-prophet"
+        no_prophet = method.startswith("spline")
+        if wave_only:
+            tsc_method_name = "wave-fit"
+        elif no_prophet:
+            tsc_method_name = "spline"
+        else:
+            tsc_method_name = "cwt-prophet"
 
         # -- Step 1: write the config FIRST, with stations but no "file"
         #    yet -- tid_spect_click.py's --event-json needs this file to
@@ -2308,8 +2346,11 @@ if run_button:
 
         extraction_ok = True
         # Matches tid_workflow.py's own key convention: wave-fit output
-        # goes under "{stn}_wave", cwt-prophet (and plain spline, if ever
-        # wired here) under "{stn}_spline".
+        # goes under "{stn}_wave", cwt-prophet and the dedicated spline
+        # method (--no-prophet) both under "{stn}_spline" -- both use
+        # the same underlying _export_spline_csv() in tid_spect_click.py
+        # and produce the same "_spline_tid.csv" filename pattern, so
+        # sharing one state suffix here is correct, not a simplification.
         _extraction_state_suffix = "wave" if wave_only else "spline"
         for i, s in enumerate(station_info):
             _stn_key = s["name"].lower()
@@ -2356,7 +2397,7 @@ if run_button:
                 config_path, s["drf_dir"], s.get("channel"), s["name"],
                 zoom_png, (event_end_dt - event_start_dt).total_seconds(),
                 wave_only, ylim_half_range=ylim_half_range,
-                channel_num=s.get("channel_num"))
+                channel_num=s.get("channel_num"), no_prophet=no_prophet)
             log(f"$ tid_spect_click.py ({s['name']})\n{out}")
 
             if not ok:
