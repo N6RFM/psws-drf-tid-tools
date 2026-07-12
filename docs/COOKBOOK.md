@@ -9,6 +9,38 @@ Every script accepts `--help` and `--version`.
 
 ---
 
+## Getting started
+
+### I noticed something interesting -- what do I do first?
+
+Whichever station's data caught your attention is your **keystone**
+station -- the one this toolkit's own guided workflow and dashboard
+use to pick the TID event window everything else gets measured
+against. From there:
+
+1. **Set up a working directory outside this repo** --
+   `mkdir -p ~/Downloads/tid_event_20260119`. Every recipe on this
+   page uses a path like this; never `cd` into `psws-drf-tid-tools/`
+   itself and download data there (see the `--out-dir` warning further
+   down).
+2. **Download your keystone station's own data** --
+   `download_companions.py` works for any PSWS station nickname,
+   including your own; there's no separate "download the keystone"
+   tool.
+3. **Get its coordinates from the data you just downloaded** --
+   `drf_inspect.py <station_dir>`, look for `lat`/`long` under
+   "Station metadata".
+4. **Find companion stations** with `find_event_stations.py`, using
+   those coordinates.
+5. **Download the companions too**, into the same directory.
+
+See `README.md`'s own "Getting your data" section for the full,
+copy-pasteable version of this sequence with real commands. Everything
+below this point assumes you're past this stage and already have DRF
+data on disk somewhere.
+
+---
+
 ## Using the browser dashboard (`tid_dashboard.py`)
 
 Everything below this section is the CLI-first path. `tid_dashboard.py`
@@ -203,8 +235,17 @@ own cache rather than reusing `find_event_stations.py`'s.
 
 ```bash
 python3 download_companions.py --date 2026-01-19 \
-    --stations AA6BD W7LUX AC0G_ND
+    --stations AA6BD W7LUX AC0G_ND \
+    --out-dir ~/Downloads/tid_event_20260119
 ```
+
+**Always pass `--out-dir`.** It defaults to `.` (the current
+directory) -- if that happens to be this repo's own checkout, the
+downloaded data (and the `.downloads/` scratch folder, and
+`download_manifest.json`) lands directly inside `psws-drf-tid-tools/`
+itself, mixed in with the code. Every example on this page uses
+`~/Downloads/tid_event_YYYYMMDD` for this reason, matching
+`README.md`'s own quick-start.
 
 Or read the list from a file (one nickname per line — paste straight
 from `find_event_stations.py`'s "Station" column; `#` comments and
@@ -212,7 +253,8 @@ blank lines are ignored):
 
 ```bash
 python3 download_companions.py --date 2026-01-19 \
-    --stations-file companions.txt
+    --stations-file companions.txt \
+    --out-dir ~/Downloads/tid_event_20260119
 ```
 
 This resolves each nickname to a public PSWS Station ID, calls the
@@ -234,7 +276,8 @@ line is read whole.
 
 ```bash
 python3 download_companions.py --start-date 2026-01-18 \
-    --end-date 2026-01-20 --stations AA6BD
+    --end-date 2026-01-20 --stations AA6BD \
+    --out-dir ~/Downloads/tid_event_20260119
 ```
 
 ### How do I preview what will be downloaded without using a request?
