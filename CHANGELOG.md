@@ -1,3 +1,73 @@
+## v4.3.0 -- 2026-07-12
+
+### Major changes
+
+#### Requirements consolidated into a single file
+`requirements.txt` and `requirements-optional.txt` merged into one
+`requirements.txt`. Since a single file can't selectively skip lines
+the way two separate files could, everything now installs together
+via one `pip install -r requirements.txt` -- removing the exact
+failure mode that previously let a partial reinstall silently drop
+`prophet`/`streamlit` because the second file's own name made it
+sound skippable. `requirements-optional.txt` removed entirely.
+
+#### `cwt-prophet`'s "recommended" framing removed
+`cwt-prophet` was described as "recommended" relative to this
+toolkit's other extraction methods (wave-fit, autocorr, cwt, fft,
+spline, bandpass, sgolay-ridge) across `README.md`,
+`tid_workflow.py`'s own interactive menu label,
+`check_install.py`'s dependency description, and 6 places across
+`WORKFLOW_TUTORIAL.md`. All removed -- it's one of several methods,
+not a recommended default. Two narrower, genuinely-justified
+technical claims (about which key to press *within* an
+already-selected cwt-prophet session) were kept but reworded rather
+than deleted.
+
+#### `spline` wired into the dashboard as a 6th extraction method
+Genuinely missing before this, not a deliberate omission --
+`tid_dashboard.py`'s own `ALL_METHODS` list only ever included 5
+methods. `spline` (`tid_spect_click.py`'s own `--no-prophet` mode:
+skip the Pass 0 auto-run, rely entirely on manual anchor clicks) now
+has full dashboard support, matching wave-fit/cwt-prophet's existing
+interactive pattern. Two stale, hardcoded method counts in
+`README.md` ("all five", "all 5") fixed to just say "all", so they
+can't drift out of sync the same way again.
+
+#### Loop-closure cross-correlation peak disambiguation promoted into `fetch_madrigal_tec.py`
+An experimental fork (`fetch_madrigal_tec_closure.py`) added
+automatic detection and correction of ambiguous cross-correlation
+peak picks -- plain argmax peak-picking can silently choose the
+wrong lobe when two peaks are close in height (e.g. a residual
+lag=0 storm-background peak sitting near the true secondary TID
+peak). Promoted directly into `fetch_madrigal_tec.py` v1.2.0,
+replacing the argmax picker; the experimental fork is now retired.
+
+Promoted only after both of this project's own graduation criteria
+were satisfied through direct, real testing: a negative-control run
+against a known-good archived event showed zero false-positive
+flips; a live run against real, current Madrigal data produced a
+genuine flip that was confirmed correct both by visual inspection of
+the cross-correlation plot and by independent corroboration from the
+triangle's other two, unambiguous station pairs -- not just
+internally self-consistent math. Verified twice: against synthetic
+data reproducing the exact real ambiguous case, then against the
+actual live data itself, confirming byte-identical output to the
+experimental fork.
+
+`tid_dashboard.py` v0.23.0: the now-obsolete choice between the two
+scripts removed (only one exists now).
+
+### Verification note
+Every fix above was verified concretely -- against real event data,
+a live external database pull, synthetic data with a fixed random
+seed, and in one case a genuinely latent bug (a stale variable
+reference in a settings-save dict) that `py_compile` alone couldn't
+catch, only found via a targeted search for the removed variable's
+name. See this project's own research-branch findings for the full
+investigation history behind each of these, including a real,
+diagnostics-driven resolution of a long-standing data-quality open
+item along the way.
+
 ## v4.2.0 -- 2026-07-11
 
 ### Major changes
