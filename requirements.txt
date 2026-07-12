@@ -63,4 +63,8 @@ madrigalWeb>=3.2
 # python3-tk, a system package (not installable via pip) -- without it,
 # the browse button falls back to manual path entry, no functionality
 # lost otherwise. On Debian/Ubuntu: sudo apt install python3-tk
-streamlit>=1.30
+# >=1.37 specifically: st.dialog (modal popups, used for channel-num
+# thumbnail selection) only became stable/generally-available at 1.37.0
+# -- st.experimental_dialog existed earlier but was removed entirely in
+# a later release, so there's no working fallback below 1.37.
+streamlit>=1.37
