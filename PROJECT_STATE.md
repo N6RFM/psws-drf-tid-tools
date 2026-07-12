@@ -4384,3 +4384,104 @@ grep verification step is now routine, not an afterthought.
    spline was before this entry -- only mentioned in comments, no
    selectable option. Not addressed here since the ask was
    specifically about spline; worth a similar pass if desired later.
+---
+## 118. Loop-closure logic promoted (entry #93's criteria satisfied); June 6 diagnosis resolves open item #2 without new clicking -- 2026-07-12
+
+### What happened
+Two open items closed together: entry #93 (fetch_madrigal_tec_closure.py
+graduation) and open item #2 (June 6: AC0G_ND needs its own click),
+which turned out to be the same investigation.
+
+### Negative control (Jan 2026)
+Ran fetch_madrigal_tec_closure.py against the known-good 3-station Jan
+19 event. Result: 0 flips -- "No ambiguous peaks found, all pairs had
+a single dominant lobe." Satisfies entry #93's first criterion. One
+triangle showed a 15.0 min residual despite zero flips (self-flagged
+"<-- check" in the report) -- not a closure-logic failure, since it
+only flips picks when multiple candidates exist; more likely
+reflects known GPS TEC storm-background contamination at lag=0
+(noted in the tool's own report).
+
+### June 6 baseline and diagnosis (resolves open item #2)
+Built a corrected tid_doa.py config directly from tid_workflow_state.json's
+own registered wave-fit entries, after finding tid_workflow_event.json
+itself was stale -- missing file/method for AC0G_ND and KJ6MKI
+entirely, and pointing at different filenames than the state file for
+the other 3 stations (multiple divergent re-click attempts over time
+had left the two files out of sync).
+
+5-station baseline: 1329 m/s (far outside typical TID range), 103%
+RMS residual, 67.5% period spread. [6]'s period-spread diagnostic
+immediately implicated N6RFM_5: 103.0 min vs everyone else's ~51 min,
+almost exactly double -- a classic period-doubling signature.
+Dropping N6RFM_5 alone: 302 m/s (solid MSTID), period spread 1.0%,
+but the aliasing-risk diagnostic still consistently implicated AC0G_ND
+in all 3 flagged pairs. Dropping both N6RFM_5 and AC0G_ND: 395.6 m/s
+@ 346.1 deg (LSTID), ALL 5 diagnostics pass, 0.8% RMS residual, zero
+aliasing flags -- using the DRF data and wave-fit extractions that
+already existed, no new interactive clicking required at all. Open
+item #2's original framing turned out to not require what it assumed.
+
+### Live run test (resolves entry #93's second criterion)
+Ran fetch_madrigal_tec_closure.py against this newly-clean June 6
+triangle (JJMP/KV0S_MO/KJ6MKI). A genuine flip occurred:
+JJMP->KJ6MKI, argmax picked +52min, closure-consistent choice was
+-48min. Visual inspection of the xcorr plot confirmed two genuinely
+comparable-height peaks (not a manufactured ambiguity) -- and,
+critically, the other two pairs in the same triangle are each
+unambiguous with only one peak apiece: JJMP->KV0S_MO=-8min,
+KV0S_MO->KJ6MKI=-32min, summing to -40min -- 8min from the
+closure-chosen -48min, versus 92min from the rejected +52min. The
+chosen pick is independently corroborated by data the closure logic
+itself never touched, not just internally self-consistent math.
+Satisfies entry #93's second criterion.
+
+### Promotion
+Both criteria met -> promoted per entry #93's own explicit decision
+rule. find_candidate_peaks()/resolve_loop_closure() ported directly
+into fetch_madrigal_tec.py v1.2.0, replacing the argmax picker;
+plot_xcorr_all()/write_report() updated to surface closure
+diagnostics and flips. Verified twice: first against synthetic data
+reproducing the exact real ambiguous case (confirmed correct flip
+logic in isolation), then against the actual live June 2026 Madrigal
+pull itself -- byte-identical output to the experimental fork (same
+flip, same 8.0 min RMS), confirming the promotion preserved the
+exact validated behavior rather than introducing a subtly different
+implementation.
+
+tid_dashboard.py v0.23.0: removed the now-obsolete "Script variant"
+choice (only one script exists now), simplified 4 call sites. Caught
+a real, latent NameError in the same pass -- a stale tec_variant
+reference left in the settings-save dict, invisible to py_compile
+(Python doesn't statically check variable existence), only caught by
+a targeted grep sweep for the removed variable's name.
+
+fetch_madrigal_tec_closure.py retired entirely (git rm) -- promoted,
+not duplicated.
+
+### Process note
+The June 6 diagnosis is a good example of the diagnostics doing
+exactly their intended job: [6]'s period-spread flag pointed straight
+at N6RFM_5 before any station-by-station guessing was needed, and the
+aliasing-risk flag's *persistence* after dropping N6RFM_5 (still
+implicating AC0G_ND specifically, in every flagged pair) was itself
+the signal to test dropping AC0G_ND too, rather than assuming the
+first fix was sufficient. Neither drop decision required visual
+inspection of a spectrogram or a new click -- the existing
+diagnostics were sufficient on their own.
+
+### Open items
+1. AC0G_ND's anomalous 11.6-minute period (Jan 19 event) -- still not
+   investigated (see #101) -- note this is a different event/station
+   combination than the June 6 finding above; AC0G_ND's own behavior
+   may be worth a unified look across both events at some point
+2. The 3-station Jan 19 comparison via the dashboard (319 m/s @ 108
+   deg) never cleanly re-verified with a careful, unhurried re-click
+3. The box-select prototype (test_box_select.py) -- still no decision
+   on folding into the real tid_quicklook.py; the file itself was
+   confirmed to only ever have existed locally, never committed
+   anywhere -- would need to be located on Bob's machine (unconfirmed
+   whether it still exists) before any porting work could start
+4. bandpass and sgolay-ridge remain unwired in the dashboard, same
+   gap spline had before entry #117 -- only mentioned in comments, no
+   selectable option
