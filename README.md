@@ -168,16 +168,16 @@ the "Run full pipeline" button — event window selection, station
 coordinates, and channel confirmation for multi-channel/RX888-style
 stations — happens live as you type, no need to click anything first.
 
-**Extraction methods:** all five are available from one dropdown —
+**Extraction methods:** all are available from one dropdown —
 `autocorr`, `cwt`, and `fft` run automatically with no further input;
-`wave-fit` and `cwt-prophet` open `tid_spect_click.py`'s own native
-window per station (the dashboard spawns the same tool this page
-already documents, rather than reimplementing spectrogram clicking in
-the browser) — click cycle points, fit, **press X to export**, then
-close the window, and the dashboard picks up the result automatically
-via `--event-json` and moves to the next station. All stations in a
-given run use the same method; mixing methods across stations isn't
-supported yet.
+`wave-fit`, `cwt-prophet`, and `spline` open `tid_spect_click.py`'s
+own native window per station (the dashboard spawns the same tool
+this page already documents, rather than reimplementing spectrogram
+clicking in the browser) — click cycle points, fit, **press X to
+export**, then close the window, and the dashboard picks up the
+result automatically via `--event-json` and moves to the next
+station. All stations in a given run use the same method; mixing
+methods across stations isn't supported yet.
 
 **Two real constraints on the interactive methods, stated plainly:**
 this only works when Streamlit is running locally on the same machine
@@ -334,7 +334,7 @@ psws-drf-tid-tools/
 ├── tid_spect_click.py          interactive spectrogram extraction
 │                               (cwt-prophet and wave-fit; display required)
 ├── tid_guided_extract.py       interactive guided Doppler CSV correction
-├── tid_dashboard.py            browser GUI, all 5 extraction methods
+├── tid_dashboard.py            browser GUI, all extraction methods
 ├── drf_spectrogram.py          full-day and zoomed spectrograms
 ├── drf_to_doppler.py           automated Doppler extraction
 │                               (fft, autocorr; also cwt, bandpass, sgolay-ridge)
