@@ -41,7 +41,8 @@ lets you:
 - inspect a DRF recording and identify the correct channel-num for comparative
   analysis
 - extract Doppler-vs-time CSVs from raw I/Q using several methods:
-  anchor-guided cwt-prophet, wave-fit, autocorr, and FFT peak-tracking
+  anchor-guided cwt-prophet, wave-fit, spline, autocorr, FFT
+  peak-tracking, and CWT peak-tracking
 - render annotated Doppler spectrograms with optional overlay of
   extracted Doppler traces for visual method assessment
 - run the complete analysis pipeline in one guided interactive session
