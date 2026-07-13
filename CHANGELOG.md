@@ -1,3 +1,72 @@
+## v4.4.0 -- 2026-07-13
+
+### Major changes
+
+#### Channel-num selection redesigned end to end
+Raised directly as two compounding, real problems: the keystone
+station's overview spectrogram -- used to actually assess the TID
+window -- previously used only a provisional, auto-guessed
+channel-num, so a wrong guess silently showed the wrong band's noise
+with no indication why; and the channel-num confirmation UI itself
+showed a single, short (10-minute) spectrogram cropped to a *presumed*
+region, rather than the full day needed to actually judge each option.
+
+New tile-grid picker (`tid_dashboard.py` v0.24.5): full-day thumbnails
+for every channel-num option, shown together in a modal popup
+(`st.dialog`, stable since Streamlit 1.37.0 -- `requirements.txt`
+bumped accordingly). Selecting a tile is itself the confirmation.
+Keystone's own channel-num confirmation now runs, and blocks, before
+the overview spectrogram is ever generated from an unconfirmed guess.
+Thumbnails land in a `<station>_channel_nums/` subfolder, matching
+the CLI's own existing naming convention.
+
+Two real, unrelated metadata-reading bugs were found and fixed via
+live testing against real station data along the way:
+`tid_workflow.py` v1.3.0's `probe_channel_nums()` and the dashboard's
+own `get_drf_metadata_coords()` both only ever checked
+`drf_properties.h5` for frequency/coordinate metadata, never the
+separate `DigitalMetadataReader` store where KA9Q-radio/WSPRdaemon-
+style captures actually write it -- causing "freq unknown" and 0/0
+coordinates respectively, despite the real data being present all
+along, just in the other store.
+
+#### `download_companions.py` now handles frequency-filter mismatches automatically
+A station hitting "no matching observations" with `--frequency`
+applied (the expected, common case for multi-channel-num stations,
+whose comma-separated frequency field can never exact-match a bare
+value) used to just print a suggestion to manually re-run without the
+filter. `download_companions.py` v1.2.0 now auto-retries
+automatically, in the same run -- verified both against a mocked API
+and live against the real PSWS network.
+
+#### Documentation: a keystone-first "getting your data" walkthrough, and a real `--out-dir` gap fixed
+The previous quick-start jumped straight to "if you only have your
+own station's data" without ever explaining how a new user gets any
+station's data in the first place, or where it should go --
+`download_companions.py`'s `--out-dir` defaults to `.` (current
+directory), and the old quick-start's own sequence had the user `cd`
+into this repo before running it with no `--out-dir` shown at all,
+meaning following the docs exactly as written could genuinely
+download data straight into the repo's own checkout.
+
+`README.md` and `docs/COOKBOOK.md` both rewritten with a walkthrough
+starting from the realistic point (something interesting noticed
+somewhere, that station is the keystone) through downloading it,
+reading its coordinates back out with `drf_inspect.py`, finding
+companions, and downloading those too -- every step using an explicit
+external working directory throughout. Also fixed a long-standing
+doc gap where the extraction-method count shown in the README's own
+intro didn't match the 6 methods actually publicized elsewhere in the
+same document.
+
+### Verification note
+Every fix above was verified concretely: live end-to-end CLI and
+dashboard runs against real, confirmed multi-channel-num station data
+(not just synthetic tests), a mocked-then-live API test for the
+download auto-retry, and direct confirmation via `digital_rf` reads
+and `git log` history checks rather than assumption, for claims made
+along the way about this project's own past behavior.
+
 ## v4.3.0 -- 2026-07-12
 
 ### Major changes
