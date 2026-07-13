@@ -4758,3 +4758,45 @@ actually does -- not just a fixed example, but a stated reason.
    have existed locally, never committed anywhere
 4. bandpass and sgolay-ridge remain unwired in the dashboard, same gap
    spline had before entry #117
+---
+## 122. README.md: fixed intro bullet missing 2 of the 6 publicized extraction methods (cwt, spline) -- 2026-07-13
+
+### What was raised, and a correction along the way
+The intro bullet listed only 4 methods (cwt-prophet, wave-fit,
+autocorr, fft), missing cwt and spline from the 6 this project
+actually publicizes. First attempt went further than asked --
+promoted bandpass/sgolay-ridge into the main methods table too, since
+they're genuinely valid --method choices in drf_to_doppler.py.
+Corrected directly: keeping those 2 out of the publicized 6-method
+table is deliberate, not an oversight -- reverted that part entirely
+and re-did the fix as originally needed, touching only the intro
+bullet (2 insertions, 1 deletion), leaving the table and its "not
+part of the primary 6" framing exactly as they were.
+
+### A workflow slip, caught and corrected
+The corrective commit initially landed directly on research_gui
+(no new branch was actually created before committing), rather than
+going through main via a PR first as this project's own established
+pattern requires. Caught via git log/branch inspection before pushing
+anywhere; git reset --hard HEAD~1 cleanly undid it from research_gui
+(never pushed, so no history to clean up on the remote), then the
+same fix was redone properly from a fresh main-based branch.
+
+### Also caught: a leftover, already-merged branch
+feature/download-companions-auto-retry-frequency (merged earlier this
+session) was still sitting around, both locally and on the remote --
+its own cleanup step got skipped when the conversation moved directly
+into the ch0/channel-num investigation right after that merge.
+Deleted now, safely, since it was already fully merged into main.
+
+### Open items
+1. AC0G_ND's anomalous 11.6-minute period (Jan 19 event) -- still not
+   investigated (see #101)
+2. The 3-station Jan 19 comparison via the dashboard (319 m/s @ 108
+   deg) never cleanly re-verified with a careful, unhurried re-click
+3. The box-select prototype (test_box_select.py) -- still no decision
+   on folding into the real tid_quicklook.py; confirmed to only ever
+   have existed locally, never committed anywhere
+4. bandpass and sgolay-ridge remain unwired in the dashboard, same gap
+   spline had before entry #117 -- and, per this entry, deliberately
+   not part of the publicized 6-method set either
