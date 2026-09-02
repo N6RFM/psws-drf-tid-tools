@@ -466,6 +466,25 @@ code revision). This exists so that a result can be reconstructed
 and audited after the fact, and so that a reported anomaly carries
 its own context.
 
+### 6.4 Testing robustness quickly
+
+The reasoning in §6.1–6.2 — weighing diagnostics together rather than
+trusting any one flag — is easiest to apply by actually comparing
+several station combinations side by side, not just the full array.
+`tid_workflow.py`'s DOA step supports this directly: after the initial
+result, typing `all` at the prompt re-runs the inversion for every
+combination that keeps the keystone station, and prints them sorted by
+fewest flagged diagnostics. A result whose station composition doesn't
+matter much — several combinations agreeing on speed and bearing
+within a reasonable margin — is more trustworthy than one that only
+looks clean for a single specific subset; the latter is closer to the
+contaminated-window pattern in §6.2, where excluding the right window
+(or here, the right station) is what produced an internally consistent
+answer, not evidence the excluded data was simply bad. Comparing the
+full sweep's *entire* table, not just picking whichever row has zero
+flags, is the more complete version of the practice this section
+describes.
+
 ---
 
 ## 7. What this method cannot do

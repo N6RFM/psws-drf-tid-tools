@@ -1051,12 +1051,23 @@ code, example configs, and example data should be committed.
 ## Recipe: drop a station from DOA
 
 When running `tid_doa.py` directly, use `--drop` to exclude a station
-by name. When using `tid_workflow.py`, the interactive drop-station
-loop activates automatically after the DOA result. The browser
-dashboard has the same capability built in for events with more than 3
-stations -- see [How do I drop a station and re-run in the
+by name. When using `tid_workflow.py`, an interactive explore loop
+activates automatically after the DOA result -- it now supports more
+than dropping:
+
+- Type a station name to drop it.
+- Type `add <name>` to bring a previously-dropped station back,
+  without restarting the script.
+- Type `all` to run DOA for every combination that keeps the keystone
+  station, printed sorted by fewest flagged diagnostics, with a
+  pick-by-number prompt to select one.
+- Press Enter (empty input) to finish with whatever's currently active.
+
+The browser dashboard has a similar drop-only capability built in for
+events with more than 3 stations -- see [How do I drop a station and
+re-run in the
 dashboard?](#how-do-i-drop-a-station-and-re-run-in-the-dashboard)
-above.
+above (the dashboard doesn't yet have the `add`/`all` additions).
 
 ```bash
 # Drop one station (direct tid_doa.py use)
@@ -1068,6 +1079,20 @@ python3 tid_doa.py event.json --drop W7LUX --drop AC0G_ND
 
 `--drop` is case-insensitive and repeatable. Prints `Dropped station(s): ...`
 to confirm. Warns if the name is not found in the config.
+
+**Caution when mixing direct `tid_doa.py --drop` use with
+`tid_workflow.py`'s own explore loop on the same event:** the guided
+workflow's loop overwrites `tid_workflow_event.json`'s station list on
+every iteration, including after you finish. If a previous guided
+session ended with a station dropped, that station's entry is gone
+from the file -- not just temporarily excluded. Running
+`tid_doa.py event.json --drop W7LUX` afterward drops W7LUX from
+whatever's *actually still in the file*, which may already be fewer
+than 4 stations, and can trip "Need at least 3 stations for
+direction-of-arrival" even though it looks like you're only dropping
+one station from a full set. Re-running `tid_workflow.py --resume`
+first rebuilds the file with every station that has a completed
+extraction, regardless of what a prior session dropped.
 
 After dropping, check:
 - SVR (diagnostic 1) — if > 5 with 3 stations, the array is near-collinear

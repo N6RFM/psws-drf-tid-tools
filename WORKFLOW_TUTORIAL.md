@@ -162,11 +162,29 @@ Type `y` to use the same window for all stations (recommended).
 A 150 dpi spectrogram covering just the TID window is generated.
 This is the image used for extraction in Step 6.
 
-By default this uses a +/-5 Hz Doppler axis. Real TID signals often
-only vary over a much smaller range, which can make the default look
-flat/squished and hard to visually assess -- pass `--ylim-half-range 2`
-(or whatever value suits your signal) to `tid_workflow.py` to narrow
-it.
+By default this uses a +/-5 Hz Doppler axis for the keystone (first
+processed) station, since nothing is known about the real signal
+amplitude yet. Once the keystone's own wave-fit is done, every
+station processed after it automatically gets a tightened y-axis
+scaled to the keystone's measured amplitude -- real TID signals are
+often well under 1 Hz, and the flat +/-5 Hz default made them look
+flat/squished and hard to click precisely. The keystone's own zoom
+picture is also retroactively regenerated at that same tightened
+range once it's available, so it doesn't stay stuck at the flat
+default for the rest of the run.
+
+If the auto-tightened view still feels too cropped for a particular
+station (e.g. its real amplitude runs a bit larger than the
+keystone's), add extra headroom with `--ylim-margin-pct`:
+
+    python3 tid_workflow.py --event-dir ... --ylim-margin-pct 25
+
+25 gives 25% more vertical room than the plain auto-tightened value,
+50 gives 50% more, and so on. Passing `--ylim-half-range` explicitly
+instead locks every station to that exact value and disables
+auto-tightening entirely; `--no-keystone-auto-tune` disables both the
+y-axis tightening and the period-hint seeding described in Step 6
+below, if you want the old flat-default, no-hinting behavior back.
 
 ---
 
@@ -232,6 +250,19 @@ up and down as the TID passes.
 Use when the TID shows ≥0.5 cycles (1.5 recommended) in the window and you want
 to fit a sinusoidal model to the carrier. Each station independently
 estimates its own period — handles dispersive TIDs.
+
+> **Note (guided workflow only):** when running this through
+> `tid_workflow.py` rather than calling `tid_spect_click.py` directly
+> as shown below, every station after the keystone automatically gets
+> `--period-hint` seeded from the keystone's own measured period. This
+> doesn't override your own estimate — it's shown alongside the
+> tool's own auto-fit-to-your-clicks estimate in the cycle-fraction
+> dialog, as a sanity check. It exists specifically to catch a station
+> whose visible ridge is actually a different, contaminating
+> oscillation (e.g. E-region) rather than the same TID the other
+> stations are tracking — worth reading closely, not just accepting
+> the default, if the hint and the auto-estimate disagree a lot.
+> Disable with `--no-keystone-auto-tune`.
 
 Open in wave-fit mode (skips Prophet entirely):
 
@@ -328,14 +359,47 @@ After all stations complete extraction, a summary is shown:
 ### Step 8 -- DOA
 
 The direction-of-arrival inversion runs automatically. After the
-result, an interactive drop-station loop activates:
+result, an interactive explore loop activates:
 
-    Drop a station and re-run DOA? [station name or Enter to finish]:
+    Type a station name to drop it, 'add <name>' to bring one back,
+    'all' to try every combination (always keeps keystone N6RFM),
+    or press Enter to finish:
 
-A comparison table shows results with and without the dropped station.
+- **A station name** drops it and re-runs DOA with the rest.
+- **`add <name>`** brings a previously-dropped station back, without
+  restarting the script or re-confirming the Window Summary.
+- **`all`** runs DOA for every combination that still includes the
+  keystone (2 or more of the remaining stations at a time), prints
+  them sorted by fewest flagged diagnostics, and lets you pick one by
+  number:
+
+      All combinations, sorted by fewest flagged diagnostics:
+      #   Stations                          Speed     From  Flags
+      ---------------------------------------------------------------
+      1   N6RFM,AA6BD,AC0G_ND              682 m/s   63 deg     0
+      2   N6RFM,AC0G_ND,W7LUX             1107 m/s  312 deg     2
+      3   N6RFM,AA6BD,W7LUX                254 m/s  194 deg     3
+      4   N6RFM,AA6BD,AC0G_ND,W7LUX        958 m/s   45 deg     3
+      ---------------------------------------------------------------
+
+      Pick a # to select that combination, or Enter to keep
+      exploring manually:
+
+  Picking a number reuses that combination's already-computed result
+  rather than re-running `tid_doa.py` a second time on the identical
+  station list. `all` is capped at 10 non-keystone stations (2^10-1
+  combinations) — for larger arrays, drop a few stations manually
+  first to narrow the field.
+- **Enter** (empty input) finishes and uses whatever's currently
+  active as the final result.
+
+The keystone can't be dropped from this loop — it's the one station
+every comparison is anchored to. A running comparison table (speed,
+bearing, flag count) is shown after every combination you try, so you
+can see how a result shifted as soon as you change the station list.
 
 When running `tid_doa.py` directly (outside the workflow), use the
-`--drop` flag instead of the interactive prompt:
+`--drop` flag instead of the interactive prompt — this is unchanged:
 
 ```bash
 python3 tid_doa.py event.json --drop W7LUX
@@ -456,10 +520,28 @@ Options:
   --stations A,B,C      Comma-separated station names (default: all found)
   --my-station NAME     Process this station first in Step 3 (e.g. your
                         own callsign), so the TID window is set on a
-                        familiar trace first
+                        familiar trace first. This station is also the
+                        keystone for auto-tuning (see below) -- if
+                        omitted, the first discovered station is used
+                        as keystone instead.
   --resume              Resume from saved state
   --max-lag MIN         Max xcorr lag in minutes (default: auto)
                         Recommended: ~1/3 of expected TID period
+  --ylim-half-range HZ  Doppler axis half-range for zoomed spectrograms.
+                        Plain default 5.0 (+/-5 Hz) until the keystone's
+                        own amplitude is known; passing this explicitly
+                        locks every station to that value and disables
+                        auto-tightening.
+  --ylim-margin-pct PCT Extra headroom on top of the auto-tightened
+                        y-axis range, as a percentage (e.g. 25 = 25%
+                        more room than the plain auto-tightened value).
+                        Default 0. No effect if auto-tuning is off or
+                        --ylim-half-range was passed explicitly.
+  --no-keystone-auto-tune
+                        Disable both keystone-driven auto-behaviors:
+                        y-axis tightening for later stations, and
+                        --period-hint seeding for later stations'
+                        wave-fit clicks. Only affects method=wave-fit.
 
 tid_doa.py (direct use, outside workflow):
   --drop NAME           Exclude a station by name before DOA

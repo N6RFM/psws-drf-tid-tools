@@ -4,10 +4,80 @@ tid_workflow.py — guided TID direction-of-arrival workflow
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.3.0
+Version: 1.4.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.4.0  Keystone-driven auto-tuning, DOA explore loop, and several
+          real bugs found via live use against the actual Jan 19 2026
+          4-station event, working end to end for the first time.
+
+          Auto-tuning: once the keystone (first-processed) station's
+          own wave-fit CSV is saved, its period and amplitude are
+          independently re-measured directly from the CSV
+          (estimate_wave_params() -- can't read tid_spect_click.py's
+          own printed fit values, since run() doesn't capture
+          subprocess stdout). Every station processed after that:
+          (1) gets its zoomed spectrogram's y-axis auto-tightened
+          toward the keystone's amplitude (effective_ylim(), new
+          --ylim-margin-pct for extra headroom, --no-keystone-auto-tune
+          to disable), replacing the old flat +/-5 Hz default that
+          measurably hurt manual wave-fit click accuracy; and (2) gets
+          the keystone's period passed to tid_spect_click.py's
+          existing (previously unused from this script)
+          --period-hint, catching a station whose click session
+          locked onto a visually-clean but wrong-period cycle (e.g.
+          E-region contamination) at click time instead of only
+          surfacing as a bad DOA fit several steps later. The
+          keystone's OWN zoom PNG -- previously stuck at the flat
+          default forever, since its amplitude isn't known until
+          after its own wave-fit -- is now retroactively regenerated
+          at the same tightened range once that's available.
+
+          Two real, independent bugs found via the same live session:
+          tid_quicklook.py has never accepted --seg-start/--seg-end
+          (confirmed against its own argparse setup) -- both places
+          this script called it that way (the opt-in Step 5 refine,
+          and the window-redo path) were silently erroring out every
+          time, meaning Step 5 refinement never actually worked in
+          spite of the "Refine window?" prompt implying it did. Fixed
+          by dropping the unsupported args from both call sites.
+
+          Two independent "redo" mechanisms each had exactly the gap
+          the other one covered, discovered by needing to use both,
+          in the wrong order, before either genuinely worked: the
+          resume menu's "redo extraction for a specific station"
+          cleared the extraction state but not the zoom PNG, so a
+          changed --ylim-margin-pct (or any other effective_ylim()
+          input) had no visible effect -- tid_spect_click.py just
+          reopened on the exact same stale picture. The window-summary
+          redo path (typing a station name at "Proceed with
+          extraction?") had the opposite gap: it regenerated the
+          picture correctly but never touched the extraction state,
+          so a picture-only fix silently carried a stale fit into DOA
+          unless the other mechanism was also run afterward. Fixed:
+          option 2 now clears both; the window-summary path now also
+          re-launches wave-fit extraction directly (with the period
+          hint, if applicable) right after regenerating the picture.
+
+          DOA step rewritten from a one-way drop-only loop (once
+          dropped, a station could only come back by relaunching the
+          whole script and re-confirming the Window Summary) into a
+          proper explore loop: drop a station, `add <name>` a
+          previously-dropped one back, or `all` to run every
+          combination that keeps the keystone, printed sorted by
+          fewest flagged diagnostics with a pick-by-number prompt.
+          Picking a combination from the `all` table reuses that
+          combination's already-computed result (via a `pending_result`
+          slot in the loop) rather than silently re-running tid_doa.py
+          a second time on the identical station list -- found live:
+          without this, confirming a pick looked like the tool had
+          gotten stuck looping, since an identical run appeared to
+          happen out of nowhere with no new information in it. The
+          interactive prompt itself was also reworded after real
+          confusion over a bare "> " with no restated options --
+          it now spells out every command inline in the prompt text.
+
   v1.3.0  probe_channel_nums() now also checks the separate
           DigitalMetadataReader store ("<drf_dir>/<channel>/metadata/")
           for center_frequencies, not just drf_properties.h5. Found via
@@ -173,6 +243,91 @@ def run(cmd, **kwargs):
     """Run a command, print it, return CompletedProcess."""
     print(f"\n  $ {' '.join(str(c) for c in cmd)}")
     return subprocess.run(cmd, **kwargs)
+
+
+def estimate_wave_params(csv_path):
+    """Read a <station>_wave_tid.csv and independently estimate
+    (period_seconds, amplitude_hz) from the saved samples.
+
+    tid_spect_click.py prints its own fitted T/A/phi to stdout, but
+    run() doesn't capture subprocess stdout (it's inherited straight
+    to the terminal so the user sees the interactive tool's own
+    output), so those values aren't available here. This re-derives
+    equivalent numbers directly from the CSV instead: amplitude from
+    the min/max of the saved doppler_hz trace, period from the
+    dominant non-zero FFT peak assuming uniform sampling. Only needs
+    to be good enough to seed --ylim-half-range and --period-hint for
+    later stations, not to replace the tool's own fit.
+
+    Returns (None, None) on any parsing failure or too few rows to be
+    meaningful (fewer than 6 samples)."""
+    try:
+        import csv as _csv
+        import datetime as _dt
+        rows = []
+        with open(csv_path, newline="") as f:
+            for row in _csv.DictReader(f):
+                rows.append((row["timestamp_utc"], float(row["doppler_hz"])))
+        if len(rows) < 6:
+            return None, None
+        ts = [_dt.datetime.fromisoformat(t.replace("Z", "+00:00"))
+              for t, _ in rows]
+        d = np.array([v for _, v in rows], dtype=float)
+        d = d - d.mean()
+        amplitude_hz = float((d.max() - d.min()) / 2.0)
+        t0 = ts[0]
+        t_s = np.array([(t - t0).total_seconds() for t in ts])
+        dt_s = float(np.median(np.diff(t_s)))
+        if dt_s <= 0:
+            return None, amplitude_hz
+        freqs = np.fft.rfftfreq(len(d), d=dt_s)
+        mag = np.abs(np.fft.rfft(d))
+        mag[0] = 0.0  # drop DC component
+        if not np.any(mag > 0):
+            return None, amplitude_hz
+        peak_i = int(np.argmax(mag))
+        if freqs[peak_i] <= 0:
+            return None, amplitude_hz
+        period_s = float(1.0 / freqs[peak_i])
+        return period_s, amplitude_hz
+    except Exception:
+        return None, None
+
+
+def effective_ylim(args, state):
+    """Doppler y-axis half-range (Hz) to use for a spectrogram plot.
+
+    Once the keystone station's own wave amplitude is known (see
+    estimate_wave_params), tighten the default +/-5 Hz range toward
+    it -- found during live testing (Jan 19 2026 4-station event) that
+    the flat default makes real TID amplitudes (often well under 1 Hz)
+    look squished, which measurably hurts manual wave-fit click
+    accuracy. Never widens beyond whatever range is already in
+    effect, and never overrides an explicit --ylim-half-range from
+    the user (tracked via args._ylim_explicit, set in run_workflow)."""
+    if getattr(args, "_ylim_explicit", False) or args.no_keystone_auto_tune:
+        return args.ylim_half_range
+    amp = state.get("keystone_amplitude_hz")
+    if not amp:
+        return args.ylim_half_range
+    tightened = max(round(amp * 2.5, 2), 0.5)
+    # Optional extra headroom on top of the plain auto-tightened value,
+    # e.g. --ylim-margin-pct 25 gives 25% more vertical room than the
+    # bare 2.5x-amplitude default -- useful when a station's real
+    # excursion runs a bit outside the keystone's own amplitude, or
+    # when the clean auto-tightened view feels too cropped to click
+    # confidently. Added on request after the auto-tightened AA6BD/
+    # AC0G_ND/W7LUX views (from the real Jan 19 2026 4-station event)
+    # left very little visual margin around the traced wave.
+    margin_pct = getattr(args, "ylim_margin_pct", 0.0) or 0.0
+    if margin_pct:
+        tightened = round(tightened * (1.0 + margin_pct / 100.0), 2)
+    # Still never exceed whatever ceiling is currently in effect
+    # (the plain default, or an explicit --ylim-half-range) -- a
+    # large margin_pct on a small amplitude is fine, but this stops
+    # a large margin_pct combined with a large amplitude from quietly
+    # producing a wider-than-intended plot.
+    return min(tightened, args.ylim_half_range)
 
 
 def tool(name):
@@ -608,8 +763,27 @@ def show_resume_menu(state, state_file):
             if k in state:
                 del state[k]
                 removed.append(k)
+        # Also clear this station's zoom PNG so Step 4 regenerates it --
+        # otherwise a changed --ylim-margin-pct, a keystone amplitude
+        # that's only now known, or any other effective_ylim() input
+        # gets silently ignored: the old zoom PNG is still marked done
+        # in state, so tid_spect_click.py reopens on the exact same
+        # stale picture as before, regardless of new flags. Real bug
+        # found via live testing: --ylim-margin-pct 50 had no visible
+        # effect when redoing AA6BD's extraction through this menu,
+        # because the zoom step was (correctly, by the old logic) being
+        # skipped as "already done." The extraction is the expensive
+        # interactive step this menu exists to preserve where possible;
+        # regenerating a plot is cheap, so it's not worth keeping stale
+        # just to avoid one extra drf_spectrogram.py call.
+        zoom_key = f"{key}_zoom"
+        if zoom_key in state:
+            del state[zoom_key]
+            removed.append(zoom_key)
         if removed:
             print(f"  Cleared: {', '.join(removed)}")
+            print(f"  (zoom spectrogram will regenerate at the current "
+                  f"effective y-axis range before re-extraction)")
         else:
             print(f"  No extraction state found for {stn_name}")
         save_state(state_file, state)
@@ -679,6 +853,13 @@ def get_date_from_drf(drf_dir):
 # ── Main workflow ─────────────────────────────────────────────────────────────
 
 def run_workflow(args):
+    # Track whether the user explicitly passed --ylim-half-range (in
+    # which case it's honored as-is everywhere, never auto-tightened)
+    # before applying its plain default. See effective_ylim().
+    args._ylim_explicit = args.ylim_half_range is not None
+    if args.ylim_half_range is None:
+        args.ylim_half_range = 5.0
+
     event_dir = Path(args.event_dir).resolve()
     state_file = event_dir / "tid_workflow_state.json"
     state = load_state(state_file) if args.resume else {}
@@ -759,7 +940,7 @@ def run_workflow(args):
                             '--channel-num', str(sub_i),
                             '--output', str(thumb),
                             '--start', '00:00', '--end', '24:00',
-                            f'--ylim=-{args.ylim_half_range},{args.ylim_half_range}', '--dpi', '60',
+                            f'--ylim=-{effective_ylim(args, state)},{effective_ylim(args, state)}', '--dpi', '60',
                             '--callsign', name,
                         ])
                     freq_str = f' {freq_i/1e6:.3f} MHz' if freq_i else ''
@@ -835,7 +1016,7 @@ def run_workflow(args):
                     "--channel-num", str(sub),
                     "--output", str(fullday_png),
                     "--start", "00:00", "--end", "24:00",
-                    f"--ylim=-{args.ylim_half_range},{args.ylim_half_range}", "--dpi", "100",
+                    f"--ylim=-{effective_ylim(args, state)},{effective_ylim(args, state)}", "--dpi", "100",
                     "--callsign", name,
                     "--grid", stn.get("grid", "?"),
                 ])
@@ -979,7 +1160,7 @@ def run_workflow(args):
                 "--channel-num", str(sub),
                 "--output", str(fullday_png),
                 "--start", "00:00", "--end", "24:00",
-                f"--ylim=-{args.ylim_half_range},{args.ylim_half_range}", "--dpi", "100",
+                f"--ylim=-{effective_ylim(args, state)},{effective_ylim(args, state)}", "--dpi", "100",
                 "--callsign", name,
                 "--grid", stn.get("grid", "?"),
             ])
@@ -1036,7 +1217,7 @@ def run_workflow(args):
                 "--channel-num", str(sub),
                 "--output", str(zoom_clean_png),
                 "--window", str(window_json),
-                f"--ylim=-{args.ylim_half_range},{args.ylim_half_range}", "--dpi", "150",
+                f"--ylim=-{effective_ylim(args, state)},{effective_ylim(args, state)}", "--dpi", "150",
                 "--callsign", name,
                 "--grid", stn.get("grid", "?"),
             ])
@@ -1053,9 +1234,7 @@ def run_workflow(args):
                 print(f"\n[Step 5] Refine TID window for {name}...")
                 print("  → Drag yellow region to refine, S to save, Q to keep")
                 run(["python3", tool("tid_quicklook.py"),
-                     "--spectrogram", str(zoom_clean_png),
-                     "--seg-start", str(wj["t_start_utc_hours"]),
-                     "--seg-end",   str(wj["t_end_utc_hours"])])
+                     "--spectrogram", str(zoom_clean_png)])
                 if zoom_window.exists():
                     with open(zoom_window) as f:
                         zwj = json.load(f)
@@ -1086,14 +1265,27 @@ def run_workflow(args):
                     print(f"  │                                                       │")
                     print(f"  │  Keys: F=fit+save  W=redo  Q=done (close window)      │")
                     print(f"  └───────────────────────────────────────────────────────┘")
-                    run([
+                    _wave_cmd = [
                         "python3", tool("tid_spect_click.py"),
                         "--spectrogram", str(zoom_clean_png),
                         "--name", name,
                         "--seg-start", str(max(0.0, t0_h)),
                         "--seg-end",   str(t1_h),
                         "--wave-only",
-                    ])
+                    ]
+                    # Seed later stations' wave-fit dialog with the
+                    # keystone's own measured period, so a visually-clean
+                    # but wrong cycle (e.g. E-region contamination) is
+                    # flagged at click time instead of only surfacing
+                    # later as a bad DOA fit. Never applied to the
+                    # keystone itself (nothing to seed from yet).
+                    _hint_s = state.get("keystone_period_s")
+                    if (_hint_s and stn is not stations[0]
+                            and not args.no_keystone_auto_tune):
+                        _wave_cmd += ["--period-hint", str(_hint_s)]
+                        print(f"  (seeding wave-fit with keystone period "
+                              f"hint: {_hint_s/60:.1f} min)")
+                    run(_wave_cmd)
                     if wave_csv.exists():
                         break
                     print(f"  ⚠️  No wave-fit CSV saved (did you press F to fit?)")
@@ -1108,6 +1300,59 @@ def run_workflow(args):
                 print(f"  ✓ Wave-fit CSV: {wave_csv.name}")
             else:
                 print(f"  ✓ Wave-fit CSV: {wave_csv.name} (already done)")
+
+            # Cache the keystone's own measured period/amplitude the
+            # first time it's available (covers both the "just
+            # extracted" and "already done, resumed" branches above).
+            # Everything downstream -- effective_ylim() for later
+            # stations' spectrograms, and --period-hint on later
+            # stations' wave-fit clicks -- reads these two state keys.
+            if (stn is stations[0] and not args.no_keystone_auto_tune
+                    and "keystone_amplitude_hz" not in state
+                    and wave_csv.exists()):
+                _period_s, _amp_hz = estimate_wave_params(wave_csv)
+                if _period_s and _amp_hz:
+                    state["keystone_amplitude_hz"] = _amp_hz
+                    state["keystone_period_s"] = _period_s
+                    save_state(state_file, state)
+                    _ylr = effective_ylim(args, state)
+                    _margin_note = (f" (includes +{args.ylim_margin_pct:.0f}% "
+                                     f"margin)" if args.ylim_margin_pct else "")
+                    _cap_note = (" [capped at --ylim-half-range ceiling]"
+                                 if _ylr >= args.ylim_half_range - 1e-9
+                                    and _amp_hz * 2.5 > args.ylim_half_range
+                                 else "")
+                    print(f"  Keystone wave estimate: period="
+                          f"{_period_s/60:.1f} min, amplitude=±{_amp_hz:.3f} Hz "
+                          f"-- remaining stations will use ±{_ylr:.2f} Hz"
+                          f"{_margin_note}{_cap_note} and a "
+                          f"{_period_s/60:.1f} min period hint.")
+
+                    # Retroactively regenerate the KEYSTONE's own zoom PNG
+                    # at this same tightened range. Real issue found via
+                    # visual review of a real 4-station event (Jan 19
+                    # 2026): the keystone's amplitude is what drives the
+                    # tightening in the first place, so without this it
+                    # permanently stays at the flat, uncropped default --
+                    # meaning the one station everything else gets checked
+                    # against is paradoxically the hardest one to actually
+                    # look at. Only touches the picture; the keystone's
+                    # already-saved wave-fit CSV (the real data) is
+                    # unaffected.
+                    if _ylr < args.ylim_half_range - 1e-9:
+                        print(f"  Regenerating {name}'s own zoom "
+                              f"spectrogram at ±{_ylr:.2f} Hz to match "
+                              f"the range now used for the other "
+                              f"stations...")
+                        run([
+                            "python3", tool("drf_spectrogram.py"),
+                            drf_dir_s, "--channel-num", str(sub),
+                            "--output", str(zoom_clean_png),
+                            "--window", str(window_json),
+                            f"--ylim=-{_ylr},{_ylr}", "--dpi", "150",
+                            "--callsign", name,
+                            "--grid", stn.get("grid", "?"),
+                        ])
 
         elif method in ("sgolay-ridge", "cwt-prophet"):
             # Step 6: Anchor-guided cwt-prophet or sgolay-ridge via tid_spect_click
@@ -1221,7 +1466,7 @@ def run_workflow(args):
                     "--channel-num", str(sub),
                     "--output", str(zoom_png),
                     "--window", str(window_json),
-                    f"--ylim=-{args.ylim_half_range},{args.ylim_half_range}", "--dpi", "150",
+                    f"--ylim=-{effective_ylim(args, state)},{effective_ylim(args, state)}", "--dpi", "150",
                     "--callsign", name,
                     "--grid", stn.get("grid", "?"),
                     f"--overlay={fft_csv}:FFT",
@@ -1291,7 +1536,7 @@ def run_workflow(args):
             drf_dir_s, "--channel-num", str(sub),
             "--output", str(zoom_clean_png),
             "--window", str(window_json),
-            f"--ylim=-{args.ylim_half_range},{args.ylim_half_range}", "--dpi", "150",
+            f"--ylim=-{effective_ylim(args, state)},{effective_ylim(args, state)}", "--dpi", "150",
             "--callsign", name,
             "--grid", redo_stn.get("grid", "?"),
         ])
@@ -1299,10 +1544,14 @@ def run_workflow(args):
         save_state(state_file, state)
         # Step 5 redo — pre-position to Step 3 window
         print(f"\n[Step 5] Refine TID window for {name}...")
+        # NOTE: tid_quicklook.py only accepts --spectrogram and
+        # --plot-fraction (confirmed against its own argparse setup) --
+        # the --seg-start/--seg-end this used to pass were never valid
+        # and every call here errored out immediately (harmless since
+        # the code doesn't check the return value, but it silently
+        # skipped the actual refine interaction every single time).
         run(["python3", tool("tid_quicklook.py"),
-             "--spectrogram", str(zoom_clean_png),
-             "--seg-start", str(wj["t_start_utc_hours"]),
-             "--seg-end",   str(wj["t_end_utc_hours"])])
+             "--spectrogram", str(zoom_clean_png)])
         if zoom_window.exists():
             with open(zoom_window) as _f:
                 zwj = json.load(_f)
@@ -1318,12 +1567,68 @@ def run_workflow(args):
             drf_dir_s, "--channel-num", str(sub),
             "--output", str(zoom_clean_png),
             "--window", str(zoom_window) if zoom_window.exists() else str(window_json),
-            f"--ylim=-{args.ylim_half_range},{args.ylim_half_range}", "--dpi", "150",
+            f"--ylim=-{effective_ylim(args, state)},{effective_ylim(args, state)}", "--dpi", "150",
             "--callsign", name,
             "--grid", redo_stn.get("grid", "?"),
         ])
         state[f"{stn_key}_zoom"] = str(zoom_clean_png)
         save_state(state_file, state)
+
+        # Re-run extraction for this station too. Real gap found via
+        # live testing: this whole redo path only ever cleared window/
+        # zoom state, never the extraction itself -- so typing a
+        # station name here to fix e.g. a bad y-axis range regenerated
+        # a nicely-scaled picture but left the OLD extraction (fit
+        # against the OLD picture) untouched in state, silently headed
+        # for DOA unchanged. The other redo path (the resume menu's
+        # option 2) has the opposite gap: it clears extraction but not
+        # zoom. Neither alone did the full job; this closes it here for
+        # wave-fit specifically, since that's an interactive click
+        # session this script can re-launch directly.
+        wave_csv = event_dir / f"{stn_key}_wave_tid.csv"
+        wave_key = f"{stn_key}_wave"
+        extraction_suffixes = ["spline", "wave", "capt", "capt_seed",
+                                "fft", "autocorr", "cwt"]
+        for suffix in extraction_suffixes:
+            state.pop(f"{stn_key}_{suffix}", None)
+        save_state(state_file, state)
+        if method == "wave-fit":
+            print(f"\n[Step 6] Re-running wave-fit extraction for {name}...")
+            while True:
+                _wave_cmd = [
+                    "python3", tool("tid_spect_click.py"),
+                    "--spectrogram", str(zoom_clean_png),
+                    "--name", name,
+                    "--seg-start", str(max(0.0, zwj["t_start_utc_hours"])),
+                    "--seg-end",   str(zwj["t_end_utc_hours"]),
+                    "--wave-only",
+                ]
+                _hint_s = state.get("keystone_period_s")
+                if (_hint_s and redo_stn is not stations[0]
+                        and not args.no_keystone_auto_tune):
+                    _wave_cmd += ["--period-hint", str(_hint_s)]
+                    print(f"  (seeding wave-fit with keystone period "
+                          f"hint: {_hint_s/60:.1f} min)")
+                run(_wave_cmd)
+                if wave_csv.exists():
+                    break
+                print(f"  ⚠️  No wave-fit CSV saved (did you press F to fit?)")
+                retry = input(f"  Retry wave-fit for {name}? [Y/n/skip]: ").strip().lower()
+                if retry == "n" or retry == "skip":
+                    print(f"  Skipping {name} -- DOA will fail without "
+                          f"this station's extraction unless you drop "
+                          f"it or come back to redo it later.")
+                    break
+            if wave_csv.exists():
+                state[wave_key] = str(wave_csv)
+                save_state(state_file, state)
+                print(f"  ✓ Wave-fit CSV: {wave_csv.name}")
+        else:
+            print(f"  NOTE: extraction state was cleared for {name} but "
+                  f"this redo path only re-launches wave-fit "
+                  f"automatically. For method={method}, use the resume "
+                  f"menu's option 2 (rerun with --resume) to redo "
+                  f"{name}'s extraction before proceeding to DOA.")
 
     # ── Step 10: Check overlap and run DOA ────────────────────────────────
     print(f"\n{'─'*60}")
@@ -1480,20 +1785,31 @@ def run_workflow(args):
         json.dump(event_config, f, indent=2)
     print(f"\n  Event config: {config_path.name}")
 
-    # Run DOA — with interactive drop-station loop
+    # Run DOA — interactive explore loop: drop a station, add one back,
+    # or run every combination automatically (always keeping the
+    # keystone). Real need found via live use of a real 4-station event
+    # (Jan 19 2026): the original drop-only, one-way loop meant that
+    # once you'd dropped a station to test a combination, getting back
+    # to a DIFFERENT combination (e.g. dropping W7LUX instead of AA6BD)
+    # required relaunching the whole workflow script and clicking
+    # through the Window Summary step again -- purely to get back to a
+    # station list the tool already had a moment ago.
     active_stations = list(completed)
+    dropped_stations = []
     doa_results = []
-    while True:
-        event_config["stations"] = active_stations
+    pending_result = None
+    keystone_name = stations[0]["name"].upper()
+
+    def _run_doa_once(station_list):
+        """Write station_list to the shared config, run tid_doa.py once,
+        and parse (speed, from_deg, n_flags) out of the run log it
+        writes. n_flags stays 0 both when the log says '0 of 5' and
+        when it says every diagnostic passed -- both mean zero flags,
+        so the same default correctly covers either wording."""
+        event_config["stations"] = station_list
         with open(config_path, "w") as f:
             json.dump(event_config, f, indent=2)
-        stn_names = [s["name"] for s in active_stations]
-        print(f"\n  Running DOA with {len(active_stations)} stations: {stn_names}")
-        r = run(["python3", tool("tid_doa.py"), str(config_path)])
-        if r.returncode == 0:
-            state["doa_done"] = True
-            save_state(state_file, state)
-        # Parse speed/direction from run log
+        run(["python3", tool("tid_doa.py"), str(config_path)])
         speed, from_deg, n_flags = None, None, 0
         log_files = sorted((event_dir / "runs").glob("*.log"))
         if log_files:
@@ -1508,34 +1824,136 @@ def run_workflow(args):
                 if "diagnostic(s) outside" in line:
                     try: n_flags = int(line.strip().split()[1])
                     except: pass
-        doa_results.append({
-            "stations": list(stn_names),
-            "speed": speed,
-            "from": from_deg,
-            "flags": n_flags,
-        })
+        return {"stations": [s["name"] for s in station_list],
+                "speed": speed, "from": from_deg, "flags": n_flags}
+
+    def _print_comparison(results):
+        print(f"\n  Comparison:")
+        print(f"  {'Stations':<35} {'Speed':>8} {'From':>7} {'Flags':>6}")
+        print(f"  {'-'*60}")
+        for res in results:
+            sp = f"{res['speed']:.0f} m/s" if res["speed"] else "  ---  "
+            fr = f"{res['from']:.0f} deg" if res["from"] else "  ---"
+            stns = ",".join(res["stations"])
+            print(f"  {stns:<35} {sp:>8} {fr:>7} {res['flags']:>6}")
+        print(f"  {'-'*60}")
+
+    while True:
+        if pending_result is not None:
+            # Already computed (e.g. just picked from an 'all' sweep) --
+            # reuse it rather than re-running tid_doa.py on the exact
+            # same station list a second time. Real annoyance found via
+            # live use: without this, picking a combo from the 'all'
+            # table silently triggered an identical duplicate DOA run
+            # before showing anything, making the tool look like it was
+            # stuck looping instead of confirming your choice.
+            res = pending_result
+            pending_result = None
+        else:
+            res = _run_doa_once(active_stations)
+        doa_results.append(res)
+        state["doa_done"] = True
+        save_state(state_file, state)
         if len(doa_results) > 1:
-            print(f"\n  Comparison:")
-            print(f"  {'Stations':<35} {'Speed':>8} {'From':>7} {'Flags':>6}")
-            print(f"  {'-'*60}")
-            for res in doa_results:
-                sp = f"{res['speed']:.0f} m/s" if res["speed"] else "  ---  "
-                fr = f"{res['from']:.0f} deg" if res["from"] else "  ---"
-                stns = ",".join(res["stations"])
-                print(f"  {stns:<35} {sp:>8} {fr:>7} {res['flags']:>6}")
-            print(f"  {'-'*60}")
-        if len(active_stations) <= 3:
-            break
-        ans = input("\n  Drop a station and re-run DOA? "
-                    "[station name or Enter to finish]: ").strip().upper()
+            _print_comparison(doa_results)
+        print(f"\n  Active: {[s['name'] for s in active_stations]}"
+              + (f"  |  Dropped: {[s['name'] for s in dropped_stations]}"
+                 if dropped_stations else ""))
+        ans = input(
+            f"  Type a station name to drop it, 'add <name>' to bring one "
+            f"back, 'all' to try every combination (always keeps keystone "
+            f"{keystone_name}), or press Enter to finish: "
+        ).strip()
         if not ans:
             break
-        match = [s for s in active_stations if s["name"].upper() == ans]
-        if not match:
-            print(f"  Unknown station '{ans}' — valid: {[s['name'] for s in active_stations]}")
+        upper_ans = ans.upper()
+
+        if upper_ans in ("ALL", "AUTO"):
+            non_keystone = [s for s in completed
+                             if s["name"].upper() != keystone_name]
+            keystone_stn = next((s for s in completed
+                                  if s["name"].upper() == keystone_name), None)
+            if keystone_stn is None:
+                print(f"  Keystone {keystone_name} has no completed "
+                      f"extraction -- can't run 'all'.")
+                continue
+            if len(non_keystone) > 10:
+                print(f"  {len(non_keystone)} non-keystone stations would "
+                      f"need {2**len(non_keystone) - 1} combinations -- "
+                      f"too many to run automatically. Drop stations "
+                      f"manually to narrow the field first.")
+                continue
+            import itertools
+            combos = []
+            for size in range(2, len(non_keystone) + 1):
+                for combo in itertools.combinations(non_keystone, size):
+                    combos.append([keystone_stn] + list(combo))
+            print(f"  Trying {len(combos)} combination(s), all including "
+                  f"keystone {keystone_name}...")
+            auto_results = [_run_doa_once(c) for c in combos]
+            auto_results.sort(key=lambda r: r["flags"])
+            print(f"\n  All combinations, sorted by fewest flagged "
+                  f"diagnostics:")
+            print(f"  {'#':<3} {'Stations':<32} {'Speed':>10} "
+                  f"{'From':>8} {'Flags':>6}")
+            print(f"  {'-'*63}")
+            for i, r2 in enumerate(auto_results, 1):
+                sp = f"{r2['speed']:.0f} m/s" if r2["speed"] else "  ---  "
+                fr = f"{r2['from']:.0f} deg" if r2["from"] else "  ---"
+                print(f"  {i:<3} {','.join(r2['stations']):<32} {sp:>10} "
+                      f"{fr:>8} {r2['flags']:>6}")
+            print(f"  {'-'*63}")
+            pick = input(f"\n  Pick a # to select that combination, or "
+                          f"Enter to keep exploring manually: ").strip()
+            if pick.isdigit() and 1 <= int(pick) <= len(auto_results):
+                chosen = auto_results[int(pick) - 1]
+                chosen_names = set(chosen["stations"])
+                active_stations = [s for s in completed
+                                    if s["name"] in chosen_names]
+                dropped_stations = [s for s in completed
+                                     if s["name"] not in chosen_names]
+                pending_result = chosen
+                # Keep the persisted config in sync with the pick even
+                # though we're not re-running tid_doa.py -- the run log
+                # from the sweep already has this exact combo's full
+                # output on disk, this just makes the config file (which
+                # other tools may read later) match too.
+                event_config["stations"] = active_stations
+                with open(config_path, "w") as f:
+                    json.dump(event_config, f, indent=2)
+                print(f"  Selected: {', '.join(sorted(chosen_names))}")
             continue
-        active_stations = [s for s in active_stations if s["name"].upper() != ans]
-        print(f"  Dropped {ans}. Remaining: {[s['name'] for s in active_stations]}")
+
+        if upper_ans.startswith("ADD "):
+            add_name = upper_ans[4:].strip()
+            match = [s for s in dropped_stations
+                     if s["name"].upper() == add_name]
+            if not match:
+                print(f"  '{add_name}' isn't currently dropped -- "
+                      f"dropped stations: "
+                      f"{[s['name'] for s in dropped_stations]}")
+                continue
+            active_stations.append(match[0])
+            dropped_stations = [s for s in dropped_stations
+                                 if s["name"].upper() != add_name]
+            continue
+
+        match = [s for s in active_stations if s["name"].upper() == upper_ans]
+        if not match:
+            print(f"  Unknown command/station '{ans}'.")
+            continue
+        if upper_ans == keystone_name:
+            print(f"  {keystone_name} is the keystone and can't be "
+                  f"dropped from this loop.")
+            continue
+        if len(active_stations) <= 3:
+            print(f"  Need at least 3 stations for DOA -- 'add' one back "
+                  f"first if you want to drop a different one.")
+            continue
+        active_stations = [s for s in active_stations
+                            if s["name"].upper() != upper_ans]
+        dropped_stations.append(match[0])
+
     print(f"\n{'='*60}")
     print("Workflow complete.")
     print(f"{'='*60}")
@@ -1573,14 +1991,42 @@ def _parse_args():
                    help="SGOLAY smoothing window in minutes (default 21)")
     p.add_argument("--max-lag", type=float, default=None, metavar="MIN",
                    help="Maximum xcorr lag in minutes (default: auto). Set to ~1/3 of TID period.")
-    p.add_argument("--ylim-half-range", type=float, default=5.0, metavar="HZ",
-                   help="Doppler axis half-range for zoomed spectrograms (default "
-                        "5.0, i.e. +/-5 Hz). Real TID signals often only vary over "
-                        "a much smaller range -- found during live testing that "
-                        "the default made a real signal look flat/squished and "
-                        "hard to visually assess. Narrow this (e.g. 2.0) if that "
-                        "happens; widen it if the signal is being clipped at the "
-                        "edges instead.")
+    p.add_argument("--ylim-half-range", type=float, default=None, metavar="HZ",
+                   help="Doppler axis half-range for zoomed spectrograms "
+                        "(plain default 5.0, i.e. +/-5 Hz, used until the "
+                        "keystone station's own wave amplitude is measured -- "
+                        "see --no-keystone-auto-tune). Real TID signals often "
+                        "only vary over a much smaller range -- found during "
+                        "live testing that the default made a real signal "
+                        "look flat/squished and hard to visually assess. "
+                        "Passing this explicitly locks it to that exact value "
+                        "for every station and disables auto-tightening.")
+    p.add_argument("--ylim-margin-pct", type=float, default=0.0, metavar="PCT",
+                   help="Extra headroom to add on top of the auto-tightened "
+                        "y-axis range (see --no-keystone-auto-tune), as a "
+                        "percentage. E.g. 25 gives 25%% more vertical room "
+                        "than the plain auto-tightened value, 50 gives 50%% "
+                        "more. Default 0 (no extra margin). Still capped at "
+                        "whatever --ylim-half-range ceiling is in effect -- "
+                        "raise that too if a large margin gets clipped. Has "
+                        "no effect if auto-tuning is off or --ylim-half-range "
+                        "was passed explicitly.")
+    p.add_argument("--no-keystone-auto-tune", action="store_true",
+                   help="Disable both auto-behaviors that use the keystone "
+                        "(first-processed) station's own wave-fit result: "
+                        "(1) tightening --ylim-half-range for later stations "
+                        "toward the keystone's measured amplitude, and (2) "
+                        "passing the keystone's measured period to "
+                        "tid_spect_click.py's --period-hint for later "
+                        "stations' wave-fit clicks. Added after a real "
+                        "4-station event (Jan 19 2026) where independently "
+                        "wave-fitting each station let one station's click "
+                        "session lock onto a visually-clean but wrong-period "
+                        "cycle (e.g. E-region contamination), producing a "
+                        "90%% period spread across stations and a DOA fit "
+                        "the tool's own diagnostics flagged as unreliable. "
+                        "Only affects method=wave-fit; other extraction "
+                        "methods are unaffected.")
     return p.parse_args()
 
 
