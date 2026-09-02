@@ -5,6 +5,21 @@ pipeline using individual command-line tools. Use this approach when
 you want full control over each step, need to run only part of the
 pipeline, or are debugging a specific issue.
 
+> **Note:** `tid_workflow.py` (see `WORKFLOW_TUTORIAL.md`) automates
+> everything below and adds a few conveniences this manual path
+> doesn't have: it auto-tightens each zoomed spectrogram's y-axis
+> toward the keystone station's own measured amplitude instead of a
+> flat +/-5 Hz default, auto-seeds `tid_spect_click.py`'s
+> `--period-hint` from the keystone for every station after it, and
+> its DOA step can test every station combination automatically
+> (`all`) rather than dropping one station at a time by hand. None of
+> that changes what the individual tools below actually do or accept
+> — it's purely orchestration — so this manual tutorial remains
+> accurate command-by-command. Worth knowing about if you find
+> yourself manually repeating the same `--ylim`/`--period-hint`
+> guesswork across several stations, since the guided workflow does
+> that part for you.
+
 The reference event is the **19 January 2026 LSTID** recorded by four
 HamSCI Grape stations during a geomagnetic storm.
 

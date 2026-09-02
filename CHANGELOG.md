@@ -1,3 +1,67 @@
+## v4.5.0 -- 2026-09-02
+
+### Major changes
+
+#### Keystone-driven auto-tuning and a proper DOA explore loop
+Raised by a real 4-station event (19 January 2026) worked end to end
+for the first time with these tools: every non-keystone station's
+zoomed spectrogram used a flat +/-5 Hz Doppler axis regardless of the
+real signal's actual amplitude, which measurably hurt manual wave-fit
+click accuracy on small-amplitude TIDs, and one station's wave-fit
+session locked onto a visually-clean but wrong-period ~15-minute
+ripple (likely E-region contamination) that only surfaced as a bad
+DOA fit several steps later, not at click time.
+
+`tid_workflow.py` v1.4.0 now measures the keystone (first-processed)
+station's own period and amplitude directly from its saved wave-fit
+CSV once available (`estimate_wave_params()`), then uses that to: (1)
+auto-tighten every later station's y-axis toward the keystone's
+amplitude (`effective_ylim()`, new `--ylim-margin-pct` for extra
+headroom, `--no-keystone-auto-tune` to disable), replacing the flat
+default; and (2) seed `tid_spect_click.py`'s existing (previously
+unused from this script) `--period-hint` for every later station's
+wave-fit click session, so a wrong-period lock is visible immediately
+instead of only downstream. The keystone's own zoom picture -- stuck
+at the flat default forever otherwise, since its amplitude isn't
+known until after its own wave-fit -- is now retroactively
+regenerated at the same tightened range too.
+
+Two independent, pre-existing bugs surfaced during the same live
+session: `tid_quicklook.py` has never accepted `--seg-start`/
+`--seg-end` (confirmed against its own argparse setup), so both
+places `tid_workflow.py` called it that way -- the opt-in Step 5
+window refinement, and the window-redo path -- silently errored out
+every time, meaning Step 5 refinement never actually worked despite
+the prompt implying it did. And the two existing "redo" mechanisms
+(resume menu option 2, and typing a station name at the Window
+Summary prompt) each had exactly the gap the other one covered: one
+cleared extraction state but not the zoom picture, the other
+regenerated the picture but not the extraction, so neither alone
+produced a correct result after e.g. changing `--ylim-margin-pct`.
+Both are fixed.
+
+The DOA step's interactive loop, previously a one-way drop (a dropped
+station could only come back by relaunching the whole script and
+re-confirming the Window Summary), now supports dropping, `add <name>`
+to bring a station back, and `all` to run every combination that
+keeps the keystone, printed sorted by fewest flagged diagnostics with
+a pick-by-number prompt. Picking a result from that table reuses the
+already-computed value instead of re-running `tid_doa.py` a second
+time on the identical station list.
+
+Documentation updated to match: `WORKFLOW_TUTORIAL.md` (Steps 4, 6, 8,
+and the CLI reference table), `docs/COOKBOOK.md`'s drop-station
+recipe (including a caution about the DOA loop overwriting
+`tid_workflow_event.json`'s station list on every run, which can make
+a later direct `tid_doa.py --drop` call trip "need at least 3
+stations" unexpectedly), `docs/ASSESSING_RESULTS.md` (a new §6.4 on
+using `all` to test result robustness across the whole station-
+combination space, not just the full array), and `MANUAL_TUTORIAL.md`
+(a note cross-referencing these conveniences for readers using the
+individual tools directly, whose own CLIs are unaffected).
+
+---
+
 ## v4.4.0 -- 2026-07-13
 
 ### Major changes
