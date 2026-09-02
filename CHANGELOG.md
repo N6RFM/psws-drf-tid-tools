@@ -1,3 +1,38 @@
+## v4.6.0 -- 2026-09-02
+
+### Documentation
+
+#### `research_gui` branch archived and retired
+`research_gui` (and its collaboration counterpart, `gwyn-g3zil`) had
+served as a working research log since the project's early days --
+per its own `FINDINGS.md` header, validated code changes were PR'd to
+`main` as they were confirmed, but the research narrative itself
+(`FINDINGS.md`, `PROJECT_STATE.md`) was deliberately kept off `main`,
+"never merged," living only on those two branches.
+
+That branch had drifted 232 commits behind `main` and 188 ahead --
+not parallel unmerged feature work (confirmed directly: every file on
+`research_gui`, including `tid_dashboard.py` and the `synthetic_tests/`
+suite, already existed on `main` in a more current form) -- just the
+research log itself, which nothing else on `main` duplicated.
+
+Rather than let 55+ entries of real, dated research history (event
+analyses, extraction bugs found and resolved, comparisons against
+independent methods) disappear with the branch, `FINDINGS.md`,
+`PROJECT_STATE.md`, and the `add_project_state_entry.py` script used
+to maintain the latter were archived verbatim into
+`docs/research-archive/` (PR #349), preserving them exactly as they
+stood at `research_gui`'s tip (`c346d15`, 2026-07-13). See
+`docs/research-archive/README.md` for full provenance.
+
+With the archive in place on `main`, `research_gui` was deleted
+(remote and local) -- `main`'s own `CHANGELOG.md` is now the single
+place ongoing project history is recorded; the archive is a frozen
+historical snapshot, not a document either branch or file continues
+to receive new entries in.
+
+---
+
 ## v4.5.0 -- 2026-09-02
 
 ### Major changes
