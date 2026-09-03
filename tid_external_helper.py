@@ -5,10 +5,38 @@ against independent external data sources.
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.1.0
+Version: 1.2.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.2.0  Fixed a real stdout-buffering bug: all three subprocess
+          commands now run with `python3 -u` (unbuffered), not just
+          the default. Without it, a real script's own print() calls
+          -- even its very first, near-instant startup banner, before
+          any network call -- can sit invisible in Python's default
+          block buffer when stdout is a pipe rather than a terminal,
+          making a script that's actually fine look completely stuck.
+          Confirmed live: the GUI showed nothing at all after the
+          command echo, not even the instant banner, while the
+          identical command run directly in a terminal printed
+          normally and eventually succeeded.
+
+          Worth being honest about: an earlier attempt to test this
+          exact hypothesis, with a synthetic script, found no
+          difference between buffered and unbuffered and was used to
+          argue this wasn't the cause. That test was flawed --
+          PYTHONUNBUFFERED=1 was already set globally in the
+          environment it ran in, silently forcing every subprocess
+          unbuffered regardless of whether -u was passed, so the test
+          was structurally incapable of ever showing a difference.
+          Re-tested properly this time against the real script.
+
+          Also added: a genuine animated progress indicator (an
+          indeterminate progress bar plus a "Running: <step>..."
+          status label) while a command is active, replacing reliance
+          on a static "this can take a while" disclaimer as the only
+          signal that something might still be working.
+
   v1.1.0  Several real fixes found only by actually running this
           against a real event (19 January 2026), not by review --
           full detail in the main project CHANGELOG.md, summarized
@@ -243,9 +271,10 @@ class StreamingRunner:
     project's existing convention for these small Tkinter helpers.
     """
 
-    def __init__(self, text_widget, on_all_done=None):
+    def __init__(self, text_widget, on_all_done=None, on_command_start=None):
         self.text_widget = text_widget
         self.on_all_done = on_all_done
+        self.on_command_start = on_command_start
         self._queue = queue.Queue()
         self._proc = None
         self._commands = []
@@ -285,6 +314,8 @@ class StreamingRunner:
                 self.on_all_done()
             return
         label, cmd = self._commands[self._index]
+        if self.on_command_start:
+            self.on_command_start(label)
         self._append(f"\n{'='*60}\n{label}\n{'='*60}\n"
                       f"$ {' '.join(shlex.quote(c) for c in cmd)}\n\n")
         thread = threading.Thread(target=self._run, args=(cmd,), daemon=True)
@@ -482,12 +513,25 @@ class ExternalHelper(tk.Tk):
             run_row, text="Cancel", command=self._cancel_run,
             state="disabled")
         self.cancel_button.pack(side="left", padx=(6, 0))
+
+        self.progress_bar = ttk.Progressbar(
+            run_row, mode="indeterminate", length=100)
+        # Not packed yet -- only shown while something is actually
+        # running (start()/stop() control both visibility and the
+        # animation itself). A static "may take a while" label wasn't
+        # enough live evidence that anything was actually happening --
+        # this moves continuously the whole time a command is running,
+        # completely independent of whether that command's own output
+        # is visible yet.
+        self.status_label = ttk.Label(run_row, text="", foreground="#206020")
+        self.status_label.pack(side="left", padx=(8, 0))
+
         ttk.Label(
             run_row, text="Runs sequentially; each tool's own real output "
                           "streams below. Real network calls (Madrigal, "
                           "geomagnetic indices) can legitimately take a "
                           "while -- that's not necessarily stuck.",
-            foreground="#666666", wraplength=500, justify="left"
+            foreground="#666666", wraplength=420, justify="left"
         ).pack(side="left", padx=8)
 
         # Log pane
@@ -510,7 +554,8 @@ class ExternalHelper(tk.Tk):
             f6, height=18, font=("Courier", 10))
         make_readonly_but_copyable(self.log_widget)
         self.log_widget.pack(fill="both", expand=True, padx=6, pady=6)
-        self.runner = StreamingRunner(self.log_widget, self._on_all_done)
+        self.runner = StreamingRunner(self.log_widget, self._on_all_done,
+                                       self._on_command_start)
 
     def _copy_log(self):
         content = self.log_widget.get("1.0", "end-1c")
@@ -618,7 +663,18 @@ class ExternalHelper(tk.Tk):
             out_dir = str(Path(event_dir) / "runs" / "external_evaluations")
             commands.append((
                 "Kp + AE geomagnetic indices",
-                ["python3", tool("evaluate_external.py"),
+                # -u: force unbuffered stdout. Without it, a real
+                # script's own print() calls -- even its very first,
+                # near-instant startup banner, before any network call
+                # -- can sit invisible in Python's default block
+                # buffer when stdout is a pipe rather than a terminal,
+                # making a script that's actually fine look completely
+                # stuck. Confirmed live: the GUI showed nothing at all
+                # after the command echo, not even the instant banner,
+                # while the identical command run directly in a real
+                # terminal printed normally -- a pipe-vs-terminal
+                # buffering difference, not the server.
+                ["python3", "-u", tool("evaluate_external.py"),
                  "--date", self.event_config["event_start_utc"][:10],
                  "--event-start", self.event_config["event_start_utc"],
                  "--event-end", self.event_config["event_end_utc"],
@@ -653,7 +709,7 @@ class ExternalHelper(tk.Tk):
                 speed = self.speed_var.get().strip()
                 azimuth = self.azimuth_var.get().strip()
                 gnss_cmd = [
-                    "python3", tool("fetch_madrigal_tec.py"),
+                    "python3", "-u", tool("fetch_madrigal_tec.py"),
                     "--config", str(Path(event_dir) / "tid_workflow_event.json"),
                     "--user-name", name,
                     "--user-email", email,
@@ -672,7 +728,7 @@ class ExternalHelper(tk.Tk):
                 commands.append((gnss_label, gnss_cmd))
 
             if self.want_lstid.get():
-                lstid_cmd = ["python3", tool("run_madrigal_tools.py"),
+                lstid_cmd = ["python3", "-u", tool("run_madrigal_tools.py"),
                              "--event", event_dir, "--tool", "lstid"]
                 if self.want_download.get():
                     lstid_cmd.append("--download")
@@ -685,16 +741,30 @@ class ExternalHelper(tk.Tk):
 
         self.run_button.configure(state="disabled")
         self.cancel_button.configure(state="normal")
+        self.progress_bar.pack(side="left", padx=(6, 0))
+        self.progress_bar.start(10)
         self.runner.start(commands)
+
+    def _on_command_start(self, label):
+        # Called from the runner's background thread -- Tk widgets can
+        # only be touched from the main thread, so hop over via after().
+        self.after(0, lambda: self.status_label.configure(
+            text=f"Running: {label}..."))
 
     def _cancel_run(self):
         self.runner.cancel()
         self.cancel_button.configure(state="disabled")
         self.run_button.configure(state="normal")
+        self.progress_bar.stop()
+        self.progress_bar.pack_forget()
+        self.status_label.configure(text="")
 
     def _on_all_done(self):
         self.run_button.configure(state="normal")
         self.cancel_button.configure(state="disabled")
+        self.progress_bar.stop()
+        self.progress_bar.pack_forget()
+        self.status_label.configure(text="Done.")
 
 
 def main():

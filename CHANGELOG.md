@@ -1,3 +1,57 @@
+## v4.9.2 -- 2026-09-03
+
+### Major changes
+
+#### `tid_external_helper.py` v1.2.0 -- fixed a real stdout-buffering bug
+All three subprocess commands now run with `python3 -u` (unbuffered),
+not the default. Without it, a real script's own print() calls --
+even its very first, near-instant startup banner, before any network
+call -- can sit invisible in Python's default block buffer when
+stdout is a pipe rather than a terminal, making a script that's
+actually fine look completely stuck. Confirmed live: the GUI showed
+nothing at all after the command echo, not even the instant banner,
+while the identical command run directly in a terminal printed
+normally and succeeded.
+
+Worth being honest about: an earlier attempt to test this exact
+hypothesis, with a synthetic script, found no difference between
+buffered and unbuffered and was used to argue this wasn't the cause.
+That test was flawed -- `PYTHONUNBUFFERED=1` was already set globally
+in the environment it ran in, silently forcing every subprocess
+unbuffered regardless of whether `-u` was passed, so the test was
+structurally incapable of ever showing a difference. Re-tested
+properly this time against the real script, confirmed the fix on the
+operator's actual machine afterward: all three tools now show live
+output immediately, including a full successful GNSS TEC run and an
+LSTID run that got all the way through its own pipeline (failing only
+on missing local HF data, a separate and expected issue, not a
+dependency or code problem).
+
+Also added: a genuine animated progress indicator (an indeterminate
+progress bar plus a "Running: \<step\>..." status label) while a
+command is active, replacing reliance on a static "this can take a
+while" disclaimer as the only signal that something might still be
+working.
+
+---
+
+## v4.9.1 -- 2026-09-03
+
+### Major changes
+
+#### Complete `hamsci_LSTID_detection` dependency check
+A real run got past the `polars` check (added in v4.9.0) and then hit
+a second, different missing dependency (`pyarrow`) partway into the
+LSTID step -- checking one dependency at a time clearly wasn't
+enough. Fetched the complete requirements list directly from that
+repo's own README rather than continuing to add packages here one at
+a time as each one surfaces: `dask`, `h5py`, `polars`, `pyarrow`,
+`pysolar`, `statsmodels`. Both `check_install.py` and
+`tid_external_helper.py`'s LSTID checkbox now check all six up front,
+with one combined install command for whatever's actually missing.
+
+---
+
 ## v4.9.0 -- 2026-09-02
 
 ### Major changes
