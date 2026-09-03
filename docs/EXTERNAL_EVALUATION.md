@@ -4,6 +4,18 @@ After obtaining a DOA result from `tid_doa.py`, users are encouraged to corrobor
 independent space weather data using the evaluation tools. All outputs
 may be saved to `<event_dir>/runs/external_evaluations/`.
 
+**GUI option:** `tid_external_helper.py` is a checkbox app that runs
+these tools for you -- it auto-fills the event window and DOA result
+from files `tid_workflow.py`/`tid_doa.py` already produced, so nothing
+needs to be retyped, and lets you pick which sources to check with a
+click instead of the raw commands below. See "Tools" further down for
+details; the manual commands throughout this doc still apply exactly
+as written if you prefer them directly.
+
+```bash
+python3 tid_external_helper.py
+```
+
 HF signals refract or reflect from the ionosphere, making HF TID measurements involving a limited 
 number of stations extremely sensitive to small changes in layer height, gradients, and propagation path length.  
 
@@ -110,6 +122,9 @@ DOA comparison anyway.
 
 ## 1. Combined Kp and AE (evaluate_external.py)
 
+*(`tid_external_helper.py`'s Kp + AE checkbox runs this for you --
+see "Tools" above.)*
+
 ```bash
 python3 evaluate_external.py \
     --date 2026-01-19 \
@@ -125,6 +140,10 @@ python3 evaluate_external.py \
 `run_madrigal_tools.py` provides one-time shared setup for both Madrigal
 tools and runs either or both, saving results directly into the event
 directory.
+
+*(`tid_external_helper.py`'s own "Save for future use" button does the
+same one-time registration -- see "Tools" above -- so the `--setup`
+step below isn't needed if you're using the GUI.)*
 
 **Setup (one time):**
 
@@ -154,6 +173,10 @@ python3 run_madrigal_tools.py --event <event_dir> --tool lstid --download
 ---
 
 ## 3. HamSCI LSTID Detection
+
+*(`tid_external_helper.py`'s HamSCI LSTID Detection checkbox runs
+this via `run_madrigal_tools.py` below, once its dependencies are
+installed -- see "Tools" above.)*
 
 The [hamsci_LSTID_detection](https://github.com/HamSCI/hamsci_LSTID_detection) toolkit
 (HamSCI NASA SWO2R Team) provides an independent automated method for detecting LSTIDs
@@ -277,6 +300,10 @@ published yet — check back later.
 ---
 
 ## 4. Madrigal GPS TEC cross-correlation
+
+*(`tid_external_helper.py`'s GNSS TEC checkbox runs this directly --
+not via `run_madrigal_tools.py` above -- with the DOA result
+auto-filled; see "Tools" above for why.)*
 
 GNSS TEC data from the CEDAR Madrigal Database provides the wide-area spatial coverage
 that HF Doppler alone cannot. HF measurements are highly sensitive to ionospheric
