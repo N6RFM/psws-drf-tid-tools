@@ -75,8 +75,19 @@ manual steps.
 ## Quick start
 
 ```bash
-python3 tid_workflow.py --event-dir /path/to/event/directory
+python3 tid_workflow.py --event-dir /path/to/event/directory --my-station N6RFM
 ```
+
+**`--my-station` sets the keystone** -- the one station processed
+first, whose full-day spectrogram sets the TID window every other
+station gets measured against, and whose own measured amplitude and
+period later auto-tune the view and seed a `--period-hint` for every
+station after it (see Step 2 and Step 5 below). Usually your own
+station, or whichever one first caught your attention. **Without this
+flag**, `tid_workflow.py` falls back to whatever order station
+discovery happens to produce (alphabetical by directory name) --
+silently picking a different keystone than you may have intended, not
+"no keystone at all." Always pass it explicitly.
 
 With a subset of stations and lag constraint:
 
@@ -84,6 +95,7 @@ With a subset of stations and lag constraint:
 python3 tid_workflow.py \
     --event-dir /path/to/event \
     --stations N6RFM,AA6BD,W7LUX,AC0G_ND \
+    --my-station N6RFM \
     --max-lag 30
 ```
 
@@ -95,6 +107,8 @@ To resume an interrupted session:
 ```bash
 python3 tid_workflow.py --event-dir /path/to/event --resume
 ```
+`--resume` picks up the keystone (and everything else) from the saved
+`tid_workflow_state.json` -- no need to pass `--my-station` again.
 
 ---
 

@@ -220,8 +220,18 @@ station?" for the practical side of this.
 python3 tid_workflow.py \
     --event-dir ~/Downloads/tid_event_20260119 \
     --stations N6RFM,AA6BD,W7LUX,AC0G_ND \
+    --my-station N6RFM \
     --max-lag 30
 ```
+
+**`--my-station` sets which station is the keystone** -- the one
+processed first, whose full-day spectrogram sets the TID window every
+other station gets measured against. Without it, `tid_workflow.py`
+falls back to whatever order station discovery happens to produce
+(alphabetical by directory name) -- here, that would silently make
+`AA6BD` the keystone instead of `N6RFM`, not the "your own station
+first" choice described above. Always pass it explicitly rather than
+relying on that fallback.
 
 The guided workflow handles all 8 steps interactively:
 
