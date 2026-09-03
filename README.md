@@ -270,9 +270,11 @@ and `docs/METHODOLOGY.md` for the mathematical details of each method.
 ## External Evaluation Tools
 
 After obtaining a DOA result, you may corroborate it
-with independent space weather data. See
+with independent space weather data. `tid_external_helper.py` is a
+checkbox GUI that auto-fills the event window and DOA result and runs
+the CLI tools below for you; see
 [docs/EXTERNAL_EVALUATION.md](docs/EXTERNAL_EVALUATION.md) for tools,
-usage examples, and required parameters.
+usage examples, and required parameters either way.
 
 ---
 
@@ -344,6 +346,8 @@ psws-drf-tid-tools/
 │                               (testing when it's down, or offline dev)
 ├── tid_intake_helper.py        Tkinter GUI: discover -> download ->
 │                               generate the tid_workflow.py command
+├── tid_external_helper.py      Tkinter GUI: checkbox cross-check of a
+│                               DOA result against Kp/AE, GNSS TEC, LSTID
 │
 ├── docs/
 │   ├── ASSESSING_RESULTS.md    understanding and validating DOA results
@@ -381,9 +385,15 @@ Core (required):
 
 Optional:
 - `cartopy` for nicer `tid_map.py` output with state/country outlines
-- `python3-tk` (system package, not pip) for `tid_intake_helper.py` --
-  this is a Tkinter app and won't launch without it. All CLI tools,
-  including `tid_workflow.py`, are unaffected.
+- `python3-tk` (system package, not pip) for `tid_intake_helper.py` and
+  `tid_external_helper.py` -- both are Tkinter apps and won't launch
+  without it. All CLI tools, including `tid_workflow.py`, are
+  unaffected.
+- `polars` -- NOT a dependency of anything in this repo. Only needed
+  if you've separately cloned
+  [hamsci_LSTID_detection](https://github.com/HamSCI/hamsci_LSTID_detection)
+  and want to use `tid_external_helper.py`'s HamSCI LSTID Detection
+  checkbox. See [`docs/EXTERNAL_EVALUATION.md`](docs/EXTERNAL_EVALUATION.md) §3.
 
 ---
 

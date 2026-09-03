@@ -4,10 +4,19 @@ tid_map.py — plot TID array geometry: stations, WWV-path midpoints, and
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.0.0
+Version: 1.1.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.1.0  Fixed the no-cartopy hint text ("install cartopy for state
+          outlines") colliding with the title whenever it wrapped to
+          two lines -- which it always does when --speed/
+          --azimuth-toward are given, i.e. exactly the case this
+          script's title is built for. Found live wiring this into
+          tid_workflow.py's new end-of-run map step. Moved below the
+          x-axis label, where it can't collide regardless of title
+          length.
+
   v1.0.0  Initial release.
 
 OVERVIEW
@@ -222,9 +231,16 @@ def main():
         ax.set_ylabel("Latitude (deg)")
         transform = None
         # Note: no state outlines without cartopy. Add a hint.
-        ax.text(0.5, 1.02,
+        # Real bug found live: placing this just above the axes
+        # (y=1.02) collided with the title whenever it wrapped to two
+        # lines (e.g. "4-station ... array geometry" + "Wave
+        # direction: ..."), which it always does when --speed/
+        # --azimuth-toward are given -- garbled, overlapping text.
+        # Below the x-axis label has no such collision regardless of
+        # title length.
+        ax.text(0.5, -0.09,
                 "(install 'cartopy' for state outlines)",
-                ha="center", va="bottom", transform=ax.transAxes,
+                ha="center", va="top", transform=ax.transAxes,
                 fontsize=8, style="italic", color="#888888")
 
     def plot_kwargs():

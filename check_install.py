@@ -4,10 +4,21 @@ check_install.py — verify psws-drf-tid-tools' dependencies are installed
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.1.0
+Version: 1.2.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.2.0  Two changes, neither previously given its own entry here:
+          removed the `streamlit` optional-dependency check (v4.8.0
+          retired `tid_dashboard.py`, the only thing that used it);
+          added an informational (not required) check for `polars`,
+          which belongs to the separate `hamsci_LSTID_detection` repo,
+          not to anything in this one -- surfaced here so a real run
+          against `tid_external_helper.py`'s LSTID checkbox doesn't
+          get most of the way through a genuinely slow (but working)
+          GNSS TEC step before failing on a missing dependency it
+          could have known about up front.
+
   v1.1.0  Updated for the requirements.txt/requirements-optional.txt
           consolidation into a single requirements.txt -- the missing-
           optional-dependency fix message now points to the one file
@@ -132,6 +143,27 @@ def main():
               "without it. All CLI tools, including tid_workflow.py, "
               "are unaffected.")
         print("      Fix (Debian/Ubuntu): sudo apt install python3-tk")
+
+    # polars is NOT a dependency of anything in this repo -- it belongs
+    # to hamsci_LSTID_detection, a separate GitHub repo this project
+    # only shells out to (see docs/EXTERNAL_EVALUATION.md §3). Checked
+    # here anyway, informationally, because tid_external_helper.py's
+    # LSTID checkbox needs it and a real run got most of the way
+    # through a genuinely slow (but working) GNSS TEC step before
+    # failing on this partway into the LSTID step -- surfacing it here
+    # means finding out before starting a run, not partway through one.
+    print()
+    polars_ok = check("polars")
+    print(f"  [{'OK  ' if polars_ok else 'missing'}] polars (NOT required "
+          f"by this repo -- only by the separate hamsci_LSTID_detection "
+          f"toolkit)")
+    if not polars_ok:
+        print("      Affects: tid_external_helper.py's HamSCI LSTID "
+              "Detection checkbox only, and only if you've already "
+              "cloned that separate repo -- irrelevant otherwise.")
+        print("      Fix: pip install 'polars[rtcompat]' -- see "
+              "docs/EXTERNAL_EVALUATION.md \u00a73 for why the "
+              "[rtcompat] variant specifically, on some CPUs.")
 
     print()
     if missing_required:

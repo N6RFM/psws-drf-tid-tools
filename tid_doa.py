@@ -4,10 +4,42 @@ tid_doa.py — multi-station TID direction-of-arrival analyzer
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.4.0
+Version: 1.5.1
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.5.1  Fixed a bug that made v1.5.0's own feature never actually
+          work: _config_path was read by both _write_doa_result_json()
+          and _write_run_log(), but never actually SET anywhere in
+          the file. _write_run_log() only ever appeared to work by
+          coincidence, via a separate fallback through
+          stations[0]["file"] happening to already be an absolute
+          path in tid_workflow.py-generated configs -- not a
+          guarantee for a hand-written or relative-path config.
+          _write_doa_result_json() has no such fallback at all, so it
+          silently no-op'd on every single real invocation, not just
+          one particular event -- confirmed live: a full real run
+          against the actual 19 January 2026 event printed a complete,
+          correct DOA result and "Run log written: ...", but never
+          wrote tid_doa_result.json at all, with no error of any kind.
+          Fixed at the one place the config file's own path is
+          actually known -- right after it's loaded -- rather than
+          relying on the stations[0]["file"] coincidence. Verified
+          directly: ran against real CSV data from a different working
+          directory than the event directory (the exact scenario that
+          surfaced this), confirmed tid_doa_result.json now appears
+          with correct content.
+
+  v1.5.0  Writes <event_dir>/tid_doa_result.json (speed_m_s,
+          azimuth_to_deg, azimuth_from_deg, station list, event
+          window, timestamp) alongside the existing run log, always
+          overwritten with the latest result. Added so tid_map.py and
+          the new tid_external_helper.py can read the current DOA
+          result reliably -- neither needs its own parser for run-log
+          text, and the operator doesn't need to retype numbers
+          already computed. Non-fatal on any write error, same
+          principle as the existing run-log writer.
+
   v1.4.0  Added ANSI-colored terminal output for the RESULT DIAGNOSTICS
           block (item #3 from the post-v4.1.0 UX priority list, see
           PROJECT_STATE #111) -- each diagnostic's header is now
@@ -1070,6 +1102,40 @@ def format_diagnostics(result, station_periods=None, station_snrs=None,
     return "\n".join(L), flagged
 
 
+def _write_doa_result_json(config, result):
+    """Write <event_dir>/tid_doa_result.json -- speed_m_s, azimuth_to_deg,
+    azimuth_from_deg, station list, and a timestamp -- so other tools
+    (tid_map.py, the external-evaluation helper) have one reliable,
+    structured place to read the current DOA result from, instead of
+    each needing its own fragile parser for run log text or requiring
+    the operator to retype numbers they already computed. Always
+    overwritten with the latest result -- if the explore loop drops/
+    adds stations and re-runs, this reflects whatever was run last,
+    matching the same "most recent settled result" principle the
+    explore loop itself already uses. Non-fatal on any error, same
+    principle as _write_run_log: a logging failure must never break
+    a run.
+    """
+    import os, datetime
+    _config_path = config.get("_config_path", None)
+    if not _config_path:
+        return  # nothing sensible to write next to
+    event_dir = os.path.dirname(os.path.abspath(_config_path))
+    out_path = os.path.join(event_dir, "tid_doa_result.json")
+    payload = {
+        "speed_m_s": result.get("speed_m_s"),
+        "azimuth_to_deg": result.get("azimuth_to_deg"),
+        "azimuth_from_deg": result.get("azimuth_from_deg"),
+        "stations": [s.get("name") for s in config.get("stations", [])],
+        "event_start_utc": config.get("event_start_utc"),
+        "event_end_utc": config.get("event_end_utc"),
+        "computed_at_utc": datetime.datetime.now(datetime.timezone.utc)
+            .strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    with open(out_path, "w") as f:
+        json.dump(payload, f, indent=2)
+
+
 def _write_run_log(config, result, diag_text):
     """Append a self-contained per-run record to <event_data_dir>/runs/<ts>_run.log.
 
@@ -1369,6 +1435,11 @@ def run(config):
         print()
         print(print_text)
 
+    try:
+        _write_doa_result_json(config, result)
+    except Exception as _e:
+        print(f"(tid_doa_result.json write skipped: {_e})")
+
     if not globals().get("_NO_RUNLOG", False):
         try:
             _write_run_log(config, result, diag_text)
@@ -1434,7 +1505,7 @@ def _cli():
                          "(repeatable, case-insensitive). E.g. "
                          "--drop W7LUX --drop AC0G_ND")
     ap.add_argument("--version", action="version",
-                    version="%(prog)s 1.4.0")
+                    version="%(prog)s 1.5.1")
     return ap.parse_args()
 
 
@@ -1451,6 +1522,19 @@ if __name__ == "__main__":
         sys.exit(0)
     with open(_args.config) as f:
         cfg = json.load(f)
+    # Real bug found live: this key was read in two places
+    # (_write_run_log, _write_doa_result_json) but never actually set
+    # anywhere -- _write_doa_result_json has no fallback for its
+    # absence at all, so it silently no-op'd on every single real
+    # invocation, not just one particular event. _write_run_log only
+    # ever appeared to work by coincidence, via its own separate
+    # fallback through stations[0]["file"] happening to already be an
+    # absolute path in tid_workflow.py-generated configs -- not a
+    # guarantee for a hand-written or relative-path config. Setting it
+    # here, once, at the one place the config file's own path is
+    # actually known, fixes both properly instead of relying on that
+    # coincidence.
+    cfg["_config_path"] = _args.config
     if _args.smooth is not None:
         cfg["smooth_seconds"] = _args.smooth
         print(f"Smoothing enabled: Savitzky-Golay window={_args.smooth:g}s, polynomial order 3")

@@ -1,3 +1,136 @@
+## v4.9.0 -- 2026-09-02
+
+### Major changes
+
+#### New: `tid_external_helper.py` -- checkbox GUI for cross-checking a DOA result externally
+Same design principle as `tid_intake_helper.py`: deliberately narrow,
+hands off to the real tools (`evaluate_external.py`,
+`run_madrigal_tools.py`) rather than reimplementing Kp/AE retrieval,
+GNSS TEC cross-correlation, or LSTID detection. Loads an event's own
+`tid_workflow_event.json` and `tid_doa_result.json` (see below) to
+auto-fill the event window and DOA speed/bearing, lets the operator
+check boxes for which independent sources to query, and streams each
+selected tool's real output live. The HamSCI LSTID Detection checkbox
+is disabled with a plain explanation when that separate repo isn't
+found, rather than silently failing when run; SuperMAG SME/AE has no
+API this project uses, so it's a button that opens the browser, not a
+checkbox pretending to fetch anything.
+
+A real layout bug was found and fixed before shipping this: several
+checkbox labels and status messages were silently truncated at the
+window edge rather than wrapping, because `ttk.Checkbutton` does not
+support a `wraplength` option at all (confirmed directly, not
+assumed, after `width=1` -- an initial, wrong attempt at a fix --
+shrank checkboxes instead of wrapping them). Fixed by pairing each
+checkbox with a separate wrapping `Label` underneath it, verified with
+an actual rendered screenshot before and after.
+
+Three more real bugs surfaced from an actual run against the real 19
+January 2026 event (not synthetic test data), all found live rather
+than in review:
+
+- **The DOA result never actually reached the GNSS TEC report.**
+  `run_madrigal_tools.py`'s own `run_gnss_tec()` never forwards
+  `--doa-speed`/`--doa-azimuth-from` to `fetch_madrigal_tec.py` at
+  all -- confirmed directly in its source after a real run's report
+  showed every DOA-lag comparison column as blank regardless of what
+  was entered in the GUI. Fixed by calling `fetch_madrigal_tec.py`
+  directly for the GNSS TEC checkbox instead of routing through
+  `run_madrigal_tools.py` (which is kept for the LSTID checkbox only,
+  where no DOA passthrough is needed) -- the two are now separate
+  commands rather than one combined `--tool both` call, specifically
+  so the values this GUI already collects actually get used.
+- **The output log couldn't be copied from at all.** `state="disabled"`
+  -- the usual way to make a Tk Text widget read-only -- also blocks
+  selection and Ctrl+C, not just typing, which meant there was no way
+  to copy a URL or exact command straight out of the log. Fixed by
+  leaving the widget permanently in `"normal"` state and blocking only
+  the keystrokes that would actually modify content, via a key
+  binding that still allows selection, arrow-key navigation, and
+  copy/select-all.
+- **The LSTID checkbox's own availability check wasn't checking
+  enough.** It only verified the separate `hamsci_LSTID_detection`
+  repo directory exists, not that its `polars` dependency is actually
+  importable -- so a real run got most of the way through a
+  genuinely-slow-but-working GNSS TEC step before failing on
+  `ModuleNotFoundError: No module named 'polars'` partway into the
+  LSTID step. Now checks `import polars` too, up front, with a
+  specific "found the repo, but polars isn't installed" message and
+  the exact fix command, distinct from "repo not found at all."
+
+Also added: a **Cancel** button, since none of the above being the
+actual final word on every possible slow-or-stuck case, there was
+still no way to abort a run in progress short of killing the whole
+GUI. Terminates the current subprocess and stops the remaining queued
+commands. `check_install.py` also now checks `polars` informationally
+(not added to `requirements.txt` -- it's a dependency of the separate
+`hamsci_LSTID_detection` repo, not of anything in this one, and every
+existing line in that file is scoped to what this repo's own scripts
+directly import).
+
+The output log itself went through three real iterations, each found
+live rather than planned: `state="disabled"` (the usual way to make a
+Text widget read-only) also blocks selection and Ctrl+C; a follow-up
+`<Key>`-binding approach meant to selectively block only typing while
+explicitly allowing Ctrl+C/Ctrl+A through turned out unreliable,
+confirmed live twice; the widget now simply stays fully normal (typing
+into a passive scrollback log has zero functional consequence, since
+nothing in this file reads it back for logic), with an explicit
+right-click **Copy** / **Select All** menu added on top since stock Tk
+Text widgets have no context menu at all and right-click is the most
+universal copy convention. Still reported as clunky in practice, so
+three visible buttons were added above the log itself -- **Copy All**,
+**Save to File...**, and **Clear** -- rather than relying on a menu
+the operator has to know to look for.
+
+#### `tid_doa.py` v1.5.1 -- a critical fix to v1.5.0's own new feature
+`_config_path` was read by both the new result-JSON writer and the
+existing run-log writer, but never actually **set** anywhere in the
+file. The run-log writer only ever appeared to work by coincidence, via
+a separate fallback through `stations[0]["file"]` happening to already
+be an absolute path in `tid_workflow.py`-generated configs.
+`_write_doa_result_json()` has no such fallback at all, so v1.5.0's
+own headline feature silently no-op'd on *every* real invocation --
+found live against the actual 19 January 2026 event: a full run
+printed a complete, correct 682 m/s / 63.2 degree result and "Run log
+written: ...", but never wrote `tid_doa_result.json`, with no error at
+all. Fixed at the one place the config file's own path is actually
+known -- right after loading it -- rather than depending on that
+coincidence. Verified directly, not just re-read: ran against real CSV
+data from a different working directory than the event directory (the
+exact scenario that surfaced this), confirmed the file now appears
+with correct content, then confirmed again against the real event
+itself.
+
+#### `tid_doa.py` v1.5.0 -- writes a structured result file
+`<event_dir>/tid_doa_result.json` (speed, azimuth to/from, station
+list, event window, timestamp), always overwritten with the latest
+result. Added specifically so `tid_map.py` and the new
+`tid_external_helper.py` have one reliable place to read the current
+DOA result from, rather than each needing its own parser for run-log
+text or requiring the operator to retype numbers already computed --
+this restores the one genuine convenience noted as lost when
+`tid_dashboard.py` was retired (v4.8.0), without bringing back the
+2,983-line browser app it came attached to.
+
+#### `tid_workflow.py`: optional station map at the end of a run
+After the DOA explore loop finishes, if `tid_doa_result.json` exists,
+`tid_workflow.py` now offers to generate a station map via the
+existing `tid_map.py` -- station locations, WWV-path midpoints, and
+the wave direction arrow, auto-filled from the JSON result rather than
+asked for by hand -- and opens it automatically (`xdg-open`), same
+pattern as the full-day spectrogram redraw prompt from v4.6.0.
+
+#### `tid_map.py` v1.1.0: real bug fixed while wiring this in
+The "install cartopy for state outlines" hint text collided with the
+plot title whenever it wrapped to two lines -- which it always does
+when `--speed`/`--azimuth-toward` are given, i.e. exactly the case
+this new integration always hits. Moved below the x-axis label, where
+it can't collide regardless of title length. Verified with an actual
+rendered image before and after, not just a code read-through.
+
+---
+
 ## v4.8.0 -- 2026-09-02
 
 ### Major changes
