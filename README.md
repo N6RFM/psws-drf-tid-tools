@@ -45,9 +45,8 @@ lets you:
   peak-tracking, and CWT peak-tracking
 - render annotated Doppler spectrograms with optional overlay of
   extracted Doppler traces for visual method assessment
-- run the complete analysis pipeline in one guided interactive session
-  — as a terminal-based guided workflow, or a browser-based GUI
-  dashboard for the automated methods
+- run the complete analysis pipeline in one guided interactive
+  terminal session
 - run a full multi-station direction-of-arrival (DOA) analysis
 - visualize results as stacked Doppler traces and array-geometry maps
 - validate the pipeline against synthetic DRF data with known ground
@@ -121,9 +120,22 @@ offline.
 maybe on your own station's spectrogram, maybe browsing
 [pswsnetwork.eng.ua.edu](https://pswsnetwork.eng.ua.edu/). Whichever
 station's data first caught your attention is your **keystone**
-station -- the one this toolkit's own guided workflow and dashboard
-both use to pick the TID event window everything else gets measured
-against.
+station -- the one this toolkit's own guided workflow uses to pick
+the TID event window everything else gets measured against.
+
+**GUI alternative to the manual steps below:** `tid_intake_helper.py`
+is a small Tkinter app that walks through station discovery and
+download, then generates the exact `tid_workflow.py` command to
+continue with -- convenient if you'd rather not type out the raw
+`download_companions.py`/`find_event_stations.py` commands by hand:
+
+```bash
+python3 tid_intake_helper.py
+```
+
+The manual commands below do exactly the same thing under the hood,
+useful if you want to see or script each step directly, or need an
+option the GUI doesn't expose.
 
 **First, set up a working directory *outside* this repo.** Every
 example from here on uses one, matching the naming this project's own
