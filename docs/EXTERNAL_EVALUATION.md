@@ -174,6 +174,54 @@ cd ~/hamsci_LSTID_detection
 pip install -e .
 ```
 
+**Read this before running the command above, especially if you are
+not inside a virtual environment.** That repo's own `pyproject.toml`
+pins *exact* versions of several packages this toolkit also uses
+(`numpy==1.26.4`, `scipy==1.13.1`, `pandas==2.2.2`, `matplotlib`,
+`cartopy`, `pillow`, `h5py`) -- not minimum versions like this
+project's own `requirements.txt` uses. `pip install -e .` will
+**silently downgrade** any of those already installed to newer
+versions, to satisfy the exact pin. Confirmed live: running this in
+the same environment as `psws-drf-tid-tools` downgraded numpy, scipy,
+pandas, matplotlib, cartopy, pillow, pyarrow, and h5py all at once,
+with no prompt or warning from pip about it happening.
+
+- **Inside a dedicated virtual environment (recommended, see
+  README.md's own venv section): this is harmless.** The downgraded
+  versions still satisfy this project's own minimum-version
+  constraints (checked directly, not assumed), and nothing outside
+  that venv is affected at all -- confirmed by checking `numpy
+  .__file__` before and after, showing two entirely separate
+  installations.
+- **Without a venv -- installed to your user site-packages or, worse,
+  with `--break-system-packages` to the real system Python -- this
+  downgrade is not contained.** It can affect *every* other Python
+  program on the machine or for that user, including unrelated tools
+  like GNU Radio if they happen to share that same Python interpreter
+  rather than their own separate environment, and can conflict with
+  packages your OS's own package manager (`apt`) is separately
+  managing -- exactly the risk Debian/Ubuntu's "externally-managed-
+  environment" protection exists to prevent.
+
+If you want to avoid any of this entirely, give this repo its own
+separate virtual environment rather than sharing the one used for
+`psws-drf-tid-tools`:
+
+```bash
+python3 -m venv ~/hamsci_LSTID_detection/.venv
+source ~/hamsci_LSTID_detection/.venv/bin/activate
+cd ~/hamsci_LSTID_detection
+pip install -e .
+deactivate
+```
+
+`run_madrigal_tools.py --tool lstid` and `tid_external_helper.py`'s
+LSTID checkbox both invoke `run_LSTID_detection.py` as a separate
+subprocess using `python3` from whatever environment is currently
+active when *they* run -- so if you go this route, activate that
+separate venv in the same terminal before launching either tool,
+rather than the `psws-drf-tid-tools` one.
+
 That repo's own README lists its full requirements: `cartopy`,
 `dask`, `h5py`, `matplotlib`, `numpy`, `pandas`, `pillow`, `polars`,
 `pyarrow`, `pysolar`, `scipy`, `statsmodels`. Six of those

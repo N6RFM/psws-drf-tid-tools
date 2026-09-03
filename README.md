@@ -95,6 +95,14 @@ gets rebuilt from scratch, since a partial reinstall can otherwise go
 unnoticed until a specific feature happens to be exercised and fails
 with a confusing, buried error.
 
+**Installing the separate `hamsci_LSTID_detection` toolkit into this
+same venv?** Its own dependencies use exact version pins rather than
+minimums, and installing it can silently downgrade several packages
+this toolkit also uses. Harmless inside a venv, but a real risk to
+other software if done without one -- see
+[`docs/EXTERNAL_EVALUATION.md`](docs/EXTERNAL_EVALUATION.md) \u00a73
+before running `pip install -e .` there.
+
 When done: `deactivate`. To resume: `source .venv/bin/activate`.
 
 **PSWS server down, or just want to try the pipeline risk-free?** See
