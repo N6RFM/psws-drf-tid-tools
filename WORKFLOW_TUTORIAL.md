@@ -428,6 +428,19 @@ every comparison is anchored to. A running comparison table (speed,
 bearing, flag count) is shown after every combination you try, so you
 can see how a result shifted as soon as you change the station list.
 
+**After you finish exploring:** if a DOA result exists (it will, from
+the loop above), you're asked:
+
+    Generate a station map showing the TID direction? [y/N]:
+
+Type `y` to generate one via `tid_map.py` — station locations, WWV-path
+midpoints, and the wave direction arrow, auto-filled from the just-
+computed result — which then opens automatically for you to look at.
+
+This is also the point to cross-check the result against independent
+data (Kp/AE, GNSS TEC, LSTID detection) — see `tid_external_helper.py`
+or [`docs/EXTERNAL_EVALUATION.md`](docs/EXTERNAL_EVALUATION.md) directly.
+
 When running `tid_doa.py` directly (outside the workflow), use the
 `--drop` flag instead of the interactive prompt — this is unchanged:
 

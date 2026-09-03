@@ -79,6 +79,26 @@ the most complete picture.
 
 ## Tools
 
+**GUI option:** `tid_external_helper.py` is a checkbox GUI wrapping
+everything below -- it reads an event's own `tid_workflow_event.json`
+and `tid_doa_result.json` to auto-fill the event window and DOA
+result, so you don't retype numbers you already computed, and lets
+you check boxes for which sources to query rather than running each
+command by hand. The command-line usage below still applies exactly
+as documented if you prefer it directly, or need options the GUI
+doesn't expose.
+
+For the GNSS TEC checkbox specifically, the GUI calls
+`fetch_madrigal_tec.py` directly with `--doa-speed`/
+`--doa-azimuth-from` rather than going through
+`run_madrigal_tools.py --tool gnss` -- found live that
+`run_madrigal_tools.py`'s own wrapper never forwards those two flags
+to `fetch_madrigal_tec.py` at all, which silently left every DOA-lag
+comparison column in the report blank regardless of what was entered.
+The HamSCI LSTID Detection checkbox still goes through
+`run_madrigal_tools.py --tool lstid`, since that path doesn't need a
+DOA comparison anyway.
+
 | Tool | Data source | What it checks |
 |------|-------------|----------------|
 | `evaluate_external.py` | Kp + AE (GFZ Potsdam / WDC Kyoto) | Storm level and substorm activity |

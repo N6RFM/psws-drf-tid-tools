@@ -2131,6 +2131,45 @@ def run_workflow(args):
                             if s["name"].upper() != upper_ans]
         dropped_stations.append(match[0])
 
+    # Optional: station map with TID direction, using tid_map.py.
+    # Reads tid_doa_result.json (written by tid_doa.py v1.5.1+) rather
+    # than trying to capture/parse the DOA subprocess's own printed
+    # output -- same principle as effective_ylim()'s manual override
+    # and every other place this project prefers a structured file
+    # over a fragile text parser.
+    doa_result_path = event_dir / "tid_doa_result.json"
+    if doa_result_path.exists():
+        make_map = input(
+            "\n  Generate a station map showing the TID direction? "
+            "[y/N]: "
+        ).strip().lower()
+        if make_map == "y":
+            with open(doa_result_path) as f:
+                doa_result = json.load(f)
+            map_png = event_dir / "tid_map.png"
+            print(f"\n  $ python3 {tool('tid_map.py')} --config "
+                  f"{config_path} --output {map_png} --azimuth-toward "
+                  f"{doa_result['azimuth_to_deg']:.1f} --speed "
+                  f"{doa_result['speed_m_s']:.1f}")
+            r = run([
+                "python3", tool("tid_map.py"),
+                "--config", str(config_path),
+                "--output", str(map_png),
+                "--azimuth-toward", f"{doa_result['azimuth_to_deg']:.1f}",
+                "--speed", f"{doa_result['speed_m_s']:.1f}",
+            ])
+            if r.returncode == 0 and map_png.exists():
+                print(f"  Wrote {map_png}")
+                try:
+                    subprocess.Popen(
+                        ["xdg-open", str(map_png)],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except Exception:
+                    print(f"  Couldn't auto-open the image -- view it "
+                          f"manually at {map_png}")
+            else:
+                print("  ERROR: tid_map.py failed -- see output above.")
+
     print(f"\n{'='*60}")
     print("Workflow complete.")
     print(f"{'='*60}")
