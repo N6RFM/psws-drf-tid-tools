@@ -144,26 +144,39 @@ def main():
               "are unaffected.")
         print("      Fix (Debian/Ubuntu): sudo apt install python3-tk")
 
-    # polars is NOT a dependency of anything in this repo -- it belongs
-    # to hamsci_LSTID_detection, a separate GitHub repo this project
-    # only shells out to (see docs/EXTERNAL_EVALUATION.md §3). Checked
-    # here anyway, informationally, because tid_external_helper.py's
-    # LSTID checkbox needs it and a real run got most of the way
-    # through a genuinely slow (but working) GNSS TEC step before
-    # failing on this partway into the LSTID step -- surfacing it here
-    # means finding out before starting a run, not partway through one.
+    # None of these are dependencies of anything in this repo -- they
+    # belong to hamsci_LSTID_detection, a separate GitHub repo this
+    # project only shells out to (see docs/EXTERNAL_EVALUATION.md §3).
+    # Checked here anyway, informationally, because tid_external_helper
+    # .py's LSTID checkbox needs them, and checking only "polars" here
+    # (an earlier version of this) genuinely wasn't enough: a real run
+    # got most of the way through a working GNSS TEC step, past the
+    # polars check, and then failed on a *second*, different missing
+    # dependency (pyarrow) partway into the LSTID step. This list is
+    # the complete one, taken directly from that repo's own README
+    # ("Requirements" section) rather than adding packages here one at
+    # a time as each one surfaces -- cartopy/matplotlib/numpy/pandas/
+    # pillow/scipy are already required above and aren't repeated here.
     print()
-    polars_ok = check("polars")
-    print(f"  [{'OK  ' if polars_ok else 'missing'}] polars (NOT required "
-          f"by this repo -- only by the separate hamsci_LSTID_detection "
-          f"toolkit)")
-    if not polars_ok:
-        print("      Affects: tid_external_helper.py's HamSCI LSTID "
-              "Detection checkbox only, and only if you've already "
-              "cloned that separate repo -- irrelevant otherwise.")
-        print("      Fix: pip install 'polars[rtcompat]' -- see "
-              "docs/EXTERNAL_EVALUATION.md \u00a73 for why the "
-              "[rtcompat] variant specifically, on some CPUs.")
+    lstid_specific_deps = ["dask", "h5py", "polars", "pyarrow",
+                           "pysolar", "statsmodels"]
+    missing_lstid = [d for d in lstid_specific_deps if not check(d)]
+    for dep in lstid_specific_deps:
+        ok = dep not in missing_lstid
+        print(f"  [{'OK  ' if ok else 'missing'}] {dep} (NOT required by "
+              f"this repo -- only by the separate hamsci_LSTID_detection "
+              f"toolkit)")
+    if missing_lstid:
+        print(f"      Affects: tid_external_helper.py's HamSCI LSTID "
+              f"Detection checkbox only, and only if you've already "
+              f"cloned that separate repo -- irrelevant otherwise.")
+        fix = f"pip install {' '.join(missing_lstid)}"
+        if "polars" in missing_lstid:
+            fix = fix.replace("polars", "'polars[rtcompat]'")
+        print(f"      Fix: {fix}" +
+              (" -- see docs/EXTERNAL_EVALUATION.md \u00a73 for why "
+               "the [rtcompat] variant specifically, on some CPUs."
+               if "polars" in missing_lstid else "."))
 
     print()
     if missing_required:

@@ -141,12 +141,19 @@ def save_madrigal_user(fullname, email, affiliation):
 def lstid_repo_status():
     """Best-effort check for the separate hamsci_LSTID_detection repo
     AND its own dependencies -- not just that the repo directory
-    exists. Found live: the repo can be cloned but missing a real
-    dependency (polars) that only surfaces as a mid-run traceback
-    after the GNSS TEC step has already spent real time completing --
-    checking `import polars` here up front catches exactly that case
-    before the operator commits to a run, instead of after.
-    Returns (ok: bool, reason: str)."""
+    exists. Found live, twice: the repo can be cloned but missing a
+    real dependency (first polars, then a real run hit a second,
+    different one -- pyarrow) that only surfaces as a mid-run
+    traceback after the GNSS TEC step has already spent real time
+    completing. Checking one dependency at a time was clearly not
+    enough -- this checks the complete list, taken directly from that
+    repo's own README (github.com/HamSCI/hamsci_LSTID_detection,
+    "Requirements" section) rather than guessing package-by-package as
+    each one surfaces. cartopy/matplotlib/numpy/pandas/pillow/scipy
+    are already required by this project itself and are not
+    re-checked here -- only the packages genuinely specific to the
+    separate LSTID toolkit. Returns (ok: bool, reason: str).
+    """
     default_repo = Path.home() / "hamsci_LSTID_detection"
     if not (default_repo.exists() and (default_repo / "config").exists()):
         return False, (
@@ -154,15 +161,27 @@ def lstid_repo_status():
             f"docs/EXTERNAL_EVALUATION.md \u00a73 to install it "
             f"(separate repo, not part of this project)."
         )
-    try:
-        import polars  # noqa: F401
-    except ImportError:
+    # Only the packages genuinely specific to hamsci_LSTID_detection --
+    # see the docstring above for why the rest of its own requirements
+    # list isn't re-checked here.
+    lstid_specific_deps = ["dask", "h5py", "polars", "pyarrow",
+                            "pysolar", "statsmodels"]
+    missing = []
+    for dep in lstid_specific_deps:
+        try:
+            __import__(dep)
+        except ImportError:
+            missing.append(dep)
+    if missing:
         return False, (
-            f"Found at {default_repo}, but its 'polars' dependency "
-            f"isn't installed in this Python environment. Fix: "
-            f"pip install 'polars[rtcompat]' (see "
-            f"docs/EXTERNAL_EVALUATION.md \u00a73 for why the "
-            f"[rtcompat] variant specifically, on some CPUs)."
+            f"Found at {default_repo}, but missing "
+            f"{len(missing)} of its dependencies in this Python "
+            f"environment: {', '.join(missing)}. Fix: "
+            f"pip install {' '.join(missing)}"
+            + (" (use pip install 'polars[rtcompat]' instead of plain "
+               "polars if that's one of them -- see "
+               "docs/EXTERNAL_EVALUATION.md \u00a73 for why, on some "
+               "CPUs)." if "polars" in missing else ".")
         )
     return True, ("Amateur radio spot data (RBN/PSKReporter/WSPRNet), "
                   "several week latency.")
