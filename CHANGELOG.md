@@ -1,35 +1,111 @@
 ## v4.6.0 -- 2026-09-02
 
-### Documentation
+### Major changes
 
-#### `research_gui` branch archived and retired
-`research_gui` (and its collaboration counterpart, `gwyn-g3zil`) had
-served as a working research log since the project's early days --
-per its own `FINDINGS.md` header, validated code changes were PR'd to
-`main` as they were confirmed, but the research narrative itself
-(`FINDINGS.md`, `PROJECT_STATE.md`) was deliberately kept off `main`,
-"never merged," living only on those two branches.
+#### New: `mock_psws_server.py` and `tid_intake_helper.py` -- testing the real interactive pipeline without live PSWS access
+Built while the real PSWS server was unreachable, but useful well
+beyond that: `mock_psws_server.py` serves a local, byte-for-byte
+compatible stand-in for the real portal's station-directory and
+download-API pages, backed by genuinely valid synthetic Digital RF
+data for four fake stations (TESTKEY/TESTA/TESTB/TESTC). Every
+existing tool already supported `--out-dir`-style redirection in
+principle; the addition here is `PSWS_BASE_URL`, a one-line change
+each in `find_event_stations.py` and `download_companions.py`, so
+`export PSWS_BASE_URL=http://127.0.0.1:8765` transparently redirects
+the exact same code paths real events use, with no separate "test
+mode" branch to keep in sync. `tid_intake_helper.py` is a new,
+deliberately narrow Tkinter GUI wrapping discovery -> download ->
+command generation, for either real or mock use. See the new
+`docs/TESTING_WITHOUT_LIVE_DATA.md` for full setup and usage --
+distinct from `synthetic_tests/`'s existing automated batch
+validation, this is for exercising the real, interactive pipeline
+itself (channel-num confirmation, window selection, wave-fit
+clicking, the DOA explore loop) against realistic fake data.
 
-That branch had drifted 232 commits behind `main` and 188 ahead --
-not parallel unmerged feature work (confirmed directly: every file on
-`research_gui`, including `tid_dashboard.py` and the `synthetic_tests/`
-suite, already existed on `main` in a more current form) -- just the
-research log itself, which nothing else on `main` duplicated.
+The mock data carries a genuine, physically computed ground truth
+(400 m/s from 270 true bearing, 60-minute period) rather than being
+merely mechanically valid: each fake station's synthetic signal is
+time-shifted by its real propagation delay under that assumed plane
+wave, computed from its actual IPP midpoint. Getting this right took
+two real corrections, not one -- an initial version used
+`tid_workflow.py`'s plain arithmetic-average midpoint (the one used
+only for a quick preview print, not what feeds the actual DOA math)
+and a flat equirectangular projection; both were wrong, caught only
+by being asked to check carefully rather than trust an earlier quick
+grep. `tid_doa.py`'s own `great_circle_midpoint()` and
+`latlon_to_local_xy()` are now imported and reused directly, so the
+ground truth this generates is self-consistent with what the real
+solver solves, not merely a close approximation of it. A full
+workflow run against the mock data, using `wave-fit` extraction with
+the same window applied to all four stations, recovered 459.6 m/s
+from 275.0 true bearing against that 400/270 ground truth -- a real,
+working end-to-end validation of the corrected geometry, the
+auto-tuning from v4.5.0, and the period-hint seeding together.
 
-Rather than let 55+ entries of real, dated research history (event
-analyses, extraction bugs found and resolved, comparisons against
-independent methods) disappear with the branch, `FINDINGS.md`,
-`PROJECT_STATE.md`, and the `add_project_state_entry.py` script used
-to maintain the latter were archived verbatim into
-`docs/research-archive/` (PR #349), preserving them exactly as they
-stood at `research_gui`'s tip (`c346d15`, 2026-07-13). See
-`docs/research-archive/README.md` for full provenance.
+#### Four real bugs found via this testing, none related to the mock server's own logic
+Running real (unmodified) tools against freshly-generated synthetic
+data, for the first time in each case, surfaced bugs that had nothing
+to do with being synthetic -- they affect real stations too, just
+hadn't been exercised yet:
 
-With the archive in place on `main`, `research_gui` was deleted
-(remote and local) -- `main`'s own `CHANGELOG.md` is now the single
-place ongoing project history is recorded; the archive is a frozen
-historical snapshot, not a document either branch or file continues
-to receive new entries in.
+- **`drf_inspect.py` v1.2.0** and **`drf_spectrogram.py` v1.5.0**:
+  the same crash class in two call sites. `digital_rf`'s own
+  `DigitalMetadataReader` silently returns a bare scalar, not a
+  1-element array, when only one `center_frequencies` value was
+  written -- the common case for any real single-channel-num Grape
+  station, not a synthetic-data artifact. `drf_spectrogram.py`'s
+  version was worse: caught by a broad `except` and silently
+  swallowed, meaning the plot title fell back to "?" and
+  `--frequency`/WWV-detection silently stopped working, with no error
+  at all.
+- **`synthetic_tests/synthetic_drf.py` v1.1.0**: wrote
+  `center_frequencies` in raw Hz where the project's own established
+  convention for this field is MHz (confirmed independently against
+  this same convention already documented in `tid_workflow.py`'s
+  v1.3.0 entry, from a real-station bug found separately). Silently
+  wrong; never caught because nothing in the official synthetic-test
+  suite ever read that field back.
+- **`drf_spectrogram.py`** (second, separate bug, same file/version):
+  selecting a TID window entirely outside a recording's actual bounds
+  produced a negative-duration read that crashed several frames deep
+  inside `numpy.percentile()` (`IndexError: index -1 is out of bounds
+  for axis 0 with size 0`) instead of any message pointing at the
+  real cause -- the bounds-clipping logic clipped `start_dt` and
+  `end_dt` independently but never checked whether the *entire*
+  requested window had no overlap with the recording at all. Now
+  exits with a clear, specific error instead.
+
+#### `tid_workflow.py` v1.5.0 -- coordinate auto-resolution and a proactive Y-axis redraw prompt
+Two usability gaps found directly through repeated live testing
+against the mock server, both now fixed: `KNOWN_STATIONS` merges in
+`mock_psws_server.py`'s fake-station coordinates when that module is
+importable, so a test run resolves TESTKEY/TESTA/TESTB/TESTC the same
+way it would a real callsign instead of stopping to ask for lat/lon by
+hand every time (the same fix applied in `tid_intake_helper.py`).
+
+More substantially: v4.5.0's keystone auto-tuning (see above) has an
+inherent gap for whichever station goes first, real or synthetic --
+its own amplitude isn't known until after its own wave-fit runs, so
+its first full-day view is stuck at the flat default no matter how
+squished a small real signal looks. `effective_ylim()` now checks a
+per-station manual override first; `maybe_redraw_fullday()` opens
+every station's full-day image automatically (`xdg-open`) the moment
+it's written and asks whether to redraw it at a custom range --
+proactively, every single time, not hidden behind the existing
+redo-window flow at the end of a run. Direct, repeated feedback during
+testing shaped this: a fix only reachable by already knowing to type a
+station name at the final "Proceed with extraction?" prompt doesn't
+count as solving the problem, and asking for a numeric range without
+ever having shown the plot isn't a real choice either -- both had to
+be addressed for this to actually work as intended.
+
+#### Documentation updated to match
+New `docs/TESTING_WITHOUT_LIVE_DATA.md`. Updated: `README.md` (file
+listing, quickstart pointer), `WORKFLOW_TUTORIAL.md` and
+`MANUAL_TUTORIAL.md` (Step 2's new proactive redraw behavior),
+`docs/TROUBLESHOOTING.md` (the out-of-bounds window error, a new
+top-level section on testing against a down PSWS server), and
+`docs/COOKBOOK.md` (a new recipe entry).
 
 ---
 

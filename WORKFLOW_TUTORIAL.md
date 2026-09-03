@@ -26,6 +26,11 @@ tid_event_20260119/       <- event directory passed to --event-dir
 - PyQt5 and pyqtgraph for the interactive GUI windows:
   `pip install PyQt5 pyqtgraph Pillow`
 
+**Don't have data yet, or PSWS unreachable?** See
+[`docs/TESTING_WITHOUT_LIVE_DATA.md`](docs/TESTING_WITHOUT_LIVE_DATA.md)
+to run this entire tutorial against a local mock server with realistic
+fake stations instead.
+
 ---
 
 ## Finding companion stations
@@ -135,8 +140,31 @@ and press X to export your trace.
 
 ### Step 2 -- Full-day spectrogram
 
-Generated automatically at 100 dpi for each station. Used in Step 3
-to select the TID window. No user input required.
+Generated automatically at 100 dpi for each station. As of v1.5.0,
+the image then opens automatically for you to look at, and you're
+asked:
+
+    Full-day view for TESTKEY is at ±5.00 Hz. Enter a new half-range
+    in Hz to redraw it, or press Enter to keep it:
+
+This happens **every time, for every station** -- not just when
+something looks obviously wrong. Look at the plot that opened: if the
+wave is a thin, hard-to-see squiggle hugging the middle, type a
+smaller number (e.g. `1.0`) to redraw the plot at a tighter range
+before moving on to window selection in Step 3. Press Enter to keep
+the current range if it already looks reasonable.
+
+For every station after the first, the range is usually already
+sensibly auto-tightened based on the keystone station's own measured
+amplitude (see v4.5.0's auto-tuning) -- but the very first station
+processed can't benefit from that yet, since no amplitude is known
+until *after* its own wave-fit runs. That's the main case this prompt
+exists for, though it's offered for every station in case the
+auto-tightened range still isn't quite right for a particular one.
+
+If you pick a custom range and later redo this station's window (via
+the Window Summary prompt in Step 8), your custom range is remembered
+and offered again as the new starting point.
 
 ---
 
@@ -153,7 +181,9 @@ After the first station's window is saved:
 
     Apply 00:00-02:00 to all remaining stations? [y/N]:
 
-Type `y` to use the same window for all stations (recommended).
+Type `y` to use the same window for all stations (recommended) --
+misaligned windows across stations inject real timing noise into the
+DOA cross-correlation later.
 
 ---
 
@@ -445,6 +475,15 @@ Try a different combination via the interactive loop (workflow) or:
 python3 tid_doa.py event.json --drop W7LUX
 python3 tid_doa.py event.json --drop AC0G_ND
 ```
+
+**"requested window has no overlap with the actual recording"**
+The window selected in Step 3 (or a `--start`/`--end` passed manually)
+falls entirely outside the recording's real bounds. Pick a window
+inside the actual recording — see
+[`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) for the full
+explanation. Easy to hit when testing against
+[`mock_psws_server.py`](docs/TESTING_WITHOUT_LIVE_DATA.md)'s fake
+data, which is only one hour long.
 
 ---
 

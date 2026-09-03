@@ -180,7 +180,7 @@ __version__ = "1.0.0"
 # Constants
 # ----------------------------------------------------------------------------
 
-PSWS_BASE = "https://pswsnetwork.eng.ua.edu"
+PSWS_BASE = os.environ.get("PSWS_BASE_URL", "https://pswsnetwork.eng.ua.edu")
 STN_PATH = "/stations/stations/"
 DOWNLOAD_API_PATH = "/observations/downloadapi/"
 UA = "Mozilla/5.0 (download_companions.py for psws-drf-tid-tools)"

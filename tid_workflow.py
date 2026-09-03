@@ -4,10 +4,44 @@ tid_workflow.py — guided TID direction-of-arrival workflow
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.4.0
+Version: 1.5.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.5.0  Three additions, all found necessary through actual testing
+          against mock_psws_server.py rather than planned in advance:
+
+          1. KNOWN_STATIONS now merges in mock_psws_server.py's
+             FAKE_STATIONS (TESTKEY/TESTA/TESTB/TESTC) when that
+             module is importable, so a mock-data test run resolves
+             coordinates automatically instead of stopping to ask for
+             lat/lon by hand. No-ops cleanly if the mock server isn't
+             present (a normal, non-testing checkout).
+
+          2. effective_ylim() now checks a per-station manual
+             override (state[f"{stn_key}_manual_ylim"]) before its
+             existing auto-tuned/explicit-default logic. Exists
+             because the keystone station's own first full-day view
+             can never benefit from auto-tuning -- its amplitude
+             isn't known until after its own wave-fit runs -- so on a
+             first pass that view is stuck at the flat default no
+             matter how squished a small real signal looks. Confirmed
+             against both a real and a synthetic keystone station.
+
+          3. maybe_redraw_fullday(): immediately after EVERY station's
+             full-day spectrogram is generated -- not hidden behind a
+             separate redo-window flow reachable only by already
+             knowing to type a station name at the final prompt --
+             the image is opened automatically (xdg-open) and the
+             operator is asked whether to redraw it at a custom
+             Y-axis range before proceeding to window selection.
+             Direct, repeated feedback during testing: asking for a
+             numeric range without ever having shown the plot isn't a
+             real choice, and a fix only reachable at the very end of
+             a run doesn't solve the problem it was built for -- it
+             has to happen right here, right after the plot the
+             operator is actually looking at, every single time.
+
   v1.4.0  Keystone-driven auto-tuning, DOA explore loop, and several
           real bugs found via live use against the actual Jan 19 2026
           4-station event, working end to end for the first time.
@@ -234,6 +268,18 @@ KNOWN_STATIONS = {
     "KD9UKK":  (41.7000,  -86.2300, "EN61xx"),
 }
 
+# Also recognize mock_psws_server.py's fake test stations (TESTKEY,
+# TESTA, etc.) so a test run against the mock server doesn't stop to
+# ask for lat/lon by hand. Reuses that dict directly rather than a
+# second hardcoded copy -- see the identical fix in
+# tid_intake_helper.py. No-ops if mock_psws_server.py isn't present.
+try:
+    from mock_psws_server import FAKE_STATIONS as _FAKE_STATIONS
+    for _nick, _sid, _grid, _lat, _lon in _FAKE_STATIONS.values():
+        KNOWN_STATIONS[_nick] = (_lat, _lon, _grid)
+except Exception:
+    pass
+
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 TOOLS_DIR = Path(__file__).parent.resolve()
@@ -294,8 +340,19 @@ def estimate_wave_params(csv_path):
         return None, None
 
 
-def effective_ylim(args, state):
+def effective_ylim(args, state, stn_key=None):
     """Doppler y-axis half-range (Hz) to use for a spectrogram plot.
+
+    Checks a per-station manual override first (state[f"{stn_key}_manual_ylim"],
+    set via the window-redo flow's "custom Y-axis range" prompt) -- added
+    because the keystone station's own full-day view (used for the very
+    first window-selection drag-select) can't benefit from auto-tuning:
+    its amplitude isn't known until AFTER its own wave-fit runs, so on a
+    first pass its full-day spectrogram is stuck at the flat default no
+    matter how squished that makes a small real signal look. A manual
+    override lets the operator fix that directly instead of waiting on
+    a chicken-and-egg problem with no automatic solution. Confirmed live
+    against both real and synthetic keystone stations.
 
     Once the keystone station's own wave amplitude is known (see
     estimate_wave_params), tighten the default +/-5 Hz range toward
@@ -305,6 +362,10 @@ def effective_ylim(args, state):
     accuracy. Never widens beyond whatever range is already in
     effect, and never overrides an explicit --ylim-half-range from
     the user (tracked via args._ylim_explicit, set in run_workflow)."""
+    if stn_key:
+        manual = state.get(f"{stn_key}_manual_ylim")
+        if manual:
+            return manual
     if getattr(args, "_ylim_explicit", False) or args.no_keystone_auto_tune:
         return args.ylim_half_range
     amp = state.get("keystone_amplitude_hz")
@@ -328,6 +389,74 @@ def effective_ylim(args, state):
     # a large margin_pct combined with a large amplitude from quietly
     # producing a wider-than-intended plot.
     return min(tightened, args.ylim_half_range)
+
+
+def maybe_redraw_fullday(args, state, state_file, stn_key, name,
+                          drf_dir_s, sub, grid, fullday_png):
+    """Offer to redraw the just-generated full-day spectrogram at a
+    custom Y-axis range, immediately after it appears -- every single
+    time, for every station. NOT hidden behind a separate redo-window
+    flow at the end of the run: real, direct feedback was that a fix
+    only reachable by already knowing to type a station name at the
+    final "Proceed with extraction?" prompt does not count as "being
+    asked" -- it has to happen right here, right after the plot the
+    operator is actually looking at, or it doesn't solve the problem
+    it was built for. Persists as state[f"{stn_key}_manual_ylim"],
+    which effective_ylim() checks first, ahead of both the auto-tuned
+    and explicit-default logic."""
+    current_ylr = effective_ylim(args, state, stn_key)
+
+    # Actually show the plot before asking anything about it. Real gap
+    # found live: this function previously asked "enter a new
+    # half-range" without ever having displayed the image anywhere --
+    # Step 2 only WRITES the PNG to disk, and the only place the
+    # operator actually SEES a spectrogram is Step 3's interactive
+    # viewer, which happens AFTER this prompt. Asking for a number
+    # sight-unseen isn't a real choice. xdg-open pops the PNG in
+    # whatever image viewer is already registered as the default on
+    # this desktop -- best effort: if that fails (headless box, no
+    # viewer registered, xdg-open missing), say so plainly and give
+    # the exact file path instead of silently asking the same
+    # impossible question.
+    try:
+        subprocess.Popen(["xdg-open", str(fullday_png)],
+                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print(f"  Opening {name}'s full-day view for you to look at "
+              f"({fullday_png.name})...")
+    except Exception:
+        print(f"  Couldn't auto-open the image -- view it manually at "
+              f"{fullday_png} before answering below.")
+
+    custom = input(
+        f"  Full-day view for {name} is at \u00b1{current_ylr:.2f} Hz. "
+        f"Enter a new half-range in Hz to redraw it, or press Enter to "
+        f"keep it: "
+    ).strip()
+    if not custom:
+        return
+    try:
+        custom_val = float(custom)
+        if custom_val <= 0:
+            raise ValueError
+    except ValueError:
+        print(f"  '{custom}' isn't a valid positive number -- keeping "
+              f"the current \u00b1{current_ylr:.2f} Hz range.")
+        return
+    state[f"{stn_key}_manual_ylim"] = custom_val
+    save_state(state_file, state)
+    print(f"  Regenerating {name}'s full-day view at "
+          f"\u00b1{custom_val:.2f} Hz...")
+    run([
+        "python3", tool("drf_spectrogram.py"),
+        drf_dir_s, "--channel-num", str(sub),
+        "--output", str(fullday_png),
+        "--start", "00:00", "--end", "24:00",
+        f"--ylim=-{custom_val},{custom_val}", "--dpi", "100",
+        "--callsign", name,
+        "--grid", grid,
+    ])
+    state[f"{stn_key}_fullday"] = str(fullday_png)
+    save_state(state_file, state)
 
 
 def tool(name):
@@ -940,7 +1069,7 @@ def run_workflow(args):
                             '--channel-num', str(sub_i),
                             '--output', str(thumb),
                             '--start', '00:00', '--end', '24:00',
-                            f'--ylim=-{effective_ylim(args, state)},{effective_ylim(args, state)}', '--dpi', '60',
+                            f'--ylim=-{effective_ylim(args, state, name.lower())},{effective_ylim(args, state, name.lower())}', '--dpi', '60',
                             '--callsign', name,
                         ])
                     freq_str = f' {freq_i/1e6:.3f} MHz' if freq_i else ''
@@ -1016,7 +1145,7 @@ def run_workflow(args):
                     "--channel-num", str(sub),
                     "--output", str(fullday_png),
                     "--start", "00:00", "--end", "24:00",
-                    f"--ylim=-{effective_ylim(args, state)},{effective_ylim(args, state)}", "--dpi", "100",
+                    f"--ylim=-{effective_ylim(args, state, stn_key)},{effective_ylim(args, state, stn_key)}", "--dpi", "100",
                     "--callsign", name,
                     "--grid", stn.get("grid", "?"),
                 ])
@@ -1025,6 +1154,9 @@ def run_workflow(args):
                     return
                 state[f"{stn_key}_fullday"] = str(fullday_png)
                 save_state(state_file, state)
+                maybe_redraw_fullday(args, state, state_file, stn_key, name,
+                                      drf_dir_s, sub, stn.get("grid", "?"),
+                                      fullday_png)
 
             if f"{stn_key}_window" not in state:
                 print(f"\n[Step 3] Select TID window for {name}...")
@@ -1160,7 +1292,7 @@ def run_workflow(args):
                 "--channel-num", str(sub),
                 "--output", str(fullday_png),
                 "--start", "00:00", "--end", "24:00",
-                f"--ylim=-{effective_ylim(args, state)},{effective_ylim(args, state)}", "--dpi", "100",
+                f"--ylim=-{effective_ylim(args, state, stn_key)},{effective_ylim(args, state, stn_key)}", "--dpi", "100",
                 "--callsign", name,
                 "--grid", stn.get("grid", "?"),
             ])
@@ -1169,6 +1301,9 @@ def run_workflow(args):
                 continue
             state[f"{stn_key}_fullday"] = str(fullday_png)
             save_state(state_file, state)
+            maybe_redraw_fullday(args, state, state_file, stn_key, name,
+                                  drf_dir_s, sub, stn.get("grid", "?"),
+                                  fullday_png)
 
         # Step 3: User selects TID window
         if f"{stn_key}_window" not in state:
@@ -1217,7 +1352,7 @@ def run_workflow(args):
                 "--channel-num", str(sub),
                 "--output", str(zoom_clean_png),
                 "--window", str(window_json),
-                f"--ylim=-{effective_ylim(args, state)},{effective_ylim(args, state)}", "--dpi", "150",
+                f"--ylim=-{effective_ylim(args, state, stn_key)},{effective_ylim(args, state, stn_key)}", "--dpi", "150",
                 "--callsign", name,
                 "--grid", stn.get("grid", "?"),
             ])
@@ -1315,7 +1450,7 @@ def run_workflow(args):
                     state["keystone_amplitude_hz"] = _amp_hz
                     state["keystone_period_s"] = _period_s
                     save_state(state_file, state)
-                    _ylr = effective_ylim(args, state)
+                    _ylr = effective_ylim(args, state, stn_key)
                     _margin_note = (f" (includes +{args.ylim_margin_pct:.0f}% "
                                      f"margin)" if args.ylim_margin_pct else "")
                     _cap_note = (" [capped at --ylim-half-range ceiling]"
@@ -1466,7 +1601,7 @@ def run_workflow(args):
                     "--channel-num", str(sub),
                     "--output", str(zoom_png),
                     "--window", str(window_json),
-                    f"--ylim=-{effective_ylim(args, state)},{effective_ylim(args, state)}", "--dpi", "150",
+                    f"--ylim=-{effective_ylim(args, state, stn_key)},{effective_ylim(args, state, stn_key)}", "--dpi", "150",
                     "--callsign", name,
                     "--grid", stn.get("grid", "?"),
                     f"--overlay={fft_csv}:FFT",
@@ -1518,6 +1653,48 @@ def run_workflow(args):
         zoom_clean_png = event_dir / f"{stn_key}_tid_zoom_clean.png"
         window_json    = event_dir / f"{stn_key}_fullday_window.json"
         zoom_window    = event_dir / f"{stn_key}_tid_zoom_window.json"
+
+        # Offer a custom Y-axis range before re-selecting the window.
+        # Real gap found live: this redo path already lets you re-pick
+        # the window itself, but never the full-day view's y-axis --
+        # which matters most for exactly the station that can't benefit
+        # from auto-tuning (the keystone on its first pass, before any
+        # amplitude is known yet), confirmed against both a real and a
+        # synthetic keystone station. A manual override here is the
+        # only fix for that chicken-and-egg case; effective_ylim()
+        # checks state[f"{stn_key}_manual_ylim"] first, ahead of both
+        # the auto-tuned and explicit-default logic, so this persists
+        # if the station is redone again later too.
+        current_ylr = effective_ylim(args, state, stn_key)
+        custom = input(
+            f"  Full-day view is currently \u00b1{current_ylr:.2f} Hz for "
+            f"{name}. Enter a new half-range in Hz to redraw it before "
+            f"selecting the window, or press Enter to keep it: "
+        ).strip()
+        if custom:
+            try:
+                custom_val = float(custom)
+                if custom_val <= 0:
+                    raise ValueError
+                state[f"{stn_key}_manual_ylim"] = custom_val
+                save_state(state_file, state)
+                print(f"  Regenerating {name}'s full-day view at "
+                      f"\u00b1{custom_val:.2f} Hz...")
+                run([
+                    "python3", tool("drf_spectrogram.py"),
+                    drf_dir_s, "--channel-num", str(sub),
+                    "--output", str(fullday_png),
+                    "--start", "00:00", "--end", "24:00",
+                    f"--ylim=-{custom_val},{custom_val}", "--dpi", "100",
+                    "--callsign", name,
+                    "--grid", redo_stn.get("grid", "?"),
+                ])
+                state[f"{stn_key}_fullday"] = str(fullday_png)
+                save_state(state_file, state)
+            except ValueError:
+                print(f"  '{custom}' isn't a valid positive number -- "
+                      f"keeping the current \u00b1{current_ylr:.2f} Hz range.")
+
         # Step 3 redo
         print(f"\n[Step 3] Select TID window for {name}...")
         run(["python3", tool("tid_quicklook.py"),
@@ -1536,7 +1713,7 @@ def run_workflow(args):
             drf_dir_s, "--channel-num", str(sub),
             "--output", str(zoom_clean_png),
             "--window", str(window_json),
-            f"--ylim=-{effective_ylim(args, state)},{effective_ylim(args, state)}", "--dpi", "150",
+            f"--ylim=-{effective_ylim(args, state, stn_key)},{effective_ylim(args, state, stn_key)}", "--dpi", "150",
             "--callsign", name,
             "--grid", redo_stn.get("grid", "?"),
         ])
@@ -1567,7 +1744,7 @@ def run_workflow(args):
             drf_dir_s, "--channel-num", str(sub),
             "--output", str(zoom_clean_png),
             "--window", str(zoom_window) if zoom_window.exists() else str(window_json),
-            f"--ylim=-{effective_ylim(args, state)},{effective_ylim(args, state)}", "--dpi", "150",
+            f"--ylim=-{effective_ylim(args, state, stn_key)},{effective_ylim(args, state, stn_key)}", "--dpi", "150",
             "--callsign", name,
             "--grid", redo_stn.get("grid", "?"),
         ])
