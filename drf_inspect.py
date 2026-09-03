@@ -4,10 +4,33 @@ correct channel-num for a target WWV frequency
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.1.0
+Version: 1.2.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.2.0  Fixed a real crash on the common case: single-channel-num
+          stations (the vast majority -- any regular Grape v1/v2
+          receiver with just one WWV frequency). Reproduced directly,
+          isolated from this file entirely: writing
+          center_frequencies as a 1-element array
+          (np.array([10_000_000.0])) via DigitalMetadataWriter, then
+          reading it back via DigitalMetadataReader, returns a bare
+          Python float, not a 1-element array -- confirmed this is
+          digital_rf's own read-back behavior, not something in this
+          codebase. list(freqs) on that bare float raised
+          "TypeError: 'float' object is not iterable", crashing
+          before printing anything past "Station metadata:". Found by
+          actually running this against a freshly-generated synthetic
+          single-channel-num station (via mock_psws_server.py +
+          synthetic_tests/synthetic_drf.py) rather than only real
+          multi-channel-num field data, which never exercised this
+          path since those stations' genuinely-multi-element arrays
+          survive the read-back as real arrays. Fixed by checking
+          hasattr(freqs, "__iter__") before calling list() on it,
+          wrapping a bare scalar into a single-element list instead --
+          handles any numpy scalar dtype uniformly, not just plain
+          Python float, without needing to import or special-case
+          numpy's various scalar types.
   v1.1.0  Renamed "subchannel" to "channel-num" throughout (CLI flag,
           function name, all printed output and docstring prose).
           "Subchannel" incorrectly implied a single combined signal
@@ -248,7 +271,11 @@ def inspect_one(drf_dir, target_freq_mhz=None, channel="ch0"):
     freqs = station_info.get("center_frequencies")
     target_idx = None
     if freqs is not None:
-        freqs_list = list(freqs)
+        # See v1.2.0 changelog entry above: digital_rf's own
+        # DigitalMetadataReader returns a bare scalar (not a
+        # 1-element array) when only one center_frequencies value was
+        # written, which is the common single-channel-num case.
+        freqs_list = list(freqs) if hasattr(freqs, "__iter__") else [freqs]
         print(f"\n  Channel-nums and their center frequencies:")
         print(f"    {'Index':<6} {'Freq (MHz)':<12} {'WWV?':<6} {'Target?':<8}")
         wwv_freqs = {2.5, 5.0, 10.0, 15.0, 20.0, 25.0}

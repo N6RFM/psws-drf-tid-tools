@@ -9,16 +9,18 @@ pipeline, or are debugging a specific issue.
 > everything below and adds a few conveniences this manual path
 > doesn't have: it auto-tightens each zoomed spectrogram's y-axis
 > toward the keystone station's own measured amplitude instead of a
-> flat +/-5 Hz default, auto-seeds `tid_spect_click.py`'s
-> `--period-hint` from the keystone for every station after it, and
-> its DOA step can test every station combination automatically
-> (`all`) rather than dropping one station at a time by hand. None of
-> that changes what the individual tools below actually do or accept
-> — it's purely orchestration — so this manual tutorial remains
-> accurate command-by-command. Worth knowing about if you find
-> yourself manually repeating the same `--ylim`/`--period-hint`
-> guesswork across several stations, since the guided workflow does
-> that part for you.
+> flat +/-5 Hz default, offers to redraw any station's full-day view
+> at a custom range immediately after it's generated (the plot opens
+> automatically for you to look at first), auto-seeds
+> `tid_spect_click.py`'s `--period-hint` from the keystone for every
+> station after it, and its DOA step can test every station
+> combination automatically (`all`) rather than dropping one station
+> at a time by hand. None of that changes what the individual tools
+> below actually do or accept — it's purely orchestration — so this
+> manual tutorial remains accurate command-by-command. Worth knowing
+> about if you find yourself manually repeating the same
+> `--ylim`/`--period-hint` guesswork across several stations, since
+> the guided workflow does that part for you.
 
 The reference event is the **19 January 2026 LSTID** recorded by four
 HamSCI Grape stations during a geomagnetic storm.
@@ -62,6 +64,12 @@ python3 find_event_stations.py \
 This queries the PSWS portal and returns a ranked list of candidate stations
 scored by baseline geometry, path length, and SNR. Choose 3-5 stations from
 different azimuth quadrants for best DOA geometry.
+
+**PSWS unreachable, or want to try this pipeline without real data?**
+See [`docs/TESTING_WITHOUT_LIVE_DATA.md`](docs/TESTING_WITHOUT_LIVE_DATA.md)
+— every command in this tutorial works unmodified against a local mock
+server with realistic fake stations, just by exporting
+`PSWS_BASE_URL` first.
 
 ### Automated download (recommended)
 
@@ -164,6 +172,13 @@ python3 drf_spectrogram.py ./n6rfm \
 
 Repeat for each station. Look for a slow sinusoidal oscillation in
 the carrier track near 0 Hz -- this is the TID.
+
+**If the wave looks squished** (a thin squiggle hugging the middle of
+a flat +/-5 Hz range), re-run with a tighter `--ylim`, e.g.
+`--ylim=-1,1` — there's no need to guess blindly; open the PNG,
+judge the amplitude, and re-run. (`tid_workflow.py` does this step for
+you automatically and interactively — see the note at the top of this
+document.)
 
 ---
 

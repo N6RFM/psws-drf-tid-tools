@@ -56,6 +56,36 @@ python3 tid_doa.py examples/event_20260119.json
 
 ---
 
+## Example 2 — Synthetic ground-truth test
+
+Unlike Event 1 above, this one needs no downloaded data and is always
+available: `mock_psws_server.py` serves realistic fake stations
+(TESTKEY/TESTA/TESTB/TESTC) with a real, known ground truth built in
+— 400 m/s arriving from 270° true bearing, 60-minute period — so you
+can check the pipeline's recovered result against a real answer
+instead of just confirming it runs.
+
+```bash
+# Terminal 1
+python3 mock_psws_server.py
+
+# Terminal 2
+export PSWS_BASE_URL=http://127.0.0.1:8765
+python3 download_companions.py --date 2099-01-01 \
+    --stations TESTKEY TESTA TESTB TESTC \
+    --out-dir ~/Downloads/tid_event_20990101
+python3 tid_workflow.py --event-dir ~/Downloads/tid_event_20990101 \
+    --stations TESTKEY,TESTA,TESTB,TESTC --my-station TESTKEY --max-lag 30
+```
+
+A `wave-fit` run with the same window applied to all four stations
+should land in the neighborhood of the 400 m/s / 270° ground truth —
+see [`docs/TESTING_WITHOUT_LIVE_DATA.md`](../docs/TESTING_WITHOUT_LIVE_DATA.md)
+for full details, expected precision, and how this differs from the
+`synthetic_tests/` batch validation suite.
+
+---
+
 ## Adding your own event
 
 Copy one of the JSON configs above and edit the station list, window times,

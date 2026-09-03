@@ -231,6 +231,31 @@ separately in `.psws_station_id_cache.json`. They're not
 interchangeable — this is why `download_companions.py` maintains its
 own cache rather than reusing `find_event_stations.py`'s.
 
+### How do I test the pipeline when the PSWS server is unreachable?
+
+Both scripts read the `PSWS_BASE_URL` environment variable and use it
+in place of the real portal's URL — set it to point at
+`mock_psws_server.py`, a local stand-in shipped with this repo:
+
+```bash
+# Terminal 1 -- leave running
+python3 mock_psws_server.py
+
+# Terminal 2
+export PSWS_BASE_URL=http://127.0.0.1:8765
+python3 download_companions.py --date 2099-01-01 \
+    --stations TESTKEY TESTA TESTB TESTC \
+    --out-dir ~/Downloads/tid_event_20990101
+```
+
+`PSWS_BASE_URL` only lasts for the shell session it's exported in —
+re-export it in every new terminal. The mock data has a known,
+physically real ground truth (400 m/s from 270° true bearing) built
+in, so a full workflow run gives you an actual answer to check
+`tid_doa.py`'s result against, not just a check that nothing crashed.
+Full details, including the fake station roster and expected
+precision: [`TESTING_WITHOUT_LIVE_DATA.md`](TESTING_WITHOUT_LIVE_DATA.md).
+
 ### How do I download companion stations automatically?
 
 ```bash

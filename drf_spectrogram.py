@@ -3,8 +3,29 @@ drf_spectrogram.py — render an annotated Doppler spectrogram from DRF I/Q
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.4.0
+Version: 1.5.0
 License: MIT (do whatever you want, no warranty).
+
+Change log:
+  v1.5.0  Fixed the same single-channel-num crash class already found
+          and fixed in drf_inspect.py v1.2.0, but here in a different
+          call site: `if idx < len(fr):` assumed center_frequencies
+          always reads back as an array. digital_rf's own
+          DigitalMetadataReader returns a bare scalar (not a
+          1-element array) when only one value was written -- the
+          common case for any real single-channel-num Grape station,
+          not just synthetic test data. Previously caught by a broad
+          except and silently swallowed as "metadata read failed",
+          which meant the plot title fell back to "?" for both
+          callsign/grid AND the target frequency, and more
+          importantly meant target_freq stayed None -- silently
+          skipping whatever calibration/labeling depends on knowing
+          the real center frequency. Found live: a synthetic single-
+          channel-num station's full-day spectrogram showed a
+          degenerate -0.1 to 0.1 dB colorbar and "at ?, <date>" in the
+          title. Fixed the same way as drf_inspect.py: check
+          hasattr(fr, "__iter__") before indexing/measuring it,
+          treating a bare scalar as the sole value for channel-num 0.
 
 Based on the spectrogram approach used by AB4EJ (W. Engelke, University of
 Alabama) in plotspectrum_V4a.py.
@@ -461,7 +482,13 @@ def main():
                 fr = meta.get("center_frequencies", None)
                 if fr is not None:
                     idx = args.channel_num if args.channel_num is not None else 0
-                    if idx < len(fr):
+                    # See v1.5.0 changelog entry above: a bare scalar
+                    # (single-channel-num case) has no len() and isn't
+                    # indexable -- treat it as the sole value at idx 0.
+                    if not hasattr(fr, "__iter__"):
+                        if idx == 0:
+                            target_freq = float(fr)
+                    elif idx < len(fr):
                         target_freq = float(fr[idx])
         except Exception as e:
             print(f"  (metadata read failed: {e})")
@@ -530,6 +557,25 @@ def main():
     if end_dt > record_end_utc:
         end_dt = record_end_utc
     n_seconds = (end_dt - start_dt).total_seconds()
+    if n_seconds <= 0:
+        # Real crash found live: the previous clipping only handled
+        # start_dt below record_start_utc and end_dt above
+        # record_end_utc independently -- it never covered the case
+        # where the *entire* requested window is past record_end_utc,
+        # so start_dt stayed unclipped above the (now-clipped) end_dt,
+        # producing a negative duration. That silently reached
+        # compute_spectrogram() with zero real samples, which then
+        # crashed deep inside numpy's percentile() ("IndexError: index
+        # -1 is out of bounds for axis 0 with size 0") instead of
+        # failing with any message pointing at the actual cause.
+        print(
+            f"\nERROR: requested window has no overlap with the actual "
+            f"recording.\n"
+            f"  Requested: {args.start or '(start)'} to {args.end or '(end)'} UTC\n"
+            f"  Recording covers: {record_start_utc} to {record_end_utc}\n"
+            f"  Pick a window inside the recording's actual bounds."
+        )
+        sys.exit(1)
     start_sample = int(start_dt.timestamp() * fs_hz)
 
     window_seconds = args.window_minutes * 60.0

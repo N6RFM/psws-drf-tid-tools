@@ -205,7 +205,7 @@ from bs4 import BeautifulSoup
 # ----------------------------------------------------------------------------
 # Constants
 # ----------------------------------------------------------------------------
-PSWS_BASE = "https://pswsnetwork.eng.ua.edu"
+PSWS_BASE = os.environ.get("PSWS_BASE_URL", "https://pswsnetwork.eng.ua.edu")
 OBS_PATH  = "/observations/observation_list/"
 STN_PATH  = "/stations/stations/"
 

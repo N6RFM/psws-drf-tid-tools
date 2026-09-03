@@ -5,8 +5,30 @@ for testing psws-drf-tid-tools end-to-end.
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.0.0
+Version: 1.1.0
 License: MIT (do whatever you want, no warranty).
+
+Change log:
+  v1.1.0  Fixed center_frequencies metadata being written in raw Hz
+          (F_CARRIER_HZ = 10.0e6 written directly) when the project's
+          established convention for this specific DigitalMetadata
+          field is MHz -- confirmed against tid_workflow.py's own
+          v1.3.0 changelog entry, which independently found and
+          documented the same convention while fixing a real-station
+          bug ("This store's own center_frequencies is in MHz, not Hz
+          like drf_properties.h5's field -- confirmed directly against
+          drf_spectrogram.py's own working code, which already
+          displays this same field's values with no /1e6 conversion
+          at all"). f_carrier_hz is used in exactly one place in this
+          file (this metadata write) -- not in any actual signal-
+          generation math -- so converting only at the write site is
+          safe and doesn't touch anything else. Found via
+          mock_psws_server.py: running drf_inspect.py against
+          freshly-generated synthetic data for the first time (the
+          official synthetic_tests/ suite itself never reads
+          center_frequencies back, so this was never caught) showed a
+          garish "10000000.000 MHz" reading and blank WWV detection,
+          both symptoms of the unit mismatch rather than a crash.
 
 Creates one DRF station directory per station, each containing:
   <station>/
@@ -91,7 +113,7 @@ def write_station_drf(output_dir, station, iq_samples, start_unix_s,
         file_name="metadata",
     )
     mwriter.write(start_sample, {
-        "center_frequencies": np.array([f_carrier_hz]),
+        "center_frequencies": np.array([f_carrier_hz / 1e6]),  # MHz -- see v1.1.0 changelog entry above
         "callsign": station["name"],
         "latitude": station["lat"],
         "longitude": station["lon"],

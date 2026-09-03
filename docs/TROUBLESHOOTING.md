@@ -2,7 +2,9 @@
 
 Failure modes you may encounter and how to fix them. The first section
 covers things that go wrong at each pipeline stage; the second section
-covers the broader "the result looks wrong" problem.
+covers the broader "the result looks wrong" problem; the third covers
+testing against `mock_psws_server.py` when the real PSWS server is
+unreachable.
 
 ---
 
@@ -116,6 +118,46 @@ This is an argparse quirk with negative numbers. Use `=` syntax:
 --ylim "-2,2" # also works (note leading space inside quotes)
 --ylim -2,2   # FAILS — argparse thinks -2,2 is a flag
 ```
+
+If you're using `tid_workflow.py` rather than calling
+`drf_spectrogram.py` directly: as of v1.5.0, you no longer need to
+work around a squished Doppler axis by hand. Immediately after every
+station's full-day spectrogram is generated, the image opens
+automatically and you're asked whether to redraw it at a custom
+Y-axis range — this happens every time, for every station, precisely
+because the very first station processed (the keystone) can't benefit
+from the automatic auto-tuning introduced in v4.5.0 (its own amplitude
+isn't known until after its own wave-fit runs).
+
+### `drf_spectrogram.py` crashes with `IndexError: index -1 is out of bounds for axis 0 with size 0`
+
+```
+Plot window: ... to ...  (-0.00 hr)
+Computing spectrogram: 0 columns x 600 samples/col
+...
+IndexError: index -1 is out of bounds for axis 0 with size 0
+```
+
+**Cause**: the requested window (`--start`/`--end`, or a window JSON
+from `tid_quicklook.py`) has **no overlap at all** with the
+recording's actual bounds — for example, selecting `01:00`–`02:00`
+against a recording that only covers `00:00`–`00:59`. Fixed as of
+`drf_spectrogram.py` v1.5.0: this now exits with a clear message
+instead —
+
+```
+ERROR: requested window has no overlap with the actual recording.
+  Requested: 01:00 to 02:00 UTC
+  Recording covers: 2099-01-01 00:00:00+00:00 to 2099-01-01 00:59:59.900000+00:00
+  Pick a window inside the recording's actual bounds.
+```
+
+If you still see the raw traceback, you're running an older copy of
+`drf_spectrogram.py` — update it. Either way, the fix is the same:
+pick a window that actually falls inside the recording. This is
+especially easy to hit against `mock_psws_server.py`'s fake data,
+which is only one hour long — see
+[`TESTING_WITHOUT_LIVE_DATA.md`](TESTING_WITHOUT_LIVE_DATA.md).
 
 ### `tid_pair.py` reports correlation near zero
 
@@ -307,6 +349,76 @@ The Grape v1.x metadata didn't include callsign/grid. Use:
 ```bash
 --callsign "N6RFM/5" --grid "EM12jw"
 ```
+
+---
+
+## Testing when the PSWS server is down
+
+If `find_event_stations.py` or `download_companions.py` can't reach
+PSWS at all (connection errors, timeouts, or the site itself is down),
+you don't have to wait it out — `mock_psws_server.py` is a local
+stand-in that lets you keep testing the real, interactive pipeline
+offline. Full setup in
+[`TESTING_WITHOUT_LIVE_DATA.md`](TESTING_WITHOUT_LIVE_DATA.md); the
+failure modes specific to that setup are:
+
+### Downloads silently go to the real (down) server instead of the mock one
+
+```
+GET https://pswsnetwork.eng.ua.edu/observations/downloadapi/ ...
+```
+
+`PSWS_BASE_URL` wasn't set in the terminal you ran the download from —
+it only applies to the shell session it was exported in, and does not
+carry over to a new terminal tab or window. Re-export it there:
+
+```bash
+export PSWS_BASE_URL=http://127.0.0.1:8765
+```
+
+Then confirm it's actually taking effect before retrying the download:
+
+```bash
+curl -s http://127.0.0.1:8765/stations/stations/ | head -3
+```
+
+This must return HTML containing `TESTKEY`/`TESTA`/`TESTB`/`TESTC`. If
+it hangs or refuses the connection, the problem is the next one:
+
+### `curl` to the mock server hangs, refuses, or times out
+
+The server isn't running, isn't listening on the port you expect, or
+was started in a terminal that's since been closed. Start (or
+restart) it:
+
+```bash
+cd psws-drf-tid-tools
+source .venv/bin/activate
+python3 mock_psws_server.py
+```
+
+Leave that terminal open for the duration of testing — closing it
+stops the server.
+
+### `download_companions.py` reports "0 station folder(s) organized" with no errors
+
+Almost always the same root cause as above (requests went to the real,
+unreachable server and every one failed, but each failure was itself
+reported cleanly rather than as a connection error) — check which URL
+the `GET` lines actually printed before the download attempt.
+
+### `No DRF stations found in event directory` immediately at Step 1
+
+The previous download didn't actually organize any station data (see
+above). `tid_workflow.py` isn't wrong here — there's genuinely nothing
+in the directory yet. Fix the download, then re-run.
+
+### A window selection produces a crash or an obviously-wrong result
+
+The mock data is only **one hour long**
+(`00:00:00`–`00:59:59 UTC` on the fixed test date `2099-01-01`). See
+"`drf_spectrogram.py` crashes with `IndexError`" above if you selected
+a window outside that range.
 
 ---
 

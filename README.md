@@ -97,6 +97,12 @@ with a confusing, buried error.
 
 When done: `deactivate`. To resume: `source .venv/bin/activate`.
 
+**PSWS server down, or just want to try the pipeline risk-free?** See
+[`docs/TESTING_WITHOUT_LIVE_DATA.md`](docs/TESTING_WITHOUT_LIVE_DATA.md)
+— a local mock server lets you run the full interactive workflow
+against realistic fake data with a known ground truth, entirely
+offline.
+
 ---
 
 ## Analysis Workflow
@@ -372,6 +378,9 @@ Ionospheric Disturbances (TIDs) and their direction-of-arrival analysis.
 - **[`EXTERNAL_EVALUATION.md`](docs/EXTERNAL_EVALUATION.md)** — external space weather evaluation tools.
 - **[`MANUAL_TUTORIAL.md`](MANUAL_TUTORIAL.md)** — step-by-step manual
   pipeline for users who want full control over each tool.
+- **[`TESTING_WITHOUT_LIVE_DATA.md`](docs/TESTING_WITHOUT_LIVE_DATA.md)**
+  — testing the real, interactive pipeline offline against a local
+  mock PSWS server, with a known ground truth to check results against.
 - **[`WORKFLOW_TUTORIAL.md`](WORKFLOW_TUTORIAL.md)** — complete guided
   workflow walkthrough using `tid_workflow.py`. **Start here.**
 
@@ -419,11 +428,17 @@ psws-drf-tid-tools/
 ├── evaluate_external.py        external space weather evaluation of DOA
 │                               results (Kp/AE + guidance for manual sources)
 │
+├── mock_psws_server.py         local stand-in for the PSWS portal
+│                               (testing when it's down, or offline dev)
+├── tid_intake_helper.py        Tkinter GUI: discover -> download ->
+│                               generate the tid_workflow.py command
+│
 ├── docs/
 │   ├── ASSESSING_RESULTS.md    understanding and validating DOA results
 │   ├── EXTERNAL_EVALUATION.md  external space weather evaluation tools
 │   ├── COOKBOOK.md             task-oriented recipes
 │   ├── METHODOLOGY.md          signal processing details
+│   ├── TESTING_WITHOUT_LIVE_DATA.md  using mock_psws_server.py
 │   └── TROUBLESHOOTING.md      failure modes and fixes
 │
 ├── synthetic_tests/            end-to-end validation suite (known ground truth)
