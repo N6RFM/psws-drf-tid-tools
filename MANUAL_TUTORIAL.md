@@ -9,7 +9,10 @@ pipeline, or are debugging a specific issue.
 > everything below and adds a few conveniences this manual path
 > doesn't have: it auto-tightens each zoomed spectrogram's y-axis
 > toward the keystone station's own measured amplitude instead of a
-> flat +/-5 Hz default, offers to redraw any station's full-day view
+> flat +/-5 Hz default (the **keystone** is whichever station you
+> pass as `--my-station` -- the one processed first, whose window
+> everything else gets measured against), offers to redraw any
+> station's full-day view
 > at a custom range immediately after it's generated (the plot opens
 > automatically for you to look at first), auto-seeds
 > `tid_spect_click.py`'s `--period-hint` from the keystone for every
