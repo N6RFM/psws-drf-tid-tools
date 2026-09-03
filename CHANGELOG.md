@@ -1,3 +1,55 @@
+## v4.8.0 -- 2026-09-02
+
+### Major changes
+
+#### `tid_dashboard.py` retired
+The browser-based Streamlit dashboard (2,983 lines, v0.24.5) is
+removed. `tid_intake_helper.py` plus `tid_workflow.py` together now
+cover the same ground -- discovery, download, and the full 8-step
+guided pipeline -- without a second, harder-to-maintain interface
+duplicating the same logic. Checked directly before removing anything:
+nothing else in the codebase imports from `tid_dashboard.py` (it only
+ever imported *from* `tid_workflow.py`, one-directionally, so this
+removal has zero effect on the CLI tools), and it shared
+`tid_workflow_state.json` with the CLI rather than keeping its own
+separate state format, so no data migration is needed either.
+
+Two small conveniences the dashboard had are not currently replicated
+elsewhere, noted here rather than silently dropped: automatic
+`--doa-lags`/`--doa-speed`/`--doa-azimuth-from` pre-fill for the
+Madrigal TEC cross-check (still fully functional via
+`fetch_madrigal_tec.py`/`evaluate_external.py` directly, just typed by
+hand instead of computed for you), and a "clicking order" control for
+picking which station's interactive extraction window opens first
+independent of keystone selection (`tid_workflow.py` always processes
+the keystone first). Neither is missing functionality -- both remain
+fully possible via the CLI tools -- just a minor workflow convenience
+each, worth restoring in `tid_workflow.py` directly if they turn out
+to be missed in practice.
+
+Removed along with it: the `streamlit` dependency from
+`requirements.txt` (nothing else used it) and its corresponding
+optional-dependency check in `check_install.py`. The existing
+`python3-tk` system-package check in `check_install.py` is updated
+rather than removed -- `tid_intake_helper.py` is itself a Tkinter app
+and won't launch without it, a harder requirement than the dashboard's
+old folder-browse button ever was, so the messaging now reflects that
+correctly instead of describing a tool that no longer exists.
+
+Documentation updated to match: `README.md` (the "GUI option" section
+removed, file tree and Dependencies section updated) and
+`docs/COOKBOOK.md` (the entire "Using the browser dashboard" section
+removed, along with every cross-reference to it elsewhere in the file
+-- checked directly for dangling anchor links after deletion, not
+assumed). Historical changelog entries in `tid_workflow.py`,
+`tid_intake_helper.py`, and this file that mention `tid_dashboard.py`
+are left untouched, same principle already established for
+`research_gui`'s retirement: a changelog is a historical record of
+what was true at the time, not living documentation to rewrite after
+the fact.
+
+---
+
 ## v4.7.0 -- 2026-09-02
 
 ### Major changes

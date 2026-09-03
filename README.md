@@ -69,7 +69,7 @@ pip install -r requirements.txt
 A handful of packages in `requirements.txt` only affect specific
 scripts or extraction methods rather than the whole toolkit --
 `prophet` (the cwt-prophet extraction method, one of several
-available), `streamlit` (the dashboard GUI), `cartopy` (nicer maps),
+available), `cartopy` (nicer maps),
 `astropy` and `madrigalWeb` (single-script dependencies) -- each
 noted individually in the file itself. Everything installs together
 with the one command above.
@@ -217,92 +217,6 @@ The guided workflow handles all 8 steps interactively:
 See **[`WORKFLOW_TUTORIAL.md`](WORKFLOW_TUTORIAL.md)** for a complete
 walkthrough.
 
-### GUI option: `tid_dashboard.py`
-
-A browser-based control panel wrapping the full extraction → DOA →
-Madrigal TEC cross-check pipeline behind one button: point it at an
-event directory, pick a window (with a live spectrogram showing
-exactly what you've selected), and run — auto-computing
-`--doa-lags`/`--doa-speed`/`--doa-azimuth-from` for the TEC cross-check
-instead of you typing them by hand.
-
-```bash
-pip install streamlit
-streamlit run tid_dashboard.py
-```
-
-Then open the printed `http://localhost:8501` URL. Everything before
-the "Run full pipeline" button — event window selection, station
-coordinates, and channel confirmation for multi-channel/RX888-style
-stations — happens live as you type, no need to click anything first.
-
-**Extraction methods:** all are available from one dropdown —
-`autocorr`, `cwt`, and `fft` run automatically with no further input;
-`wave-fit`, `cwt-prophet`, and `spline` open `tid_spect_click.py`'s
-own native window per station (the dashboard spawns the same tool
-this page already documents, rather than reimplementing spectrogram
-clicking in the browser) — click cycle points, fit, **press X to
-export**, then close the window, and the dashboard picks up the
-result automatically via `--event-json` and moves to the next
-station. All stations in a given run use the same method; mixing
-methods across stations isn't supported yet.
-
-**Two real constraints on the interactive methods, stated plainly:**
-this only works when Streamlit is running locally on the same machine
-as the display (same reason the folder-browse button works — a
-browser can't be granted access to a remote machine's desktop), and
-the browser tab blocks while each native window is open, same as any
-other slow step in the pipeline.
-
-**Resumable, and shared with the CLI:** the dashboard reads and writes
-the exact same `tid_workflow_state.json` file `tid_workflow.py --resume`
-itself uses — a session started via one is fully resumable from the
-other. Entering an event directory with existing saved progress shows
-a summary of what's already done per station, with the option to
-continue or start completely fresh (clearing the file, same as
-`tid_workflow.py`'s own choice for this — and also deleting every
-intermediate/derived file in the event directory, spectrograms,
-extraction CSVs, config files, run logs and all, leaving only the
-DRF station directories themselves untouched — shown explicitly
-before it happens, given it's a real, irreversible filesystem
-operation). Channel-num confirmation,
-the event window, keystone-station selection, and — the part that
-actually saves real time — extraction itself all persist this way:
-a station already extracted in a prior run (dashboard or CLI, either
-one) is reused rather than re-run, which matters since extraction is
-the genuinely slow step. Returning to an event doesn't mean
-re-confirming, re-selecting, or re-extracting things you already
-settled. Every discovered station can also be individually excluded
-or re-included for a given run (a multiselect right after the resume
-summary) without touching that station's own saved progress —
-dropping one today doesn't mean re-confirming it if you bring it back
-tomorrow. `tid_workflow.py` itself is unmodified by any of this.
-
-A few more details worth knowing: the keystone station is processed
-first through every step (channel-num confirmation, extraction) —
-the whole reason for selecting one. For interactive extraction
-methods specifically, a separate "Clicking order" control lets you
-directly pick which station's window opens first, rather than relying
-on keystone selection as an indirect way to influence it. "Start
-completely fresh" clears
-the saved state but keeps your station exclusions, since a full
-reset silently pulling an excluded station back into the active set
-(forcing its channel-num confirmation all over again) turned out to
-be genuinely disruptive rather than helpful. And the event window
-actually sent to `tid_doa.py` is computed from the real overlap of
-what was extracted for each station — not simply the window-selection
-slider, which only guides where extraction happens — matching
-`tid_workflow.py`'s own, more robust approach.
-
-The Madrigal cross-check step is optional (toggle in the sidebar) and
-can be skipped if you just want speed/azimuth.
-
-For an event with more than 3 stations, a follow-up section lets you
-exclude station(s) and re-run just the DOA fit (and optionally the TEC
-cross-check) without redoing extraction — the same
-`tid_doa.py --drop NAME` workflow used to isolate a bad station
-(e.g. E-region contamination), but clickable.
-
 ### Manual step-by-step
 
 For full control over each step, run the pipeline directly.
@@ -318,8 +232,7 @@ providing anchor-guided cwt-prophet, wave-fit, and plain spline
 extraction with a visual spectrogram interface.
 
 Six methods are available in total, in order of recommended
-preference. `tid_dashboard.py`'s dropdown offers all of these
-**except spline**, which requires the CLI directly (see note below):
+preference:
 
 | Method | Tool | User input | Best for |
 |--------|------|-----------|----------|
@@ -405,7 +318,6 @@ psws-drf-tid-tools/
 ├── tid_spect_click.py          interactive spectrogram extraction
 │                               (cwt-prophet and wave-fit; display required)
 ├── tid_guided_extract.py       interactive guided Doppler CSV correction
-├── tid_dashboard.py            browser GUI, all extraction methods
 ├── drf_spectrogram.py          full-day and zoomed spectrograms
 ├── drf_to_doppler.py           automated Doppler extraction
 │                               (fft, autocorr; also cwt, bandpass, sgolay-ridge)
@@ -469,9 +381,9 @@ Core (required):
 
 Optional:
 - `cartopy` for nicer `tid_map.py` output with state/country outlines
-- `streamlit` for `tid_dashboard.py`. `python3-tk` (system package,
-  not pip) is also needed for that dashboard's folder-browse button —
-  optional, it falls back to manual path entry without it.
+- `python3-tk` (system package, not pip) for `tid_intake_helper.py` --
+  this is a Tkinter app and won't launch without it. All CLI tools,
+  including `tid_workflow.py`, are unaffected.
 
 ---
 

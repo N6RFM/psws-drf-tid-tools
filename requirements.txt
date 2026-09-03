@@ -56,15 +56,3 @@ astropy>=5.0,<7.0
 # specifically, not a soft fallback; it exits immediately if missing.
 # Not needed for the core extraction/DOA pipeline.
 madrigalWeb>=3.2
-
-# Required by tid_dashboard.py (browser-based GUI wrapping the automated
-# extraction methods -- autocorr/cwt/fft -- end to end). Not needed for
-# any of the CLI tools. The dashboard's folder-browse button also needs
-# python3-tk, a system package (not installable via pip) -- without it,
-# the browse button falls back to manual path entry, no functionality
-# lost otherwise. On Debian/Ubuntu: sudo apt install python3-tk
-# >=1.37 specifically: st.dialog (modal popups, used for channel-num
-# thumbnail selection) only became stable/generally-available at 1.37.0
-# -- st.experimental_dialog existed earlier but was removed entirely in
-# a later release, so there's no working fallback below 1.37.
-streamlit>=1.37
