@@ -174,9 +174,24 @@ cd ~/hamsci_LSTID_detection
 pip install -e .
 ```
 
+That repo's own README lists its full requirements: `cartopy`,
+`dask`, `h5py`, `matplotlib`, `numpy`, `pandas`, `pillow`, `polars`,
+`pyarrow`, `pysolar`, `scipy`, `statsmodels`. Six of those
+(`cartopy`/`matplotlib`/`numpy`/`pandas`/`pillow`/`scipy`) are already
+required by this toolkit, so a normal install here almost always
+already has them. The rest are specific to this separate repo and
+`pip install -e .` should pull them in automatically -- but if that
+step is skipped, or run in a different Python environment than the
+one actually used later, a real run can get most of the way through a
+working GNSS TEC step before failing partway into the LSTID step on
+one of these. `check_install.py` and `tid_external_helper.py`'s LSTID
+checkbox both check all six of the genuinely repo-specific ones
+(`dask`, `h5py`, `polars`, `pyarrow`, `pysolar`, `statsmodels`) up
+front now, rather than surfacing them one at a time.
+
 On CPUs without AVX2/FMA/BMI (some older or virtualized machines), the
-`polars` dependency will crash with `SIGILL`. Fix by installing the
-compatibility runtime:
+`polars` dependency specifically will crash with `SIGILL`. Fix by
+installing the compatibility runtime:
 
 ```bash
 pip uninstall -y polars polars-runtime-32
