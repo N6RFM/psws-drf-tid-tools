@@ -304,6 +304,11 @@ Ionospheric Disturbances (TIDs) and their direction-of-arrival analysis.
 - **[`TESTING_WITHOUT_LIVE_DATA.md`](docs/TESTING_WITHOUT_LIVE_DATA.md)**
   — testing the real, interactive pipeline offline against a local
   mock PSWS server, with a known ground truth to check results against.
+- **[`tid_analysis_cheatsheet.md`](tid_analysis_cheatsheet.md)** —
+  quick command reference: session start, the mock server, the guided
+  workflow, DOA, external validation, and the git branch/PR/release
+  workflow this project uses. Built around a specific reference event
+  (19 January 2026) as a worked example throughout.
 - **[`WORKFLOW_TUTORIAL.md`](WORKFLOW_TUTORIAL.md)** — complete guided
   workflow walkthrough using `tid_workflow.py`. **Start here.**
 
@@ -317,6 +322,7 @@ psws-drf-tid-tools/
 ├── CHANGELOG.md
 ├── WORKFLOW_TUTORIAL.md        guided workflow tutorial (start here)
 ├── MANUAL_TUTORIAL.md          manual step-by-step tutorial
+├── tid_analysis_cheatsheet.md  quick command reference + git workflow
 ├── CONTRIBUTORS.md
 ├── LICENSE                     MIT
 ├── CITATION.cff
