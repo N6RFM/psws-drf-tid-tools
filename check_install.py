@@ -68,9 +68,6 @@ OPTIONAL = [
     ("prophet", "prophet",
      "cwt-prophet extraction, one of several interactive extraction "
      "methods -- falls back to cwt-only without it"),
-    ("streamlit", "streamlit",
-     "tid_dashboard.py (the entire browser-based GUI) -- CLI tools "
-     "still work fine without it"),
     ("cartopy", "cartopy",
      "tid_map.py's nicer maps -- falls back to a plain lat/lon plot "
      "without it"),
@@ -121,16 +118,19 @@ def main():
         if not ok:
             missing_optional.append((pip_name, breaks))
 
-    # tkinter is stdlib but a separate OS package on some systems, and
-    # tid_dashboard.py's folder-browse button specifically needs it --
-    # worth checking since "pip install" can't fix this one.
+    # tkinter is stdlib but a separate OS package on some systems.
+    # tid_intake_helper.py is a Tkinter app -- without this, it won't
+    # launch at all (not a graceful degradation, unlike the optional
+    # dependencies above) -- worth checking since "pip install" can't
+    # fix this one.
     print()
     tk_ok = check("tkinter")
     print(f"  [{'OK  ' if tk_ok else 'missing'}] tkinter (system package, "
           "not pip-installable)")
     if not tk_ok:
-        print("      Affects: tid_dashboard.py's folder-browse button only "
-              "-- falls back to manual path entry without it.")
+        print("      Affects: tid_intake_helper.py -- won't launch "
+              "without it. All CLI tools, including tid_workflow.py, "
+              "are unaffected.")
         print("      Fix (Debian/Ubuntu): sudo apt install python3-tk")
 
     print()

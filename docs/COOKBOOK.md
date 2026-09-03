@@ -14,9 +14,8 @@ Every script accepts `--help` and `--version`.
 ### I noticed something interesting -- what do I do first?
 
 Whichever station's data caught your attention is your **keystone**
-station -- the one this toolkit's own guided workflow and dashboard
-use to pick the TID event window everything else gets measured
-against. From there:
+station -- the one this toolkit's own guided workflow uses to pick
+the TID event window everything else gets measured against. From there:
 
 1. **Set up a working directory outside this repo** --
    `mkdir -p ~/Downloads/tid_event_20260119`. Every recipe on this
@@ -38,108 +37,6 @@ See `README.md`'s own "Getting your data" section for the full,
 copy-pasteable version of this sequence with real commands. Everything
 below this point assumes you're past this stage and already have DRF
 data on disk somewhere.
-
----
-
-## Using the browser dashboard (`tid_dashboard.py`)
-
-Everything below this section is the CLI-first path. `tid_dashboard.py`
-wraps most of it behind one browser page instead — same underlying
-scripts, same math, just clickable. This section covers dashboard-
-specific recipes; for troubleshooting an individual step it launches
-(extraction methods, DOA diagnostics, Madrigal cross-check), the
-regular CLI recipes below still apply, since that's exactly what's
-running underneath.
-
-### How do I launch the dashboard?
-
-```bash
-pip install streamlit
-streamlit run tid_dashboard.py
-```
-
-Open the printed `http://localhost:8501` URL. Point it at an event
-directory (a folder containing DRF station subdirectories, same
-convention as `tid_workflow.py --event-dir`); station coordinates,
-channel confirmation, and the event-window spectrogram all appear live
-as you type — nothing runs until you click "Run full pipeline."
-
-### Does the dashboard remember my progress if I come back later?
-
-Yes — it reads and writes the exact same `tid_workflow_state.json`
-file `tid_workflow.py --resume` uses, so a session started in one is
-fully resumable from the other. Entering an event directory with
-existing saved progress shows a summary of what's already done per
-station, with the choice to continue or start completely fresh
-(clearing the file, same as `tid_workflow.py`'s own equivalent
-choice, except your station exclusions are kept either way — more on
-that below — and it also deletes every intermediate/derived file in
-the event directory, not just the state file: spectrograms,
-extraction CSVs, config files, run logs. Only the DRF station
-directories themselves are left untouched, identified the same way
-real station discovery works elsewhere, not a separate heuristic.
-Exactly what will be deleted is shown before the button appears,
-since this is a real, irreversible filesystem operation — added
-after leftover stale files from a previous attempt kept getting
-picked back up even once the state file itself was cleared).
-Channel-num confirmation, the event window, which
-station is the keystone, and extraction itself all persist this way:
-returning to an event shows what you already confirmed instead of
-asking again, the window slider defaults to your last selection
-instead of the full recorded range, and a station already extracted
-is reused rather than re-run — the real time-saver, since extraction
-is the slow step. The keystone station is also processed first
-through every step, the whole reason for picking one -- and for
-interactive methods specifically, a "Clicking order" control lets you
-pick directly which station's window opens first, rather than
-depending on keystone selection to influence it indirectly. One more thing
-worth knowing: the event window actually sent to `tid_doa.py` is the
-real overlap of what was extracted for each station, not simply the
-slider selection — which only guides where extraction happens —
-matching `tid_workflow.py`'s own approach.
-
-### How do I exclude a station from a run without losing its progress?
-
-A multiselect right after the saved-progress summary lists every DRF
-station directory found in the event folder — uncheck any to exclude
-it from this run. Unlike [dropping a station to re-run just the DOA
-fit](#how-do-i-drop-a-station-and-re-run-in-the-dashboard) (a
-later-stage, DOA-only tool for isolating a bad result after
-extraction), this is an earlier-stage choice that skips a station
-through the *entire* pipeline, extraction included. Either way,
-excluding a station never touches its own saved progress — bringing
-it back later (check the box again) doesn't mean re-confirming its
-channel-num or anything else about it.
-
-### How do I pick an extraction method in the dashboard?
-
-One dropdown in the sidebar, five methods: `autocorr`, `cwt`, `fft`
-run automatically with no further input. `wave-fit` and `cwt-prophet`
-open `tid_spect_click.py`'s native window per station — same tool, same
-key bindings as the [wave-fit CLI recipe](#how-do-i-use-wave-fit-extraction---wave-only)
-below (click, `F` to fit, `X` to export, close the window). The
-dashboard waits for each window to close, then moves to the next
-station automatically. All stations in one run use the same method —
-mixing methods isn't supported yet, so for a mixed-method event (e.g.
-Jan 2026's cwt-prophet + autocorr mix) use the CLI tools directly
-instead.
-
-### How do I skip the Madrigal cross-check in the dashboard?
-
-Uncheck "Perform Madrigal TEC cross-check" in the sidebar before
-running — the Madrigal fields disappear, nothing is required, and the
-pipeline stops cleanly right after the DOA result instead of attempting
-the network step.
-
-### How do I drop a station and re-run in the dashboard?
-
-For any event with more than 3 stations, an "Investigate further: drop
-station(s) and re-run" section appears below the main results — pick
-station(s) to exclude from the multiselect and click re-run. This is
-the same `--drop NAME` mechanism as the CLI recipe below, just without
-retyping the command; it reuses the already-extracted CSVs rather than
-re-running extraction, and can optionally re-run the Madrigal
-cross-check with the reduced station list too.
 
 ---
 
@@ -1032,10 +929,9 @@ with `--no-cache`.
 ### How do I compare two DOA results side by side?
 
 `tid_doa.py` already writes a self-contained, timestamped run log to
-`<event_dir>/runs/<timestamp>_run.log` on every invocation (CLI or
-GUI, since the dashboard's own pipeline calls `tid_doa.py` the same
-way). Rather than re-reading old terminal output or opening two log
-files by hand, use `tid_doa_compare.py`:
+`<event_dir>/runs/<timestamp>_run.log` on every invocation. Rather
+than re-reading old terminal output or opening two log files by hand,
+use `tid_doa_compare.py`:
 
 ```bash
 tid_doa_compare.py run1.log run2.log [run3.log ...]
@@ -1087,12 +983,6 @@ than dropping:
   station, printed sorted by fewest flagged diagnostics, with a
   pick-by-number prompt to select one.
 - Press Enter (empty input) to finish with whatever's currently active.
-
-The browser dashboard has a similar drop-only capability built in for
-events with more than 3 stations -- see [How do I drop a station and
-re-run in the
-dashboard?](#how-do-i-drop-a-station-and-re-run-in-the-dashboard)
-above (the dashboard doesn't yet have the `add`/`all` additions).
 
 ```bash
 # Drop one station (direct tid_doa.py use)
