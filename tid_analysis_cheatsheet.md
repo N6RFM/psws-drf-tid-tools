@@ -1,6 +1,6 @@
 # TID Analysis Cheatsheet — reference event: 2026-01-19
 
-**Current release: v4.9.3** · Repo: `github.com/N6RFM/psws-drf-tid-tools`
+**Current release: v4.10.0** · Repo: `github.com/N6RFM/psws-drf-tid-tools`
 
 **Stations:** N6RFM (keystone), AA6BD, AC0G_ND, W7LUX
 **Known-good result:** N6RFM, AA6BD, AC0G_ND → **682 m/s from 63° true
@@ -96,6 +96,27 @@ in. Full details: `docs/TESTING_WITHOUT_LIVE_DATA.md`.
 **GUI alternative for discovery/download:** `python3 tid_intake_helper.py`
 walks through discover → download → generates the `tid_workflow.py`
 command for you, real or mock data either way.
+
+**Richer test scenarios, real station arrays, known ground truth:**
+```
+python3 mock_psws_server.py --port 8765 --scenario nominal
+python3 mock_psws_server.py --list-scenarios          # 6 recommended
+python3 mock_psws_server.py --list-scenarios --all    # all 30
+```
+6 curated out of 30: `nominal` (clean 3-stn baseline), `slow_tid_alias`
+and `very_low_snr` (two different failure modes), `mixed_4stn`
+(4 stations), `conus_5stn` (5 stations, ground truth = this project's
+own real 682 m/s / 63° reference event), `two_wave` (two superimposed
+TIDs). Generation can take a while the first time — let it finish,
+don't interrupt it (a stale cache from an interrupted run under
+`synthetic_tests/events/` breaks every future attempt at that same
+scenario until deleted by hand).
+
+**GUI for the whole scenario workflow — pick, start/stop, download,
+no second terminal, no manual `export`:**
+```
+python3 mock_server_gui.py
+```
 
 ---
 
@@ -369,7 +390,7 @@ git tag --points-at HEAD   # should show the version just released
 
 ---
 
-## 10. Reference docs (all current as of v4.9.3)
+## 10. Reference docs (all current as of v4.10.0)
 
 - `WORKFLOW_TUTORIAL.md` — full guided-workflow walkthrough
 - `MANUAL_TUTORIAL.md` — step-by-step manual pipeline, tool by tool
