@@ -216,6 +216,17 @@ station?" for the practical side of this.
 
 ### Recommended: guided workflow
 
+**GUI alternative:** once your event directory is set up (via
+`tid_intake_helper.py` above or manual download),
+`tid_workflow_launcher.py` detects the stations already there, lets
+you check which to include and pick the keystone explicitly (rather
+than risk the alphabetical fallback described below), and generates
+the exact command for you:
+
+```bash
+python3 tid_workflow_launcher.py
+```
+
 ```bash
 python3 tid_workflow.py \
     --event-dir ~/Downloads/tid_event_20260119 \
@@ -384,6 +395,9 @@ psws-drf-tid-tools/
 │                               generate the tid_workflow.py command
 ├── tid_external_helper.py      Tkinter GUI: checkbox cross-check of a
 │                               DOA result against Kp/AE, GNSS TEC, LSTID
+├── tid_workflow_launcher.py    Tkinter GUI: detect stations in an
+│                               event dir, pick keystone, generate
+│                               the tid_workflow.py command
 │
 ├── docs/
 │   ├── ASSESSING_RESULTS.md    understanding and validating DOA results
@@ -421,10 +435,10 @@ Core (required):
 
 Optional:
 - `cartopy` for nicer `tid_map.py` output with state/country outlines
-- `python3-tk` (system package, not pip) for `tid_intake_helper.py` and
-  `tid_external_helper.py` -- both are Tkinter apps and won't launch
-  without it. All CLI tools, including `tid_workflow.py`, are
-  unaffected.
+- `python3-tk` (system package, not pip) for `tid_intake_helper.py`,
+  `tid_external_helper.py`, and `tid_workflow_launcher.py` -- all
+  three are Tkinter apps and won't launch without it. All CLI tools,
+  including `tid_workflow.py`, are unaffected.
 - `polars` -- NOT a dependency of anything in this repo. Only needed
   if you've separately cloned
   [hamsci_LSTID_detection](https://github.com/HamSCI/hamsci_LSTID_detection)

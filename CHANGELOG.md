@@ -1,3 +1,99 @@
+## v4.9.4 -- 2026-09-03
+
+### Major changes
+
+#### New: `tid_workflow_launcher.py` -- configure and launch the guided workflow without retyping the command
+Same design principle as `tid_intake_helper.py` and
+`tid_external_helper.py`: deliberately does not try to run
+`tid_workflow.py` captured/piped through a log pane the way
+`tid_external_helper.py`'s batch tools are -- `tid_workflow.py` is
+fully interactive (`input()` prompts, `tid_quicklook.py`'s
+drag-select window, `tid_spect_click.py`'s wave-fit clicking), and
+piping its stdout/stdin through Python would break all of that.
+Follows the same pattern already established in
+`tid_intake_helper.py`: generates the correct command and copies it
+to the clipboard, with a best-effort "Launch in New Terminal" button
+alongside for convenience (tries common terminal emulators, says
+plainly if none are found rather than failing silently).
+
+Reuses `tid_workflow.py`'s own `discover_stations()` directly, so the
+detected station list is guaranteed to match what `tid_workflow.py`
+itself will find, not a second implementation of the same
+directory-scanning logic. Built specifically because `--my-station`
+is easy to forget as a bare CLI flag, and forgetting it doesn't fail
+loudly -- `tid_workflow.py` silently falls back to alphabetical
+directory order for the keystone instead (see the doc fixes below).
+Making keystone selection an explicit, always-visible radio-button
+choice, rebuilt automatically whenever a station gets checked or
+unchecked, removes that failure mode entirely.
+
+Three real fixes found only by actually using "Launch in New
+Terminal" on real hardware, not by review:
+
+- **Wrong terminal opened.** The hardcoded candidate list
+  (`gnome-terminal`, `konsole`, `xfce4-terminal`, `xterm`) didn't
+  include `mate-terminal` -- Linux Mint's default -- so it fell all
+  the way through to a bare, unstyled `xterm` instead of anything
+  resembling the operator's actual terminal. Now checks the
+  Debian/Ubuntu/Mint "alternatives" system first
+  (`x-terminal-emulator`, a symlink to whatever the operator has
+  actually configured as their default), before falling back to the
+  hardcoded list, which now also includes `mate-terminal`.
+- **Terminal closed instantly.** `-e`-style launches close the window
+  the moment the command exits -- success, failure, or crash -- making
+  any error message or the final DOA result impossible to actually
+  read. Now runs through `bash -c`, then prints a clear "finished,
+  press Enter to close" message and pauses on `read` before the shell
+  exits.
+- **No visible context of what was running or from where.** Jumping
+  straight into `tid_workflow.py`'s own output felt unsettling
+  compared to a normal terminal session. Now echoes a real
+  `user@host:dir$` prompt line first -- bash's own default `PS1`
+  format, built from the operator's actual username, hostname, and
+  directory, not a placeholder -- before running the command.
+
+#### Two related gaps found and fixed while documenting the above
+`README.md`'s own example command for the guided workflow never
+included `--my-station` at all -- meaning a reader who copy-pasted it
+literally would have silently gotten `AA6BD` as the keystone instead
+of the `N6RFM` the surrounding narrative describes, since alphabetical
+order puts A before N. `WORKFLOW_TUTORIAL.md` -- this project's own
+"start here" tutorial -- used the word "keystone" repeatedly
+throughout but never once defined it, and none of its three Quick
+Start examples included the flag either. Fixed in `README.md`,
+`WORKFLOW_TUTORIAL.md`, and `MANUAL_TUTORIAL.md`.
+
+Separately, `check_install.py`'s tkinter-affects message had only
+ever mentioned `tid_intake_helper.py` -- `tid_external_helper.py` was
+missed when it was added, a gap now fixed alongside adding the new
+third tool to the same message.
+
+---
+
+## v4.9.3 -- 2026-09-03
+
+### Major changes
+
+#### Documented a real dependency-pinning gotcha, found empirically
+Installing the separate `hamsci_LSTID_detection` toolkit's own
+`pip install -e .` can silently downgrade several packages this
+project also uses (numpy, scipy, pandas, matplotlib, cartopy, pillow,
+pyarrow, h5py), because that repo pins exact versions rather than the
+minimums this project's own `requirements.txt` uses. Confirmed live:
+installing it into the same environment as `psws-drf-tid-tools`
+downgraded all eight packages at once, with no prompt from pip about
+it happening. Harmless inside a dedicated virtual environment (checked
+directly -- the downgraded versions still satisfy this project's own
+minimum-version constraints, and nothing outside that venv is
+affected), but a real risk without one, including to unrelated
+software sharing the same Python interpreter (e.g. GNU Radio) and to
+packages the OS's own package manager separately tracks. Documented in
+`docs/EXTERNAL_EVALUATION.md` (at the point of the actual
+`pip install -e .` command) and cross-referenced from `README.md`'s
+main virtual-environment section.
+
+---
+
 ## v4.9.2 -- 2026-09-03
 
 ### Major changes
