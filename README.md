@@ -391,6 +391,9 @@ psws-drf-tid-tools/
 │
 ├── mock_psws_server.py         local stand-in for the PSWS portal
 │                               (testing when it's down, or offline dev)
+├── mock_server_gui.py          Tkinter GUI: pick a scenario, start/
+│                               stop the mock server, download example
+│                               data -- no second terminal needed
 ├── tid_intake_helper.py        Tkinter GUI: discover -> download ->
 │                               generate the tid_workflow.py command
 ├── tid_external_helper.py      Tkinter GUI: checkbox cross-check of a
@@ -436,9 +439,10 @@ Core (required):
 Optional:
 - `cartopy` for nicer `tid_map.py` output with state/country outlines
 - `python3-tk` (system package, not pip) for `tid_intake_helper.py`,
-  `tid_external_helper.py`, and `tid_workflow_launcher.py` -- all
-  three are Tkinter apps and won't launch without it. All CLI tools,
-  including `tid_workflow.py`, are unaffected.
+  `tid_external_helper.py`, `tid_workflow_launcher.py`, and
+  `mock_server_gui.py` -- all four are Tkinter apps and won't launch
+  without it. All CLI tools, including `tid_workflow.py`, are
+  unaffected.
 - `polars` -- NOT a dependency of anything in this repo. Only needed
   if you've separately cloned
   [hamsci_LSTID_detection](https://github.com/HamSCI/hamsci_LSTID_detection)
