@@ -1,3 +1,110 @@
+## v4.10.0 -- 2026-09-04
+
+### Major changes
+
+#### `mock_psws_server.py` can now serve `synthetic_tests/`'s real scenarios
+New `--scenario NAME` and `--list-scenarios` (`--all` for the complete
+list). Instead of just the single classic 4-station default, the mock
+server can now serve any of `synthetic_tests/test_conditions.py`'s
+real test conditions -- real station arrays, known ground truth, and
+optional noise/enhancement effects (two superimposed waves, period
+chirp, E-region spikes, coloured noise, fading SNR, carrier offset).
+Deliberately calls `synthetic_drf.generate_event()` directly rather
+than re-implementing that file's own per-test special-casing a second
+time here, so any condition added there in the future works through
+the mock server automatically.
+
+`--list-scenarios` shows 6 curated out of the full 30 by default --
+most of the rest are speed/azimuth/period/SNR sweeps around the same
+core ideas, valuable for the real automated test suite's statistical
+coverage but redundant for a hands-on demo. The 6: `nominal` (clean
+baseline), `slow_tid_alias` and `very_low_snr` (two genuinely
+different failure modes -- aliasing vs. weak signal), `mixed_4stn`
+(confirms the pipeline isn't hardcoded to always-3-stations),
+`conus_5stn` (new, see below), and `two_wave` (two real superimposed
+TIDs).
+
+Added a 30th test condition, `conus_5stn`, to
+`synthetic_tests/test_conditions.py` (now v1.2.0) -- no 5-station
+option existed at all before this (max was 4, used by exactly one
+condition). Reuses coordinates already defined elsewhere in that file
+rather than inventing new station locations, and its ground truth
+(682 m/s from 63°) deliberately matches this project's own real 19
+January 2026 reference event exactly, for direct comparison against
+that real, noisier result. An initial 60-minute period was **not**
+alias-safe for this specific 5-station geometry -- caught by actually
+running the file's own alias-analysis tool rather than assuming a
+plausible-looking choice was fine (max lag 2336s exceeded the 60-min
+period's own T/2 of 1800s); bumped to 120 minutes (T/2=3600s) before
+shipping it.
+
+All three station-count variants (3, 4, and 5 stations) verified
+genuinely end-to-end, not just code-reviewed: downloaded, extracted,
+and ran real DOA against each scenario's own ground truth --
+`nominal` recovered 526.7 m/s / 29.2° vs. 500/30; `mixed_4stn`
+recovered 542.0 m/s / 137.4° vs. 509/137; `conus_5stn` recovered 727.4
+m/s / 62.7° vs. 682/63 (all comfortably within each scenario's own
+stated pass criteria).
+
+A real, separate bug was found and fixed along the way, unrelated to
+this feature but caught while checking it carefully:
+`synthetic_drf.py`'s own `EVENT_START_UTC` comment claimed 2026-01-19,
+but the actual timestamp resolves to 2025-01-19 -- a full year off,
+confirmed directly rather than trusted. No functional impact anywhere
+(every use of the constant reads the numeric value, never the
+comment), but this initially led to an incorrect worry about a date
+collision with this project's real reference event; corrected once
+verified.
+
+Also found live: killing scenario generation partway through (an
+impatient Ctrl+C, or a script connecting before the startup banner
+prints) leaves a broken, partially-written cache under
+`synthetic_tests/events/` that fails every future attempt to
+regenerate that same scenario, since `generate_event()`'s own caching
+only checks whether `ground_truth.json` exists -- written only at the
+very end. Not fixed at the `generate_event()` level itself (out of
+scope here, and used by the real automated test suite too) -- instead,
+a clear warning now prints before generation starts, since larger
+scenarios can take over a minute with no prior indication of that.
+
+Documented in a new `docs/TESTING_WITHOUT_LIVE_DATA.md` section,
+including the full rationale for each of the 6 curated scenarios and
+the generation-interruption caveat.
+
+#### New: `mock_server_gui.py` -- guided GUI for the scenario workflow
+Same design principle as the other three GUIs: deliberately narrow,
+hands off to the real tools (`mock_psws_server.py`,
+`download_companions.py`) rather than reimplementing their logic.
+Different lifecycle than the other three, worth being explicit about:
+`mock_psws_server.py` is a long-running background process, not a
+batch script that finishes -- this manages Start/Stop rather than
+run-to-completion, parsing the server's own real startup banner
+(station list, test date) to auto-populate the download step rather
+than guessing at timing or re-deriving that information independently.
+Sets `PSWS_BASE_URL` directly in `download_companions.py`'s own
+subprocess environment, scoped to exactly the port the managed server
+is listening on -- no second terminal, no manual `export` needed.
+Reuses `mock_psws_server.py`'s own `RECOMMENDED_SCENARIOS` list
+directly, so the curated 6 shown here can never drift from what
+`--list-scenarios` itself reports.
+
+Verified genuinely end-to-end via the GUI itself, not just code-
+reviewed: started the server, confirmed the banner-parsing correctly
+populated the real station checkboxes and test date, ran a real
+download with the environment variable correctly scoped to just that
+one subprocess (confirmed the GUI's own process environment was never
+touched), and confirmed the resulting files were real and complete on
+disk.
+
+A real bug was found live during this verification, not just assumed
+away: the initial scenario-info callback was wired to run during
+section 1's own widget construction, but referenced a variable not
+created until section 3, built later -- a straightforward widget-
+ordering mistake, fixed by moving that initial call to the end of
+`_build_ui()`, after every widget and variable actually exists.
+
+---
+
 ## v4.9.4 -- 2026-09-03
 
 ### Major changes

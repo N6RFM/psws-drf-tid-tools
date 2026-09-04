@@ -4,10 +4,13 @@ check_install.py — verify psws-drf-tid-tools' dependencies are installed
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.3.0
+Version: 1.4.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.4.0  Added mock_server_gui.py as a fourth tool affected by a
+          missing tkinter, alongside the three already listed.
+
   v1.3.0  Added tid_workflow_launcher.py (new) to the tkinter-affects
           message -- and, while there, fixed a real gap: this same
           message never actually mentioned tid_external_helper.py
@@ -146,9 +149,9 @@ def main():
           "not pip-installable)")
     if not tk_ok:
         print("      Affects: tid_intake_helper.py, tid_external_helper.py, "
-              "and tid_workflow_launcher.py -- none of these three will "
-              "launch without it. All CLI tools, including tid_workflow.py "
-              "itself, are unaffected.")
+              "tid_workflow_launcher.py, and mock_server_gui.py -- none of "
+              "these four will launch without it. All CLI tools, including "
+              "tid_workflow.py itself, are unaffected.")
         print("      Fix (Debian/Ubuntu): sudo apt install python3-tk")
 
     # None of these are dependencies of anything in this repo -- they
