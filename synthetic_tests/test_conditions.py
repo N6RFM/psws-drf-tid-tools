@@ -1,14 +1,30 @@
 #!/usr/bin/env python3
 """
-test_conditions.py -- 29 representative synthetic test conditions for
+test_conditions.py -- 30 representative synthetic test conditions for
 psws-drf-tid-tools end-to-end validation.
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.1.0
+Version: 1.2.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.2.0  Added a 5th array (array_5stn_conus) and 30th condition
+          (conus_5stn) -- added for mock_psws_server.py's new
+          --scenario support, which needed a genuine 5-station option
+          and found none existed (max was 4, array_4stn_mixed, used
+          by exactly one condition). Reuses coordinates already
+          defined elsewhere in this file rather than inventing new
+          station locations: array_3stn_eastwest's 3 stations plus
+          AC0G_ND and JJMP from array_4stn_mixed. Ground truth
+          (682 m/s from 63deg) deliberately matches this project's own
+          real 19 January 2026 reference event exactly, for direct
+          comparison against that real, noisier result. An initial
+          60-min period was NOT alias-safe for this specific geometry
+          (checked directly with this file's own __main__ analysis,
+          not assumed: max lag 2336s > T/2 1800s) -- bumped to 120 min
+          (T/2=3600s) before adding.
+
   v1.1.0  Corrected docstring count from stale "20" to actual 29 --
           the file grew from 20 to 29 conditions over time without
           the header being updated to match. No code change.
@@ -58,6 +74,19 @@ ARRAYS = {
         {"name": "SYN_A", "lat": 35.0, "lon": -80.0},
         {"name": "SYN_B", "lat": 35.0, "lon": -100.0},
         {"name": "SYN_C", "lat": 47.0, "lon": -90.0},
+    ],
+    "array_5stn_conus": [
+        # Combines array_3stn_eastwest's 3 stations with array_4stn_mixed's
+        # AC0G_ND and JJMP -- reusing exact coordinates already defined
+        # above rather than inventing new station locations. Same
+        # geometry as this project's own real 19 January 2026 reference
+        # event (AA6BD/N6RFM/W7LUX/AC0G_ND), plus JJMP as a 5th,
+        # northeast anchor point for broader geometric spread.
+        {"name": "SYN_AA6BD",   "lat": 35.06,  "lon": -85.13},
+        {"name": "SYN_N6RFM",   "lat": 32.94,  "lon": -97.21},
+        {"name": "SYN_W7LUX",   "lat": 35.10,  "lon": -111.71},
+        {"name": "SYN_AC0G_ND", "lat": 46.875, "lon": -96.833},
+        {"name": "SYN_JJMP",    "lat": 40.88,  "lon": -75.00},
     ],
 }
 
@@ -206,6 +235,18 @@ TEST_CONDITIONS = [
      500, 30, 60, 0.5, 20, "awgn", "array_3stn_eastwest", True,
      "Carrier DC offset +0.08 Hz on all stations (DRF calibration error). "
      "Tests whether extractor DC bias affects DOA accuracy."),
+
+    # ── 5-station array ────────────────────────────────────────────────────
+    ("conus_5stn",
+     682, 63, 120, 0.5, 20, "awgn", "array_5stn_conus", True,
+     "5-station CONUS array (array_3stn_eastwest + AC0G_ND + JJMP), "
+     "682 m/s from 63deg -- the exact ground truth from this project's "
+     "own real 19 January 2026 reference event, for direct comparison "
+     "against that noisy real-world result. 120-min period, not 60: "
+     "checked directly with this file's own alias analysis before "
+     "settling on it -- 60 min gave max lag 2336s > T/2 1800s (would "
+     "have been a failure case, not the clean success case this is "
+     "meant to be); 120 min gives T/2=3600s, safely clear."),
 ]
 # fmt: on
 

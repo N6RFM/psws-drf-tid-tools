@@ -7,10 +7,29 @@ subsequent analysis, without needing a second terminal or a manual
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.0.0
+Version: 1.1.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.1.0  Fixed the same stdout-buffering bug already found and fixed
+          in tid_external_helper.py one round earlier: both subprocess
+          launches (the server itself, and download_companions.py)
+          now run with `python3 -u`. Without it, real progress output
+          -- the server's own per-station generation lines, its full
+          startup banner -- can sit invisible in Python's default
+          block buffer when piped, making a scenario that's actually
+          generating normally look like it's hung or taking far
+          longer than it really is. This should have been applied
+          proactively when this file was first written, having just
+          learned the identical lesson in a sibling tool -- worth
+          being direct about that rather than presenting this as a
+          fresh discovery. Also worth noting: this sandbox's own
+          PYTHONUNBUFFERED=1 environment variable means testing here
+          could never have caught this bug even by re-checking, since
+          every subprocess run in this environment is secretly
+          unbuffered regardless of the flag -- real verification
+          needs a real, differently-configured machine.
+
   v1.0.0  Initial version. Same design principle as
           tid_intake_helper.py / tid_external_helper.py /
           tid_workflow_launcher.py: deliberately narrow, hands off to
@@ -343,7 +362,7 @@ class MockServerGUI(tk.Tk):
         self.server_port = port
         self.scenario_stations = []
         self.scenario_date = None
-        cmd = ["python3", tool("mock_psws_server.py"),
+        cmd = ["python3", "-u", tool("mock_psws_server.py"),
                "--port", str(port), "--scenario", name]
         self._append_log(f"\n$ {' '.join(shlex.quote(c) for c in cmd)}\n\n")
         self.server_reader = StreamReader(
@@ -425,7 +444,7 @@ class MockServerGUI(tk.Tk):
                                                      "location first.")
             return
         date = self.scenario_date or ""
-        cmd = ["python3", tool("download_companions.py"),
+        cmd = ["python3", "-u", tool("download_companions.py"),
                "--date", date, "--stations", *checked,
                "--out-dir", out_dir, "--no-cache"]
         env = dict(os.environ)

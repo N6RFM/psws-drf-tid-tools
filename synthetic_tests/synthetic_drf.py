@@ -68,7 +68,19 @@ from synthetic_signal import (
 # DRF parameters
 SAMPLE_RATE_HZ = 1000          # 1 ksps (Grape-like)
 F_CARRIER_HZ   = 10.0e6        # 10 MHz WWV
-EVENT_START_UTC = 1737244800   # 2026-01-19T00:00:00Z (arbitrary synthetic epoch)
+EVENT_START_UTC = 1737244800   # 2025-01-19T00:00:00Z (arbitrary synthetic
+                                # epoch -- verified directly against the
+                                # actual timestamp; an earlier version of
+                                # this comment said 2026-01-19, one year
+                                # off from what this value actually
+                                # resolves to. No functional impact --
+                                # every use of EVENT_START_UTC uses the
+                                # numeric value directly, never this
+                                # comment -- but worth being accurate,
+                                # especially since 2026-01-19 is this
+                                # project's own real reference event date
+                                # and an incorrect comment here could
+                                # otherwise cause real confusion.
 EVENT_DURATION_MULTIPLIER = 2.0  # event window = 2x the TID period
 
 

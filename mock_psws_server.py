@@ -7,10 +7,70 @@ offline.
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.3.0
+Version: 1.4.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.4.0  Added --scenario NAME and --list-scenarios, serving any of
+          synthetic_tests/'s 29 real test conditions (real station
+          arrays, known ground truth, optional noise/enhancement
+          effects -- two superimposed waves, period chirp, E-region
+          spikes, coloured noise, fading SNR, carrier offset) instead
+          of just the single classic 4-station default. Deliberately
+          calls synthetic_drf.generate_event() directly rather than
+          re-implementing test_conditions.py's own per-test special-
+          casing a second time here -- any condition added to that
+          file in the future works through this server automatically.
+          Verified end-to-end against two different scenarios (a
+          3-station and a 4-station array): downloaded, extracted, and
+          ran real DOA, landing within each scenario's own stated
+          pass criteria both times (nominal: 526.7 m/s from 29.2 true
+          vs. 500 m/s from 30 true; mixed_4stn: 542.0 m/s from 137.4
+          true vs. 509 m/s from 137 true).
+
+          Found and fixed a real (harmless) bug in synthetic_drf.py
+          while checking this precisely rather than trusting it:
+          EVENT_START_UTC's own inline comment claimed 2026-01-19, but
+          the actual timestamp resolves to 2025-01-19 -- a full year
+          off. No functional impact anywhere (every use of the
+          constant reads the numeric value directly, never the
+          comment), but worth being accurate, especially since
+          2026-01-19 is this project's own real reference event date
+          and an incorrect comment here could otherwise cause genuine
+          confusion. Confirmed there is no actual date collision risk
+          with real downloaded data as a result.
+
+          Curated a 6-scenario RECOMMENDED_SCENARIOS list as the
+          --list-scenarios default (30 is too many for a hands-on
+          demo where the point is showing a few clearly different
+          kinds of behaviour, not exhaustively sweeping every
+          parameter) -- --list-scenarios --all still shows the
+          complete list. Added a 30th condition, conus_5stn, since no
+          5-station option existed at all (max was 4, used by exactly
+          one condition) -- see synthetic_tests/test_conditions.py's
+          own v1.2.0 changelog entry for the details, including a
+          real alias-safety bug caught before shipping it (an initial
+          60-min period was NOT alias-safe for this specific 5-station
+          geometry, checked directly rather than assumed). Verified
+          this scenario too, same as the other two: recovered 727.4
+          m/s from 62.7 true vs. a ground truth of 682 m/s from 63
+          true -- deliberately matching this project's own real 19
+          January 2026 reference event exactly, for direct comparison.
+
+          Also found live: killing scenario generation partway through
+          (e.g. an impatient Ctrl+C, or a test script that connects
+          before generation finishes) leaves a broken, partially-
+          written cache under synthetic_tests/events/ that fails every
+          future attempt to regenerate that same scenario, since
+          generate_event()'s own caching only checks whether
+          ground_truth.json exists -- written only at the very end --
+          not whether a partial previous attempt left conflicting
+          files behind. Not fixed at the generate_event() level itself
+          (out of scope here, and used by the real automated test
+          suite too) -- instead, a clear warning now prints before
+          generation starts, since larger scenarios can take over a
+          minute and there was previously no indication of that.
+
   v1.3.0  Fixed a real error in v1.2.0's own ground truth: it used
           tid_workflow.py's plain arithmetic-average midpoint()
           function -- the one used only for a quick preview print
@@ -139,11 +199,18 @@ TOOLS_DIR = Path(__file__).parent.resolve()
 sys.path.insert(0, str(TOOLS_DIR / "synthetic_tests"))
 
 try:
-    from synthetic_drf import write_station_drf
+    from synthetic_drf import write_station_drf, generate_event
     _HAVE_SYNTH = True
 except Exception as e:
     _HAVE_SYNTH = False
     _SYNTH_IMPORT_ERROR = e
+
+try:
+    from test_conditions import TEST_CONDITIONS, ARRAYS
+    _HAVE_TEST_CONDITIONS = True
+except Exception as e:
+    _HAVE_TEST_CONDITIONS = False
+    _TEST_CONDITIONS_IMPORT_ERROR = e
 
 TEST_DATE = "2099-01-01"
 
@@ -239,6 +306,158 @@ def _propagation_delay_s(lat, lon):
 
 def _html(body):
     return f"<html><body>{body}</body></html>".encode("utf-8")
+
+
+def _latlon_to_grid(lat, lon):
+    """Standard 6-character Maidenhead locator. Verified against the
+    well-known ARRL HQ reference point (41.714775,-72.727260 ->
+    FN31pr) before use -- two of the four hand-typed grids already in
+    FAKE_STATIONS above don't actually match what this computes for
+    their own coordinates (approximate/illustrative, not computed),
+    confirmed harmless since grid squares here are cosmetic display
+    only, never used in any actual physics."""
+    lon2 = lon + 180
+    lat2 = lat + 90
+    field_lon = int(lon2 // 20)
+    field_lat = int(lat2 // 10)
+    square_lon = int((lon2 % 20) // 2)
+    square_lat = int((lat2 % 10) // 1)
+    subsq_lon = int(((lon2 % 20) % 2) / (2 / 24))
+    subsq_lat = int(((lat2 % 10) % 1) / (1 / 24))
+    return (chr(ord("A") + field_lon) + chr(ord("A") + field_lat) +
+            str(square_lon) + str(square_lat) +
+            chr(ord("a") + subsq_lon) + chr(ord("a") + subsq_lat))
+
+
+SCENARIO_SCRATCH_ROOT = TOOLS_DIR / "synthetic_tests" / "events"
+# Same output-root convention run_tests.py itself already uses (see
+# its own --output-root default) -- means a scenario already generated
+# by running the real test suite is reused here too, and vice versa,
+# rather than each maintaining a separate cache of the same data.
+
+SCENARIO_NAME = None
+SCENARIO_EVENT_DIR = None
+SCENARIO_GROUND_TRUTH = None
+
+# Six scenarios curated out of test_conditions.py's full 30, chosen to
+# cover distinct dimensions rather than exhaustively sweep every
+# parameter (most of the other 24 are speed/azimuth/period/SNR sweeps
+# around these same core ideas -- valuable for the real automated test
+# suite's statistical coverage, redundant for a hands-on demo). Each
+# one earns its place for a different reason:
+RECOMMENDED_SCENARIOS = [
+    "nominal",         # clean baseline -- success case, the reference point
+    "slow_tid_alias",  # FAILURE mode 1: aliasing -- lag exceeds T/2
+    "very_low_snr",    # FAILURE mode 2: weak signal -- a different kind
+                       # of failure than aliasing, same expect_pass=False
+    "mixed_4stn",      # 4-station array -- not hardcoded to always-3
+    "conus_5stn",      # 5-station array, ground truth matches this
+                       # project's own real 19 Jan 2026 reference event
+    "two_wave",        # two genuinely superimposed TIDs -- the richest
+                       # part of the signal model
+]
+
+
+def list_scenarios(show_all=False):
+    """Print scenario names and a one-line description each. Shows
+    just the 6 curated RECOMMENDED_SCENARIOS by default -- all 30 of
+    test_conditions.py's conditions is too many for a hands-on demo
+    where the point is showing a few clearly different *kinds* of
+    behaviour, not exhaustively sweeping every parameter combination
+    (most of the other 24 are speed/azimuth/period/SNR sweeps around
+    the same core ideas). --list-scenarios --all shows the complete
+    list for anyone who wants a specific one of the other 24."""
+    if not _HAVE_TEST_CONDITIONS:
+        print(f"Could not import test_conditions.py: "
+              f"{_TEST_CONDITIONS_IMPORT_ERROR}")
+        return
+    by_name = {tc[0]: tc for tc in TEST_CONDITIONS}
+    if show_all:
+        names = [tc[0] for tc in TEST_CONDITIONS]
+        print(f"All {len(names)} scenarios available "
+              f"(--list-scenarios with no --all shows just the 6 "
+              f"recommended for this purpose):\n")
+    else:
+        names = RECOMMENDED_SCENARIOS
+        print(f"{len(names)} scenarios recommended for this purpose "
+              f"(of {len(TEST_CONDITIONS)} total -- see --list-scenarios "
+              f"--all for the rest):\n")
+    print(f"{'Name':22s} {'Speed':>6s} {'Az':>4s} {'Per(m)':>7s} "
+          f"{'Array':20s} {'Pass?':5s}  Notes")
+    print("-" * 115)
+    for name in names:
+        _, speed, az, period, amp, snr, noise, array, expect_pass, notes = by_name[name]
+        print(f"{name:22s} {speed:6d} {az:4d} {period:7d} "
+              f"{array:20s} {str(expect_pass):5s}  {notes[:42]}")
+
+
+def _load_scenario(name):
+    """Generate (or reuse a cached) full synthetic_tests/ event for
+    the named test condition, and build a FAKE_STATIONS-shaped dict
+    from its real station array. Deliberately calls generate_event()
+    itself rather than re-implementing test_conditions.py's own
+    per-test special-casing (two_wave, period_chirp, eregion, etc.) a
+    second time here -- any condition added to that file in the
+    future works through this server automatically, with nothing to
+    update in this file to match.
+
+    Public station IDs and internal form IDs use a distinct 91xxx/91xx
+    block (S991001+, matching the S900001-4 default block's own 7-
+    character format) specifically so a scenario's stations can never
+    collide with the classic 4-station default set, even though only
+    one or the other is ever actually active in a given server run."""
+    if not _HAVE_TEST_CONDITIONS:
+        sys.exit(f"Could not import test_conditions.py: "
+                 f"{_TEST_CONDITIONS_IMPORT_ERROR}")
+    if not _HAVE_SYNTH:
+        sys.exit(f"Could not import synthetic_drf.py: "
+                 f"{_SYNTH_IMPORT_ERROR}")
+    names = [tc[0] for tc in TEST_CONDITIONS]
+    if name not in names:
+        sys.exit(f"Unknown scenario {name!r}. Run with --list-scenarios "
+                 f"to see all {len(names)} available.")
+
+    SCENARIO_SCRATCH_ROOT.mkdir(parents=True, exist_ok=True)
+    print(f"Generating synthetic scenario {name!r} "
+          f"(reused from cache if already generated -- this can take "
+          f"anywhere from a few seconds to over a minute the first "
+          f"time, longer for scenarios with more stations or a longer "
+          f"duration; please let it finish rather than interrupting -- "
+          f"found live: killing this partway through leaves a broken, "
+          f"partially-written cache that fails every future attempt to "
+          f"generate the same scenario until the stale directory under "
+          f"synthetic_tests/events/ is deleted by hand)...")
+    event_dir, ground_truth = generate_event(name, str(SCENARIO_SCRATCH_ROOT))
+
+    fake_stations = {}
+    for i, stn in enumerate(ground_truth["stations"]):
+        form_id = f"91{i:03d}"
+        public_sid = f"S9{91001 + i:05d}"
+        grid = _latlon_to_grid(stn["lat"], stn["lon"])
+        fake_stations[form_id] = (stn["name"], public_sid, grid,
+                                   stn["lat"], stn["lon"])
+    return fake_stations, ground_truth, event_dir
+
+
+def _zip_scenario_station_dir(nickname, event_dir):
+    """Zip an already-generated (by generate_event(), at server
+    startup) station directory for scenario mode, renaming its
+    top-level folder to nickname.lower() when packed -- matches the
+    lowercase-directory convention download_companions.py/
+    tid_workflow.py expect everywhere else, the same rename
+    _build_fake_drf_zip() already does for the classic default mode."""
+    src = Path(event_dir) / nickname / "ch0"
+    if not src.is_dir():
+        raise FileNotFoundError(
+            f"Scenario station directory not found: {src} -- was "
+            f"generate_event() actually run for this scenario?")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for p in src.rglob("*"):
+            if p.is_file():
+                rel = Path(nickname.lower()) / "ch0" / p.relative_to(src)
+                zf.write(p, rel)
+    return buf.getvalue()
 
 
 def _station_dropdown_html():
@@ -428,10 +647,13 @@ class MockPSWSHandler(BaseHTTPRequestHandler):
                 return
             nick, real_sid, grid, lat, lon = FAKE_STATIONS[form_id]
             try:
-                zip_bytes = _build_fake_drf_zip(
-                    nick, lat, lon, start_date or TEST_DATE,
-                    end_date or TEST_DATE,
-                )
+                if SCENARIO_EVENT_DIR is not None:
+                    zip_bytes = _zip_scenario_station_dir(nick, SCENARIO_EVENT_DIR)
+                else:
+                    zip_bytes = _build_fake_drf_zip(
+                        nick, lat, lon, start_date or TEST_DATE,
+                        end_date or TEST_DATE,
+                    )
             except Exception as e:
                 self._send_error_json(500, f"synthetic DRF generation failed: {e}")
                 return
@@ -445,9 +667,29 @@ class MockPSWSHandler(BaseHTTPRequestHandler):
 
 
 def main():
+    global FAKE_STATIONS, NICK_TO_FORM_ID, SID_TO_FORM_ID, TEST_DATE
+    global TRUE_SPEED_MPS, TRUE_BEARING_FROM_DEG, TRUE_PERIOD_S
+    global SCENARIO_NAME, SCENARIO_EVENT_DIR, SCENARIO_GROUND_TRUTH
+
     ap = argparse.ArgumentParser(description=__doc__.split("USAGE")[0])
     ap.add_argument("--port", type=int, default=8765)
+    ap.add_argument("--scenario", metavar="NAME", default=None,
+                     help="Serve one of synthetic_tests/'s 29 test "
+                          "conditions (real station arrays, known ground "
+                          "truth, optional noise/enhancement effects) "
+                          "instead of the classic 4-station default. "
+                          "See --list-scenarios.")
+    ap.add_argument("--list-scenarios", action="store_true",
+                     help="Print available --scenario names and exit. "
+                          "Shows the 6 recommended by default -- see --all.")
+    ap.add_argument("--all", action="store_true",
+                     help="With --list-scenarios, show all 30 conditions "
+                          "instead of just the 6 recommended.")
     args = ap.parse_args()
+
+    if args.list_scenarios:
+        list_scenarios(show_all=args.all)
+        return
 
     if not _HAVE_SYNTH:
         print(f"WARNING: could not import synthetic_drf.py "
@@ -455,11 +697,40 @@ def main():
               f"but the download endpoint will return HTTP 500 until "
               f"this is fixed (check digital_rf is installed).")
 
-    print(f"Mock PSWS server -- serving fake data for test date {TEST_DATE}")
-    print(f"Ground truth: {TRUE_SPEED_MPS:.0f} m/s, arriving from "
-          f"{TRUE_BEARING_FROM_DEG:.0f}\u00b0 true bearing "
-          f"-- tid_doa.py's result should land close to this.")
-    print(f"Fake stations: {', '.join(v[0] for v in FAKE_STATIONS.values())}")
+    if args.scenario:
+        FAKE_STATIONS, SCENARIO_GROUND_TRUTH, SCENARIO_EVENT_DIR = \
+            _load_scenario(args.scenario)
+        NICK_TO_FORM_ID = {v[0]: k for k, v in FAKE_STATIONS.items()}
+        SID_TO_FORM_ID = {v[1]: k for k, v in FAKE_STATIONS.items()}
+        SCENARIO_NAME = args.scenario
+        gt = SCENARIO_GROUND_TRUTH
+        TEST_DATE = gt["event_start_utc"][:10]
+        TRUE_SPEED_MPS = gt["true_speed_m_s"]
+        TRUE_BEARING_FROM_DEG = gt["true_az_from_deg"]
+        TRUE_PERIOD_S = gt["true_period_min"] * 60.0
+
+        print(f"\nMock PSWS server -- serving synthetic_tests/ scenario "
+              f"{args.scenario!r}")
+        print(f"Ground truth: {TRUE_SPEED_MPS:.0f} m/s, arriving from "
+              f"{TRUE_BEARING_FROM_DEG:.0f}\u00b0 true bearing, "
+              f"{gt['true_period_min']:.0f} min period, "
+              f"{gt['snr_db']:.0f} dB SNR ({gt['noise_type']} noise) "
+              f"-- tid_doa.py's result should land close to the speed/"
+              f"bearing (some scenarios are deliberately alias/stress "
+              f"tests: expect_pass={gt['expect_pass']}).")
+        print(f"Fake stations: {', '.join(v[0] for v in FAKE_STATIONS.values())}")
+        print(f"Test date: {TEST_DATE} (synthetic_tests/'s own fixed "
+              f"epoch, verified directly against the actual timestamp -- "
+              f"not the same as this project's real 19 January 2026 "
+              f"reference event, so no collision risk with real "
+              f"downloaded data for that date).")
+    else:
+        print(f"Mock PSWS server -- serving fake data for test date {TEST_DATE}")
+        print(f"Ground truth: {TRUE_SPEED_MPS:.0f} m/s, arriving from "
+              f"{TRUE_BEARING_FROM_DEG:.0f}\u00b0 true bearing "
+              f"-- tid_doa.py's result should land close to this.")
+        print(f"Fake stations: {', '.join(v[0] for v in FAKE_STATIONS.values())}")
+
     print(f"\nIn another terminal:")
     print(f"  export PSWS_BASE_URL=http://127.0.0.1:{args.port}")
     print(f"  python3 find_event_stations.py --date {TEST_DATE} "
