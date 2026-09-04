@@ -123,6 +123,13 @@ python3 download_companions.py --date YYYY-MM-DD \
 
 ## 5. Run the guided workflow on the reference event
 
+**GUI alternative:** `python3 tid_workflow_launcher.py` detects the
+stations already in an event directory, lets you check which to
+include and pick the keystone explicitly (radio buttons, not an
+easy-to-forget flag), auto-detects `--resume` if a prior session
+exists, and generates/copies the exact command below -- or launches it
+directly in a new terminal window.
+
 ```
 python3 tid_workflow.py \
     --event-dir ~/Downloads/tid_event_20260119 \

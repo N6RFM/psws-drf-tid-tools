@@ -74,6 +74,16 @@ manual steps.
 
 ## Quick start
 
+**GUI alternative:** `tid_workflow_launcher.py` detects the stations
+already in your event directory, lets you pick which to include and
+choose the keystone with an explicit radio button (rather than risk
+the alphabetical fallback described below), and generates -- or
+launches -- the command for you:
+
+```bash
+python3 tid_workflow_launcher.py
+```
+
 ```bash
 python3 tid_workflow.py --event-dir /path/to/event/directory --my-station N6RFM
 ```
