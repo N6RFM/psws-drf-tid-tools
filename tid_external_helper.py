@@ -5,10 +5,19 @@ against independent external data sources.
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.2.0
+Version: 1.3.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.3.0  Uses sys.executable instead of a bare "python3" string for
+          all three subprocess commands. Same class of bug found and
+          fixed across tid_workflow_launcher.py, mock_server_gui.py,
+          and tid_intake_helper.py this same round -- a bare "python3"
+          depends on whatever the current environment resolves it to,
+          which can silently differ from the interpreter actually
+          running this GUI if the project's .venv wasn't active when
+          it was launched.
+
   v1.2.0  Fixed a real stdout-buffering bug: all three subprocess
           commands now run with `python3 -u` (unbuffered), not just
           the default. Without it, a real script's own print() calls
@@ -674,7 +683,7 @@ class ExternalHelper(tk.Tk):
                 # while the identical command run directly in a real
                 # terminal printed normally -- a pipe-vs-terminal
                 # buffering difference, not the server.
-                ["python3", "-u", tool("evaluate_external.py"),
+                [sys.executable, "-u", tool("evaluate_external.py"),
                  "--date", self.event_config["event_start_utc"][:10],
                  "--event-start", self.event_config["event_start_utc"],
                  "--event-end", self.event_config["event_end_utc"],
@@ -709,7 +718,7 @@ class ExternalHelper(tk.Tk):
                 speed = self.speed_var.get().strip()
                 azimuth = self.azimuth_var.get().strip()
                 gnss_cmd = [
-                    "python3", "-u", tool("fetch_madrigal_tec.py"),
+                    sys.executable, "-u", tool("fetch_madrigal_tec.py"),
                     "--config", str(Path(event_dir) / "tid_workflow_event.json"),
                     "--user-name", name,
                     "--user-email", email,
@@ -728,7 +737,7 @@ class ExternalHelper(tk.Tk):
                 commands.append((gnss_label, gnss_cmd))
 
             if self.want_lstid.get():
-                lstid_cmd = ["python3", "-u", tool("run_madrigal_tools.py"),
+                lstid_cmd = [sys.executable, "-u", tool("run_madrigal_tools.py"),
                              "--event", event_dir, "--tool", "lstid"]
                 if self.want_download.get():
                     lstid_cmd.append("--download")

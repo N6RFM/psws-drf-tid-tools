@@ -7,10 +7,21 @@ subsequent analysis, without needing a second terminal or a manual
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.1.0
+Version: 1.2.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.2.0  Uses sys.executable instead of a bare "python3" string for
+          all three subprocess launches (the server, the download,
+          and opening tid_workflow_launcher.py). Same class of bug
+          found and fixed in tid_workflow_launcher.py this same round:
+          a bare "python3" depends on whatever a freshly-spawned
+          process's own environment resolves it to, which can silently
+          differ from the interpreter actually running this GUI if the
+          project's .venv wasn't activated before launching it.
+          sys.executable's absolute path removes that ambiguity
+          entirely.
+
   v1.1.0  Fixed the same stdout-buffering bug already found and fixed
           in tid_external_helper.py one round earlier: both subprocess
           launches (the server itself, and download_companions.py)
@@ -362,7 +373,7 @@ class MockServerGUI(tk.Tk):
         self.server_port = port
         self.scenario_stations = []
         self.scenario_date = None
-        cmd = ["python3", "-u", tool("mock_psws_server.py"),
+        cmd = [sys.executable, "-u", tool("mock_psws_server.py"),
                "--port", str(port), "--scenario", name]
         self._append_log(f"\n$ {' '.join(shlex.quote(c) for c in cmd)}\n\n")
         self.server_reader = StreamReader(
@@ -444,7 +455,7 @@ class MockServerGUI(tk.Tk):
                                                      "location first.")
             return
         date = self.scenario_date or ""
-        cmd = ["python3", "-u", tool("download_companions.py"),
+        cmd = [sys.executable, "-u", tool("download_companions.py"),
                "--date", date, "--stations", *checked,
                "--out-dir", out_dir, "--no-cache"]
         env = dict(os.environ)
@@ -473,7 +484,7 @@ class MockServerGUI(tk.Tk):
 
     def _launch_workflow_launcher(self):
         try:
-            subprocess.Popen(["python3", tool("tid_workflow_launcher.py")],
+            subprocess.Popen([sys.executable, tool("tid_workflow_launcher.py")],
                               cwd=TOOLS_DIR)
         except Exception as e:
             messagebox.showerror("Launch failed", str(e))

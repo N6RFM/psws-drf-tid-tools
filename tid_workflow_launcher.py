@@ -5,10 +5,48 @@ an already-set-up event directory, without retyping the command by hand.
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.3.0
+Version: 1.5.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.5.0  Fixed a real silent-failure bug found live: both "Launch in
+          New Terminal" and "Copy Command" used a bare "python3"
+          string rather than sys.executable (the exact interpreter
+          actually running this GUI). A freshly-spawned terminal does
+          its own independent PATH lookup for "python3" -- if this GUI
+          itself was started without the project's .venv activated,
+          the spawned terminal's "python3" resolved to the system
+          Python instead, which lacks digital_rf. The result:
+          discover_stations() silently returned None (its own
+          documented behavior when digital_rf isn't importable), and
+          tid_workflow.py exited right after "[Step 1] Discovering
+          stations..." with no further output. Traced down via the
+          real console log file (confirmed a faithful, complete
+          capture) and a direct discover_stations() test that,
+          critically, was run WITH the venv already active -- initially
+          giving a misleading "it works fine" result until re-tested
+          matching the actual failing environment exactly. Using
+          sys.executable's absolute path instead of a bare "python3"
+          string removes this entire class of environment mismatch,
+          for both the launched command and the copied text.
+
+  v1.4.0  Fixed a real crash found live: _load_event()'s own cleanup
+          destroys every child of stations_frame on every call,
+          including _keystone_label/_keystone_frame themselves (they
+          live inside stations_frame). hasattr() only checks whether
+          the Python attribute still exists, not whether the
+          underlying Tk widget is still alive -- so on any second call
+          to _load_event() (Browse again, Load again, a different
+          directory), this found a stale attribute pointing at an
+          already-destroyed widget and crashed with
+          "TclError: bad window path name" trying to .pack() it.
+          Fixed by checking winfo_exists() instead, which correctly
+          distinguishes "never created" from "created, then destroyed
+          by something else." Verified directly: called _load_event()
+          four times in a row against the same directory, previously
+          guaranteed to crash on the second call, now succeeds every
+          time.
+
   v1.3.0  Echoes a real user@host:dir$ prompt line (bash's own default
           PS1 format, built from the operator's actual username,
           hostname, and directory) before running the command --
@@ -285,7 +323,22 @@ class WorkflowLauncher(tk.Tk):
         # Rebuild the keystone radio list whenever which stations are
         # checked changes -- the keystone must always be one of the
         # currently-checked stations, never an unchecked or removed one.
-        if not hasattr(self, "_keystone_frame"):
+        #
+        # Real bug found live: _load_event()'s own cleanup destroys
+        # every child of stations_frame on every call, including
+        # _keystone_label/_keystone_frame themselves (they live inside
+        # stations_frame). hasattr() only checks whether the Python
+        # attribute still exists, not whether the underlying Tk widget
+        # is still alive -- so on any second call to _load_event()
+        # (Browse again, Load again, a different directory), this
+        # found a stale attribute pointing at an already-destroyed
+        # widget and crashed trying to .pack() it.
+        # winfo_exists() correctly distinguishes "never created" from
+        # "created, then destroyed by something else" -- hasattr()
+        # cannot tell those apart.
+        need_new = (not hasattr(self, "_keystone_frame") or
+                    not self._keystone_frame.winfo_exists())
+        if need_new:
             self._keystone_label = ttk.Label(
                 self.stations_frame, text="Keystone:",
                 font=("TkDefaultFont", 10, "bold"))
@@ -328,7 +381,7 @@ class WorkflowLauncher(tk.Tk):
             return None
 
         cmd = [
-            "python3", tool("tid_workflow.py"),
+            sys.executable, tool("tid_workflow.py"),
             "--event-dir", event_dir,
             "--stations", ",".join(checked),
             "--my-station", keystone,
@@ -344,7 +397,7 @@ class WorkflowLauncher(tk.Tk):
         found live that joining every individual token with its own
         line break (the first version of this) produced an ugly,
         unfamiliar wall of single-word lines instead."""
-        lines = [cmd[0], cmd[1]]  # "python3", the script path
+        lines = [cmd[0], cmd[1]]  # sys.executable, the script path
         i = 2
         while i < len(cmd):
             if cmd[i].startswith("--") and i + 1 < len(cmd) and \
