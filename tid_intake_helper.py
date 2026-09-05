@@ -4,10 +4,23 @@ tid_intake_helper.py -- lightweight setup helper for the TID pipeline.
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.0.0
+Version: 1.1.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.1.0  Uses sys.executable instead of a bare "python3" string for
+          the two subprocess launches this GUI actually executes
+          itself (find_event_stations.py, download_companions.py).
+          Same class of bug found and fixed in tid_workflow_launcher.py
+          and mock_server_gui.py this same round -- a bare "python3"
+          can silently resolve to a different Python than the one
+          actually running this GUI. The separate "generate the
+          tid_workflow.py command" text (meant to be typed/pasted by
+          the operator into their own already-venv-activated terminal,
+          using a relative script path matching every tutorial's own
+          convention) is deliberately left as plain "python3" --
+          different use case, no confirmed bug there.
+
   v1.0.0  Initial version. Deliberately narrow scope: this is NOT a
           smaller tid_dashboard.py. tid_dashboard.py (Streamlit) does
           the full end-to-end pipeline including the interactive
@@ -63,6 +76,21 @@ except Exception:
     # imported for some reason (e.g. missing an unrelated dependency
     # it needs at import time) -- coordinate auto-fill just won't work.
     KNOWN_STATIONS = {}
+
+# Also recognize mock_psws_server.py's fake test stations (TESTKEY,
+# TESTA, etc.), reusing its FAKE_STATIONS dict directly rather than
+# hardcoding a second copy of the same coordinates here -- if that
+# dict's values ever change, this stays correct automatically. Real
+# friction found live: testing against the mock server meant typing
+# lat/lon by hand every time, since KNOWN_STATIONS only has real
+# callsigns. Entirely optional -- if mock_psws_server.py isn't
+# present (e.g. a normal, non-testing checkout), this just no-ops.
+try:
+    from mock_psws_server import FAKE_STATIONS as _FAKE_STATIONS
+    for _nick, _sid, _grid, _lat, _lon in _FAKE_STATIONS.values():
+        KNOWN_STATIONS[_nick] = (_lat, _lon, _grid)
+except Exception:
+    pass
 
 
 def tool(name):
@@ -315,7 +343,7 @@ class IntakeHelper(tk.Tk):
         if not self._validate_date():
             return
         cmd = [
-            "python3", tool("find_event_stations.py"),
+            sys.executable, tool("find_event_stations.py"),
             "--date", self.date_var.get().strip(),
             "--my-lat", lat, "--my-lon", lon, "--my-call", call,
             "--frequency", self.freq_var.get().strip() or "10.000",
@@ -350,7 +378,7 @@ class IntakeHelper(tk.Tk):
             return
         Path(event_dir).mkdir(parents=True, exist_ok=True)
         cmd = [
-            "python3", tool("download_companions.py"),
+            sys.executable, tool("download_companions.py"),
             "--date", self.date_var.get().strip(),
             "--stations", *stations,
             "--out-dir", event_dir,
