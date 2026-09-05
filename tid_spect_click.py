@@ -3,10 +3,17 @@ tid_spect_click.py — spectrogram-based guided Doppler phase extraction
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 0.10.0
+Version: 0.11.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v0.11.0 Uses sys.executable instead of a bare "python3" string for
+          both of this file's own subprocess calls to
+          drf_to_doppler.py. Same class of bug found and fixed
+          project-wide this same round, across tid_workflow.py and all
+          four GUI tools -- a bare "python3" can silently resolve to a
+          different Python than the one actually running this script.
+
   v0.10.0 Extended the close-safety-net (auto-finalizing pending work
           when the window closes by any means) to cwt-prophet and
           spline modes -- previously only wave-fit mode had this
@@ -718,7 +725,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
         out_csv = str(corridor_json_path).replace(".json", "_preview.csv")
 
         cmd = [
-            "python3",
+            sys.executable,
             _os2.path.join(_os2.path.dirname(_os2.path.abspath(__file__)),
                           "drf_to_doppler.py"),
             self.drf_dir,
@@ -1002,7 +1009,7 @@ class SpectClickApp(QtWidgets.QMainWindow):
             anchors_json = anchors_path
 
         cmd = [
-            "python3",
+            sys.executable,
             _os2.path.join(_os2.path.dirname(_os2.path.abspath(__file__)),
                           "drf_to_doppler.py"),
             self.drf_dir,
