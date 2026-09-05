@@ -4,10 +4,73 @@ tid_workflow.py — guided TID direction-of-arrival workflow
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.5.0
+Version: 1.6.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.6.0  Also fixed a real redundant-computation bug, spotted live by
+          being asked directly whether a run's output looked
+          repetitive rather than assumed fine: after typing 'all' to
+          sweep every station combination and then declining to pick
+          one (pressing Enter to "keep exploring manually"), the loop
+          fell through with pending_result still None and silently
+          re-ran tid_doa.py a second time on the exact same,
+          already-computed station list -- wasted computation, and the
+          resulting duplicate entry made the next comparison table
+          show the identical combination twice in a row. Fixed two
+          ways: (1) when declining to pick, find and reuse the
+          matching already-computed entry from the sweep's own results
+          instead of re-running tid_doa.py; (2) even with that reuse,
+          skip appending (and printing a comparison for) a result
+          whose station set is identical to the immediately preceding
+          entry, so genuinely nothing-changed situations don't produce
+          a confusing duplicate row. Verified in isolation against the
+          exact reproduction sequence from a real run's transcript,
+          plus confirmed a genuinely different combination (e.g. after
+          actually dropping a station) still displays normally and
+          isn't over-suppressed.
+
+          Fixed a real, significant bug found live: every one of the
+          22 internal subprocess calls this file makes to
+          drf_spectrogram.py, tid_quicklook.py, tid_spect_click.py,
+          drf_to_doppler.py, tid_doa.py, and tid_map.py used a bare
+          "python3" string rather than sys.executable (the exact
+          interpreter actually running tid_workflow.py itself). A
+          freshly-spawned subprocess does its own independent PATH
+          lookup for "python3" -- if that resolves to a different
+          Python than the one running tid_workflow.py (e.g. the
+          project's own venv isn't first on PATH even though
+          tid_workflow.py itself was launched with the correct
+          interpreter directly), every one of these internal calls
+          silently fails with "digital_rf not installed" or
+          "ModuleNotFoundError: No module named 'pandas'" -- even
+          though the actual required packages are available to
+          tid_workflow.py itself the whole time.
+
+          Found via a real, complete run: with the venv's own
+          interpreter invoked directly (not activated first), Step 1's
+          channel-num thumbnail generation, every full-day spectrogram,
+          and the DOA step itself (tid_doa.py) all failed this exact
+          way, while tid_workflow.py's own top-level logic (station
+          discovery, extraction method selection, state saving)
+          continued working throughout -- since none of that needs a
+          subprocess. This is the same bug class already found and
+          fixed across all four GUI tools (tid_workflow_launcher.py,
+          mock_server_gui.py, tid_intake_helper.py,
+          tid_external_helper.py) one round earlier; this closes the
+          same gap in the core CLI tool itself, which turned out to be
+          far more pervasive here (22 sites) than in any single GUI
+          wrapper. One site used single quotes ('python3') rather than
+          double, missed by an initial bulk find-and-replace and
+          caught by a follow-up project-wide sweep rather than assumed
+          complete. The printed command preview before the interactive
+          station-map step also showed literal "python3" while the
+          actual executed command was already correct -- fixed for
+          consistency, since every other command preview throughout
+          this file is printed dynamically from the real argv (via
+          run()'s own print(' '.join(...))) and needed no separate fix
+          at all once the underlying argv itself was corrected.
+
   v1.5.0  Three additions, all found necessary through actual testing
           against mock_psws_server.py rather than planned in advance:
 
@@ -447,7 +510,7 @@ def maybe_redraw_fullday(args, state, state_file, stn_key, name,
     print(f"  Regenerating {name}'s full-day view at "
           f"\u00b1{custom_val:.2f} Hz...")
     run([
-        "python3", tool("drf_spectrogram.py"),
+        sys.executable, tool("drf_spectrogram.py"),
         drf_dir_s, "--channel-num", str(sub),
         "--output", str(fullday_png),
         "--start", "00:00", "--end", "24:00",
@@ -1064,7 +1127,7 @@ def run_workflow(args):
                     thumb = thumb_dir / f'sub{sub_i:02d}.png'
                     if not thumb.exists():
                         run([
-                            'python3', tool('drf_spectrogram.py'),
+                            sys.executable, tool('drf_spectrogram.py'),
                             drf_dir_s,
                             '--channel-num', str(sub_i),
                             '--output', str(thumb),
@@ -1140,7 +1203,7 @@ def run_workflow(args):
             if f"{stn_key}_fullday" not in state:
                 print(f"\n[Step 2] Full-day spectrogram for {name}...")
                 r = run([
-                    "python3", tool("drf_spectrogram.py"),
+                    sys.executable, tool("drf_spectrogram.py"),
                     drf_dir_s,
                     "--channel-num", str(sub),
                     "--output", str(fullday_png),
@@ -1161,7 +1224,7 @@ def run_workflow(args):
             if f"{stn_key}_window" not in state:
                 print(f"\n[Step 3] Select TID window for {name}...")
                 print("  → Drag yellow region to bracket the TID, press S to save, Q to quit")
-                run(["python3", tool("tid_quicklook.py"),
+                run([sys.executable, tool("tid_quicklook.py"),
                      "--spectrogram", str(fullday_png)])
                 if not window_json.exists():
                     print(f"  WARNING: No window saved for {name} — skipping")
@@ -1287,7 +1350,7 @@ def run_workflow(args):
         if f"{stn_key}_fullday" not in state:
             print(f"\n[Step 2] Full-day spectrogram for {name}...")
             r = run([
-                "python3", tool("drf_spectrogram.py"),
+                sys.executable, tool("drf_spectrogram.py"),
                 drf_dir_s,
                 "--channel-num", str(sub),
                 "--output", str(fullday_png),
@@ -1309,7 +1372,7 @@ def run_workflow(args):
         if f"{stn_key}_window" not in state:
             print(f"\n[Step 3] Select TID window for {name}...")
             print("  → Drag yellow region to bracket the TID, press S to save, Q to quit")
-            run(["python3", tool("tid_quicklook.py"),
+            run([sys.executable, tool("tid_quicklook.py"),
                  "--spectrogram", str(fullday_png)])
             if not window_json.exists():
                 print(f"  WARNING: No window saved for {name} — skipping")
@@ -1347,7 +1410,7 @@ def run_workflow(args):
         if f"{stn_key}_zoom" not in state:
             print(f"\n[Step 4] Zoomed spectrogram for {name}...")
             r = run([
-                "python3", tool("drf_spectrogram.py"),
+                sys.executable, tool("drf_spectrogram.py"),
                 drf_dir_s,
                 "--channel-num", str(sub),
                 "--output", str(zoom_clean_png),
@@ -1368,7 +1431,7 @@ def run_workflow(args):
             if ans == "y":
                 print(f"\n[Step 5] Refine TID window for {name}...")
                 print("  → Drag yellow region to refine, S to save, Q to keep")
-                run(["python3", tool("tid_quicklook.py"),
+                run([sys.executable, tool("tid_quicklook.py"),
                      "--spectrogram", str(zoom_clean_png)])
                 if zoom_window.exists():
                     with open(zoom_window) as f:
@@ -1401,7 +1464,7 @@ def run_workflow(args):
                     print(f"  │  Keys: F=fit+save  W=redo  Q=done (close window)      │")
                     print(f"  └───────────────────────────────────────────────────────┘")
                     _wave_cmd = [
-                        "python3", tool("tid_spect_click.py"),
+                        sys.executable, tool("tid_spect_click.py"),
                         "--spectrogram", str(zoom_clean_png),
                         "--name", name,
                         "--seg-start", str(max(0.0, t0_h)),
@@ -1480,7 +1543,7 @@ def run_workflow(args):
                               f"the range now used for the other "
                               f"stations...")
                         run([
-                            "python3", tool("drf_spectrogram.py"),
+                            sys.executable, tool("drf_spectrogram.py"),
                             drf_dir_s, "--channel-num", str(sub),
                             "--output", str(zoom_clean_png),
                             "--window", str(window_json),
@@ -1527,7 +1590,7 @@ def run_workflow(args):
                         print(f"  │  Keys: X=export  Z=undo  R=reset  Q=quit             │")
                         print(f"  └──────────────────────────────────────────────────────┘")
                     run([
-                        "python3", tool("tid_spect_click.py"),
+                        sys.executable, tool("tid_spect_click.py"),
                         "--spectrogram", str(zoom_clean_png),
                         "--name", name,
                         "--drf-dir", drf_dir_s,
@@ -1570,7 +1633,7 @@ def run_workflow(args):
                 print(f"  │  Extracting Doppler from DRF...                       │")
                 print(f"  └──────────────────────────────────────────────────────┘")
                 r = run([
-                    "python3", tool("drf_to_doppler.py"),
+                    sys.executable, tool("drf_to_doppler.py"),
                     drf_dir_s,
                     "--channel-num", str(sub),
                     "--start", h_to_iso(date_str, t0_h),
@@ -1596,7 +1659,7 @@ def run_workflow(args):
             if f"{stn_key}_zoom_overlay" not in state:
                 print(f"\n[Step 7] Zoomed spectrogram with FFT overlay for {name}...")
                 r = run([
-                    "python3", tool("drf_spectrogram.py"),
+                    sys.executable, tool("drf_spectrogram.py"),
                     drf_dir_s,
                     "--channel-num", str(sub),
                     "--output", str(zoom_png),
@@ -1681,7 +1744,7 @@ def run_workflow(args):
                 print(f"  Regenerating {name}'s full-day view at "
                       f"\u00b1{custom_val:.2f} Hz...")
                 run([
-                    "python3", tool("drf_spectrogram.py"),
+                    sys.executable, tool("drf_spectrogram.py"),
                     drf_dir_s, "--channel-num", str(sub),
                     "--output", str(fullday_png),
                     "--start", "00:00", "--end", "24:00",
@@ -1697,7 +1760,7 @@ def run_workflow(args):
 
         # Step 3 redo
         print(f"\n[Step 3] Select TID window for {name}...")
-        run(["python3", tool("tid_quicklook.py"),
+        run([sys.executable, tool("tid_quicklook.py"),
              "--spectrogram", str(fullday_png)])
         if not window_json.exists():
             print(f"  WARNING: No window saved — skipping")
@@ -1709,7 +1772,7 @@ def run_workflow(args):
         # Step 4 redo — use fullday window for zoom extent
         print(f"\n[Step 4] Zoomed spectrogram for {name}...")
         run([
-            "python3", tool("drf_spectrogram.py"),
+            sys.executable, tool("drf_spectrogram.py"),
             drf_dir_s, "--channel-num", str(sub),
             "--output", str(zoom_clean_png),
             "--window", str(window_json),
@@ -1727,7 +1790,7 @@ def run_workflow(args):
         # and every call here errored out immediately (harmless since
         # the code doesn't check the return value, but it silently
         # skipped the actual refine interaction every single time).
-        run(["python3", tool("tid_quicklook.py"),
+        run([sys.executable, tool("tid_quicklook.py"),
              "--spectrogram", str(zoom_clean_png)])
         if zoom_window.exists():
             with open(zoom_window) as _f:
@@ -1740,7 +1803,7 @@ def run_workflow(args):
         # uses the correct time range
         print(f"  Regenerating zoom spectrogram with refined window...")
         run([
-            "python3", tool("drf_spectrogram.py"),
+            sys.executable, tool("drf_spectrogram.py"),
             drf_dir_s, "--channel-num", str(sub),
             "--output", str(zoom_clean_png),
             "--window", str(zoom_window) if zoom_window.exists() else str(window_json),
@@ -1773,7 +1836,7 @@ def run_workflow(args):
             print(f"\n[Step 6] Re-running wave-fit extraction for {name}...")
             while True:
                 _wave_cmd = [
-                    "python3", tool("tid_spect_click.py"),
+                    sys.executable, tool("tid_spect_click.py"),
                     "--spectrogram", str(zoom_clean_png),
                     "--name", name,
                     "--seg-start", str(max(0.0, zwj["t_start_utc_hours"])),
@@ -1986,7 +2049,7 @@ def run_workflow(args):
         event_config["stations"] = station_list
         with open(config_path, "w") as f:
             json.dump(event_config, f, indent=2)
-        run(["python3", tool("tid_doa.py"), str(config_path)])
+        run([sys.executable, tool("tid_doa.py"), str(config_path)])
         speed, from_deg, n_flags = None, None, 0
         log_files = sorted((event_dir / "runs").glob("*.log"))
         if log_files:
@@ -2028,10 +2091,20 @@ def run_workflow(args):
             pending_result = None
         else:
             res = _run_doa_once(active_stations)
-        doa_results.append(res)
+        # Real bug found live: even with the reuse above, if nothing
+        # about the active station set actually changed since the last
+        # entry (e.g. ran 'all' and declined to pick a narrower combo),
+        # this appended a second, fully identical entry -- making the
+        # comparison table show the exact same combination twice in a
+        # row for no reason. Skip the append (and the comparison print
+        # it would trigger) when the station set truly hasn't changed.
+        prev = doa_results[-1] if doa_results else None
+        is_dup = prev is not None and set(prev["stations"]) == set(res["stations"])
+        if not is_dup:
+            doa_results.append(res)
         state["doa_done"] = True
         save_state(state_file, state)
-        if len(doa_results) > 1:
+        if len(doa_results) > 1 and not is_dup:
             _print_comparison(doa_results)
         print(f"\n  Active: {[s['name'] for s in active_stations]}"
               + (f"  |  Dropped: {[s['name'] for s in dropped_stations]}"
@@ -2099,6 +2172,20 @@ def run_workflow(args):
                 with open(config_path, "w") as f:
                     json.dump(event_config, f, indent=2)
                 print(f"  Selected: {', '.join(sorted(chosen_names))}")
+            else:
+                # Declined to pick -- active_stations is unchanged, and
+                # the sweep already computed its result (it's one of
+                # the rows just shown). Real bug found live: without
+                # this, the loop fell through with pending_result still
+                # None, silently re-ran tid_doa.py on this exact
+                # already-computed station list a second time, and the
+                # resulting duplicate entry made the next comparison
+                # table show the same row twice.
+                current_names = set(s["name"] for s in active_stations)
+                match = next((r for r in auto_results
+                              if set(r["stations"]) == current_names), None)
+                if match is not None:
+                    pending_result = match
             continue
 
         if upper_ans.startswith("ADD "):
@@ -2147,12 +2234,12 @@ def run_workflow(args):
             with open(doa_result_path) as f:
                 doa_result = json.load(f)
             map_png = event_dir / "tid_map.png"
-            print(f"\n  $ python3 {tool('tid_map.py')} --config "
+            print(f"\n  $ {sys.executable} {tool('tid_map.py')} --config "
                   f"{config_path} --output {map_png} --azimuth-toward "
                   f"{doa_result['azimuth_to_deg']:.1f} --speed "
                   f"{doa_result['speed_m_s']:.1f}")
             r = run([
-                "python3", tool("tid_map.py"),
+                sys.executable, tool("tid_map.py"),
                 "--config", str(config_path),
                 "--output", str(map_png),
                 "--azimuth-toward", f"{doa_result['azimuth_to_deg']:.1f}",
