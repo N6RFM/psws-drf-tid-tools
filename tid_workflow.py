@@ -4,10 +4,26 @@ tid_workflow.py — guided TID direction-of-arrival workflow
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.6.0
+Version: 1.7.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.7.0  Fixed a real duplicate-output bug, spotted live by direct
+          observation of a real run's output showing both the
+          "$ ... tid_map.py ..." command line and its "Wrote ..."
+          confirmation printed twice in a row. Cause: an explicit
+          print of the command right before calling run() duplicated
+          what run() already prints internally (see its own
+          definition), and a separate "Wrote {map_png}" confirmation
+          duplicated tid_map.py's own "Wrote <path>" message (which
+          prints straight through to the terminal already, since
+          run() doesn't capture subprocess output). Both were
+          removed -- confirmed via direct search that this was an
+          isolated case, not a repeated pattern elsewhere in the file
+          (no other call site pairs an explicit command pre-print with
+          run(), and no other post-run confirmation duplicates a
+          message the called script already prints itself).
+
   v1.6.0  Also fixed a real redundant-computation bug, spotted live by
           being asked directly whether a run's output looked
           repetitive rather than assumed fine: after typing 'all' to
@@ -2234,10 +2250,14 @@ def run_workflow(args):
             with open(doa_result_path) as f:
                 doa_result = json.load(f)
             map_png = event_dir / "tid_map.png"
-            print(f"\n  $ {sys.executable} {tool('tid_map.py')} --config "
-                  f"{config_path} --output {map_png} --azimuth-toward "
-                  f"{doa_result['azimuth_to_deg']:.1f} --speed "
-                  f"{doa_result['speed_m_s']:.1f}")
+            # Real duplicate-output bug found live: run() already
+            # prints the command it's about to execute (see its own
+            # definition), and tid_map.py itself already prints its
+            # own "Wrote <path>" confirmation as part of normal
+            # operation (inherited straight to the terminal, since
+            # run() doesn't capture subprocess output) -- an explicit
+            # pre-print of the same command, plus a second, separate
+            # "Wrote" print here, doubled both lines for no reason.
             r = run([
                 sys.executable, tool("tid_map.py"),
                 "--config", str(config_path),
@@ -2246,7 +2266,6 @@ def run_workflow(args):
                 "--speed", f"{doa_result['speed_m_s']:.1f}",
             ])
             if r.returncode == 0 and map_png.exists():
-                print(f"  Wrote {map_png}")
                 try:
                     subprocess.Popen(
                         ["xdg-open", str(map_png)],
