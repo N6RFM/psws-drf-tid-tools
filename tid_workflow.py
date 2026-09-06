@@ -4,10 +4,40 @@ tid_workflow.py — guided TID direction-of-arrival workflow
 
 Part of psws-drf-tid-tools (https://github.com/N6RFM/psws-drf-tid-tools)
 Created by N6RFM with help from Claude AI.
-Version: 1.7.0
+Version: 1.8.0
 License: MIT (do whatever you want, no warranty).
 
 Change log:
+  v1.8.0  Fixed a real, more serious bug found live immediately after
+          the v1.7.0 duplicate-print fix was verified working:
+          tid_doa_result.json -- the file tid_map.py reads speed and
+          azimuth from -- silently went stale after picking a
+          combination from an 'all' sweep. Root cause: the v1.6.0 fix
+          that avoids re-running tid_doa.py when reusing an
+          already-computed result also skipped that run's side effect
+          of writing tid_doa_result.json, so the file kept showing
+          whichever combination happened to run last during the
+          sweep -- not the one actually selected. Confirmed via a real
+          run: sweep tried 4 combinations (the full 4-station set ran
+          last), user picked a different, narrower 3-station
+          combination from the ranked table, and the generated station
+          map silently plotted the *previous* full-set result (569
+          m/s from 22 deg) instead of the one actually chosen (742 m/s
+          from 51 deg) -- a real, meaningfully different direction and
+          speed, not a rounding-level discrepancy.
+
+          Fixed by having _run_doa_once() also capture the complete
+          tid_doa_result.json payload at the moment each combination
+          is genuinely computed (not just the speed/from/flags summary
+          already parsed from the run log), and restoring that exact
+          payload to disk whenever a cached result is reused instead
+          of a fresh subprocess call -- keeping that file's own stated
+          design invariant ("always reflects whatever was run last")
+          true even when the actual tid_doa.py invocation is skipped
+          for efficiency. Verified in isolation against the exact
+          ranked-table values and selection from a real run's own
+          transcript.
+
   v1.7.0  Fixed a real duplicate-output bug, spotted live by direct
           observation of a real run's output showing both the
           "$ ... tid_map.py ..." command line and its "Wrote ..."
@@ -2061,7 +2091,18 @@ def run_workflow(args):
         and parse (speed, from_deg, n_flags) out of the run log it
         writes. n_flags stays 0 both when the log says '0 of 5' and
         when it says every diagnostic passed -- both mean zero flags,
-        so the same default correctly covers either wording."""
+        so the same default correctly covers either wording.
+
+        Also captures the full tid_doa_result.json payload tid_doa.py
+        itself just wrote (that file's own design principle is to
+        "always reflect whatever was run last" -- see its own writer's
+        docstring). Needed because picking a combination from an
+        'all' sweep later reuses this cached summary instead of
+        re-running tid_doa.py (see pending_result below), which would
+        otherwise leave that file showing whichever combination
+        happened to run last in the sweep -- not the one actually
+        selected. A real bug found live: the station map read that
+        stale file and silently plotted the wrong speed/direction."""
         event_config["stations"] = station_list
         with open(config_path, "w") as f:
             json.dump(event_config, f, indent=2)
@@ -2080,8 +2121,17 @@ def run_workflow(args):
                 if "diagnostic(s) outside" in line:
                     try: n_flags = int(line.strip().split()[1])
                     except: pass
+        doa_json_path = event_dir / "tid_doa_result.json"
+        doa_json_payload = None
+        if doa_json_path.exists():
+            try:
+                with open(doa_json_path) as f:
+                    doa_json_payload = json.load(f)
+            except Exception:
+                pass
         return {"stations": [s["name"] for s in station_list],
-                "speed": speed, "from": from_deg, "flags": n_flags}
+                "speed": speed, "from": from_deg, "flags": n_flags,
+                "_doa_json": doa_json_payload}
 
     def _print_comparison(results):
         print(f"\n  Comparison:")
@@ -2105,6 +2155,27 @@ def run_workflow(args):
             # stuck looping instead of confirming your choice.
             res = pending_result
             pending_result = None
+            # Real, more serious bug found live: reusing the cached
+            # summary above (correctly) skips re-running tid_doa.py,
+            # but tid_doa.py writing tid_doa_result.json is a SIDE
+            # EFFECT of that run -- skipping the run also skipped
+            # updating that file, so it kept showing whichever
+            # combination happened to run last during the 'all' sweep,
+            # not the one actually selected. The station-map step reads
+            # that exact file, and silently plotted the wrong
+            # speed/direction as a result. Restoring the full payload
+            # captured at the moment this combination was genuinely
+            # computed (see _run_doa_once) keeps that file's own stated
+            # design invariant -- "always reflects whatever was run
+            # last" -- true even when the actual subprocess call is
+            # skipped for efficiency.
+            doa_json = res.get("_doa_json")
+            if doa_json is not None:
+                try:
+                    with open(event_dir / "tid_doa_result.json", "w") as f:
+                        json.dump(doa_json, f, indent=2)
+                except Exception:
+                    pass
         else:
             res = _run_doa_once(active_stations)
         # Real bug found live: even with the reuse above, if nothing
